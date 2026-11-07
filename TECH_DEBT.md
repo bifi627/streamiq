@@ -65,21 +65,6 @@ bundle contains no grpc code. No `overrides` forced into a module we don't load;
 
 **Pay down:** when a firebase release moves firestore off grpc-js 1.9 (check at each deps sweep), or immediately if we start using Firestore.
 
-### npm audit: e2e glob/minimatch (via testcontainers)
-**Area:** e2e / npm audit
-
-7 moderate entries = 2 advisories: glob GHSA-3g3m-2fjr-6pw4 (AbortSignal timeout
-bypass) and minimatch GHSA-g3hv-75wg-m249 (pattern DoS), via `testcontainers` →
-`archiver@7` → `archiver-utils` (glob 10) / `readdir-glob` (minimatch 5). Not
-reachable: test-only, and archiver only tars our own `firebase.json`
-(testcontainers never calls `glob()`; patterns are ours, no untrusted input).
-Fixes (glob 14.0.2 / minimatch 11.0.1, both still CJS with the same `sync` /
-`Minimatch` exports) shipped 2026-10-27/28 — too young for `min-release-age=7`.
-`audit fix --force` would downgrade testcontainers to 10.x; archiver 8 is
-ESM-only, so it can't be overridden in.
-
-**Pay down:** from 2026-11-04: add `"overrides": { "glob": "^14.0.2", "minimatch": "^11.0.1" }` to `e2e/package.json`, `npm install`, confirm `npm audit` is clean + e2e green. Or drop it if testcontainers moves to archiver 8 first.
-
 ### No Postgres backup/restore story
 **Area:** control-plane / Railway Postgres
 

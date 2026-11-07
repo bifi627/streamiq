@@ -57,3 +57,81 @@ set) until the first browser is paired. Needs the heartbeat to carry the
 Jellyfin status (today it's only on the local page).
 
 **When:** before non-owner households install (with auto-update + signing).
+
+### Non-admin Jellyfin credential for the gateway
+**Area:** gateway / security
+
+The gateway holds a Jellyfin API key, and API keys are always admin, so the
+tunnel allowlist (`gateway/internal/tunnel/jellyfin.go`) is the *only* thing
+between a paired browser and full Jellyfin admin. Plan: during setup
+(`gateway/internal/jellyfin`, `bootstrap` / `Login`), use the admin sign-in
+once to create a dedicated non-admin `streamiq` user (`POST /Users/New`, policy:
+not admin, no deletion, no remote control, optionally limited libraries), then
+sign in as it and keep that session's `AccessToken` (no logout) instead of
+minting an API key. Store token + password in `state/jellyfin.json` so the
+gateway can sign in again if the token is revoked (it shows up as a device in
+the dashboard). Upgrade path for existing installs: on the next admin login,
+switch to the new token and delete the old `streamiq-gateway` key. Bonus: the token implies the
+user, so the `/Users` lookup that pins the user mostly goes away, and one token per
+Jellyfin user is the path to per-member profiles. The allowlist stays: the user can
+still change its own settings, create playlists, and see its own sessions.
+Verify on 12.4: password change vs token lifetime; what to do with the
+`STREAMIQ_JELLYFIN_API_KEY` override (still admin).
+
+**When:** item 6 (hardening).
+
+### User metadata on the gateway
+**Area:** gateway / client
+
+Things users add that Jellyfin can't store: custom tags, marked segments ("special
+moments" on the seek bar), notes, lists. Prefer Jellyfin's own features first
+(favorites `POST /UserFavoriteItems/{id}`, rating/likes in `UserData`: one
+allowlist line + UI each). Decided (2026-11-07): the rest lives on the **gateway**,
+not the control plane. Nothing leaves home and no crypto is needed, and while the
+gateway is offline the library can't be browsed anyway, so the control plane's
+availability buys nothing. The control plane option needed HMAC'd item IDs +
+browser-side encrypted text + key distribution. Plan: `metadata.json` in the state
+dir (JSON with a `version` field; additive changes need no migration; write via
+temp file + rename), served by the gateway itself under a `/streamiq/*` prefix in
+the tunnel (not forwarded to Jellyfin). Key records by a stable ID (provider ID
+such as TMDB/IMDb, else file path), not the Jellyfin item ID, so the data survives
+a reinstall or a media-server switch. Move to SQLite (`modernc.org/sqlite`, pure
+Go; `mattn` needs cgo and breaks cross-compiled releases) only when it outgrows
+JSON. Version skew: the web app is always newer than a user-updated gateway, so
+the browser checks the gateway version (already in the heartbeat) per feature and
+says "update your gateway". Profiles caveat: until there are per-member Jellyfin
+users (see "Non-admin Jellyfin credential for the gateway"), metadata is shared by
+the whole household.
+
+**When:** first feature Jellyfin can't do (likely custom segments).
+
+### Gateway backup / restore
+**Area:** gateway
+
+A single file the user can keep: "Download backup" on the local page (`:8097`)
+zips the state dir (stdlib `archive/zip`); "Restore" unpacks it. Storage stays a
+folder; only the backup is one file. Contents: identity cert + key, pairing
+allowlist, Jellyfin credentials, user metadata. So it **is a secret**: encrypt
+with a passphrase or warn loudly. Restore keeps the gateway identity, so paired
+clients stay paired after a failed install or a new machine. It also clones the
+gateway: decide what happens if the old one still runs (API rejects duplicates,
+or the last one to connect wins). Not included: Jellyfin's own `config` volume
+(library, watch history). Say so, or add it as a follow-up. Needs user docs:
+new section in `docs/install.md` (what's in the backup, keep it safe, how to
+restore after a reinstall / to a new machine, what's not covered), plus a short
+hint on the local page.
+
+**When:** before non-owner households install, or with "User metadata on the gateway".
+
+### Encrypted off-site backup
+**Area:** gateway / control plane
+
+Disk-loss protection without the user managing storage: the gateway encrypts
+the backup (from "Gateway backup / restore") with a household key and uploads it
+to the control plane as one opaque blob. The control plane learns nothing, not
+even per-item counts, which is stronger than per-row encryption. Key loss = the
+backup is unreadable: show a recovery code on the local page once. User docs:
+what we store (an encrypted blob), what we can't read, and that the recovery
+code is the only way back.
+
+**When:** after local backup/restore exists and users actually lose data.

@@ -93,7 +93,7 @@ builder.Services.AddHttpClient(); // broker -> Cloudflare TURN
 // A flood shield, loose on purpose: users behind one shared IP (carrier NAT) share
 // this budget. ponytail: no per-user limit; add one keyed on the verified user in
 // BrowserSocket if a single account ever abuses it. In-memory per instance, like
-// the broker registry (TECH_DEBT.md).
+// the broker registry (issue #40).
 var clientIpHeader = builder.Configuration["STREAMIQ_CLIENT_IP_HEADER"];
 var signalingPerMinute = builder.Configuration.GetValue("STREAMIQ_SIGNALING_PER_MINUTE", 120);
 builder.Services.AddRateLimiter(o =>

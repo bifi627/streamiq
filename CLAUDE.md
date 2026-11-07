@@ -28,8 +28,8 @@ and remux over the tunnel, 4K feasible via ABR. Full record + criteria mapping:
 `docs/poc-connectivity-spike.md`. POC code (hardcoded room `poc`, no
 auth/tenancy) was deleted in item 5 PR A; git holds it. Carried into MVP (non-blocking): iOS
 Safari device test, codec census over real libraries, Jellyfin NAS footprint +
-GPLv2 check. **Next work: Phase 1 MVP item 6 (hardening)**, the last step of the
-implementation plan's build order; items 1–5 are complete (below).
+GPLv2 check. Phase 1 MVP items 1–5 are complete (below); item 6 (hardening) is in
+progress. Open work: `gh issue list`.
 
 **Phase 1 MVP — item 1 (control-plane foundation) complete.** Migration #1
 (tenants/users/devices, now `gateways`), Firebase ID-token verification (FirebaseAdmin, same path
@@ -79,9 +79,8 @@ in `ready` and revoked at its end (`GET /turn` is gone; dev coturn uses TURN RES
 kept for telemetry, sockets + sessions closed). Removing a client on the gateway page
 closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).
 **Local-page secret:** the page no longer shows the Jellyfin admin password, only the path
-of `state/jellyfin.json` (0600) holding it (page login stays TECH_DEBT.md "Local page
-actions unauthenticated on the LAN"). Still open in item 6: Postgres backup/restore
-deferred (TECH_DEBT.md).
+of `state/jellyfin.json` (0600) holding it (page login: #42).
+Postgres backup/restore deferred (#44).
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,
@@ -161,6 +160,22 @@ Copy `.env.example` only to override.
 ## Working rules (harness — rationale in `docs/ai-harness-playbook.md`)
 
 - **Ready before code:** a task has acceptance criteria + an explicit out-of-scope list.
+- **Tracking = GitHub Issues** (bugs, tech debt, ideas, features; no tracking files).
+  - Labels: one type (`bug` / `tech-debt` / `idea`), `area:*`, `p1`–`p3` (soon /
+    normal / someday), `size:s|m|l|xl`. `needs-spec` = no acceptance criteria yet:
+    don't start it. Template: `.github/ISSUE_TEMPLATE/task.md`.
+  - One issue → one worktree thread → one PR. Branch `<type>/<n>-<slug>`
+    (`fix/42-cert-rotation`); PR body `Fixes #<n>`. Multi-PR feature = parent issue
+    (links its spec) + sub-issues.
+  - Before starting: `gh issue view <n>`, and check the issue has no linked PR (taken).
+    Open a draft PR early so the issue shows it's taken.
+  - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a
+    duplicate, then **propose** the issue (title, labels, body) in chat; create it only
+    after the owner approves.
+  - Security-sensitive findings never go in a public issue (public repo): tell the owner.
+- **Current state below is not a status log.** Don't append per-PR progress there (it
+  was the merge-conflict hotspot); open work lives in `gh issue list`. Edit it only when
+  a lasting fact changes (new item complete, new architecture piece).
 - **Done means:** `scripts/check.sh` ran and its output was read; the changed flow was
   actually driven (curl / UI / test output shown); docs invalidated by the change updated
   in the same diff. "It should work" is not evidence.

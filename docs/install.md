@@ -50,21 +50,27 @@ refuses a mismatch.
 ## 3. Connect Jellyfin
 
 The local page's status shows **Jellyfin: reachable** and whether the gateway
-has an **API key**:
+has its **token**. The gateway streams as its own hidden Jellyfin user,
+`streamiq-viewer`: not an administrator, can't delete anything, sees all
+libraries and keeps its own watch progress (separate from yours in Jellyfin).
 
 - **Fresh Jellyfin** (wizard not done): nothing to do. Within seconds the
   gateway completes the wizard, creates the Jellyfin admin `streamiq` with a
-  random password. The local page shows where the password is
-  (`state/jellyfin.json`, readable only on this computer), never the password
-  itself. You use it to
-  manage Jellyfin.
+  random password, and creates `streamiq-viewer`. The local page shows where
+  the admin password is (`state/jellyfin.json`, readable only on this
+  computer), never the password itself. You use it to manage
+  Jellyfin.
 - **Jellyfin already set up:** the page shows **Connect Jellyfin**. Sign in once
-  with a Jellyfin administrator. The gateway creates an API key named
-  `streamiq-gateway` and keeps only the key (`state/jellyfin.json`), never the
-  password, so changing the password later doesn't break anything. Playback
-  uses that user's libraries and watch progress (`STREAMIQ_JELLYFIN_USER` in
-  `gateway.env` picks another user).
-- `STREAMIQ_JELLYFIN_API_KEY` in `gateway.env` overrides both.
+  with a Jellyfin administrator. The gateway uses that session to create
+  `streamiq-viewer`, then signs out. It never stores your password, so
+  changing it later doesn't break anything.
+
+If the token stops working (for example you signed the gateway out under
+Dashboard → Devices), the gateway signs in again by itself. If you deleted
+`streamiq-viewer` or changed its password, the page asks you to **Connect
+Jellyfin** again. A gateway set up before this change uses an admin API key
+and shows **admin API key: reconnect Jellyfin**: sign in once, and the
+gateway switches over and deletes the old key.
 
 The page warns when Jellyfin runs a version the gateway wasn't tested with.
 
@@ -100,7 +106,7 @@ is kept, so paired browsers don't need to pair again.
 |---|---|---|
 | Install dir | `%LOCALAPPDATA%\streamiq` | `~/.local/share/streamiq` |
 | Settings | `gateway.env` (yours, kept on updates) | same |
-| Identity, paired browsers, Jellyfin key, page token | `state\` (never touched by updates) | `state/` |
+| Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates) | `state/` |
 | Log | `gateway.log` | `gateway.log` |
 
 `STREAMIQ_DIR` overrides the install dir. Set `STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` on

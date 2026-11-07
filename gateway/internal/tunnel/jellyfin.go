@@ -2,7 +2,6 @@ package tunnel
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,45 +9,36 @@ import (
 	"path"
 	"regexp"
 	"strings"
-	"sync"
 	"sync/atomic"
 )
 
 // Jellyfin is the tunnel's only origin, plus the policy that keeps a paired
 // browser a *viewer* (docs/protocol.md, "Jellyfin policy"):
-//   - the browser never holds a Jellyfin credential: the gateway injects its API
-//     key and strips any the browser sends; response text that echoes the key
-//     (Jellyfin writes ApiKey= into subtitle playlist URLs) is redacted;
-//   - an API key is admin, so only an allowlist of consumption endpoints passes;
-//   - every request is pinned to the household's Jellyfin user (userId).
+//   - the browser never holds a Jellyfin credential: the gateway injects its
+//     token and strips any the browser sends; response text that echoes the
+//     token (Jellyfin writes ApiKey= into subtitle playlist URLs) is redacted;
+//   - the token belongs to a non-admin viewer user (internal/jellyfin), and an
+//     allowlist of consumption endpoints still applies (defense in depth; a
+//     pre-#50 install runs on an admin API key until it reconnects);
+//   - every request is pinned to the token's Jellyfin user (userId).
 type Jellyfin struct {
 	Client *http.Client
 	URL    string // e.g. http://localhost:8096
-	User   string // STREAMIQ_JELLYFIN_USER (name); "" = the only user
 
-	key    atomic.Pointer[string] // SetKey; may arrive after start (internal/jellyfin)
-	mu     sync.Mutex
-	userID string
+	cred atomic.Pointer[cred] // SetKey; may arrive after start (internal/jellyfin)
 }
 
-// SetKey installs the API key and, if user != "" and no user is configured,
-// the user to pin. Safe while sessions run.
-func (j *Jellyfin) SetKey(key, user string) {
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	if j.User == "" {
-		j.User = user
-	}
-	j.userID = ""
-	j.key.Store(&key)
-}
+type cred struct{ key, userID string }
 
-// Key is the current API key ("" = none yet).
-func (j *Jellyfin) Key() string {
-	if k := j.key.Load(); k != nil {
-		return *k
+// SetKey installs the token and the Jellyfin user id it belongs to. Safe
+// while sessions run.
+func (j *Jellyfin) SetKey(key, userID string) { j.cred.Store(&cred{key, userID}) }
+
+func (j *Jellyfin) current() cred {
+	if c := j.cred.Load(); c != nil {
+		return *c
 	}
-	return ""
+	return cred{}
 }
 
 const (
@@ -90,8 +80,9 @@ func allow(method, p string) bool {
 // prepare turns a browser request frame into the origin request, or returns
 // the HTTP status to refuse it with.
 func (j *Jellyfin) prepare(rq tunnelReq) (*http.Request, int, error) {
-	if j.Key() == "" {
-		return nil, http.StatusServiceUnavailable, fmt.Errorf("no Jellyfin API key yet (see the gateway's local page)")
+	c := j.current()
+	if c.key == "" || c.userID == "" {
+		return nil, http.StatusServiceUnavailable, fmt.Errorf("no Jellyfin token yet (see the gateway's local page)")
 	}
 	u, err := url.Parse(rq.URL)
 	if err != nil || u.IsAbs() || u.RawPath != "" || u.Path != path.Clean(u.Path) ||
@@ -101,10 +92,6 @@ func (j *Jellyfin) prepare(rq tunnelReq) (*http.Request, int, error) {
 	if len(rq.Body) > MaxBody {
 		return nil, http.StatusRequestEntityTooLarge, fmt.Errorf("body %d bytes", len(rq.Body))
 	}
-	uid, err := j.user()
-	if err != nil {
-		return nil, http.StatusBadGateway, err
-	}
 	q := u.Query()
 	for k := range q {
 		switch strings.ToLower(k) {
@@ -112,7 +99,7 @@ func (j *Jellyfin) prepare(rq tunnelReq) (*http.Request, int, error) {
 			q.Del(k)
 		}
 	}
-	q.Set("userId", uid)
+	q.Set("userId", c.userID)
 	u.RawQuery = q.Encode()
 
 	var body io.Reader
@@ -138,11 +125,11 @@ func (j *Jellyfin) prepare(rq tunnelReq) (*http.Request, int, error) {
 	if rq.Body != "" && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Set("Authorization", `MediaBrowser Token="`+j.Key()+`"`)
+	req.Header.Set("Authorization", `MediaBrowser Token="`+c.key+`"`)
 	return req, 0, nil
 }
 
-// redact buffers text responses (JSON, playlists) and removes the API key.
+// redact buffers text responses (JSON, playlists) and removes the token.
 // Media (video/*, image/*) streams through untouched.
 func (j *Jellyfin) redact(hdr map[string]string, body io.ReadCloser) (io.ReadCloser, error) {
 	ct := strings.ToLower(hdr["Content-Type"])
@@ -157,38 +144,9 @@ func (j *Jellyfin) redact(hdr map[string]string, body io.ReadCloser) (io.ReadClo
 	if len(b) > maxText {
 		return nil, fmt.Errorf("text response over %d bytes", maxText)
 	}
-	b = bytes.ReplaceAll(b, []byte(j.Key()), []byte("redacted"))
+	if k := j.current().key; k != "" {
+		b = bytes.ReplaceAll(b, []byte(k), []byte("redacted"))
+	}
 	hdr["Content-Length"] = fmt.Sprint(len(b))
 	return io.NopCloser(bytes.NewReader(b)), nil
-}
-
-// user resolves (once) the household's Jellyfin user id. Lazy, so the gateway
-// starts before Jellyfin is up; a failure is retried on the next request.
-func (j *Jellyfin) user() (string, error) {
-	j.mu.Lock()
-	defer j.mu.Unlock()
-	if j.userID != "" {
-		return j.userID, nil
-	}
-	req, _ := http.NewRequest("GET", j.URL+"/Users", nil)
-	req.Header.Set("Authorization", `MediaBrowser Token="`+j.Key()+`"`)
-	resp, err := j.Client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("jellyfin users: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("jellyfin users: HTTP %d (check STREAMIQ_JELLYFIN_API_KEY)", resp.StatusCode)
-	}
-	var users []struct{ Name, Id string }
-	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
-		return "", fmt.Errorf("jellyfin users: %w", err)
-	}
-	for _, u := range users {
-		if (j.User == "" && len(users) == 1) || strings.EqualFold(u.Name, j.User) {
-			j.userID = u.Id
-			return u.Id, nil
-		}
-	}
-	return "", fmt.Errorf("jellyfin: %d users and none named %q; set STREAMIQ_JELLYFIN_USER", len(users), j.User)
 }

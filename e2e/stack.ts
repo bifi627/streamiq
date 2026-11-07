@@ -5,6 +5,7 @@ import { createHmac } from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
+import { JELLYFIN_ADMIN } from './jellyfin'
 
 export const root = path.resolve(import.meta.dirname, '..')
 export const logs = path.join(import.meta.dirname, 'logs')
@@ -83,7 +84,6 @@ export async function startGateway(
     STREAMIQ_PAGE_PORT: String(port),
     STREAMIQ_LAN_URL: pageUrl,
     STREAMIQ_ORIGIN: process.env.E2E_JELLYFIN_URL!,
-    STREAMIQ_JELLYFIN_API_KEY: process.env.E2E_JELLYFIN_API_KEY!,
     ...env,
   }
   const p = process.env.E2E_GATEWAY_IMAGE
@@ -93,6 +93,19 @@ export async function startGateway(
         env: gwEnv,
       })
   await waitHttp(pageUrl, p)
+  // First start: connect Jellyfin the way a person does, with an admin login on
+  // the local page; the gateway keeps only its viewer token (state/jellyfin.json).
+  if (!fs.existsSync(path.join(stateDir, 'jellyfin.json'))) {
+    const res = await fetch(pageUrl + '/jellyfin/login', {
+      method: 'POST',
+      headers: { Origin: pageUrl },
+      body: new URLSearchParams(JELLYFIN_ADMIN),
+      redirect: 'manual',
+    })
+    if (res.status !== 303) {
+      throw new Error(`gateway Jellyfin login: HTTP ${res.status} ${await res.text()}`)
+    }
+  }
   return { ...p, pageUrl }
 }
 

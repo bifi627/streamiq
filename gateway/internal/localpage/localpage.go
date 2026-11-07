@@ -50,7 +50,7 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 <li>Jellyfin: {{if .Reachable}}<b>reachable</b> · version {{.Version}}
 {{if .Untested}} · <b style="color:#c80">not tested with this gateway (tested: {{.Tested}}.x)</b>{{end}}
 {{else}}<b style="color:#c00">not reachable</b>{{end}}
-· API key: {{if .HasKey}}<b>set</b>{{if .User}} (user {{.User}}){{end}}{{else}}<b style="color:#c00">missing</b>, playback refused{{end}}</li>
+· token: {{if .LegacyKey}}<b style="color:#c80">admin API key: reconnect Jellyfin</b>{{else if .HasKey}}<b>set</b> (user {{.Viewer}}){{else}}<b style="color:#c00">missing</b>, playback refused{{end}}</li>
 {{if .Err}}<li style="color:#c00">{{.Err}}</li>{{end}}
 {{end}}
 </ul>
@@ -59,8 +59,9 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 <b>{{.User}}</b> · password in <code>{{.PasswordFile}}</code> (open it on this computer)</p>{{end}}
 {{if .NeedsLogin}}
 <form method="post" action="/jellyfin/login" style="border:2px solid #c80;padding:.5rem 1rem">
-<p><b>Connect Jellyfin.</b> Sign in once with a Jellyfin administrator. The gateway creates an
-API key with it and keeps only the key, not the password. Playback uses this user's library.</p>
+<p><b>Connect Jellyfin.</b> Sign in once with a Jellyfin administrator. The gateway uses it to
+create the hidden, non-admin user <code>streamiq-viewer</code> and streams as that user (its own
+watch progress). Your password is not stored.</p>
 <p><input name="user" placeholder="Jellyfin user" required autocomplete="username">
 <input name="pw" type="password" placeholder="Password" autocomplete="current-password">
 <button>Connect</button></p>
@@ -90,7 +91,7 @@ type Config struct {
 	Update                                *atomic.Pointer[string] // update notice, "" = up to date
 	Store                                 *pairing.Store
 	Jellyfin                              func() any                                       // status snapshot (jellyfin.View)
-	Login                                 func(ctx context.Context, user, pw string) error // mint a Jellyfin key
+	Login                                 func(ctx context.Context, user, pw string) error // connect Jellyfin (viewer token)
 }
 
 // Handler renders the status page and takes the Approve/Reject/Remove and

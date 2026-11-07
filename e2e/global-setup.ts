@@ -103,9 +103,7 @@ export default async function globalSetup() {
       '-c:v libx264 -pix_fmt yuv420p -c:a aac -shortest -metadata title="streamiq e2e clip" "$D/streamiq e2e clip.mp4" && ' +
       `printf '1\n00:00:00,000 --> 00:00:30,000\nstreamiq e2e subtitle\n' > "$D/streamiq e2e clip.en.srt"`,
   )
-  process.env.E2E_JELLYFIN_API_KEY = await setupJellyfin(
-    process.env.E2E_JELLYFIN_URL,
-  )
+  await setupJellyfin(process.env.E2E_JELLYFIN_URL)
 
   const apiPort = await freePort()
   const api = `http://127.0.0.1:${apiPort}`

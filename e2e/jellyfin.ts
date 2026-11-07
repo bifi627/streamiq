@@ -1,10 +1,12 @@
-// Completes Jellyfin's first-run wizard over its HTTP API and returns an API key
-// for the gateway (STREAMIQ_JELLYFIN_API_KEY). Test-only: in dev the owner does this
-// once by hand in the Jellyfin dashboard. Media is expected at /media.
+// Completes Jellyfin's first-run wizard over its HTTP API (admin JELLYFIN_ADMIN)
+// and adds the /media library. The gateway then connects the real way: an admin
+// login on its local page (stack.ts), which gives it its viewer token. Test-only.
 const AUTH =
   'MediaBrowser Client="streamiq-e2e", Device="e2e", DeviceId="streamiq-e2e", Version="1"'
 
-export async function setupJellyfin(base: string): Promise<string> {
+export const JELLYFIN_ADMIN = { user: 'streamiq', pw: 'streamiq-e2e' }
+
+export async function setupJellyfin(base: string): Promise<void> {
   const call = async (path: string, init: RequestInit = {}, token?: string) => {
     const res = await fetch(base + path, {
       ...init,
@@ -36,13 +38,13 @@ export async function setupJellyfin(base: string): Promise<string> {
     }
   }
   await call('/Startup/User') // the wizard creates the first user lazily on GET
-  await post('/Startup/User', { Name: 'streamiq', Password: 'streamiq-e2e' })
+  await post('/Startup/User', { Name: JELLYFIN_ADMIN.user, Password: JELLYFIN_ADMIN.pw })
   await post('/Startup/RemoteAccess', { EnableRemoteAccess: true })
   await post('/Startup/Complete', {})
 
   const login = await post('/Users/AuthenticateByName', {
-    Username: 'streamiq',
-    Pw: 'streamiq-e2e',
+    Username: JELLYFIN_ADMIN.user,
+    Pw: JELLYFIN_ADMIN.pw,
   })
   const token: string = login.AccessToken
   await post(
@@ -50,11 +52,6 @@ export async function setupJellyfin(base: string): Promise<string> {
     { LibraryOptions: { EnableInternetProviders: false } },
     token,
   )
-  await call('/Auth/Keys?app=streamiq', { method: 'POST' }, token)
-  const keys = await call('/Auth/Keys', {}, token)
-  const key: string = keys.Items.find(
-    (k: { AppName: string }) => k.AppName === 'streamiq',
-  ).AccessToken
 
   // The scan is async, and the one refreshLibrary=true starts can race the new
   // library's options (it then indexes /media as a plain folder): re-kick a
@@ -64,9 +61,9 @@ export async function setupJellyfin(base: string): Promise<string> {
     const items = await call(
       `/Items?userId=${login.User.Id}&recursive=true&includeItemTypes=Movie`,
       {},
-      key,
+      token,
     )
-    if (items.TotalRecordCount > 0) return key
+    if (items.TotalRecordCount > 0) return
     await new Promise((r) => setTimeout(r, 1000))
   }
   throw new Error('jellyfin: library scan found no media after 120s')

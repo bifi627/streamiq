@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
   Mint short-lived Cloudflare Realtime TURN credentials for the gateway, and
-  print the env vars ready to paste. Gateway-only: browsers get their TURN
-  creds from the API's GET /turn.
+  print the env vars ready to paste. Gateway-only: browsers get a per-session
+  TURN credential from the API's broker (`ready` message).
 
 .DESCRIPTION
   Calls Cloudflare's generate-ice-servers endpoint with your TURN key, saves the

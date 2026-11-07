@@ -75,7 +75,9 @@ builder.Services.AddHttpClient(); // broker -> Cloudflare TURN
 // Signaling rate limit: new sockets + enrollments per client IP per minute. The
 // client IP comes from STREAMIQ_CLIENT_IP_HEADER when set (prod: Railway's
 // X-Real-IP, set in the Dockerfile; a Cloudflare proxy would be CF-Connecting-IP),
-// else the TCP peer. Never X-Forwarded-For: the client can write into it.
+// else RemoteIpAddress. Never the raw X-Forwarded-For header (the client writes
+// its left entries); in the image, RemoteIpAddress is its rightmost entry, which
+// Railway's proxy appends (ASPNETCORE_FORWARDEDHEADERS_ENABLED).
 // A flood shield, loose on purpose: users behind one shared IP (carrier NAT) share
 // this budget. ponytail: no per-user limit; add one keyed on the verified user in
 // BrowserSocket if a single account ever abuses it. In-memory per instance, like

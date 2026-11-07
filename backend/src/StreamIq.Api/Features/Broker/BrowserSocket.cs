@@ -31,6 +31,7 @@ public static class BrowserSocket
             Guid session = Guid.Empty;
             Broker.Link? gateway = null;
             string? turnUsername = null;
+            HttpClient? turnHttp = null;
             try
             {
                 // Same verify path as the HTTP API (FirebaseAuthHandler), no bypass.
@@ -56,12 +57,15 @@ public static class BrowserSocket
                 db.CurrentTenantId = user.TenantId;
                 var me = new Broker.Link(socket, user.TenantId, Guid.Empty);
                 JsonArray iceServers;
+                // A slow TURN provider must not stall the session: fail fast to STUN.
+                turnHttp = http.CreateClient();
+                turnHttp.Timeout = TimeSpan.FromSeconds(5);
                 try
                 {
-                    var issued = await TurnCredentials.IssueAsync(cfg, http.CreateClient(), user.Id.ToString(), ct);
+                    var issued = await TurnCredentials.IssueAsync(cfg, turnHttp, user.Id.ToString(), ct);
                     (iceServers, turnUsername) = (issued.IceServers, issued.RevokeUsername);
                 }
-                catch (Exception e) when (e is not OperationCanceledException)
+                catch (Exception e) when (!ct.IsCancellationRequested)   // incl. the HttpClient timeout
                 {
                     log.LogWarning(e, "TURN credential issue failed; session gets STUN only");
                     iceServers = TurnCredentials.StunOnly();
@@ -113,11 +117,11 @@ public static class BrowserSocket
                 {
                     await gateway.SendAsync(new JsonObject { ["type"] = "bye", ["session"] = session.ToString() }, CancellationToken.None);
                 }
-                if (turnUsername is not null)
+                if (turnUsername is not null && turnHttp is not null)
                 {
                     try
                     {
-                        await TurnCredentials.RevokeAsync(cfg, http.CreateClient(), turnUsername, CancellationToken.None);
+                        await TurnCredentials.RevokeAsync(cfg, turnHttp, turnUsername, CancellationToken.None);
                     }
                     catch (Exception e)
                     {

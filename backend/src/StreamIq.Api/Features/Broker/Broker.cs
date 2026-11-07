@@ -25,20 +25,28 @@ public static class Broker
         public Guid TenantId => tenantId;
         public Guid GatewayId => gatewayId;
 
-        /// Ends this link from outside its own loop (revocation): close frame under
-        /// the send lock, then abort so a peer that never answers can't linger.
-        /// Its reader loop then throws and runs its normal cleanup.
+        /// Ends this link from outside its own loop (revocation): a best-effort close
+        /// frame (at most 2 s for the send lock + the frame, so a peer that stopped
+        /// reading can't stall the caller), then abort. Its reader loop then throws
+        /// and runs its normal cleanup.
         public async Task KillAsync(string reason)
         {
-            await _send.WaitAsync();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             try
             {
-                await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, reason, CancellationToken.None);
+                await _send.WaitAsync(cts.Token);
+                try
+                {
+                    await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, reason, cts.Token);
+                }
+                finally
+                {
+                    _send.Release();
+                }
             }
             catch (Exception) { }
             finally
             {
-                _send.Release();
                 socket.Abort();
             }
         }

@@ -38,7 +38,10 @@ export async function setupJellyfin(base: string): Promise<void> {
     }
   }
   await call('/Startup/User') // the wizard creates the first user lazily on GET
-  await post('/Startup/User', { Name: JELLYFIN_ADMIN.user, Password: JELLYFIN_ADMIN.pw })
+  await post('/Startup/User', {
+    Name: JELLYFIN_ADMIN.user,
+    Password: JELLYFIN_ADMIN.pw,
+  })
   await post('/Startup/RemoteAccess', { EnableRemoteAccess: true })
   await post('/Startup/Complete', {})
 

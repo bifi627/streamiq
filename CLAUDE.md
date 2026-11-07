@@ -28,9 +28,8 @@ and remux over the tunnel, 4K feasible via ABR. Full record + criteria mapping:
 `docs/poc-connectivity-spike.md`. POC code (hardcoded room `poc`, no
 auth/tenancy) was deleted in item 5 PR A; git holds it. Carried into MVP (non-blocking): iOS
 Safari device test, codec census over real libraries, Jellyfin NAS footprint +
-GPLv2 check. **Next work: Phase 1 MVP, build order in the implementation plan**
-(control plane → gateway pairing with fingerprint pinning → tenant-isolated
-signaling → productized gateway → streaming client → hardening).
+GPLv2 check. **Next work: Phase 1 MVP item 6 (hardening)**, the last step of the
+implementation plan's build order; items 1–5 are complete (below).
 
 **Phase 1 MVP — item 1 (control-plane foundation) complete.** Migration #1
 (tenants/users/devices, now `gateways`), Firebase ID-token verification (FirebaseAdmin, same path
@@ -50,7 +49,7 @@ session-bound connection auth, commit/reveal comparison code approved on the gat
 page, allowlist, pins enforced both directions; protocol in `docs/protocol.md`.
 **Item 4 — productized gateway** (design: `docs/superpowers/specs/2026-11-04-streamiq-gateway-productization-design.md`;
 pivoted from a Docker sidecar after a spike: on Docker Desktop, a containerized gateway gets
-relayed on cellular). **PR A (in progress):** native binaries on GitHub Releases
+relayed on cellular). Complete. **PR A:** native binaries on GitHub Releases
 (`gateway-v*` tag → `release-gateway.yml`), `install.sh`/`install.ps1` (install = update,
 SHA256-checked), `gateway.env` config file, daily update *notice* (notify-only, which is a
 recorded plan deviation), version in heartbeat + Gateways list (migration #5), JSON logs.
@@ -72,7 +71,6 @@ paths are deleted. **PR B (trust it):** `GET /turn` (Cloudflare creds in prod,
 the POC's `poc_connectivity`), privacy indicator (direct vs relayed); `?relay`
 forces the relay path. **Hosting:** the root `Dockerfile` builds the SPA into the
 API image (`wwwroot`, same origin, no CORS in prod); Railway Root Directory = repo root.
-Next: item 6 (hardening).
 
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was

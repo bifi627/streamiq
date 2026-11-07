@@ -2,7 +2,6 @@
 // to a live `dev.ps1` stack and in CI alike. Returns the teardown.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { GenericContainer, Wait } from 'testcontainers'
 import { setupJellyfin } from './jellyfin'
@@ -24,18 +23,7 @@ export default async function globalSetup() {
     path.join(root, 'dev', 'firebase'),
   ).build('streamiq-firebase-emulator:e2e', { deleteOnExit: false })
 
-  // TURN for the forced-relay step. Fixed host ports: coturn advertises
-  // 127.0.0.1 (--external-ip), so host and container ports must match. Offset
-  // from compose's coturn (3478, 49160+) so a dev relay stack can keep running.
-  const turnPort = 3479
-  const relayPorts = [49210, 49211, 49212, 49213, 49214]
-  const fixed = (port: number, protocol: 'tcp' | 'udp') => ({
-    container: port,
-    host: port,
-    protocol,
-  })
-
-  const [pg, firebase, jellyfin, coturn] = await Promise.all([
+  const [pg, firebase, jellyfin, { coturn, turnPort }] = await Promise.all([
     new GenericContainer(pin('postgres'))
       .withEnvironment({
         POSTGRES_USER: 'streamiq',
@@ -74,41 +62,7 @@ export default async function globalSetup() {
       )
       .withStartupTimeout(180_000)
       .start(),
-    new GenericContainer(pin('coturn/coturn'))
-      .withCommand([
-        'turnserver',
-        '-n',
-        '--lt-cred-mech',
-        '--user',
-        'e2e:e2e',
-        '--realm',
-        'streamiq.e2e',
-        '--listening-port',
-        String(turnPort),
-        '--min-port',
-        String(relayPorts[0]),
-        '--max-port',
-        String(relayPorts.at(-1)),
-        '--external-ip=127.0.0.1',
-        '--verbose',
-      ])
-      .withExposedPorts(
-        fixed(turnPort, 'tcp'),
-        fixed(turnPort, 'udp'),
-        ...relayPorts.map((p) => fixed(p, 'udp')),
-      )
-      .withLogConsumer((stream) =>
-        stream.pipe(fs.createWriteStream(path.join(logs, 'coturn.log'))),
-      )
-      // Ready = TCP listener up (3479 = 0x0D97). Not a log line: coturn
-      // block-buffers stdout without a TTY, so its log arrives in 4 KB chunks.
-      .withHealthCheck({
-        test: ['CMD-SHELL', `grep -q ':0D97 ' /proc/net/tcp`],
-        interval: 500, // ms
-        retries: 60,
-      })
-      .withWaitStrategy(Wait.forHealthCheck())
-      .start(),
+    startCoturn(),
     // Build while the containers boot.
     (async () => {
       build(
@@ -116,10 +70,14 @@ export default async function globalSetup() {
         ['build', 'src/StreamIq.Api', '--nologo', '-v', 'q'],
         path.join(root, 'backend'),
       )
+      // Inside this checkout, not os.tmpdir(): a shared path lets another
+      // worktree's build overwrite (or, on Windows, fail on) the running binary.
       const bin = path.join(
-        os.tmpdir(),
+        import.meta.dirname,
+        '.bin',
         `streamiq-e2e-gateway${process.platform === 'win32' ? '.exe' : ''}`,
       )
+      fs.mkdirSync(path.dirname(bin), { recursive: true })
       build(
         'go',
         ['build', '-o', bin, './cmd/gateway'],
@@ -129,6 +87,7 @@ export default async function globalSetup() {
     })(),
   ])
 
+  process.env.E2E_TURN_PORT = String(turnPort) // stack.ts: Docker-gateway mode
   const emulator = `${firebase.getHost()}:${firebase.getMappedPort(9099)}`
   process.env.E2E_JELLYFIN_URL = `http://${jellyfin.getHost()}:${jellyfin.getMappedPort(8096)}`
   // Fixture media, made in the container by Jellyfin's own ffmpeg (no host
@@ -209,5 +168,62 @@ export default async function globalSetup() {
       jellyfin.stop(),
       coturn.stop(),
     ])
+  }
+}
+
+// TURN for the forced-relay step. Host port must equal container port: coturn
+// advertises 127.0.0.1 (--external-ip). Random base per run (not fixed) so
+// concurrent runs from other worktrees don't collide; retry on a taken port.
+async function startCoturn() {
+  for (let attempt = 1; ; attempt++) {
+    const turnPort = 20000 + Math.floor(Math.random() * 20000) // below Windows' ephemeral range; a clash anywhere is a bind error → retry
+    const relayPorts = [1, 2, 3, 4, 5].map((i) => turnPort + i)
+    const hex = turnPort.toString(16).toUpperCase().padStart(4, '0')
+    const fixed = (port: number, protocol: 'tcp' | 'udp') => ({
+      container: port,
+      host: port,
+      protocol,
+    })
+    try {
+      const coturn = await new GenericContainer(pin('coturn/coturn'))
+        .withCommand([
+          'turnserver',
+          '-n',
+          '--lt-cred-mech',
+          '--user',
+          'e2e:e2e',
+          '--realm',
+          'streamiq.e2e',
+          '--listening-port',
+          String(turnPort),
+          '--min-port',
+          String(relayPorts[0]),
+          '--max-port',
+          String(relayPorts.at(-1)),
+          '--external-ip=127.0.0.1',
+          '--verbose',
+        ])
+        .withExposedPorts(
+          fixed(turnPort, 'tcp'),
+          fixed(turnPort, 'udp'),
+          ...relayPorts.map((p) => fixed(p, 'udp')),
+        )
+        .withLogConsumer((stream) =>
+          stream.pipe(fs.createWriteStream(path.join(logs, 'coturn.log'))),
+        )
+        // Ready = TCP listener up (/proc/net/tcp lists ports in hex). Not a log line: coturn
+        // block-buffers stdout without a TTY, so its log arrives in 4 KB chunks.
+        .withHealthCheck({
+          test: ['CMD-SHELL', `grep -q ':${hex} ' /proc/net/tcp`],
+          interval: 500, // ms
+          retries: 60,
+        })
+        .withWaitStrategy(Wait.forHealthCheck())
+        .start()
+      return { coturn, turnPort }
+    } catch (e) {
+      if (attempt >= 5 || !/already allocated|bind|excluded/i.test(String(e)))
+        throw e
+    }
   }
 }

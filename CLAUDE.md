@@ -137,6 +137,11 @@ Copy `.env.example` only to override.
 - Primary dev machine is Windows 10 + Git Bash + Docker Desktop (WSL2).
   Go 1.26, .NET 10 SDK, Node 24, Docker are present — gateway work runs locally
   now (the devcontainer remains for CI parity / clean-room builds).
+- **Worktrees:** tests are isolated — `check.sh` / backend tests / e2e run concurrently
+  across worktrees (random ports, per-checkout `e2e/.bin`; Docker image tags are still
+  machine-wide, last build wins). The *dev* stack is not:
+  compose (`name: streamiq`, fixed ports) and `dev.ps1` (:5028/:5173) are one per machine,
+  shared by all worktrees. Fresh worktree: `check.sh` runs `npm ci` itself.
 - `.slnx` (not `.sln`) — .NET 10's solution format.
 - `frontend/.npmrc` hardens npm: `ignore-scripts=true`, `min-release-age=7`.
   Keep this in every new package dir (e2e/ etc.). If `npm install` fails

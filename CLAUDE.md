@@ -77,9 +77,10 @@ rate limits (per client IP via `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`
 per-socket message buckets, 10 s auth deadline), TURN creds minted per broker session
 in `ready` and revoked at its end (`GET /turn` is gone; dev coturn uses TURN REST
 `STREAMIQ_TURN_SECRET`), gateway revocation (`DELETE /gateways/{id}`: hash nulled, row
-kept for telemetry, sockets + sessions closed). Still open in item 6: BUGS.md
-"Removed browser keeps its open sessions", TECH_DEBT.md local-page auth; Postgres
-backup/restore deferred (TECH_DEBT.md).
+kept for telemetry, sockets + sessions closed). Removing a client on the gateway page
+closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).
+Still open in item 6: TECH_DEBT.md local-page auth; Postgres backup/restore deferred
+(TECH_DEBT.md).
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,

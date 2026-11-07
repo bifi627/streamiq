@@ -112,6 +112,7 @@ func main() {
 			log.Fatalf("gateway: ICE: %v", err)
 		}
 		sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, API: webAPI}
+		store.OnRemove = sess.Drop // removing a browser ends its open sessions
 		var lastBeat atomic.Int64
 		var notice atomic.Pointer[string]
 		notice.Store(new(string))

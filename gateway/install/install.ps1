@@ -45,12 +45,17 @@ if (-not (Test-Path $envFile)) {
 }
 
 # The enrollment token only matters on the first start (inherited env); never stored.
+Remove-Item (Join-Path $dir 'state\page-link') -ErrorAction SilentlyContinue # wait below for this start's fresh link
 Start-Process $exe -WorkingDirectory $dir -WindowStyle Hidden `
     -RedirectStandardError (Join-Path $dir 'gateway.log') -RedirectStandardOutput (Join-Path $dir 'gateway.out.log')
 Remove-Item Env:STREAMIQ_ENROLL_TOKEN -ErrorAction SilentlyContinue
 Write-Host "StreamIQ gateway started"
 $port = (Get-Content $envFile | Where-Object { $_ -match '^STREAMIQ_PAGE_PORT=' }) -replace '^STREAMIQ_PAGE_PORT=', ''
 Write-Host "  local page: http://localhost:$(if ($port) { $port } else { '8097' })"
+# The gateway writes its LAN login link once enrolled (page token, item 6 / #42).
+$link = Join-Path $dir 'state\page-link'
+foreach ($i in 1..10) { if (Test-Path $link) { break }; Start-Sleep 1 }
+if (Test-Path $link) { Write-Host "  from another device: $(Get-Content $link)" }
 Write-Host "  log:        $(Join-Path $dir 'gateway.log')"
 Write-Host "  Windows Firewall may ask once: allow on private networks."
 Write-Host "  autostart (not set up for you):"

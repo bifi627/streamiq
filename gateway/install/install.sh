@@ -49,11 +49,15 @@ fi
 
 # The enrollment token only matters on the first start; it is never stored.
 # Full path on purpose: pkill above matches it on the next update.
+rm -f "$DIR/state/page-link" # the installer waits for this start's fresh link
 cd "$DIR" && nohup "$DIR/gateway" >> "$DIR/gateway.log" 2>&1 &
 sleep 2
 echo "StreamIQ gateway started"
 port=$(sed -n 's/^STREAMIQ_PAGE_PORT=//p' "$DIR/gateway.env")
 echo "  local page: http://localhost:${port:-8097}"
+# The gateway writes its LAN login link once enrolled (page token, item 6 / #42).
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$DIR/state/page-link" ] && break; sleep 1; done
+[ -f "$DIR/state/page-link" ] && echo "  from another device: $(cat "$DIR/state/page-link")"
 echo "  log:        $DIR/gateway.log"
 echo "  autostart (not set up for you): crontab -e, add"
 echo "    @reboot cd $DIR && $DIR/gateway >> $DIR/gateway.log 2>&1"

@@ -128,6 +128,12 @@ it is authorized, the gateway closes every other channel immediately.
 
 The commit makes the code ungrindable: a MITM gets one guess (10⁻⁶).
 
+**Remove** (gateway's local page) drops the key from `allowlist.json` and closes
+every open session authed with it: the gateway closes the PeerConnection, so all
+its channels end. Signaling can't do this — the tunnel is peer-to-peer and the
+broker never sees client keys. No message is sent; the browser sees the
+connection close, and its next connect gets `unpaired`.
+
 **Shared test vectors** (asserted in `gateway/internal/pairing` and
 `frontend/src/features/pairing/crypto.test.ts`; generated with WebCrypto):
 

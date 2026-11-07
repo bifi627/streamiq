@@ -1,6 +1,6 @@
 // THE golden path (dev-env spec: exactly one E2E; edge cases belong in the
 // integration layer). Real browser → broker → gateway → Jellyfin: onboard, pair,
-// install check, browse, play, resume, re-pair, remove.
+// install check, browse, play, resume, re-pair, remove (kills open sessions).
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -138,12 +138,19 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await pair(a, gatewayPage, gateway.pageUrl)
     })
 
-    await test.step('Remove on the gateway page → A is refused', async () => {
+    await test.step('Remove on the gateway page → A\'s open session dies, then A is refused', async () => {
+      await a.getByRole('button', { name: 'Open' }).click()
+      const movies = a.getByRole('button', { name: /Movies/ })
+      await expect(movies).toBeVisible() // a live tunnel session, opened before Remove
       await gatewayPage.goto(gateway.pageUrl)
       const paired = gatewayPage.locator('form[action="/remove"]')
       await expect(paired).toHaveCount(1)
       await paired.getByRole('button', { name: 'Remove' }).click()
       await expect(paired).toHaveCount(0)
+      // The gateway closed the PeerConnection: the next request on it fails.
+      await movies.click()
+      await expect(a.locator('p[style*="crimson"]')).toBeVisible()
+      await a.getByRole('button', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Test connection' }).click()
       await expect(
         a.getByText('this browser is not paired with the gateway'),

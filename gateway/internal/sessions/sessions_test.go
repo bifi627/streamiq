@@ -85,6 +85,81 @@ func TestPairThenTunnel(t *testing.T) {
 	}
 }
 
+// Removing a browser on the local page closes its *open* sessions (the tunnel is
+// peer-to-peer, so only the gateway closing the PeerConnection stops it); another
+// paired browser keeps working, and the removed one is refused on reconnect.
+func TestRemoveClosesOpenSessions(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/Users" {
+			w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
+			return
+		}
+		w.Write([]byte("jellyfin"))
+	}))
+	defer origin.Close()
+	dir := t.TempDir()
+	cert, fp, _ := identity.LoadOrCreate(dir)
+	store, _ := pairing.Open(dir)
+	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
+	jf.SetKey("k", "")
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
+	store.OnRemove = gateway.Drop
+
+	pairKey := func(id string) (*ecdsa.PrivateKey, *browser) {
+		key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		b := connect(t, gateway, id, key, false)
+		b.say(nil) // unpaired
+		nB := pairing.Nonce()
+		h := sha256.Sum256([]byte(nB))
+		b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": id})
+		b.send(map[string]any{"type": "reveal", "n": nB})
+		for len(store.Pending()) == 0 {
+			time.Sleep(10 * time.Millisecond)
+		}
+		store.Decide(store.Pending()[0].ID, true)
+		if b.say(nil)["type"] != "approved" {
+			t.Fatal("want approved")
+		}
+		return key, b
+	}
+	keyA, a1 := pairKey("a1")
+	_, other := pairKey("b1")
+	a2 := connect(t, gateway, "a2", keyA, false) // a second open session, same key, via "ok"
+	if a2.say(nil)["type"] != "ok" {
+		t.Fatal("want ok")
+	}
+	for _, b := range []*browser{a1, a2, other} {
+		if b.fetch() != "jellyfin" {
+			t.Fatal("tunnel down before remove")
+		}
+	}
+
+	closed := make(chan struct{}, 2)
+	for _, b := range []*browser{a1, a2} {
+		b.pc.OnConnectionStateChange(func(st webrtc.PeerConnectionState) {
+			if st != webrtc.PeerConnectionStateConnected && st != webrtc.PeerConnectionStateConnecting {
+				closed <- struct{}{}
+			}
+		})
+	}
+	if err := store.Remove(identity.Fingerprint(spki(keyA))); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		select {
+		case <-closed:
+		case <-time.After(30 * time.Second):
+			t.Fatal("removed browser's open session stayed up")
+		}
+	}
+	if got := other.fetch(); got != "jellyfin" {
+		t.Fatalf("other paired browser lost its tunnel: %q", got)
+	}
+	if connect(t, gateway, "a3", keyA, false).say(nil)["type"] != "unpaired" {
+		t.Fatal("removed key must be refused on reconnect")
+	}
+}
+
 type browser struct {
 	t    *testing.T
 	pc   *webrtc.PeerConnection

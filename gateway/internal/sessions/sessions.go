@@ -38,9 +38,10 @@ type Sessions struct {
 	Store    *pairing.Store
 	Jellyfin *tunnel.Jellyfin // the tunnel's origin + policy
 
-	mu  sync.Mutex
-	pcs map[string]*webrtc.PeerConnection
-	API *webrtc.API // from NewAPI; nil = Pion defaults
+	mu   sync.Mutex
+	pcs  map[string]*webrtc.PeerConnection
+	keys map[string]string // session id → client key fp, recorded before the allowlist check
+	API  *webrtc.API       // from NewAPI; nil = Pion defaults
 }
 
 // NewAPI builds the one WebRTC API all sessions share. Native runs need
@@ -78,7 +79,7 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 	}
 	s.mu.Lock()
 	if s.pcs == nil {
-		s.pcs = map[string]*webrtc.PeerConnection{}
+		s.pcs, s.keys = map[string]*webrtc.PeerConnection{}, map[string]string{}
 	}
 	pc := s.pcs[m.Session]
 	s.mu.Unlock()
@@ -137,6 +138,7 @@ func (s *Sessions) newPeer(id string, send func(any)) (*webrtc.PeerConnection, e
 			pc.Close()
 			s.mu.Lock()
 			delete(s.pcs, id)
+			delete(s.keys, id)
 			s.mu.Unlock()
 		}
 	})
@@ -145,7 +147,7 @@ func (s *Sessions) newPeer(id string, send func(any)) (*webrtc.PeerConnection, e
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
 		switch {
 		case d.Label() == "auth":
-			s.serveAuth(pc, d, &authed)
+			s.serveAuth(id, pc, d, &authed)
 		case authed.Load():
 			tunnel.Serve(d, s.Jellyfin)
 		default:
@@ -169,7 +171,7 @@ type authMsg struct {
 
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
 // approved/rejected). Messages on one channel arrive in order, one at a time.
-func (s *Sessions) serveAuth(pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool) {
+func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool) {
 	say := func(m authMsg) { b, _ := json.Marshal(m); d.SendText(string(b)) }
 	fail := func(why string) {
 		log.Printf("gateway: auth: %s", why)
@@ -196,6 +198,11 @@ func (s *Sessions) serveAuth(pc *webrtc.PeerConnection, d *webrtc.DataChannel, a
 				return
 			}
 			keyFp = fp
+			// Record first, then check: a concurrent Remove either sees this
+			// session in Drop or has already taken the key off the allowlist.
+			s.mu.Lock()
+			s.keys[id] = fp
+			s.mu.Unlock()
 			if s.Store.Allowed(fp) && !m.Pair {
 				authed.Store(true)
 				say(authMsg{Type: "ok"})
@@ -230,6 +237,26 @@ func (s *Sessions) serveAuth(pc *webrtc.PeerConnection, d *webrtc.DataChannel, a
 			fail("unexpected " + m.Type)
 		}
 	})
+}
+
+// Drop closes every session authed with keyFp (pairing.Store.OnRemove). Closing
+// the PeerConnection ends DTLS/SCTP and every channel on it — the only kill
+// that works: the tunnel is peer-to-peer, signaling isn't on the media path.
+func (s *Sessions) Drop(keyFp string) {
+	var victims []*webrtc.PeerConnection
+	s.mu.Lock()
+	for id, fp := range s.keys {
+		if fp == keyFp && s.pcs[id] != nil {
+			victims = append(victims, s.pcs[id])
+		}
+	}
+	s.mu.Unlock()
+	for _, pc := range victims {
+		pc.Close()
+	}
+	if len(victims) > 0 {
+		log.Printf("gateway: removed browser: closed %d session(s)", len(victims))
+	}
 }
 
 func trim(name string) string {

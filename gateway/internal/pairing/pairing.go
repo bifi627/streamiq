@@ -87,10 +87,13 @@ type Request struct {
 // Store holds the allowlist (persisted) and pending requests (memory only: an
 // gateway restart drops them, the browser just asks again).
 type Store struct {
-	path    string
-	mu      sync.Mutex
-	paired  []Paired
-	pending []*Request
+	path string
+	mu   sync.Mutex
+	// OnRemove runs after Remove (outside the lock): the sessions slice closes
+	// that key's open sessions. Set once at startup.
+	OnRemove func(keyFp string)
+	paired   []Paired
+	pending  []*Request
 }
 
 func Open(dir string) (*Store, error) {
@@ -127,13 +130,17 @@ func (s *Store) Pending() []Request {
 	return out
 }
 
-// Remove drops a paired browser. ponytail: its open sessions stay up until
-// they disconnect; the next connection is refused.
+// Remove drops a paired browser and ends its open sessions (OnRemove) — even
+// if saving fails, since the in-memory allowlist already refuses it.
 func (s *Store) Remove(keyFp string) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.paired = slices.DeleteFunc(s.paired, func(p Paired) bool { return p.KeyFp == keyFp })
-	return s.save()
+	err := s.save()
+	s.mu.Unlock()
+	if s.OnRemove != nil {
+		s.OnRemove(keyFp)
+	}
+	return err
 }
 
 // Ask queues a request and blocks until the local page decides or it expires.

@@ -4,14 +4,6 @@ Behavioral defects and config landmines. Fixed items are deleted (git holds the
 history). Design smells → `TECH_DEBT.md`, unbuilt wants → `IDEAS.md`. No
 numbers — reference items by heading.
 
-### Removed browser keeps its open sessions
-**Area:** control-plane / Features/Broker · **Severity:** Medium (security)
-
-A paired browser removed on the gateway page keeps its *open* sessions until they
-disconnect (its next connect is refused).
-
-**Fix:** removal kills live sessions, with item 6 hardening.
-
 ### Authed shell swallows API errors
 **Area:** frontend / App.tsx · **Severity:** Low (UX)
 

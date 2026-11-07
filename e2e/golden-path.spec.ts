@@ -75,7 +75,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
   let gateway = await startGateway(stateDir, env)
   try {
     await expect(a.getByRole('listitem')).toContainText('online')
-    const gatewayPage = await (await browser.newContext()).newPage()
+    const gatewayCtx = await browser.newContext()
+    if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
+    const gatewayPage = await gatewayCtx.newPage()
 
     await test.step('browser A pairs; codes match on both sides', () =>
       pair(a, gatewayPage, gateway.pageUrl))

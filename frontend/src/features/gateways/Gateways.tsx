@@ -60,8 +60,9 @@ export function Gateways() {
   return (
     <section>
       <h2>Gateways</h2>
+      {err && <p style={{ color: 'crimson' }}>{err}</p>}
       {gateways.length === 0 ? (
-        <p>No gateways yet.</p>
+        !err && <p>No gateways yet.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {gateways.map((d) => (
@@ -129,7 +130,6 @@ export function Gateways() {
           ))}
         </div>
       )}
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
     </section>
   )
 }

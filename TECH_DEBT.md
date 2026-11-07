@@ -97,7 +97,9 @@ Failures reach the user as vague text or not at all. Known cases:
   "broker connection closed". Plan: a socket that closes *before* `onopen` gets a
   loud, specific message ("Couldn't reach StreamIQ: too many attempts or offline.
   Try again in a minute."), distinct from a drop mid-session.
-- **Authed shell swallows API errors:** see BUGS.md.
+- **No global on-page error trap:** no `window.onerror` / `unhandledrejection`
+  handler, so an error that escapes a local catch is invisible without devtools
+  (phones). Features show their own errors; this is only the safety net.
 
 Plan: one visible error banner/toast pattern for the app, with each failure
 mapped to a specific, actionable message.

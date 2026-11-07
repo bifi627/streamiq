@@ -59,10 +59,11 @@ function SignIn() {
 
 function Shell({ user }: { user: User }) {
   const [tenantId, setTenantId] = useState('')
+  const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
     getMe()
       .then((m) => setTenantId(m.tenantId))
-      .catch(() => {})
+      .catch((e: Error) => setErr(e.message))
   }, [])
 
   return (
@@ -73,6 +74,7 @@ function Shell({ user }: { user: User }) {
           Sign out
         </button>
       </header>
+      {err && <p style={{ color: 'crimson' }}>{err}</p>}
       <p style={{ color: '#888', fontSize: 12 }}>tenant {tenantId}</p>
       <Gateways />
     </main>

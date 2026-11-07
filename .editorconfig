@@ -1,5 +1,5 @@
 # Shared formatting rules. `dotnet format` reads this for C#; Prettier reads it
-# for the frontend (overridden by frontend/.prettierrc.json where they differ).
+# for frontend/ + e2e/ (overridden by their .prettierrc.json where they differ).
 root = true
 
 [*]

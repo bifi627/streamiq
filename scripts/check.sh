@@ -13,6 +13,7 @@ for d in frontend e2e; do [ -d "$d/node_modules" ] || npm ci --prefix "$d"; done
 
 echo "== frontend: format + lint + test + typecheck + build =="
 npm run format:check --prefix frontend
+(cd e2e && ../frontend/node_modules/.bin/prettier --check .)  # e2e has no own prettier; borrow frontend's
 npm run lint --prefix frontend
 npm test --prefix frontend
 npm run build --prefix frontend

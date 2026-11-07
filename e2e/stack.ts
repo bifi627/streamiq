@@ -120,7 +120,7 @@ async function dockerGateway(
     // which inside the container mean the container. The gateway allocates on
     // the same coturn instead, so coturn relays to itself. Real TURN
     // (Cloudflare) has public addresses and needs none of this.
-    STREAMIQ_ICE_URLS: 'turn:host.docker.internal:3479?transport=udp',
+    STREAMIQ_ICE_URLS: `turn:host.docker.internal:${process.env.E2E_TURN_PORT}?transport=udp`,
     STREAMIQ_ICE_USERNAME: 'e2e',
     STREAMIQ_ICE_CREDENTIAL: 'e2e',
   }

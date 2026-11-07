@@ -77,9 +77,15 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 // last heartbeat's unix time, 0 while disconnected (status page).
 func RunControl(ctx context.Context, api string, st *State, lanURL, version string, lastBeat *atomic.Int64,
 	handle func(raw []byte, send func(any))) error {
-	conn, _, err := websocket.Dial(ctx, api+"/gateways/ws", &websocket.DialOptions{
+	conn, res, err := websocket.Dial(ctx, api+"/gateways/ws", &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + st.Credential}},
 	})
+	if res != nil && res.StatusCode == http.StatusUnauthorized {
+		// Removed in the web app (or enrolled against another API). Keeps retrying,
+		// harmlessly, until someone re-enrolls; the state dir's cert (pins) survives.
+		return fmt.Errorf("credential revoked or unknown: this gateway was removed in the web app. " +
+			"To add it again: delete gateway.json in the state dir, then run a new install command (web app → Add gateway)")
+	}
 	if err != nil {
 		return fmt.Errorf("dial control: %w", err)
 	}

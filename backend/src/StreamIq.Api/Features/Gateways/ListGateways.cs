@@ -15,7 +15,7 @@ public static class ListGateways
         app.MapGet("/gateways", async (StreamIqDbContext db, CancellationToken ct) =>
         {
             var onlineSince = DateTimeOffset.UtcNow - OnlineWindow;
-            return await db.Gateways.OrderBy(d => d.CreatedAt)
+            return await db.Gateways.Where(d => d.CredentialHash != null).OrderBy(d => d.CreatedAt)   // revoked = hidden
                 .Select(d => new { d.Id, d.Name, d.LastSeenAt, d.LanUrl, d.Version, Online = d.LastSeenAt > onlineSince })
                 .ToListAsync(ct);
         }).RequireAuthorization();

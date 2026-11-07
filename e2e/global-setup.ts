@@ -126,10 +126,9 @@ export default async function globalSetup() {
         FIREBASE_AUTH_EMULATOR_HOST: emulator,
         FIREBASE_PROJECT_ID: 'demo-streamiq',
         CORS_ORIGINS: process.env.E2E_APP_URL,
-        // /turn hands these out (dev path; prod mints Cloudflare creds).
+        // The broker mints per-session creds from these (dev path; prod: Cloudflare).
         STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
-        STREAMIQ_TURN_USERNAME: 'e2e',
-        STREAMIQ_TURN_CREDENTIAL: 'e2e',
+        STREAMIQ_TURN_SECRET: 'e2e',
       },
     },
   )
@@ -189,9 +188,9 @@ async function startCoturn() {
         .withCommand([
           'turnserver',
           '-n',
-          '--lt-cred-mech',
-          '--user',
-          'e2e:e2e',
+          // TURN REST creds (expiring HMAC), same scheme the API mints per session.
+          '--use-auth-secret',
+          '--static-auth-secret=e2e',
           '--realm',
           'streamiq.e2e',
           '--listening-port',

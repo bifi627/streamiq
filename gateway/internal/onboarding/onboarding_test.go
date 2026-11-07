@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -49,6 +50,18 @@ func TestEnrollRejectedTokenFails(t *testing.T) {
 	defer srv.Close()
 	if _, err := LoadOrEnroll(context.Background(), t.TempDir(), srv.URL, "used", "fp"); err == nil {
 		t.Fatal("want an error for a rejected token")
+	}
+}
+
+// A revoked credential (401 on the control socket) says how to re-enroll.
+func TestRunControlRevokedCredential(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	err := RunControl(context.Background(), srv.URL, &State{Credential: "old"}, "", "dev", new(atomic.Int64), nil)
+	if err == nil || !strings.Contains(err.Error(), "revoked") {
+		t.Fatalf("want a revoked-credential error, got %v", err)
 	}
 }
 

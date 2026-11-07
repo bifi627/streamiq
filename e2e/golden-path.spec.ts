@@ -44,10 +44,12 @@ async function pair(app: Page, gatewayPage: Page, gatewayUrl: string) {
   await tunnelOk(app)
 }
 
-test('onboard gateway, pair, pin, re-pair after cert swap, remove', async ({
+test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', async ({
   browser,
 }) => {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'streamiq-e2e-gateway-'))
+  const stateDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'streamiq-e2e-gateway-'),
+  )
   const a = await signIn(browser, true)
 
   await test.step('installable as a PWA (manifest + icons)', async () => {
@@ -146,6 +148,18 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove', async ({
       await expect(
         a.getByText('this browser is not paired with the gateway'),
       ).toBeVisible()
+    })
+
+    await test.step('Remove in the web app → gateway revoked and disconnected', async () => {
+      let out = ''
+      gateway.proc.stderr!.on('data', (d) => (out += d))
+      a.once('dialog', (d) => d.accept())
+      await a.getByRole('button', { name: 'Remove' }).click()
+      await expect(a.getByText('No gateways yet.')).toBeVisible()
+      // Its socket was closed and the reconnect is refused (401).
+      await expect
+        .poll(() => out, { timeout: 60_000 })
+        .toContain('credential revoked or unknown')
     })
   } finally {
     await gateway.stop()

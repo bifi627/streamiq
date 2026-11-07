@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.WebSockets;
@@ -14,7 +15,8 @@ public class BrokerSteps(IntegrationFixture fx)
 {
     const string Fp = "sha-256 AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89";
 
-    private readonly Dictionary<string, (Guid Id, WebSocket Ws)> _gateways = new();
+    private readonly Dictionary<string, (Guid Id, WebSocket Ws, string Credential)> _gateways = new();
+    private HttpStatusCode _removal;
     // ! assigned by the browser-connect step before any step uses it
     private WebSocket _browser = null!;
     private string _session = "";
@@ -22,7 +24,7 @@ public class BrokerSteps(IntegrationFixture fx)
     [AfterScenario]
     public void Close()
     {
-        foreach (var (_, ws) in _gateways.Values)
+        foreach (var (_, ws, _) in _gateways.Values)
         {
             ws.Dispose();
         }
@@ -41,22 +43,24 @@ public class BrokerSteps(IntegrationFixture fx)
             .Content.ReadFromJsonAsync<JsonElement>();
         var id = enrolled.GetProperty("gatewayId").GetGuid();
 
-        var wsc = fx.Factory.Server.CreateWebSocketClient();
-        wsc.ConfigureRequest = r => r.Headers.Authorization = $"Bearer {enrolled.GetProperty("credential").GetString()}";
-        var ws = await wsc.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/gateways/ws"), CancellationToken.None);
+        var credential = enrolled.GetProperty("credential").GetString() ?? throw new InvalidOperationException("no credential");
+        var ws = await GatewayConnect(credential);
         while (!Hub.Gateways.ContainsKey(id))
         {
             await Task.Delay(10);   // server registers right after the upgrade
         }
 
-        _gateways[name] = (id, ws);
+        _gateways[name] = (id, ws, credential);
     }
 
     [When("\"(.*)\" offers to gateway \"(.*)\"")]
     public async Task WhenOffer(string email, string name)
     {
         await BrowserAuth(await IdToken(email));
-        Assert.Equal("ready", (await Receive(_browser))?.GetProperty("type").GetString());
+        var ready = Assert.NotNull(await Receive(_browser));
+        Assert.Equal("ready", ready.GetProperty("type").GetString());
+        // This session's ICE servers (no TURN config in tests → STUN only).
+        Assert.StartsWith("stun:", ready.GetProperty("iceServers")[0].GetProperty("urls")[0].GetString());
         await Send(_browser, new { type = "offer", gatewayId = _gateways[name].Id, sdp = new { type = "offer", sdp = "v=0 fake" } });
     }
 
@@ -112,6 +116,63 @@ public class BrokerSteps(IntegrationFixture fx)
     {
         var r = await _browser.ReceiveAsync(new byte[1024], CancellationToken.None);
         Assert.Equal(WebSocketMessageType.Close, r.MessageType);
+    }
+
+    [When("\"(.*)\" removes gateway \"(.*)\"")]
+    public async Task WhenRemove(string email, string name)
+    {
+        using var client = await SignedIn(email);
+        _removal = (await client.DeleteAsync($"/gateways/{_gateways[name].Id}")).StatusCode;
+    }
+
+    [Then("the removal succeeds")]
+    public void ThenRemoved()
+    {
+        Assert.Equal(HttpStatusCode.NoContent, _removal);
+    }
+
+    [Then("the removal is refused as not found")]
+    public void ThenRemovalNotFound()
+    {
+        Assert.Equal(HttpStatusCode.NotFound, _removal);
+    }
+
+    [Then("gateway \"(.*)\" is disconnected as \"(.*)\"")]
+    public async Task ThenGatewayDisconnected(string name, string reason)
+    {
+        var ws = _gateways[name].Ws;
+        var r = await ws.ReceiveAsync(new byte[1024], CancellationToken.None);
+        Assert.Equal(WebSocketMessageType.Close, r.MessageType);
+        Assert.Equal(reason, ws.CloseStatusDescription);
+    }
+
+    [Then("gateway \"(.*)\" can no longer connect")]
+    public async Task ThenGatewayRejected(string name)
+    {
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => GatewayConnect(_gateways[name].Credential));
+        Assert.Contains("401", ex.Message);
+    }
+
+    [Then("\"(.*)\" no longer lists gateway \"(.*)\"")]
+    public async Task ThenNotListed(string email, string name)
+    {
+        using var client = await SignedIn(email);
+        var list = await client.GetFromJsonAsync<JsonElement>("/gateways");
+        Assert.DoesNotContain(list.EnumerateArray(), g => g.GetProperty("id").GetGuid() == _gateways[name].Id);
+    }
+
+    private Task<WebSocket> GatewayConnect(string credential)
+    {
+        var wsc = fx.Factory.Server.CreateWebSocketClient();
+        wsc.ConfigureRequest = r => r.Headers.Authorization = $"Bearer {credential}";
+        return wsc.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/gateways/ws"), CancellationToken.None);
+    }
+
+    private async Task<HttpClient> SignedIn(string email)
+    {
+        var client = fx.Factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await IdToken(email));
+        return client;
     }
 
     private Task<string> IdToken(string email)

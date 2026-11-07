@@ -76,6 +76,15 @@ can take a while for big collections.
    direct or relayed. Each browser (phone, laptop, …) is paired once; remove
    browsers on the local page.
 
+## Removing a gateway
+
+**Gateways → Remove** in the web app revokes the gateway's credential at once:
+it disconnects, any open streams through it stop, and it logs
+`credential revoked or unknown` while it keeps retrying. To add the same box
+again, stop the gateway, delete `gateway.json` in its state directory, and run a
+new install command (**Add gateway**). The certificate in the state directory
+is kept, so paired browsers don't need to pair again.
+
 ## Where things live
 
 | | Windows | Linux / macOS |

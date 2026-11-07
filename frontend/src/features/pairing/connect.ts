@@ -30,19 +30,15 @@ export async function connect(
   gatewayId: string,
   onCode?: (code: string) => void,
 ): Promise<Session> {
-  const [key, pin, token, ice] = await Promise.all([
+  const [key, pin, token] = await Promise.all([
     clientKey(),
     getPin(gatewayId),
     auth.currentUser?.getIdToken(),
-    // TURN from the API (short-lived Cloudflare creds in prod). If that fails,
-    // STUN alone still connects most networks.
-    authed<{ iceServers: RTCIceServer[] }>('/turn').catch(() => ({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    })),
   ])
   const ws = new WebSocket(API.replace(/^http/, 'ws') + '/broker/ws')
+  // ICE servers arrive with the broker's `ready`: this session's own TURN
+  // credential, revoked when the session ends.
   const pc = new RTCPeerConnection({
-    iceServers: ice.iceServers,
     // Diagnostic: `?relay` in the app URL forces the TURN path.
     iceTransportPolicy: new URLSearchParams(location.search).has('relay')
       ? 'relay'
@@ -132,6 +128,10 @@ export async function connect(
     }
     const onBroker = async (m: { type: string; [k: string]: any }) => {
       if (m.type === 'ready') {
+        pc.setConfiguration({
+          ...pc.getConfiguration(),
+          iceServers: m.iceServers,
+        })
         await pc.setLocalDescription(await pc.createOffer())
         send({ type: 'offer', gatewayId, sdp: pc.localDescription })
       } else if (m.type === 'answer') {

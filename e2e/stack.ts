@@ -1,6 +1,7 @@
 // Process helpers shared by global-setup.ts and the specs. Every process logs to
 // e2e/logs/<name>.log (uploaded by CI on failure) — the first place to look.
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { createHmac } from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
@@ -108,6 +109,7 @@ async function dockerGateway(
 ): Promise<Proc> {
   const name = `streamiq-e2e-gateway-${port}`
   const icePort = String(await freePort())
+  const turnUser = `${Math.floor(Date.now() / 1000) + 3600}:e2e-gateway`
   const viaHost = (u: string) => u.replace(/\/\/(127\.0\.0\.1|localhost)\b/, '//host.docker.internal')
   const vars = {
     ...env,
@@ -120,9 +122,10 @@ async function dockerGateway(
     // which inside the container mean the container. The gateway allocates on
     // the same coturn instead, so coturn relays to itself. Real TURN
     // (Cloudflare) has public addresses and needs none of this.
+    // TURN REST creds for coturn's --static-auth-secret=e2e, valid 1 h.
     STREAMIQ_ICE_URLS: `turn:host.docker.internal:${process.env.E2E_TURN_PORT}?transport=udp`,
-    STREAMIQ_ICE_USERNAME: 'e2e',
-    STREAMIQ_ICE_CREDENTIAL: 'e2e',
+    STREAMIQ_ICE_USERNAME: turnUser,
+    STREAMIQ_ICE_CREDENTIAL: createHmac('sha1', 'e2e').update(turnUser).digest('base64'),
   }
   const p = start('gateway', 'docker', [
     'run', '--rm', '--name', name,

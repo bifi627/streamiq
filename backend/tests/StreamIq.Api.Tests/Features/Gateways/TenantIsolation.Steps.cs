@@ -34,7 +34,7 @@ public class TenantIsolationSteps(IntegrationFixture fx)
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
         var tenantId = db.Users.OrderBy(u => u.CreatedAt).Last().TenantId;
-        db.Gateways.Add(new Gateway { TenantId = tenantId, Name = name });
+        db.Gateways.Add(new Gateway { TenantId = tenantId, Name = name, CredentialHash = "seeded" });
         await db.SaveChangesAsync();
     }
 

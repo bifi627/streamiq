@@ -52,6 +52,6 @@ public static partial class Enroll
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return Results.Ok(new { gatewayId = gateway.Id, credential });
-        });
+        }).RequireRateLimiting("signaling");
     }
 }

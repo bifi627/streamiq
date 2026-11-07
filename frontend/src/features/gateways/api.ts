@@ -18,5 +18,8 @@ export type Install = {
 
 export const getGateways = () => authed<Gateway[]>('/gateways')
 
+export const removeGateway = (id: string) =>
+  authed(`/gateways/${id}`, { method: 'DELETE' })
+
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })

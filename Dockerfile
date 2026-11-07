@@ -34,8 +34,9 @@ COPY --from=web /web/dist ./wwwroot
 # Railway injects $PORT; Program.cs binds 0.0.0.0:$PORT when it is present.
 # Railway terminates TLS at its proxy: honor X-Forwarded-Proto/-For so
 # Request.Scheme is https (the gateway install command embeds it).
-# ponytail: trusts the headers from any peer (only Railway's proxy can reach us);
-# fine while nothing keys on the client IP. Item 6 rate limiting must not trust
-# a client-spoofable X-Forwarded-For.
+# ponytail: trusts the headers from any peer (only Railway's proxy can reach us).
+# Nothing keys on the client IP from X-Forwarded-For (client-writable): the
+# signaling rate limit reads Railway's X-Real-IP instead.
 ENV ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+ENV STREAMIQ_CLIENT_IP_HEADER=X-Real-IP
 ENTRYPOINT ["dotnet", "StreamIq.Api.dll"]

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading.RateLimiting;
 
 namespace StreamIq.Api.Features.Broker;
 
@@ -24,6 +25,24 @@ public static class Broker
         public Guid TenantId => tenantId;
         public Guid GatewayId => gatewayId;
 
+        /// Ends this link from outside its own loop (revocation): close frame under
+        /// the send lock, then abort so a peer that never answers can't linger.
+        /// Its reader loop then throws and runs its normal cleanup.
+        public async Task KillAsync(string reason)
+        {
+            await _send.WaitAsync();
+            try
+            {
+                await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, reason, CancellationToken.None);
+            }
+            catch (Exception) { }
+            finally
+            {
+                _send.Release();
+                socket.Abort();
+            }
+        }
+
         public async Task SendAsync(JsonNode msg, CancellationToken ct)
         {
             var bytes = Encoding.UTF8.GetBytes(msg.ToJsonString());
@@ -43,9 +62,24 @@ public static class Broker
         }
     }
 
+    /// Per-socket message budget (token bucket). A browser session sends one offer
+    /// plus a few dozen ICE candidates; a gateway carries every session of its own.
+    public static TokenBucketRateLimiter MessageLimiter(int burst, int perSecond)
+    {
+        return new(new()
+        {
+            TokenLimit = burst,
+            TokensPerPeriod = perSecond,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+            QueueLimit = 0,
+        });
+    }
+
     /// Next whole JSON text message, or null when the socket closes. Messages over
-    /// max are skipped (SDP is a few KB; 64KB is generous).
-    public static async Task<JsonObject?> ReadAsync(WebSocket socket, CancellationToken ct, int max = 64 * 1024)
+    /// max are skipped (SDP is a few KB; 64KB is generous). A message past the
+    /// limiter's budget closes the socket (1008 "rate limited") and returns null.
+    public static async Task<JsonObject?> ReadAsync(WebSocket socket, CancellationToken ct, int max = 64 * 1024,
+        RateLimiter? limiter = null)
     {
         var buffer = new byte[max];
         while (true)
@@ -68,6 +102,11 @@ public static class Broker
                 }
                 n += r.Count;
             } while (!r.EndOfMessage);
+            if (limiter is not null && !limiter.AttemptAcquire().IsAcquired)
+            {
+                await CloseAsync(socket, "rate limited", ct);
+                return null;
+            }
             if (tooBig)
             {
                 continue;
@@ -84,11 +123,13 @@ public static class Broker
         }
     }
 
+    /// Close frame only (no waiting for the peer's reply, which a hostile peer
+    /// never sends); the handler returning then disposes the socket.
     public static async Task CloseAsync(WebSocket socket, string reason, CancellationToken ct)
     {
         try
         {
-            await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, reason, ct);
+            await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, reason, ct);
         }
         catch (Exception) { }
     }

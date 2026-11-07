@@ -42,7 +42,12 @@ export function start(
 }
 
 /** Polls url until it answers 2xx; fails early if the process died. */
-export async function waitHttp(url: string, p: Proc, timeoutMs = 120_000, headers: Record<string, string> = {}) {
+export async function waitHttp(
+  url: string,
+  p: Proc,
+  timeoutMs = 120_000,
+  headers: Record<string, string> = {},
+) {
   const end = Date.now() + timeoutMs
   while (Date.now() < end) {
     if (p.proc.exitCode !== null)
@@ -98,11 +103,16 @@ export async function startGateway(
   let pageCookie: { name: string; value: string; url: string } | undefined
   if (process.env.E2E_GATEWAY_IMAGE) {
     const file = path.join(stateDir, 'page-token')
-    for (const end = Date.now() + 120_000; !fs.existsSync(file); ) {
-      if (Date.now() > end || p.proc.exitCode !== null) throw new Error(`${file}: not written (see e2e/logs)`)
+    for (const end = Date.now() + 120_000; !fs.existsSync(file);) {
+      if (Date.now() > end || p.proc.exitCode !== null)
+        throw new Error(`${file}: not written (see e2e/logs)`)
       await new Promise((r) => setTimeout(r, 500))
     }
-    pageCookie = { name: 'streamiq_page', value: fs.readFileSync(file, 'utf8').trim(), url: pageUrl }
+    pageCookie = {
+      name: 'streamiq_page',
+      value: fs.readFileSync(file, 'utf8').trim(),
+      url: pageUrl,
+    }
     headers.Cookie = `${pageCookie.name}=${pageCookie.value}`
   }
   await waitHttp(pageUrl, p, undefined, headers)
@@ -116,7 +126,9 @@ export async function startGateway(
       redirect: 'manual',
     })
     if (res.status !== 303) {
-      throw new Error(`gateway Jellyfin login: HTTP ${res.status} ${await res.text()}`)
+      throw new Error(
+        `gateway Jellyfin login: HTTP ${res.status} ${await res.text()}`,
+      )
     }
   }
   return { ...p, pageUrl, pageCookie }
@@ -136,7 +148,8 @@ async function dockerGateway(
   const name = `streamiq-e2e-gateway-${port}`
   const icePort = String(await freePort())
   const turnUser = `${Math.floor(Date.now() / 1000) + 3600}:e2e-gateway`
-  const viaHost = (u: string) => u.replace(/\/\/(127\.0\.0\.1|localhost)\b/, '//host.docker.internal')
+  const viaHost = (u: string) =>
+    u.replace(/\/\/(127\.0\.0\.1|localhost)\b/, '//host.docker.internal')
   const vars = {
     ...env,
     STREAMIQ_STATE_DIR: '/state',
@@ -151,18 +164,32 @@ async function dockerGateway(
     // TURN REST creds for coturn's --static-auth-secret=e2e, valid 1 h.
     STREAMIQ_ICE_URLS: `turn:host.docker.internal:${process.env.E2E_TURN_PORT}?transport=udp`,
     STREAMIQ_ICE_USERNAME: turnUser,
-    STREAMIQ_ICE_CREDENTIAL: createHmac('sha1', 'e2e').update(turnUser).digest('base64'),
+    STREAMIQ_ICE_CREDENTIAL: createHmac('sha1', 'e2e')
+      .update(turnUser)
+      .digest('base64'),
   }
-  const p = start('gateway', 'docker', [
-    'run', '--rm', '--name', name,
-    '--add-host', 'host.docker.internal:host-gateway', // Linux CI; Docker Desktop has it
-    ...(process.getuid ? ['--user', String(process.getuid())] : []), // bind-mounted state dir
-    '-v', `${env.STREAMIQ_STATE_DIR}:/state`,
-    '-p', `127.0.0.1:${port}:8097`,
-    '-p', `127.0.0.1:${icePort}:${icePort}/udp`,
-    ...Object.entries(vars).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
-    image,
-  ], { cwd: root })
+  const p = start(
+    'gateway',
+    'docker',
+    [
+      'run',
+      '--rm',
+      '--name',
+      name,
+      '--add-host',
+      'host.docker.internal:host-gateway', // Linux CI; Docker Desktop has it
+      ...(process.getuid ? ['--user', String(process.getuid())] : []), // bind-mounted state dir
+      '-v',
+      `${env.STREAMIQ_STATE_DIR}:/state`,
+      '-p',
+      `127.0.0.1:${port}:8097`,
+      '-p',
+      `127.0.0.1:${icePort}:${icePort}/udp`,
+      ...Object.entries(vars).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
+      image,
+    ],
+    { cwd: root },
+  )
   return {
     proc: p.proc,
     stop: async () => {

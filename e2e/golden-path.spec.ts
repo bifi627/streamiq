@@ -140,7 +140,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await pair(a, gatewayPage, gateway.pageUrl)
     })
 
-    await test.step('Remove on the gateway page → A\'s open session dies, then A is refused', async () => {
+    await test.step("Remove on the gateway page → A's open session dies, then A is refused", async () => {
       await a.getByRole('button', { name: 'Open' }).click()
       const movies = a.getByRole('button', { name: /Movies/ })
       await expect(movies).toBeVisible() // a live tunnel session, opened before Remove

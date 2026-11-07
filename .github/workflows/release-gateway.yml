@@ -2,7 +2,7 @@
 # builds the native binaries and publishes them as a GitHub Release, which is
 # what install.sh / install.ps1 download and the gateway's update notice
 # checks. Tags with a suffix (gateway-v1.5.0-nightly.3) become prereleases,
-# which "latest" skips (IDEAS.md "Nightly channel").
+# which "latest" skips (issue #48).
 name: release-gateway
 on:
   push:

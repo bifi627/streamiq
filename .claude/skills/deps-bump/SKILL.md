@@ -139,8 +139,8 @@ Use a HEREDOC for the message so multi-line formatting survives.
 ## Regression handling
 
 If a bump fails verify and bisect isolates it to one package: **revert that
-one package only**, keep the rest of the wave. Park it in `TECH_DEBT.md`
-(create the file on first use) with:
+one package only**, keep the rest of the wave. Park it as a `tech-debt` issue
+(propose it first, see CLAUDE.md "Tracking") with:
 
 - exact failing scenario (test name + symptom)
 - bisect range to narrow next attempt

@@ -40,7 +40,7 @@ func TestPairThenTunnel(t *testing.T) {
 	}
 	store, _ := pairing.Open(dir)
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
-	jf.SetKey("k", "")
+	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
 	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
@@ -101,7 +101,7 @@ func TestRemoveClosesOpenSessions(t *testing.T) {
 	cert, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
-	jf.SetKey("k", "")
+	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
 	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
 	store.OnRemove = gateway.Drop
 

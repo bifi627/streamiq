@@ -6,14 +6,14 @@
 //	pairing     client-key auth, comparison code, allowlist + pending approvals
 //	sessions    brokered browser sessions: auth channel, gated tunnel
 //	localpage   the gateway's status page on the home LAN (approve / remove browsers)
-//	jellyfin    gets the Jellyfin API key without manual steps; version check
-//	tunnel      HTTP over data channels to Jellyfin (allowlist, key injection)
+//	jellyfin    gets a non-admin Jellyfin viewer token without manual steps; version check
+//	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
 //	update      "newer release available" notice (never self-updates)
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
 // env wins): STREAMIQ_API_URL (required), STREAMIQ_ENROLL_TOKEN, STREAMIQ_NAME, STREAMIQ_STATE_DIR,
-// STREAMIQ_PAGE_PORT, STREAMIQ_LAN_URL, STREAMIQ_ORIGIN, STREAMIQ_JELLYFIN_API_KEY,
-// STREAMIQ_JELLYFIN_USER, STREAMIQ_ICE_* (STREAMIQ_ICE_PORT: Docker, see sessions.NewAPI).
+// STREAMIQ_PAGE_PORT, STREAMIQ_LAN_URL, STREAMIQ_ORIGIN, STREAMIQ_ICE_* (STREAMIQ_ICE_PORT:
+// Docker, see sessions.NewAPI).
 package main
 
 import (
@@ -71,15 +71,10 @@ func main() {
 	jf := &tunnel.Jellyfin{
 		Client: &http.Client{Transport: &http.Transport{DisableCompression: true}},
 		URL:    env("STREAMIQ_ORIGIN", "http://localhost:8096"), // local Jellyfin
-		User:   os.Getenv("STREAMIQ_JELLYFIN_USER"),
 	}
-	// Key: STREAMIQ_JELLYFIN_API_KEY wins; else the stored one, else the setup
-	// loop mints one (fresh Jellyfin) or the local page asks for a login.
+	// Token: the stored one, else the setup loop gets one (fresh Jellyfin) or
+	// the local page asks for an admin login.
 	setup := &jellyfin.Setup{Client: &http.Client{}, URL: jf.URL, StateDir: stateDir, OnKey: jf.SetKey}
-	if k := os.Getenv("STREAMIQ_JELLYFIN_API_KEY"); k != "" {
-		jf.SetKey(k, "")
-		setup.Fixed = true
-	}
 	if err := setup.Load(); err != nil {
 		log.Fatalf("gateway: %v", err)
 	}

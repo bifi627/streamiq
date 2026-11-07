@@ -1,12 +1,18 @@
-// Package jellyfin gets the gateway its Jellyfin API key without manual steps
-// and watches Jellyfin's health for the status page (design:
-// specs/2026-11-04-streamiq-gateway-productization-design.md, goals 4, 5, 7):
+// Package jellyfin gets the gateway a non-admin Jellyfin user token without
+// manual steps and watches Jellyfin's health for the status page (design:
+// specs/2026-11-04-streamiq-gateway-productization-design.md, goals 4, 5, 7;
+// viewer token: #50). With an admin session it creates (or adopts) the hidden
+// viewer user "streamiq-viewer", signs in as it and keeps that token, then logs
+// the admin out. The admin session comes from:
 //   - fresh Jellyfin (wizard not done): complete the wizard, create admin
 //     "streamiq" with a random password (kept only in state/jellyfin.json, 0600; the
-//     local page shows the file's path, never the password), mint a key;
-//   - Jellyfin already set up: the local page asks once for an admin login; the
-//     gateway mints a key with it and stores the key, never the password;
-//   - STREAMIQ_JELLYFIN_API_KEY still wins (dev, e2e): Fixed skips both.
+//     local page shows the file's path, never the password);
+//   - Jellyfin already set up: the local page asks once for an admin login (the
+//     admin password is never stored).
+//
+// The viewer's own password is stored, so a revoked token repairs itself.
+// Files from before #50 hold an admin API key: it keeps working until the next
+// page login, which replaces it and deletes the key in Jellyfin.
 package jellyfin
 
 import (
@@ -31,38 +37,43 @@ import (
 const Tested = "12.4"
 
 const (
-	adminName = "streamiq"
-	app       = "streamiq-gateway"
-	clientHdr = `MediaBrowser Client="streamiq-gateway", Device="gateway", DeviceId="streamiq-gateway", Version="1"`
+	adminName  = "streamiq"
+	ViewerName = "streamiq-viewer" // per-member profiles later: one viewer per member
+	clientHdr  = `MediaBrowser Client="streamiq-gateway", Device="gateway", DeviceId="streamiq-gateway", Version="1"`
 )
 
 // Creds is state/jellyfin.json.
 type Creds struct {
-	APIKey   string `json:"apiKey"`
-	User     string `json:"user"`               // the household Jellyfin user the tunnel pins
-	Password string `json:"password,omitempty"` // only when the gateway created the admin
+	Token          string `json:"token,omitempty"` // the viewer's access token
+	Viewer         string `json:"viewer,omitempty"`
+	ViewerID       string `json:"viewerId,omitempty"`
+	ViewerPassword string `json:"viewerPassword,omitempty"` // re-sign-in when the token is revoked
+	User           string `json:"user,omitempty"`           // the admin the gateway created; before #50: the user the key was pinned to
+	Password       string `json:"password,omitempty"`       // only when the gateway created the admin
+	APIKey         string `json:"apiKey,omitempty"`         // before #50: an admin API key
 }
 
 // View is what the status page shows.
 type View struct {
-	Reachable, NeedsLogin, Fixed, HasKey bool
-	Untested                             bool // reachable, but not the Tested major.minor
-	Version, Tested, Err                 string
-	User                                 string
-	PasswordFile                         string // set only if the gateway created the admin: where its password is
+	Reachable, NeedsLogin, HasKey bool
+	LegacyKey                     bool // still on a pre-#50 admin API key
+	Untested                      bool // reachable, but not the Tested major.minor
+	Version, Tested, Err          string
+	User, Viewer                  string
+	PasswordFile                  string // set only if the gateway created the admin: where its password is
 }
 
-// Setup runs the poll loop and the page's login. OnKey hands a new key (and the
-// user to pin) to the tunnel.
+// Setup runs the poll loop and the page's login. OnKey hands a new token and
+// the Jellyfin user id it belongs to (the one to pin) to the tunnel.
 type Setup struct {
 	Client   *http.Client
 	URL      string // e.g. http://localhost:8096
 	StateDir string
-	Fixed    bool // STREAMIQ_JELLYFIN_API_KEY set: never bootstrap or ask for a login
-	OnKey    func(key, user string)
+	OnKey    func(token, userID string)
 
 	mu        sync.Mutex
 	creds     Creds
+	legacyID  string // user id resolved for a pre-#50 API key
 	reachable bool
 	wizard    bool // wizard completed
 	version   string
@@ -72,7 +83,7 @@ type Setup struct {
 
 func (s *Setup) path() string { return filepath.Join(s.StateDir, "jellyfin.json") }
 
-// Load reads stored creds and installs the key, if any.
+// Load reads stored creds and installs the token, if any.
 func (s *Setup) Load() error {
 	b, err := os.ReadFile(s.path())
 	if errors.Is(err, os.ErrNotExist) {
@@ -88,9 +99,9 @@ func (s *Setup) Load() error {
 	s.mu.Lock()
 	s.creds = c
 	s.mu.Unlock()
-	if c.APIKey != "" && !s.Fixed {
-		s.OnKey(c.APIKey, c.User)
-	}
+	if c.Token != "" {
+		s.OnKey(c.Token, c.ViewerID)
+	} // a pre-#50 API key is installed by poll once its user id is resolved
 	return nil
 }
 
@@ -102,12 +113,12 @@ func (s *Setup) save(c Creds) error {
 	s.mu.Lock()
 	s.creds = c
 	s.mu.Unlock()
-	s.OnKey(c.APIKey, c.User)
+	s.OnKey(c.Token, c.ViewerID)
 	return nil
 }
 
 // Run polls Jellyfin until ctx ends: fast while it isn't usable yet, then
-// every minute (status page + tested-version warning).
+// every minute (status page, token check, tested-version warning).
 func (s *Setup) Run(ctx context.Context) {
 	for {
 		s.poll(ctx)
@@ -131,7 +142,7 @@ func (s *Setup) poll(ctx context.Context) {
 	err := s.call(ctx, "GET", "/System/Info/Public", "", "", &info)
 	s.mu.Lock()
 	s.reachable, s.version, s.wizard = err == nil, info.Version, info.StartupWizardCompleted
-	needBootstrap := err == nil && !info.StartupWizardCompleted && s.creds.APIKey == "" && !s.Fixed
+	c, legacyID := s.creds, s.legacyID
 	warn := err == nil && untested(info.Version) && s.warned != info.Version
 	if warn {
 		s.warned = info.Version
@@ -140,7 +151,15 @@ func (s *Setup) poll(ctx context.Context) {
 	if warn {
 		slog.Warn("gateway: Jellyfin version not tested with this release", "version", info.Version, "tested", Tested)
 	}
-	if needBootstrap {
+	switch {
+	case err != nil:
+	case c.Token != "":
+		s.check(ctx, c)
+	case c.APIKey != "":
+		if legacyID == "" {
+			s.legacy(ctx, c)
+		}
+	case !info.StartupWizardCompleted:
 		if err := s.bootstrap(ctx); err != nil {
 			s.setErr("Jellyfin setup: " + err.Error())
 			slog.Error("gateway: Jellyfin setup failed", "err", err)
@@ -158,7 +177,7 @@ func (s *Setup) setErr(e string) {
 }
 
 // bootstrap completes the startup wizard (the calls Jellyfin's own web wizard
-// makes) and mints a key with the new admin.
+// makes) and connects with the new admin.
 func (s *Setup) bootstrap(ctx context.Context) error {
 	pw := randPassword()
 	steps := []struct{ method, path, body string }{
@@ -173,51 +192,172 @@ func (s *Setup) bootstrap(ctx context.Context) error {
 			return err
 		}
 	}
-	key, err := s.mint(ctx, adminName, pw)
+	c, err := s.connect(ctx, adminName, pw, "")
 	if err != nil {
 		return err
 	}
-	return s.save(Creds{APIKey: key, User: adminName, Password: pw})
+	c.User, c.Password = adminName, pw
+	return s.save(c)
 }
 
-// Login mints a key with an existing admin's login (from the local page) and
-// stores the key, not the password.
+// Login connects with an existing admin's login (from the local page). The
+// admin password is not stored. A pre-#50 API key is deleted in Jellyfin.
 func (s *Setup) Login(ctx context.Context, user, pw string) error {
-	if s.Fixed {
-		return errors.New("STREAMIQ_JELLYFIN_API_KEY is set")
-	}
-	key, err := s.mint(ctx, user, pw)
+	s.mu.Lock()
+	old := s.creds
+	s.mu.Unlock()
+	c, err := s.connect(ctx, user, pw, old.APIKey)
 	if err != nil {
 		return err
 	}
-	return s.save(Creds{APIKey: key, User: user})
+	if old.Password != "" { // keep the bootstrapped admin's password for the human
+		c.User, c.Password = old.User, old.Password
+	}
+	if err := s.save(c); err != nil {
+		return err
+	}
+	s.setErr("")
+	return nil
 }
 
-// mint signs in, creates an API key named streamiq-gateway, and signs the
-// session out again so no password session lingers.
-func (s *Setup) mint(ctx context.Context, user, pw string) (string, error) {
+// connect signs in as an admin, ensures the viewer user, signs in as the
+// viewer, deletes oldKey (if any) and logs the admin session out again.
+func (s *Setup) connect(ctx context.Context, user, pw, oldKey string) (Creds, error) {
+	admin, err := s.signIn(ctx, user, pw)
+	if err != nil {
+		return Creds{}, err
+	}
+	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
+	id, vpw, err := s.ensureViewer(ctx, admin, ViewerName)
+	if err != nil {
+		return Creds{}, fmt.Errorf("create the viewer user (needs a Jellyfin administrator): %w", err)
+	}
+	tok, err := s.signIn(ctx, ViewerName, vpw)
+	if err != nil {
+		return Creds{}, err
+	}
+	if oldKey != "" {
+		if err := s.call(ctx, "DELETE", "/Auth/Keys/"+oldKey, admin, "", nil); err != nil {
+			slog.Warn("gateway: could not delete the old Jellyfin API key; delete streamiq-gateway in Dashboard → API Keys", "err", err)
+		}
+	}
+	return Creds{Token: tok, Viewer: ViewerName, ViewerID: id, ViewerPassword: vpw}, nil
+}
+
+// ensureViewer creates the hidden non-admin user name with a random password,
+// or adopts an existing one by setting a new password, then sets its policy.
+// The policy goes back whole (Jellyfin requires every field), so fields this
+// code doesn't know survive. Idempotent: a half-finished run is just repeated.
+func (s *Setup) ensureViewer(ctx context.Context, admin, name string) (id, pw string, err error) {
+	type user struct {
+		Name, Id string
+		Policy   map[string]any
+	}
+	pw = randPassword()
+	var users []user
+	if err := s.call(ctx, "GET", "/Users", admin, "", &users); err != nil {
+		return "", "", err
+	}
+	var u *user
+	for i := range users {
+		if strings.EqualFold(users[i].Name, name) {
+			u = &users[i]
+		}
+	}
+	if u != nil { // also revokes its old tokens
+		if err := s.call(ctx, "POST", "/Users/"+u.Id+"/Password", admin, fmt.Sprintf(`{"NewPw":%q}`, pw), nil); err != nil {
+			return "", "", err
+		}
+	} else {
+		u = &user{}
+		if err := s.call(ctx, "POST", "/Users/New", admin, fmt.Sprintf(`{"Name":%q,"Password":%q}`, name, pw), u); err != nil {
+			return "", "", err
+		}
+	}
+	if u.Policy == nil {
+		return "", "", errors.New("Jellyfin returned no user policy")
+	}
+	for k, v := range map[string]any{
+		"IsAdministrator": false, "IsHidden": true, "IsDisabled": false,
+		"EnableContentDeletion": false, "EnableContentDeletionFromFolders": []string{},
+		"EnableRemoteControlOfOtherUsers": false, "EnableSharedDeviceControl": false,
+		"EnablePublicSharing": false, "EnableCollectionManagement": false,
+		"EnableSubtitleManagement": false, "EnableLyricManagement": false, "EnableLiveTvManagement": false,
+	} {
+		u.Policy[k] = v
+	}
+	b, _ := json.Marshal(u.Policy)
+	if err := s.call(ctx, "POST", "/Users/"+u.Id+"/Policy", admin, string(b), nil); err != nil {
+		return "", "", err
+	}
+	return u.Id, pw, nil
+}
+
+// signIn returns an access token. Signing in again replaces this gateway's
+// previous token for that user (same DeviceId), so tokens don't pile up.
+func (s *Setup) signIn(ctx context.Context, user, pw string) (string, error) {
 	var auth struct{ AccessToken string }
 	body := fmt.Sprintf(`{"Username":%q,"Pw":%q}`, user, pw)
 	if err := s.call(ctx, "POST", "/Users/AuthenticateByName", "", body, &auth); err != nil {
 		return "", fmt.Errorf("sign in as %s: %w", user, err)
 	}
-	tok := auth.AccessToken
-	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", tok, "", nil)
-	if err := s.call(ctx, "POST", "/Auth/Keys?app="+app, tok, "", nil); err != nil {
-		return "", fmt.Errorf("create API key (needs a Jellyfin administrator): %w", err)
+	return auth.AccessToken, nil
+}
+
+// check repairs a revoked viewer token by signing in again with the stored
+// viewer password. If Jellyfin refuses that too, the token is dropped and the
+// page asks for an admin login.
+func (s *Setup) check(ctx context.Context, c Creds) {
+	if err := s.call(ctx, "GET", "/Users/Me", c.Token, "", nil); !unauthorized(err) {
+		return
 	}
-	var keys struct {
-		Items []struct{ AccessToken, AppName string }
+	tok, err := s.signIn(ctx, c.Viewer, c.ViewerPassword)
+	switch {
+	case err == nil:
+		c.Token = tok
+		slog.Info("gateway: Jellyfin token was revoked; signed in again", "user", c.Viewer)
+	case unauthorized(err):
+		c.Token = ""
+		slog.Error("gateway: Jellyfin refused the viewer sign-in; reconnect Jellyfin on the local page", "user", c.Viewer)
+	default:
+		s.setErr("Jellyfin: " + err.Error()) // transient: retried next poll
+		return
 	}
-	if err := s.call(ctx, "GET", "/Auth/Keys", tok, "", &keys); err != nil {
-		return "", err
+	if err := s.save(c); err != nil {
+		s.setErr("Jellyfin: " + err.Error())
 	}
-	for i := len(keys.Items) - 1; i >= 0; i-- { // newest last
-		if keys.Items[i].AppName == app {
-			return keys.Items[i].AccessToken, nil
+}
+
+// legacy resolves the user a pre-#50 API key is pinned to and installs the key.
+func (s *Setup) legacy(ctx context.Context, c Creds) {
+	var users []struct{ Name, Id string }
+	if err := s.call(ctx, "GET", "/Users", c.APIKey, "", &users); err != nil {
+		s.setErr("Jellyfin API key: " + err.Error())
+		return
+	}
+	for _, u := range users {
+		if strings.EqualFold(u.Name, c.User) {
+			s.mu.Lock()
+			s.legacyID = u.Id
+			s.mu.Unlock()
+			s.OnKey(c.APIKey, u.Id)
+			return
 		}
 	}
-	return "", errors.New("created API key not listed")
+	s.setErr(fmt.Sprintf("Jellyfin user %q not found: reconnect Jellyfin", c.User))
+}
+
+// httpErr is a non-2xx Jellyfin response.
+type httpErr struct {
+	method, path string
+	status       int
+}
+
+func (e httpErr) Error() string { return fmt.Sprintf("%s %s: HTTP %d", e.method, e.path, e.status) }
+
+func unauthorized(err error) bool {
+	var h httpErr
+	return errors.As(err, &h) && h.status == http.StatusUnauthorized
 }
 
 // call does one Jellyfin request; out (if non-nil) receives the JSON body.
@@ -240,7 +380,11 @@ func (s *Setup) call(ctx context.Context, method, path, token, body string, out 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("%s %s: HTTP %d", method, path, resp.StatusCode)
+		p, _, _ := strings.Cut(path, "?")
+		if strings.HasPrefix(p, "/Auth/Keys/") {
+			p = "/Auth/Keys/…" // never log a key
+		}
+		return httpErr{method, p, resp.StatusCode}
 	}
 	if out != nil {
 		return json.NewDecoder(resp.Body).Decode(out)
@@ -252,13 +396,15 @@ func (s *Setup) call(ctx context.Context, method, path, token, body string, out 
 func (s *Setup) View() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	has := s.creds.APIKey != "" || s.Fixed
+	c := s.creds
+	legacy := c.Token == "" && c.APIKey != ""
 	v := View{
 		Reachable: s.reachable, Version: s.version, Tested: Tested, Err: s.err,
-		Fixed: s.Fixed, HasKey: has, Untested: s.reachable && untested(s.version), NeedsLogin: s.reachable && s.wizard && !has,
-		User: s.creds.User,
+		HasKey: c.Token != "" || legacy, LegacyKey: legacy, Untested: s.reachable && untested(s.version),
+		NeedsLogin: s.reachable && s.wizard && c.Token == "", // also offered to move off a legacy key
+		User:       c.User, Viewer: c.Viewer,
 	}
-	if s.creds.Password != "" { // never the password itself: the page is open to the whole LAN
+	if c.Password != "" { // never the password itself: the page is open to the whole LAN
 		v.PasswordFile, _ = filepath.Abs(s.path())
 	}
 	return v

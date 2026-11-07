@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Reproducible dev Jellyfin setup. Wipes the throwaway Jellyfin config, re-runs
 # the startup wizard via the REST API with known dev creds, adds the dev-media
-# library, scans it, mints an API key, and writes gateway/gateway.env for the dev gateway.
+# library, scans it, and writes gateway/gateway.env for the dev gateway. The dev
+# gateway then connects the real way: sign in on its local page (:18097) with the
+# dev admin, and it creates its own viewer token (gateway/internal/jellyfin).
 #
 # ponytail: throwaway dev tooling — hardcoded creds, no error recovery beyond
-# "fail loud". Not product code (a real install's gateway mints its own key:
-# gateway/internal/jellyfin).
+# "fail loud". Not product code.
 #
 #   bash scripts/setup-jellyfin.sh
 #
@@ -79,22 +80,18 @@ done
 ITEM_ID="${ITEM_ID:-$FIRST_ID}"
 [ -n "$ITEM_ID" ] || { echo "scan produced no movie items"; exit 1; }
 
-echo "== 7/7 minting gateway API key =="
-curl -fsS -X POST "$BASE/Auth/Keys?app=streamiq-gateway" -H "Authorization: MediaBrowser Token=\"$TOKEN\"" >/dev/null || true
-API_KEY=$(curl -fsS "$BASE/Auth/Keys" -H "Authorization: MediaBrowser Token=\"$TOKEN\"" \
-  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const k=(JSON.parse(s).Items||[]).find(x=>x.AppName==="streamiq-gateway");process.stdout.write(k?k.AccessToken:"")})')
-[ -n "$API_KEY" ] || API_KEY="$TOKEN"   # fall back to the session token
+echo "== 7/7 forgetting the dev gateway's old Jellyfin token (that Jellyfin is gone) =="
+rm -f gateway/streamiq-state/jellyfin.json
 
-# Persist for the harness / gateway. Git-ignored: throwaway dev creds.
+# Persist for the harness. Git-ignored: throwaway dev creds.
 OUT="dev/.jellyfin.json"
-node -e 'const fs=require("fs");fs.writeFileSync(process.argv[1],JSON.stringify({base:process.argv[2],user:process.argv[3],userId:process.argv[4],token:process.argv[5],apiKey:process.argv[6],longItemId:process.argv[7],p1080ItemId:process.argv[8]||null,subtitleIndex:process.argv[9]||null,hevcItemId:process.argv[10]||null},null,2)+"\n")' \
-  "$OUT" "$BASE" "$USER_NAME" "$USER_ID" "$TOKEN" "$API_KEY" "$ITEM_ID" "$P1080_ID" "$SUB_IDX" "$HEVC_ID"
+node -e 'const fs=require("fs");fs.writeFileSync(process.argv[1],JSON.stringify({base:process.argv[2],user:process.argv[3],userId:process.argv[4],token:process.argv[5],longItemId:process.argv[6],p1080ItemId:process.argv[7]||null,subtitleIndex:process.argv[8]||null,hevcItemId:process.argv[9]||null},null,2)+"\n")' \
+  "$OUT" "$BASE" "$USER_NAME" "$USER_ID" "$TOKEN" "$ITEM_ID" "$P1080_ID" "$SUB_IDX" "$HEVC_ID"
 
 echo
 echo "Jellyfin ready."
 echo "  admin:      $USER_NAME / $USER_PW"
 echo "  user id:    $USER_ID"
-echo "  api key:    $API_KEY"
 echo "  long clip:  $ITEM_ID"
 echo "  1080p+subs: ${P1080_ID:-<none — run gen-test-media.sh then re-run>} (subtitle index: ${SUB_IDX:-none})"
 echo "  hevc+ac3:   ${HEVC_ID:-<none — run gen-test-media.sh then re-run>} (forces transcode)"
@@ -102,5 +99,6 @@ echo "  wrote:      $OUT"
 
 # The dev gateway (go run in gateway/) reads gateway/gateway.env: dev ports, so
 # an installed streamiq on 8096/8097 can run alongside. Git-ignored.
-printf 'STREAMIQ_API_URL=http://localhost:5028\nSTREAMIQ_ORIGIN=%s\nSTREAMIQ_PAGE_PORT=18097\nSTREAMIQ_JELLYFIN_API_KEY=%s\n' "$BASE" "$API_KEY" > gateway/gateway.env
-echo "  wrote:      gateway/gateway.env (dev gateway: API :5028, Jellyfin origin, page :18097, API key)"
+printf 'STREAMIQ_API_URL=http://localhost:5028\nSTREAMIQ_ORIGIN=%s\nSTREAMIQ_PAGE_PORT=18097\n' "$BASE" > gateway/gateway.env
+echo "  wrote:      gateway/gateway.env (dev gateway: API :5028, Jellyfin origin, page :18097)"
+echo "  next:       start the dev gateway, open http://localhost:18097, Connect Jellyfin as $USER_NAME / $USER_PW"

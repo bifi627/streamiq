@@ -2,7 +2,7 @@
 // "Tunnel framing"): one data channel per request, response head as a text
 // frame, body as ~16KB binary chunks under bufferedAmount backpressure, channel
 // close = EOF. Media bytes pass through untouched (never recompressed); the
-// Jellyfin policy (jellyfin.go) decides what may pass and redacts the API key.
+// Jellyfin policy (jellyfin.go) decides what may pass and redacts the token.
 package tunnel
 
 import (

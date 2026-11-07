@@ -54,18 +54,19 @@ relayed on cellular). Complete. **PR A:** native binaries on GitHub Releases
 SHA256-checked), `gateway.env` config file, daily update *notice* (notify-only, which is a
 recorded plan deviation), version in heartbeat + Gateways list (migration #5), JSON logs.
 User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (gateway page),
-so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin key without manual
+so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin credential without manual
 steps (`gateway/internal/jellyfin`: wizard bootstrap on a fresh Jellyfin, else one admin login
-on the local page; key in `state/jellyfin.json`; `STREAMIQ_JELLYFIN_API_KEY` still wins),
+on the local page; since #50 a non-admin viewer token, not an API key, in `state/jellyfin.json`),
 `install/jellyfin-compose.yml` release asset (pin = `jellyfin.Tested`, test-enforced), local
 page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapped admin creds).
 
 **Item 5 — streaming client** (design: `docs/superpowers/specs/2026-11-02-streamiq-streaming-client-design.md`;
 consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /
 series / episodes → hls.js player over the tunnel (custom loader), subtitles, resume
-via Jellyfin UserData. The gateway owns the Jellyfin API key (`STREAMIQ_JELLYFIN_API_KEY`;
-dev: `scripts/setup-jellyfin.sh`): it injects the key, pins the household user, lets
-only an endpoint allowlist through, and redacts the key from playlists. All POC
+via Jellyfin UserData. The gateway owns the Jellyfin credential (since #50 the hidden
+non-admin user `streamiq-viewer`'s token; dev: `scripts/setup-jellyfin.sh`, then Connect
+Jellyfin on the dev page): it injects the token, pins the viewer user, lets only an
+endpoint allowlist through, and redacts the token from playlists. All POC
 paths are deleted. **PR B (trust it):** TURN (Cloudflare creds in prod,
 coturn in dev; per-session since item 6), `connection_sessions` telemetry (migration #4, drops
 the POC's `poc_connectivity`), privacy indicator (direct vs relayed); `?relay`

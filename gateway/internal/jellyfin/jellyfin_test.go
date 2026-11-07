@@ -13,58 +13,156 @@ import (
 	"testing"
 )
 
-// fakeJellyfin speaks just enough of the wizard + key API: one admin
-// "streamiq" once the wizard sets a password, and a key list.
-func fakeJellyfin(t *testing.T, wizardDone bool, adminPw string) *httptest.Server {
-	var mu sync.Mutex
-	var keys []string
-	loggedOut := false
-	t.Cleanup(func() {
-		if len(keys) > 0 && !loggedOut {
-			t.Error("password session not logged out")
+type fakeUser struct {
+	id, pw string
+	admin  bool
+	policy map[string]any
+}
+
+// fake speaks just enough Jellyfin: the wizard, users with policies and
+// passwords, sign-in tokens (one per user, like one DeviceId), and API keys.
+type fake struct {
+	mu        sync.Mutex
+	wizard    bool
+	users     map[string]*fakeUser
+	tokens    map[string]string // token → user name
+	keys      map[string]bool   // pre-#50 admin API keys
+	n         int
+	loggedOut []string // users whose session was logged out
+}
+
+func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
+	f := &fake{wizard: wizardDone, users: map[string]*fakeUser{}, tokens: map[string]string{}, keys: map[string]bool{}}
+	if wizardDone {
+		f.users["streamiq"] = &fakeUser{id: "id-admin", pw: "pw", admin: true}
+	}
+	srv := httptest.NewServer(f)
+	t.Cleanup(srv.Close)
+	return f, srv
+}
+
+func (f *fake) revoke(name string) {
+	for t, u := range f.tokens {
+		if u == name {
+			delete(f.tokens, t)
 		}
-	})
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
-		authed := strings.Contains(r.Header.Get("Authorization"), `Token="session"`)
-		switch r.Method + " " + r.URL.Path {
-		case "GET /System/Info/Public":
-			json.NewEncoder(w).Encode(map[string]any{"Version": "12.4.0", "StartupWizardCompleted": wizardDone})
-		case "POST /Startup/Configuration", "GET /Startup/User", "POST /Startup/RemoteAccess", "POST /Startup/Complete":
-			if wizardDone {
-				w.WriteHeader(http.StatusUnauthorized)
+	}
+}
+
+func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	tok := ""
+	if m := regexp.MustCompile(`Token="([^"]*)"`).FindStringSubmatch(r.Header.Get("Authorization")); m != nil {
+		tok = m[1]
+	}
+	caller := f.users[f.tokens[tok]]
+	admin := (caller != nil && caller.admin) || f.keys[tok]
+	path := r.URL.Path
+	var id string
+	if m := regexp.MustCompile(`^/Users/(id-[^/]+)/(Password|Policy)$`).FindStringSubmatch(path); m != nil {
+		id, path = m[1], "/Users/{id}/"+m[2]
+	}
+	if strings.HasPrefix(path, "/Auth/Keys/") {
+		id, path = strings.TrimPrefix(path, "/Auth/Keys/"), "/Auth/Keys/{key}"
+	}
+	byID := func() *fakeUser {
+		for _, u := range f.users {
+			if u.id == id {
+				return u
 			}
-		case "POST /Startup/User":
-			var u struct{ Name, Password string }
-			json.NewDecoder(r.Body).Decode(&u)
-			adminPw = u.Password
-		case "POST /Users/AuthenticateByName":
-			var u struct{ Username, Pw string }
-			json.NewDecoder(r.Body).Decode(&u)
-			if u.Username != "streamiq" || u.Pw != adminPw || adminPw == "" {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			w.Write([]byte(`{"AccessToken":"session"}`))
-		case "POST /Auth/Keys":
-			if !authed || r.URL.Query().Get("app") != "streamiq-gateway" {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			keys = append(keys, "key-"+string(rune('a'+len(keys))))
-		case "GET /Auth/Keys":
-			items := []map[string]string{{"AppName": "other", "AccessToken": "nope"}}
-			for _, k := range keys {
-				items = append(items, map[string]string{"AppName": "streamiq-gateway", "AccessToken": k})
-			}
-			json.NewEncoder(w).Encode(map[string]any{"Items": items})
-		case "POST /Sessions/Logout":
-			loggedOut = authed
-		default:
-			w.WriteHeader(http.StatusNotFound)
 		}
-	}))
+		return nil
+	}
+	deny := func(code int) { w.WriteHeader(code) }
+	switch r.Method + " " + path {
+	case "GET /System/Info/Public":
+		json.NewEncoder(w).Encode(map[string]any{"Version": "12.4.0", "StartupWizardCompleted": f.wizard})
+	case "POST /Startup/Configuration", "GET /Startup/User", "POST /Startup/RemoteAccess":
+		if f.wizard {
+			deny(401)
+		}
+	case "POST /Startup/User":
+		var u struct{ Name, Password string }
+		json.NewDecoder(r.Body).Decode(&u)
+		f.users[u.Name] = &fakeUser{id: "id-admin", pw: u.Password, admin: true}
+	case "POST /Startup/Complete":
+		f.wizard = true
+	case "POST /Users/AuthenticateByName":
+		var b struct{ Username, Pw string }
+		json.NewDecoder(r.Body).Decode(&b)
+		u := f.users[b.Username]
+		if u == nil || u.pw != b.Pw || u.pw == "" {
+			deny(401)
+			return
+		}
+		f.revoke(b.Username) // same DeviceId: the new token replaces the old
+		f.n++
+		t := fmt.Sprintf("tok-%d", f.n)
+		f.tokens[t] = b.Username
+		json.NewEncoder(w).Encode(map[string]any{"AccessToken": t, "User": map[string]string{"Id": u.id}})
+	case "GET /Users/Me":
+		if caller == nil {
+			deny(401)
+		}
+	case "GET /Users":
+		if !admin {
+			deny(401)
+			return
+		}
+		var out []map[string]any
+		for n, u := range f.users {
+			out = append(out, map[string]any{"Name": n, "Id": u.id, "Policy": u.policy})
+		}
+		json.NewEncoder(w).Encode(out)
+	case "POST /Users/New":
+		var b struct{ Name, Password string }
+		json.NewDecoder(r.Body).Decode(&b)
+		if !admin || f.users[b.Name] != nil {
+			deny(400)
+			return
+		}
+		u := &fakeUser{id: "id-" + b.Name, pw: b.Password, policy: map[string]any{
+			"IsHidden": true, "EnablePublicSharing": true, "EnableSharedDeviceControl": true,
+			"AuthenticationProviderId": "Default", "PasswordResetProviderId": "Default",
+		}}
+		f.users[b.Name] = u
+		json.NewEncoder(w).Encode(map[string]any{"Name": b.Name, "Id": u.id, "Policy": u.policy})
+	case "POST /Users/{id}/Password":
+		var b struct{ NewPw string }
+		json.NewDecoder(r.Body).Decode(&b)
+		u := byID()
+		if !admin || u == nil {
+			deny(403)
+			return
+		}
+		u.pw = b.NewPw
+		for n, x := range f.users {
+			if x == u {
+				f.revoke(n)
+			}
+		}
+	case "POST /Users/{id}/Policy":
+		var p map[string]any
+		json.NewDecoder(r.Body).Decode(&p)
+		u := byID()
+		if !admin || u == nil || p["AuthenticationProviderId"] == nil { // Jellyfin requires the whole object
+			deny(400)
+			return
+		}
+		u.policy, u.admin = p, p["IsAdministrator"] == true
+	case "DELETE /Auth/Keys/{key}":
+		if !admin || !f.keys[id] {
+			deny(404)
+			return
+		}
+		delete(f.keys, id)
+	case "POST /Sessions/Logout":
+		f.loggedOut = append(f.loggedOut, f.tokens[tok])
+		delete(f.tokens, tok)
+	default:
+		deny(404)
+	}
 }
 
 func newSetup(t *testing.T, url string, got *[2]string) *Setup {
@@ -72,27 +170,53 @@ func newSetup(t *testing.T, url string, got *[2]string) *Setup {
 		OnKey: func(k, u string) { got[0], got[1] = k, u }}
 }
 
+// connected checks the gateway ends up on a live viewer token: hidden,
+// non-admin, policy round-tripped whole, and the admin session logged out.
+func connected(t *testing.T, f *fake, s *Setup, got [2]string) Creds {
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := s.creds
+	v := f.users[ViewerName]
+	if v == nil || f.tokens[got[0]] != ViewerName || got[1] != v.id || c.Token != got[0] || c.ViewerID != v.id {
+		t.Fatalf("not on the viewer token: onKey %v, creds %+v", got, c)
+	}
+	p := v.policy
+	if v.admin || p["IsHidden"] != true || p["EnableSharedDeviceControl"] != false || p["EnablePublicSharing"] != false ||
+		p["PasswordResetProviderId"] != "Default" {
+		t.Fatalf("viewer policy %v", p)
+	}
+	for _, u := range f.tokens {
+		if u != ViewerName {
+			t.Fatalf("a %s session lingers (logged out: %v)", u, f.loggedOut)
+		}
+	}
+	return c
+}
+
 func TestBootstrapFreshJellyfin(t *testing.T) {
-	srv := fakeJellyfin(t, false, "")
-	defer srv.Close()
+	f, srv := newFake(t, false)
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
 	s.poll(context.Background())
 	v := s.View()
-	if got != [2]string{"key-a", "streamiq"} || !v.HasKey || v.PasswordFile == "" || v.Err != "" {
-		t.Fatalf("after bootstrap: onKey %v, view %+v", got, v)
+	connected(t, f, s, got)
+	if !v.HasKey || v.NeedsLogin || v.PasswordFile == "" || v.Err != "" || v.User != "streamiq" || v.Viewer != ViewerName {
+		t.Fatalf("after bootstrap: view %+v", v)
 	}
-	// The password stays in the 0600 file; the view (rendered on the LAN page) never carries it.
+	// Passwords stay in the 0600 file; the view (rendered on the LAN page) never carries them.
 	var c Creds
 	b, _ := os.ReadFile(v.PasswordFile)
-	if json.Unmarshal(b, &c) != nil || c.Password == "" || strings.Contains(fmt.Sprintf("%+v", v), c.Password) {
+	if json.Unmarshal(b, &c) != nil || c.Password == "" || c.ViewerPassword == "" ||
+		strings.Contains(fmt.Sprintf("%+v", v), c.Password) || strings.Contains(fmt.Sprintf("%+v", v), c.ViewerPassword) {
 		t.Fatalf("password file %s / view %+v", b, v)
 	}
-	// Persisted: a restart loads the key instead of re-running the wizard.
+	// Persisted: a restart loads the token instead of re-running the wizard.
+	tok := got[0]
 	got = [2]string{}
 	s2 := newSetup(t, srv.URL, &got)
 	s2.StateDir = s.StateDir
-	if err := s2.Load(); err != nil || got[0] != "key-a" || s2.View().PasswordFile != v.PasswordFile {
+	if err := s2.Load(); err != nil || got[0] != tok || s2.View().PasswordFile != v.PasswordFile {
 		t.Fatalf("reload: %v, onKey %v", err, got)
 	}
 	if fi, _ := os.Stat(s.path()); fi.Mode().Perm()&0o077 != 0 && os.PathSeparator == '/' {
@@ -101,35 +225,90 @@ func TestBootstrapFreshJellyfin(t *testing.T) {
 }
 
 func TestLoginExistingJellyfin(t *testing.T) {
-	srv := fakeJellyfin(t, true, "pw")
-	defer srv.Close()
+	f, srv := newFake(t, true)
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
 	s.poll(context.Background())
 	if v := s.View(); !v.NeedsLogin || v.HasKey {
-		t.Fatalf("set-up Jellyfin, no key: want NeedsLogin, got %+v", v)
+		t.Fatalf("set-up Jellyfin, no token: want NeedsLogin, got %+v", v)
 	}
 	if err := s.Login(context.Background(), "streamiq", "wrong"); err == nil {
 		t.Fatal("wrong password accepted")
 	}
-	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil || got[0] != "key-a" {
-		t.Fatalf("login: %v, onKey %v", err, got)
+	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+		t.Fatal(err)
 	}
+	connected(t, f, s, got)
 	b, _ := os.ReadFile(s.path())
 	if strings.Contains(string(b), `"pw"`) || s.View().NeedsLogin || s.View().PasswordFile != "" {
-		t.Fatalf("stored the password or still needs login: %s", b)
+		t.Fatalf("stored the admin password or still needs login: %s", b)
 	}
 }
 
-func TestFixedKeyNeverBootstraps(t *testing.T) {
-	srv := fakeJellyfin(t, false, "")
-	defer srv.Close()
+// A viewer from an earlier run (or a half-finished one) is adopted: same user,
+// new password, policy enforced again.
+func TestExistingViewerAdopted(t *testing.T) {
+	f, srv := newFake(t, true)
+	f.users[ViewerName] = &fakeUser{id: "id-old-viewer", pw: "lost", admin: true,
+		policy: map[string]any{"IsAdministrator": true, "AuthenticationProviderId": "Default", "PasswordResetProviderId": "Default"}}
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
-	s.Fixed = true
+	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	if c := connected(t, f, s, got); c.ViewerID != "id-old-viewer" || f.users[ViewerName].pw == "lost" {
+		t.Fatalf("not adopted: %+v", c)
+	}
+}
+
+// A revoked token repairs itself with the stored viewer password; if that
+// password is refused too, the page asks for an admin login again.
+func TestRevokedTokenRepairs(t *testing.T) {
+	f, srv := newFake(t, true)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	old := got[0]
+	f.mu.Lock()
+	f.revoke(ViewerName) // e.g. signed out in Dashboard → Devices
+	f.mu.Unlock()
 	s.poll(context.Background())
-	if got[0] != "" || s.View().NeedsLogin || !s.View().HasKey {
-		t.Fatalf("STREAMIQ_JELLYFIN_API_KEY set: onKey %v, view %+v", got, s.View())
+	if connected(t, f, s, got); got[0] == old {
+		t.Fatal("kept the revoked token")
+	}
+	f.mu.Lock()
+	f.users[ViewerName].pw = "changed by someone"
+	f.revoke(ViewerName)
+	f.mu.Unlock()
+	s.poll(context.Background())
+	if v := s.View(); got[0] != "" || !v.NeedsLogin || v.HasKey {
+		t.Fatalf("viewer sign-in refused: onKey %v, view %+v", got, v)
+	}
+}
+
+// A pre-#50 install keeps streaming on its admin API key (pinned to its user)
+// until the next page login, which moves it to the viewer and deletes the key.
+func TestLegacyKeyMigrates(t *testing.T) {
+	f, srv := newFake(t, true)
+	f.keys["legacy-key"] = true
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	os.WriteFile(s.path(), []byte(`{"apiKey":"legacy-key","user":"streamiq","password":"pw"}`), 0o600)
+	if err := s.Load(); err != nil {
+		t.Fatal(err)
+	}
+	s.poll(context.Background())
+	if v := s.View(); got != [2]string{"legacy-key", "id-admin"} || !v.LegacyKey || !v.HasKey || !v.NeedsLogin {
+		t.Fatalf("legacy key: onKey %v, view %+v", got, v)
+	}
+	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	c := connected(t, f, s, got)
+	if f.keys["legacy-key"] || c.APIKey != "" || s.View().LegacyKey || c.Password != "pw" {
+		t.Fatalf("after migration: keys %v, creds %+v", f.keys, c)
 	}
 }
 

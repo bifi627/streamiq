@@ -19,20 +19,16 @@ const (
 	vid = "aad7cecccec3a4dc85db63021e5bfd99"
 )
 
-// fakeJellyfin serves /Users (for user resolution), a range-able /Videos file,
-// a playlist that echoes the API key (like Jellyfin's subtitle URIs), and
+// fakeJellyfin serves a range-able /Videos file,
+// a playlist that echoes the token (like Jellyfin's subtitle URIs), and
 // records the last request so tests can see what the gateway forwarded.
-func fakeJellyfin(t *testing.T, users string) (*Jellyfin, *http.Request) {
+func fakeJellyfin(t *testing.T) (*Jellyfin, *http.Request) {
 	t.Helper()
 	payload := bytes.Repeat([]byte("data-"), 400) // 2000 bytes
 	last := &http.Request{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != `MediaBrowser Token="`+key+`"` {
 			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		if r.URL.Path == "/Users" {
-			w.Write([]byte(users))
 			return
 		}
 		*last = *r
@@ -56,15 +52,13 @@ func fakeJellyfin(t *testing.T, users string) (*Jellyfin, *http.Request) {
 	}))
 	t.Cleanup(srv.Close)
 	j := &Jellyfin{Client: http.DefaultClient, URL: srv.URL}
-	j.SetKey(key, "")
+	j.SetKey(key, uid)
 	return j, last
 }
 
-const oneUser = `[{"Name":"home","Id":"` + uid + `"}]`
-
 // Seek survives the tunnel: a Range request comes back 206 with the right bytes.
 func TestProxyRangePassthrough(t *testing.T) {
-	j, _ := fakeJellyfin(t, oneUser)
+	j, _ := fakeJellyfin(t)
 	status, hdr, body := do(t, j, tunnelReq{Method: "GET", URL: "/Videos/" + vid + "/hls1/main/0.ts"})
 	if status != 200 || len(body) != 2000 || hdr["Content-Length"] != "2000" {
 		t.Fatalf("full GET = %d, %d bytes, Content-Length %q", status, len(body), hdr["Content-Length"])
@@ -78,7 +72,7 @@ func TestProxyRangePassthrough(t *testing.T) {
 	}
 }
 
-// An API key is admin: only consumption endpoints pass.
+// Only consumption endpoints pass (defense in depth: the token is a viewer).
 func TestAllowlist(t *testing.T) {
 	for _, c := range []struct {
 		method, url string
@@ -111,7 +105,7 @@ func TestAllowlist(t *testing.T) {
 		{"GET", "http://evil.example/UserViews", false},
 		{"GET", "/Items/not-an-id", false},
 	} {
-		j, _ := fakeJellyfin(t, oneUser)
+		j, _ := fakeJellyfin(t)
 		raw, _ := json.Marshal(tunnelReq{Method: c.method, URL: c.url})
 		status, _, body, err := proxy(j, raw)
 		if body != nil {
@@ -123,10 +117,10 @@ func TestAllowlist(t *testing.T) {
 	}
 }
 
-// The browser's credentials never reach Jellyfin; the gateway's key does, the
-// request is pinned to the household user, and echoed keys are redacted.
+// The browser's credentials never reach Jellyfin; the gateway's token does, the
+// request is pinned to the token's user, and echoed tokens are redacted.
 func TestCredentialsAndUser(t *testing.T) {
-	j, last := fakeJellyfin(t, oneUser)
+	j, last := fakeJellyfin(t)
 	status, hdr, body := do(t, j, tunnelReq{
 		Method: "GET",
 		URL:    "/Videos/" + vid + "/master.m3u8?api_key=stolen&ApiKey=stolen&UserId=someone-else&mediaSourceId=" + vid,
@@ -155,7 +149,7 @@ func TestCredentialsAndUser(t *testing.T) {
 }
 
 func TestPostBody(t *testing.T) {
-	j, last := fakeJellyfin(t, oneUser)
+	j, last := fakeJellyfin(t)
 	do(t, j, tunnelReq{Method: "POST", URL: "/UserItems/" + vid + "/UserData", Body: `{"PlaybackPositionTicks":10}`})
 	if last.Header.Get("X-Test-Body") != `{"PlaybackPositionTicks":10}` || last.Header.Get("Content-Type") != "application/json" {
 		t.Fatalf("forwarded body %q, type %q", last.Header.Get("X-Test-Body"), last.Header.Get("Content-Type"))
@@ -166,20 +160,15 @@ func TestPostBody(t *testing.T) {
 	}
 }
 
-func TestUserResolution(t *testing.T) {
-	two := `[{"Name":"Kids","Id":"` + vid + `"},{"Name":"Home","Id":"` + uid + `"}]`
-	j, _ := fakeJellyfin(t, two)
+// No token (or a token without its user) refuses instead of guessing a user.
+func TestNoToken(t *testing.T) {
+	j, _ := fakeJellyfin(t)
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: "/UserViews"})
-	if status, _, _, err := proxy(j, raw); status != http.StatusBadGateway || err == nil {
-		t.Fatalf("two users, no STREAMIQ_JELLYFIN_USER: status %d, want 502", status)
-	}
-	j.User = "home" // case-insensitive
-	if got, err := j.user(); got != uid || err != nil {
-		t.Fatalf("user() = %q, %v", got, err)
-	}
-	j2 := &Jellyfin{Client: http.DefaultClient, URL: j.URL}
-	if status, _, _, _ := proxy(j2, raw); status != http.StatusServiceUnavailable {
-		t.Fatalf("no key: status %d, want 503", status)
+	for _, c := range []struct{ key, user string }{{"", ""}, {key, ""}, {"", uid}} {
+		j.SetKey(c.key, c.user)
+		if status, _, _, _ := proxy(j, raw); status != http.StatusServiceUnavailable {
+			t.Errorf("SetKey(%q, %q): status %d, want 503", c.key, c.user, status)
+		}
 	}
 }
 

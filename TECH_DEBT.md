@@ -17,8 +17,11 @@ Emulator error-body parsing assumes an `error` JSON shape; a real HTTP failure
 **Area:** control-plane / Features/Broker
 
 Broker registry is in-memory: correct only with a single API instance (Railway today).
+The signaling rate limits (per-IP sockets/enrollments) are in-memory per instance
+too: N instances = N× the budget. Per-socket message limits are unaffected.
 
-**Pay down:** second API instance → Postgres LISTEN/NOTIFY or Redis.
+**Pay down:** second API instance → Postgres LISTEN/NOTIFY or Redis (move the per-IP
+counters to the same store, or to the edge: IDEAS.md "Cloudflare proxy in front of the API").
 
 ### Gateway cert has no rotation
 **Area:** gateway / cert rotation
@@ -73,3 +76,31 @@ Fixes (glob 14.0.2 / minimatch 11.0.1, both still CJS with the same `sync` /
 ESM-only, so it can't be overridden in.
 
 **Pay down:** from 2026-11-04: add `"overrides": { "glob": "^14.0.2", "minimatch": "^11.0.1" }` to `e2e/package.json`, `npm install`, confirm `npm audit` is clean + e2e green. Or drop it if testcontainers moves to archiver 8 first.
+
+### No Postgres backup/restore story
+**Area:** control-plane / Railway Postgres
+
+The implementation plan's item 6 includes a backup/restore story for Postgres;
+deferred out of the item 6 hardening PR. Today it's whatever Railway does by default,
+and no restore has ever been tested. What's at stake is tenants, users, gateway
+credential hashes + pins, and connection telemetry; media never touches the DB.
+
+**Pay down:** before strangers install (Checkpoint 3): document Railway's
+backup/restore, and run one restore into the dev instance end to end.
+
+### Client error handling is quiet and vague
+**Area:** frontend / errors
+
+Failures reach the user as vague text or not at all. Known cases:
+- **Rate-limited broker socket:** a `429` on the WebSocket upgrade is invisible to
+  browser JS (the WebSocket API exposes no HTTP status), so the user sees only
+  "broker connection closed". Plan: a socket that closes *before* `onopen` gets a
+  loud, specific message ("Couldn't reach StreamIQ: too many attempts or offline.
+  Try again in a minute."), distinct from a drop mid-session.
+- **Authed shell swallows API errors:** see BUGS.md.
+
+Plan: one visible error banner/toast pattern for the app, with each failure
+mapped to a specific, actionable message.
+
+**Pay down:** before the limited beta (Checkpoint 3), or when the UI gets its first
+real design pass.

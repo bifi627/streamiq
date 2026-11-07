@@ -54,7 +54,7 @@ services:
     image: coturn/coturn:4.18.0
     profiles: ["relay"]
     command: >-
-      turnserver -n --lt-cred-mech --user dev:dev --realm streamiq.dev
+      turnserver -n --use-auth-secret --static-auth-secret=dev --realm streamiq.dev
       --listening-port 3478 --min-port 49160 --max-port 49200
       --external-ip=127.0.0.1 --verbose
     ports:

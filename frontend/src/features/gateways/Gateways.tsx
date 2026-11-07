@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   createEnrollmentToken,
   getGateways,
+  removeGateway,
   type Gateway,
   type Install,
 } from './api'
@@ -29,6 +30,21 @@ export function Gateways() {
     const t = setInterval(load, 5000)
     return () => clearInterval(t)
   }, [])
+
+  async function remove(d: Gateway) {
+    if (
+      !confirm(
+        `Remove "${d.name ?? 'gateway'}"? It disconnects now and must be installed again to come back.`,
+      )
+    )
+      return
+    try {
+      await removeGateway(d.id)
+      setGateways((gs) => gs.filter((g) => g.id !== d.id))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   async function addGateway() {
     try {
@@ -71,7 +87,10 @@ export function Gateways() {
                   </button>
                   <Pairing gatewayId={d.id} lanUrl={d.lanUrl} />
                 </>
-              )}
+              )}{' '}
+              <button type="button" onClick={() => remove(d)}>
+                Remove
+              </button>
             </li>
           ))}
         </ul>

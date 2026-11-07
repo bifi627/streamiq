@@ -26,3 +26,21 @@ Feature: Signaling broker
   Scenario: A browser socket without a valid ID token is closed
     When a browser authenticates with token "garbage"
     Then the browser socket is closed
+
+  Scenario: Removing a gateway revokes its credential and ends its sessions
+    Given "alice@home.test" has an online gateway "nas"
+    When "alice@home.test" offers to gateway "nas"
+    And gateway "nas" receives the offer
+    And "alice@home.test" removes gateway "nas"
+    Then the removal succeeds
+    And gateway "nas" is disconnected as "revoked"
+    And the browser socket is closed
+    And gateway "nas" can no longer connect
+    And "alice@home.test" no longer lists gateway "nas"
+
+  Scenario: A tenant cannot remove another tenant's gateway
+    Given "alice@home.test" has an online gateway "nas"
+    When "bob@home.test" removes gateway "nas"
+    Then the removal is refused as not found
+    When "alice@home.test" offers to gateway "nas"
+    Then gateway "nas" receives the offer

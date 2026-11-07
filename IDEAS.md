@@ -135,3 +135,16 @@ what we store (an encrypted blob), what we can't read, and that the recovery
 code is the only way back.
 
 **When:** after local backup/restore exists and users actually lose data.
+
+### Cloudflare proxy in front of the API
+**Area:** hosting / edge security
+
+Research what proxying the app's domain through Cloudflare (orange-cloud DNS in
+front of Railway) would buy: DDoS absorption, WAF rate-limiting rules as a flood
+shield on `/gateways/enroll` + the WebSocket upgrade paths (free plan: 1 rule,
+counted per IP, 10 s window/block; Pro: 2 rules, up to 1 min / 1 h), bot rules.
+It complements the in-app limits (item 6) and can't replace them: it can't see
+messages inside a WebSocket, and it can't count per user. Switching means the
+client-IP header changes from Railway's `X-Real-IP` to `CF-Connecting-IP`.
+
+**When:** before the limited beta signup (Checkpoint 3), or at the first real flood.

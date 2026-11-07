@@ -66,12 +66,20 @@ series / episodes → hls.js player over the tunnel (custom loader), subtitles, 
 via Jellyfin UserData. The gateway owns the Jellyfin API key (`STREAMIQ_JELLYFIN_API_KEY`;
 dev: `scripts/setup-jellyfin.sh`): it injects the key, pins the household user, lets
 only an endpoint allowlist through, and redacts the key from playlists. All POC
-paths are deleted. **PR B (trust it):** `GET /turn` (Cloudflare creds in prod,
-`STREAMIQ_TURN_*` coturn in dev), `connection_sessions` telemetry (migration #4, drops
+paths are deleted. **PR B (trust it):** TURN (Cloudflare creds in prod,
+coturn in dev; per-session since item 6), `connection_sessions` telemetry (migration #4, drops
 the POC's `poc_connectivity`), privacy indicator (direct vs relayed); `?relay`
 forces the relay path. **Hosting:** the root `Dockerfile` builds the SPA into the
 API image (`wwwroot`, same origin, no CORS in prod); Railway Root Directory = repo root.
 
+**Item 6 — hardening** (no design doc; protocol in `docs/protocol.md`). **PR A:** signaling
+rate limits (per client IP via `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`, plus
+per-socket message buckets, 10 s auth deadline), TURN creds minted per broker session
+in `ready` and revoked at its end (`GET /turn` is gone; dev coturn uses TURN REST
+`STREAMIQ_TURN_SECRET`), gateway revocation (`DELETE /gateways/{id}`: hash nulled, row
+kept for telemetry, sockets + sessions closed). Still open in item 6: BUGS.md
+"Removed browser keeps its open sessions", TECH_DEBT.md local-page auth; Postgres
+backup/restore deferred (TECH_DEBT.md).
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,

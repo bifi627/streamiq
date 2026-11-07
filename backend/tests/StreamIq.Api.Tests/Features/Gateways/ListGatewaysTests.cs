@@ -30,7 +30,7 @@ public class ListGatewaysTests(IntegrationFixture fx)
         {
             var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
             var tenantAId = db.Users.Single(u => u.Email == "a@x.test").TenantId;
-            db.Gateways.Add(new Gateway { TenantId = tenantAId, Name = "a-box" });
+            db.Gateways.Add(new Gateway { TenantId = tenantAId, Name = "a-box", CredentialHash = "seeded" });
             await db.SaveChangesAsync();
         }
 

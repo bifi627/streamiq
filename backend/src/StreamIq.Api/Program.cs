@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Threading.RateLimiting;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authentication;
@@ -11,7 +12,6 @@ using StreamIq.Api.Features.Connections;
 using StreamIq.Api.Features.Gateways;
 using StreamIq.Api.Features.Me;
 using StreamIq.Api.Features.Onboarding;
-using StreamIq.Api.Features.Turn;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -70,7 +70,28 @@ builder.Services.AddScoped<UserProvisioner>();
 builder.Services.AddAuthentication("Firebase")
     .AddScheme<AuthenticationSchemeOptions, FirebaseAuthHandler>("Firebase", _ => { });
 builder.Services.AddAuthorization();
-builder.Services.AddHttpClient(); // /turn -> Cloudflare
+builder.Services.AddHttpClient(); // broker -> Cloudflare TURN
+
+// Signaling rate limit: new sockets + enrollments per client IP per minute. The
+// client IP comes from STREAMIQ_CLIENT_IP_HEADER when set (prod: Railway's
+// X-Real-IP, set in the Dockerfile; a Cloudflare proxy would be CF-Connecting-IP),
+// else RemoteIpAddress. Never the raw X-Forwarded-For header (the client writes
+// its left entries); in the image, RemoteIpAddress is its rightmost entry, which
+// Railway's proxy appends (ASPNETCORE_FORWARDEDHEADERS_ENABLED).
+// A flood shield, loose on purpose: users behind one shared IP (carrier NAT) share
+// this budget. ponytail: no per-user limit; add one keyed on the verified user in
+// BrowserSocket if a single account ever abuses it. In-memory per instance, like
+// the broker registry (TECH_DEBT.md).
+var clientIpHeader = builder.Configuration["STREAMIQ_CLIENT_IP_HEADER"];
+var signalingPerMinute = builder.Configuration.GetValue("STREAMIQ_SIGNALING_PER_MINUTE", 120);
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy("signaling", ctx => RateLimitPartition.GetFixedWindowLimiter(
+        (clientIpHeader is { Length: > 0 } ? ctx.Request.Headers[clientIpHeader].ToString() : null) is { Length: > 0 } ip
+            ? ip : ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = signalingPerMinute, Window = TimeSpan.FromMinutes(1) }));
+});
 
 // Railway (and any container host) inject the port via $PORT. ponytail:
 // one-line bind; no-op locally where launchSettings sets the URL.
@@ -96,6 +117,7 @@ app.UseStaticFiles();
 app.UseCors(); // before auth, so preflights are answered without hitting it
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.UseWebSockets();
 
@@ -104,11 +126,11 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 // Vertical slices: one file per use case under Features/<Slice>/, mapped here.
 GetMe.Map(app);
 ListGateways.Map(app);
+RevokeGateway.Map(app);
 CreateEnrollmentToken.Map(app);
 Enroll.Map(app);
 GatewaySocket.Map(app);
 BrowserSocket.Map(app);
-GetTurn.Map(app);
 StartConnection.Map(app);
 EndConnection.Map(app);
 

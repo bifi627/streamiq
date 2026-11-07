@@ -38,17 +38,25 @@ public static class GatewaySocket
             var ct = ctx.RequestAborted;
             try
             {
-                while (await Broker.ReadAsync(socket, ct) is { } msg)
+                using var limiter = Broker.MessageLimiter(burst: 200, perSecond: 50);
+                while (await Broker.ReadAsync(socket, ct, limiter: limiter) is { } msg)
                 {
                     switch ((string?)msg["type"])
                     {
                         case "heartbeat":
                             var lanUrl = SafeLanUrl((string?)msg["lanUrl"]);
                             var version = (string?)msg["version"] is { Length: <= 40 } v ? v : null;
-                            await db.Gateways.Where(d => d.Id == gateway.Id).ExecuteUpdateAsync(s => s
-                                .SetProperty(d => d.LastSeenAt, DateTimeOffset.UtcNow)
-                                .SetProperty(d => d.LanUrl, lanUrl)
-                                .SetProperty(d => d.Version, version), ct);
+                            // Matching the hash, not just the id: a socket that authenticated
+                            // just before a revoke is closed at its next heartbeat.
+                            var live = await db.Gateways.Where(d => d.Id == gateway.Id && d.CredentialHash == hash)
+                                .ExecuteUpdateAsync(s => s
+                                    .SetProperty(d => d.LastSeenAt, DateTimeOffset.UtcNow)
+                                    .SetProperty(d => d.LanUrl, lanUrl)
+                                    .SetProperty(d => d.Version, version), ct);
+                            if (live == 0)
+                            {
+                                await me.KillAsync("revoked");
+                            }
                             break;
                         case "answer" or "ice":
                             // Only into sessions opened *for this gateway*: a gateway can't
@@ -69,7 +77,7 @@ public static class GatewaySocket
             {
                 Broker.Gateways.TryRemove(new(gateway.Id, me));
             }
-        });
+        }).RequireRateLimiting("signaling");
     }
 
     // Forward only the fields the protocol defines (docs/protocol.md).

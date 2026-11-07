@@ -24,7 +24,7 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 `401` token unknown, expired, or used.
 
 **`GET /gateways/ws`** — gateway control WebSocket, `Authorization: Bearer
-<credential>` (`401` before upgrade if unknown). Gateway → API, one JSON text
+<credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
 { "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0" }
@@ -32,6 +32,21 @@ frame on connect and every 30 s:
 The API sets `last_seen_at = now`, `lan_url` (http/https only, else null) and
 `version` (≤ 40 chars, else null; `"dev"` for source builds). `version` is
 optional: older gateways omit it.
+
+**`DELETE /gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's
+credential (row kept, hidden from `GET /gateways`; its telemetry stays). The
+broker closes its control socket (`1008 "revoked"`) and every browser session
+through it (`1008 "gateway revoked"`). Another tenant's or an already revoked
+gateway → `404`. A gateway that authenticated just before the revoke is closed
+at its next heartbeat. Re-adding the box = re-enroll (`docs/install.md`).
+
+**Rate limits.** `/broker/ws`, `/gateways/ws` and `/gateways/enroll` share a
+budget of 120 new requests per client IP per minute; over it → `429` (for a
+socket: the upgrade is refused). A flood shield, not a per-user quota: a
+household needs a handful per minute, and the headroom keeps many users behind
+one shared IP (carrier NAT, office) clear of it. On an open socket, a message past its token
+bucket (browser: burst 50, 10/s; gateway: burst 200, 50/s) closes it with
+`1008 "rate limited"`. A browser socket must send `auth` within 10 s.
 `GET /gateways` reports `online` = last heartbeat within 90 s. The same socket
 carries the gateway's half of the broker (below).
 
@@ -46,7 +61,7 @@ Closing it ends the session (broker sends the gateway `bye`).
 | direction | message |
 |---|---|
 | browser → broker | `{type:"auth", token:"<Firebase ID token>"}` — first frame (not a query param: keeps it out of logs). Bad token → close `1008`. |
-| broker → browser | `{type:"ready"}` |
+| broker → browser | `{type:"ready", iceServers}` — this session's ICE servers (below) |
 | browser → broker | `{type:"offer", gatewayId, sdp}` — browser is the offerer |
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for another tenant's gateway (no existence oracle) |
 | browser → broker | `{type:"ice", candidate}` |
@@ -60,10 +75,16 @@ per session (several browsers at once).
 
 ## ICE servers + connection telemetry (MVP item 5)
 
-**`GET /turn`** (Firebase Bearer) → `{iceServers}` for the browser's
-`RTCPeerConnection`. Prod: Cloudflare `generate-ice-servers` (1 h TTL), passed
-through. Dev: `STREAMIQ_TURN_URLS` / `_USERNAME` / `_CREDENTIAL` (compose coturn),
-else STUN only. If `/turn` fails the browser falls back to STUN. `?relay` in the
+**ICE servers come per session, in the broker's `ready`** (there is no
+free-standing TURN endpoint; item 6). Prod: Cloudflare `generate-ice-servers`
+mints a fresh credential for each broker socket, passed through, and the broker
+revokes it when the socket closes (= the session ends: the gateway gets `bye`).
+TTL 4 h is only the backstop for a failed revoke; it must outlast a relayed
+session because TURN refreshes need a valid credential. Dev: TURN REST creds for
+`STREAMIQ_TURN_URLS`, `username = "<unix expiry>:<user id>"`, `credential =
+base64(HMAC-SHA1(STREAMIQ_TURN_SECRET, username))` (coturn `--use-auth-secret`),
+expiry only. Neither configured, or Cloudflare failing: STUN only. The browser
+applies them with `setConfiguration` before creating its offer. `?relay` in the
 app URL sets `iceTransportPolicy: "relay"` (diagnostic; the e2e uses it). The
 gateway stays on its own config (STUN, optional `STREAMIQ_ICE_*`): the browser's
 relay candidate is enough, as the e2e's forced-relay step shows.

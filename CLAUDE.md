@@ -150,7 +150,8 @@ Copy `.env.example` only to override.
   across worktrees (random ports, per-checkout `e2e/.bin`; Docker image tags are still
   machine-wide, last build wins). The *dev* stack is not:
   compose (`name: streamiq`, fixed ports) and `dev.ps1` (:5028/:5173) are one per machine,
-  shared by all worktrees. Fresh worktree: `check.sh` runs `npm ci` itself.
+  shared by all worktrees (emulator users live in the `streamiq_firebase-data` volume,
+  not in a checkout). Fresh worktree: `check.sh` runs `npm ci` itself.
 - `.slnx` (not `.sln`) — .NET 10's solution format.
 - `frontend/.npmrc` hardens npm: `ignore-scripts=true`, `min-release-age=7`.
   Keep this in every new package dir (e2e/ etc.). If `npm install` fails

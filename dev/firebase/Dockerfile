@@ -7,3 +7,4 @@
 FROM node:24-alpine
 RUN npm install -g firebase-tools@15.34.1
 WORKDIR /app
+COPY firebase.json .

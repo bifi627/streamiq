@@ -37,13 +37,17 @@ services:
     # firebase is PID 1 so it receives SIGTERM directly and the export actually fires.
     # $$ escapes compose interpolation so the literal $A reaches the shell.
     command: >-
-      sh -c 'A="--export-on-exit=/app/data";
-      [ -f /app/data/firebase-export-metadata.json ] && A="--import=/app/data $$A";
+      sh -c 'A="--export-on-exit=/app/data/export";
+      [ -f /app/data/export/firebase-export-metadata.json ] && A="--import=/app/data/export $$A";
       exec firebase emulators:start --only auth --project demo-streamiq $$A'
     ports:
       - "9099:9099"
     volumes:
-      - ./dev/firebase:/app
+      # Named volume, not a bind mount: compose is shared by all worktrees, and a
+      # relative bind would follow whichever checkout ran `up` last (issue #38).
+      # Export goes to a subdir: firebase-tools replaces the export dir by rename,
+      # which fails (EBUSY) on the mount point itself.
+      - firebase-data:/app/data
 
   coturn:
     # Local TURN for forcing the relay path (iceTransportPolicy: 'relay').
@@ -66,3 +70,4 @@ volumes:
   pgdata:
   jellyfin-config:
   jellyfin-cache:
+  firebase-data:

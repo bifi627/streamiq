@@ -42,7 +42,7 @@ export function start(
 }
 
 /** Polls url until it answers 2xx; fails early if the process died. */
-export async function waitHttp(url: string, p: Proc, timeoutMs = 120_000) {
+export async function waitHttp(url: string, p: Proc, timeoutMs = 120_000, headers: Record<string, string> = {}) {
   const end = Date.now() + timeoutMs
   while (Date.now() < end) {
     if (p.proc.exitCode !== null)
@@ -50,7 +50,7 @@ export async function waitHttp(url: string, p: Proc, timeoutMs = 120_000) {
         `${url}: process exited ${p.proc.exitCode} (see e2e/logs)`,
       )
     try {
-      if ((await fetch(url)).ok) return
+      if ((await fetch(url, { headers })).ok) return
     } catch {
       // not listening yet
     }
@@ -92,13 +92,26 @@ export async function startGateway(
         cwd: root,
         env: gwEnv,
       })
-  await waitHttp(pageUrl, p)
+  // A containerized gateway sees the host as a LAN client, not loopback: sign in
+  // with the page token (#42), as a person on another device does.
+  const headers: Record<string, string> = {}
+  let pageCookie: { name: string; value: string; url: string } | undefined
+  if (process.env.E2E_GATEWAY_IMAGE) {
+    const file = path.join(stateDir, 'page-token')
+    for (const end = Date.now() + 120_000; !fs.existsSync(file); ) {
+      if (Date.now() > end || p.proc.exitCode !== null) throw new Error(`${file}: not written (see e2e/logs)`)
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    pageCookie = { name: 'streamiq_page', value: fs.readFileSync(file, 'utf8').trim(), url: pageUrl }
+    headers.Cookie = `${pageCookie.name}=${pageCookie.value}`
+  }
+  await waitHttp(pageUrl, p, undefined, headers)
   // First start: connect Jellyfin the way a person does, with an admin login on
   // the local page; the gateway keeps only its viewer token (state/jellyfin.json).
   if (!fs.existsSync(path.join(stateDir, 'jellyfin.json'))) {
     const res = await fetch(pageUrl + '/jellyfin/login', {
       method: 'POST',
-      headers: { Origin: pageUrl },
+      headers: { Origin: pageUrl, ...headers },
       body: new URLSearchParams(JELLYFIN_ADMIN),
       redirect: 'manual',
     })
@@ -106,7 +119,7 @@ export async function startGateway(
       throw new Error(`gateway Jellyfin login: HTTP ${res.status} ${await res.text()}`)
     }
   }
-  return { ...p, pageUrl }
+  return { ...p, pageUrl, pageCookie }
 }
 
 /**

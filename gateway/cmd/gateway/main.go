@@ -112,14 +112,18 @@ func main() {
 		var notice atomic.Pointer[string]
 		notice.Store(new(string))
 		go checkUpdates(ctx, &notice)
+		token, err := localpage.Token(stateDir, lan)
+		if err != nil {
+			log.Fatalf("gateway: page token: %v", err)
+		}
 		go func() {
-			log.Printf("gateway: local page on %s", lan)
+			log.Printf("gateway: local page on %s (login link in %s)", lan, filepath.Join(stateDir, "page-link"))
 			page := localpage.Handler(localpage.Config{
 				Name: st.Name, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
 				LastBeat: &lastBeat, Update: &notice, Store: store,
 				Jellyfin: func() any { return setup.View() }, Login: setup.Login,
 			})
-			log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, page)))
+			log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
 		}()
 		go forever(ctx, func(ctx context.Context) error {
 			return onboarding.RunControl(ctx, api, st, lan, version, &lastBeat, sess.Handle)

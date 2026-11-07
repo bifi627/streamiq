@@ -37,6 +37,13 @@ Pick one:
 3. Open the local page it prints (`http://localhost:8097`). On Windows, allow
    the firewall prompt for private networks. The web app now lists the gateway.
 
+From another device (phone, laptop; the usual case for a NAS) the page asks for
+a token. Open the link the installer printed after **from another device**
+(`http://<lan-ip>:8097/?t=…`) once in that browser; it stays signed in for a
+year. Lost it? It's in `state/page-link` (the token alone: `state/page-token`).
+On the media machine itself (`localhost`) no token is needed. To sign out every
+browser, delete `state/page-token` and restart the gateway.
+
 The installer verifies the binary against the release's `SHA256SUMS` and
 refuses a mismatch.
 
@@ -51,8 +58,8 @@ libraries and keeps its own watch progress (separate from yours in Jellyfin).
   gateway completes the wizard, creates the Jellyfin admin `streamiq` with a
   random password, and creates `streamiq-viewer`. The local page shows where
   the admin password is (`state/jellyfin.json`, readable only on this
-  computer), never the password itself, because anyone on your network can
-  open the page. You use it to manage Jellyfin.
+  computer), never the password itself. You use it to manage
+  Jellyfin.
 - **Jellyfin already set up:** the page shows **Connect Jellyfin**. Sign in once
   with a Jellyfin administrator. The gateway uses that session to create
   `streamiq-viewer`, then signs out. It never stores your password, so
@@ -99,7 +106,7 @@ is kept, so paired browsers don't need to pair again.
 |---|---|---|
 | Install dir | `%LOCALAPPDATA%\streamiq` | `~/.local/share/streamiq` |
 | Settings | `gateway.env` (yours, kept on updates) | same |
-| Identity, paired browsers, Jellyfin token | `state\` (never touched by updates) | `state/` |
+| Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates) | `state/` |
 | Log | `gateway.log` | `gateway.log` |
 
 `STREAMIQ_DIR` overrides the install dir. Set `STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` on

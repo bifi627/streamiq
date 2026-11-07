@@ -1,6 +1,6 @@
-# The Dockerfile COPYs nothing — it only `npm install -g`s firebase-tools — so the
-# build context needs no files. Excluding everything keeps runtime artifacts
-# (firebase-debug.log, data/ exports, firebase.json) out of the tar sent to Docker;
-# a live-locked debug log would otherwise break the image build. Docker always
-# includes the Dockerfile itself, ignore rule notwithstanding.
+# Only firebase.json is COPYed (the Dockerfile otherwise just `npm install -g`s
+# firebase-tools). Excluding the rest keeps runtime artifacts (firebase-debug.log,
+# old data/ exports) out of the tar sent to Docker; a live-locked debug log would
+# otherwise break the image build. Docker always includes the Dockerfile itself.
 *
+!firebase.json

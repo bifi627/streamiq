@@ -193,15 +193,22 @@ key redaction in text responses (below).
 The browser authenticates to StreamIQ, never to Jellyfin, and a paired browser
 stays a *viewer*:
 
-- **Credential injection.** The gateway holds the Jellyfin API key
-  (`STREAMIQ_JELLYFIN_API_KEY`) and sets `Authorization: MediaBrowser Token="…"`.
-  It drops browser-sent `Authorization`, `Cookie`, `X-Emby-*` and
-  `X-MediaBrowser-*` headers, and `api_key`/`ApiKey` query parameters.
-- **User pinning.** Every request gets `userId=<household user>`, and any
-  browser-sent `userId` is dropped. The household user is
-  `STREAMIQ_JELLYFIN_USER` (a name), or the only Jellyfin user if there is one;
-  it's resolved lazily and cached. Tenant = household = one Jellyfin user.
-- **Allowlist.** An API key is admin, so only these pass (anything else is `403`):
+- **Credential injection.** The gateway holds a Jellyfin user token for the
+  hidden, non-admin user `streamiq-viewer` (`gateway/internal/jellyfin` creates
+  it with an admin session it doesn't keep; `state/jellyfin.json`). It sets
+  `Authorization: MediaBrowser Token="…"`, and drops browser-sent `Authorization`,
+  `Cookie`, `X-Emby-*` and `X-MediaBrowser-*` headers, and `api_key`/`ApiKey`
+  query parameters. Jellyfin itself refuses admin calls with this token. The
+  viewer's policy: not admin, hidden, no content deletion, no remote control of
+  other users or shared devices, no public sharing, no collection, subtitle,
+  lyric or Live TV management; all libraries.
+- **User pinning.** Every request gets `userId=<viewer id>`, and any
+  browser-sent `userId` is dropped (Jellyfin also answers `403` to another
+  user's id with this token). Tenant = household = one Jellyfin user. A
+  gateway set up before #50 still runs on an admin API key pinned to the user
+  stored with it, until the next admin login on its local page replaces it.
+- **Allowlist.** Defense in depth on top of the viewer token: only these pass
+  (anything else is `403`):
 
   | method | path |
   |---|---|
@@ -215,14 +222,17 @@ stays a *viewer*:
 
   The path must already be clean: no `..`, no `//`, no percent-encoding, not
   absolute. `{id}` is 32–36 hex digits or dashes.
-- **Redaction.** Jellyfin writes `ApiKey=<key>` into the URLs inside its HLS
+- **Redaction.** Jellyfin writes `ApiKey=<token>` into the URLs inside its HLS
   playlists. Text responses (`json`, `mpegurl`, `text/*`, at most 16 MB) are
-  buffered, the key is replaced with `redacted`, and `Content-Length` is
+  buffered, the token is replaced with `redacted`, and `Content-Length` is
   recomputed. The follow-up request then carries `ApiKey=redacted`, which the
   gateway strips like any other browser-sent key.
+- **Token repair.** Once a minute the gateway checks the token (`GET /Users/Me`).
+  On `401` it signs in again as the viewer with the stored viewer password; if
+  Jellyfin refuses that too, the local page asks for an admin login again.
 
-Resume goes through `UserData` (`PlaybackPositionTicks`). Jellyfin ignores
-`/Sessions/Playing*` reports from API-key callers, so those aren't allowlisted.
+Resume goes through `UserData` (`PlaybackPositionTicks`). `/Sessions/Playing*`
+isn't allowlisted (Jellyfin ignored it from the pre-#50 API key; not needed).
 
 ### Browser mechanism: hls.js custom loader, not a Service Worker (decided)
 

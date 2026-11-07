@@ -3,7 +3,11 @@ package localpage
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
+
+	"streamiq/gateway/internal/pairing"
 )
 
 // The page will approve browsers (PR B): a malicious website must not be able
@@ -34,5 +38,28 @@ func TestGuard(t *testing.T) {
 		if w.Code != c.want {
 			t.Errorf("%s: status %d, want %d", c.name, w.Code, c.want)
 		}
+	}
+}
+
+// The page is open to the whole LAN: it names the file holding the Jellyfin
+// admin password, never the password (TECH_DEBT "Local page shows Jellyfin
+// admin password unauthenticated").
+func TestPageShowsPasswordFileNotPassword(t *testing.T) {
+	store, err := pairing.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var beat atomic.Int64
+	var upd atomic.Pointer[string]
+	upd.Store(new(string))
+	jf := struct {
+		Reachable, HasKey, NeedsLogin, Untested  bool
+		Version, Tested, Err, User, PasswordFile string
+	}{Reachable: true, HasKey: true, User: "streamiq", PasswordFile: "/home/u/state/jellyfin.json"}
+	h := Handler(Config{LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "password in <code>/home/u/state/jellyfin.json</code>") {
+		t.Fatalf("status %d, body:\n%s", w.Code, w.Body)
 	}
 }

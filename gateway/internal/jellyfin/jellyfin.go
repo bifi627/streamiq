@@ -2,8 +2,8 @@
 // and watches Jellyfin's health for the status page (design:
 // specs/2026-11-04-streamiq-gateway-productization-design.md, goals 4, 5, 7):
 //   - fresh Jellyfin (wizard not done): complete the wizard, create admin
-//     "streamiq" with a random password (kept in the state dir, shown on the
-//     local page), mint a key;
+//     "streamiq" with a random password (kept only in state/jellyfin.json, 0600; the
+//     local page shows the file's path, never the password), mint a key;
 //   - Jellyfin already set up: the local page asks once for an admin login; the
 //     gateway mints a key with it and stores the key, never the password;
 //   - STREAMIQ_JELLYFIN_API_KEY still wins (dev, e2e): Fixed skips both.
@@ -48,7 +48,8 @@ type View struct {
 	Reachable, NeedsLogin, Fixed, HasKey bool
 	Untested                             bool // reachable, but not the Tested major.minor
 	Version, Tested, Err                 string
-	User, Password                       string // Password only if the gateway created the admin
+	User                                 string
+	PasswordFile                         string // set only if the gateway created the admin: where its password is
 }
 
 // Setup runs the poll loop and the page's login. OnKey hands a new key (and the
@@ -146,7 +147,7 @@ func (s *Setup) poll(ctx context.Context) {
 			return
 		}
 		s.setErr("")
-		slog.Info("gateway: completed the Jellyfin setup wizard; admin " + adminName + " (password on the local page)")
+		slog.Info("gateway: completed the Jellyfin setup wizard", "admin", adminName, "password_in", s.path())
 	}
 }
 
@@ -252,11 +253,15 @@ func (s *Setup) View() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	has := s.creds.APIKey != "" || s.Fixed
-	return View{
+	v := View{
 		Reachable: s.reachable, Version: s.version, Tested: Tested, Err: s.err,
 		Fixed: s.Fixed, HasKey: has, Untested: s.reachable && untested(s.version), NeedsLogin: s.reachable && s.wizard && !has,
-		User: s.creds.User, Password: s.creds.Password,
+		User: s.creds.User,
 	}
+	if s.creds.Password != "" { // never the password itself: the page is open to the whole LAN
+		v.PasswordFile, _ = filepath.Abs(s.path())
+	}
+	return v
 }
 
 func untested(version string) bool { return !strings.HasPrefix(version, Tested+".") }

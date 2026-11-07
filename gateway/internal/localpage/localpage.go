@@ -54,9 +54,9 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 {{if .Err}}<li style="color:#c00">{{.Err}}</li>{{end}}
 {{end}}
 </ul>
-{{with .Jellyfin}}{{if .Password}}
+{{with .Jellyfin}}{{if .PasswordFile}}
 <p style="border:2px solid #888;padding:.5rem 1rem">This gateway set up Jellyfin. Jellyfin admin:
-<b>{{.User}}</b> · password <code>{{.Password}}</code></p>{{end}}
+<b>{{.User}}</b> · password in <code>{{.PasswordFile}}</code> (open it on this computer)</p>{{end}}
 {{if .NeedsLogin}}
 <form method="post" action="/jellyfin/login" style="border:2px solid #c80;padding:.5rem 1rem">
 <p><b>Connect Jellyfin.</b> Sign in once with a Jellyfin administrator. The gateway creates an

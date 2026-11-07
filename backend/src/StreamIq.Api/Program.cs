@@ -42,10 +42,22 @@ builder.Services.AddDbContext<StreamIqDbContext>(o => o.UseNpgsql(connString));
 // satisfies init in emulator mode. Prod needs a real service account: Railway has
 // no ambient ADC, so we read the JSON from FIREBASE_SERVICE_ACCOUNT_JSON and fall
 // back to GetApplicationDefault() only for GCP-hosted runs.
-var firebaseProjectId = builder.Configuration["FIREBASE_PROJECT_ID"] ?? "demo-streamiq";
+// No default: a wrong project ID rejects every real login, so refuse to start instead.
+// demo-* projects only exist in the emulator (Firebase convention).
+var firebaseProjectId = builder.Configuration["FIREBASE_PROJECT_ID"];
 if (FirebaseApp.DefaultInstance is null)
 {
     var usingEmulator = !string.IsNullOrEmpty(builder.Configuration["FIREBASE_AUTH_EMULATOR_HOST"]);
+    if (string.IsNullOrWhiteSpace(firebaseProjectId))
+    {
+        throw new InvalidOperationException("FIREBASE_PROJECT_ID is not set.");
+    }
+    if (!usingEmulator && firebaseProjectId.StartsWith("demo-", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            $"FIREBASE_PROJECT_ID is '{firebaseProjectId}', a demo project, but no emulator host is set. " +
+            "Set it to the real Firebase project ID.");
+    }
     // ponytail: read the env var directly, not via Configuration — the source of
     // truth for a container-injected multi-line/JSON secret.
     var serviceAccountJson = (Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON")

@@ -237,8 +237,9 @@ func (s *Setup) connect(ctx context.Context, user, pw, oldKey string) (Creds, er
 		return Creds{}, err
 	}
 	if oldKey != "" {
-		if err := s.call(ctx, "DELETE", "/Auth/Keys/"+oldKey, admin, "", nil); err != nil {
-			slog.Warn("gateway: could not delete the old Jellyfin API key; delete streamiq-gateway in Dashboard → API Keys", "err", err)
+		// No err in the log: the request URL (in a transport error) holds the key.
+		if s.call(ctx, "DELETE", "/Auth/Keys/"+oldKey, admin, "", nil) != nil {
+			slog.Warn("gateway: could not delete the old Jellyfin API key; delete streamiq-gateway in Dashboard → API Keys")
 		}
 	}
 	return Creds{Token: tok, Viewer: ViewerName, ViewerID: id, ViewerPassword: vpw}, nil
@@ -381,9 +382,6 @@ func (s *Setup) call(ctx context.Context, method, path, token, body string, out 
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		p, _, _ := strings.Cut(path, "?")
-		if strings.HasPrefix(p, "/Auth/Keys/") {
-			p = "/Auth/Keys/…" // never log a key
-		}
 		return httpErr{method, p, resp.StatusCode}
 	}
 	if out != nil {

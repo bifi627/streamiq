@@ -47,8 +47,10 @@ has an **API key**:
 
 - **Fresh Jellyfin** (wizard not done): nothing to do. Within seconds the
   gateway completes the wizard, creates the Jellyfin admin `streamiq` with a
-  random password and shows that password on the local page. Keep it: you use
-  it to manage Jellyfin.
+  random password. The local page shows where the password is
+  (`state/jellyfin.json`, readable only on this computer), never the password
+  itself, because anyone on your network can open the page. You use it to
+  manage Jellyfin.
 - **Jellyfin already set up:** the page shows **Connect Jellyfin**. Sign in once
   with a Jellyfin administrator. The gateway creates an API key named
   `streamiq-gateway` and keeps only the key (`state/jellyfin.json`), never the

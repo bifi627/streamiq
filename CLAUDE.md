@@ -71,7 +71,6 @@ coturn in dev; per-session since item 6), `connection_sessions` telemetry (migra
 the POC's `poc_connectivity`), privacy indicator (direct vs relayed); `?relay`
 forces the relay path. **Hosting:** the root `Dockerfile` builds the SPA into the
 API image (`wwwroot`, same origin, no CORS in prod); Railway Root Directory = repo root.
-
 **Item 6 — hardening** (no design doc; protocol in `docs/protocol.md`). **PR A:** signaling
 rate limits (per client IP via `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`, plus
 per-socket message buckets, 10 s auth deadline), TURN creds minted per broker session
@@ -79,8 +78,10 @@ in `ready` and revoked at its end (`GET /turn` is gone; dev coturn uses TURN RES
 `STREAMIQ_TURN_SECRET`), gateway revocation (`DELETE /gateways/{id}`: hash nulled, row
 kept for telemetry, sockets + sessions closed). Removing a client on the gateway page
 closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).
-Still open in item 6: TECH_DEBT.md local-page auth; Postgres backup/restore deferred
-(TECH_DEBT.md).
+**Local-page secret:** the page no longer shows the Jellyfin admin password, only the path
+of `state/jellyfin.json` (0600) holding it (page login stays TECH_DEBT.md "Local page
+actions unauthenticated on the LAN"). Still open in item 6: Postgres backup/restore
+deferred (TECH_DEBT.md).
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,

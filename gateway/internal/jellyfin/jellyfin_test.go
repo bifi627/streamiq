@@ -3,6 +3,7 @@ package jellyfin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -78,14 +79,20 @@ func TestBootstrapFreshJellyfin(t *testing.T) {
 	s := newSetup(t, srv.URL, &got)
 	s.poll(context.Background())
 	v := s.View()
-	if got != [2]string{"key-a", "streamiq"} || !v.HasKey || v.Password == "" || v.Err != "" {
+	if got != [2]string{"key-a", "streamiq"} || !v.HasKey || v.PasswordFile == "" || v.Err != "" {
 		t.Fatalf("after bootstrap: onKey %v, view %+v", got, v)
+	}
+	// The password stays in the 0600 file; the view (rendered on the LAN page) never carries it.
+	var c Creds
+	b, _ := os.ReadFile(v.PasswordFile)
+	if json.Unmarshal(b, &c) != nil || c.Password == "" || strings.Contains(fmt.Sprintf("%+v", v), c.Password) {
+		t.Fatalf("password file %s / view %+v", b, v)
 	}
 	// Persisted: a restart loads the key instead of re-running the wizard.
 	got = [2]string{}
 	s2 := newSetup(t, srv.URL, &got)
 	s2.StateDir = s.StateDir
-	if err := s2.Load(); err != nil || got[0] != "key-a" || s2.View().Password != v.Password {
+	if err := s2.Load(); err != nil || got[0] != "key-a" || s2.View().PasswordFile != v.PasswordFile {
 		t.Fatalf("reload: %v, onKey %v", err, got)
 	}
 	if fi, _ := os.Stat(s.path()); fi.Mode().Perm()&0o077 != 0 && os.PathSeparator == '/' {
@@ -109,7 +116,7 @@ func TestLoginExistingJellyfin(t *testing.T) {
 		t.Fatalf("login: %v, onKey %v", err, got)
 	}
 	b, _ := os.ReadFile(s.path())
-	if strings.Contains(string(b), `"pw"`) || s.View().NeedsLogin || s.View().Password != "" {
+	if strings.Contains(string(b), `"pw"`) || s.View().NeedsLogin || s.View().PasswordFile != "" {
 		t.Fatalf("stored the password or still needs login: %s", b)
 	}
 }

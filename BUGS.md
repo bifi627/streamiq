@@ -4,14 +4,6 @@ Behavioral defects and config landmines. Fixed items are deleted (git holds the
 history). Design smells → `TECH_DEBT.md`, unbuilt wants → `IDEAS.md`. No
 numbers — reference items by heading.
 
-### Prod login fails if FIREBASE_PROJECT_ID is unset
-**Area:** control-plane / deploy · **Severity:** High (prod-only)
-
-`FIREBASE_PROJECT_ID` defaults to `demo-streamiq`; if unset in prod, real token
-verification fails for every login. Fails closed (no logins), not open.
-
-**Fix:** set `FIREBASE_PROJECT_ID` in the Railway prod env; consider failing startup fast if it's still `demo-streamiq` outside dev.
-
 ### Removed browser keeps its open sessions
 **Area:** control-plane / Features/Broker · **Severity:** Medium (security)
 

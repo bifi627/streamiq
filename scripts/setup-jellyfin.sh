@@ -102,5 +102,5 @@ echo "  wrote:      $OUT"
 
 # The dev gateway (go run in gateway/) reads gateway/gateway.env: dev ports, so
 # an installed streamiq on 8096/8097 can run alongside. Git-ignored.
-printf 'STREAMIQ_ORIGIN=%s\nSTREAMIQ_PAGE_PORT=18097\nSTREAMIQ_JELLYFIN_API_KEY=%s\n' "$BASE" "$API_KEY" > gateway/gateway.env
-echo "  wrote:      gateway/gateway.env (dev gateway: Jellyfin origin, page :18097, API key)"
+printf 'STREAMIQ_API_URL=http://localhost:5028\nSTREAMIQ_ORIGIN=%s\nSTREAMIQ_PAGE_PORT=18097\nSTREAMIQ_JELLYFIN_API_KEY=%s\n' "$BASE" "$API_KEY" > gateway/gateway.env
+echo "  wrote:      gateway/gateway.env (dev gateway: API :5028, Jellyfin origin, page :18097, API key)"

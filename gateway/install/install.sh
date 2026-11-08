@@ -53,6 +53,7 @@ rm -f "$DIR/state/page-link" # the installer waits for this start's fresh link
 cd "$DIR" && nohup "$DIR/gateway" >> "$DIR/gateway.log" 2>&1 &
 sleep 2
 echo "StreamIQ gateway started"
+echo "  installed:  $DIR"
 port=$(sed -n 's/^STREAMIQ_PAGE_PORT=//p' "$DIR/gateway.env")
 echo "  local page: http://localhost:${port:-8097}"
 # The gateway writes its LAN login link once enrolled (page token, item 6 / #42).

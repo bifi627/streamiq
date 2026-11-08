@@ -53,6 +53,7 @@ Remove-Item (Join-Path $dir 'state\page-link') -ErrorAction SilentlyContinue # w
 Start-Process cmd -ArgumentList "/k `"$exe`"" -WorkingDirectory $dir
 Remove-Item Env:STREAMIQ_ENROLL_TOKEN -ErrorAction SilentlyContinue
 Write-Host "StreamIQ gateway started"
+Write-Host "  installed:  $dir"
 $port = (Get-Content $envFile | Where-Object { $_ -match '^STREAMIQ_PAGE_PORT=' }) -replace '^STREAMIQ_PAGE_PORT=', ''
 Write-Host "  local page: http://localhost:$(if ($port) { $port } else { '8097' })"
 # The gateway writes its LAN login link once enrolled (page token, item 6 / #42).

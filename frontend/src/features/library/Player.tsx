@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
-import { event, watchVideo } from '../../diag'
+import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { clock, TICKS_PER_SECOND, type Item } from './items'
 
@@ -100,13 +100,37 @@ export function Player({
       // Diagnostics: what the TV is asked to decode, and whether it says it can.
       h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
         Object.entries(d).forEach(([k, t]) => {
-          const type = t && `${t.container};codecs="${t.codec}"`
+          const type = t?.codec && `${t.container};codecs="${t.codec}"`
           if (type)
             event(
               `hls ${k}: ${type} supported=${MediaSource.isTypeSupported(type)}`,
             )
         }),
       )
+      // Diagnostics: are segments parsed and appended, and where do audio and
+      // video land? video.buffered is only their overlap.
+      let parsed = 0
+      let appended = 0
+      let r: Partial<Record<string, TimeRanges>> = {}
+      const sb = () => {
+        diag.sb = [
+          `frags parsed ${parsed}`,
+          `appends ${appended}`,
+          ...Object.entries(r).map(([k, t]) => t && `${k} ${ranges(t)}`),
+        ]
+          .filter(Boolean)
+          .join(' · ')
+        changed()
+      }
+      h.on(Hls.Events.FRAG_PARSED, () => {
+        parsed++
+        sb()
+      })
+      h.on(Hls.Events.BUFFER_APPENDED, (_e, d) => {
+        appended++
+        r = d.timeRanges
+        sb()
+      })
       h.attachMedia(v)
       h.loadSource(`${TUNNEL_ORIGIN}/Videos/${item.Id}/master.m3u8?${q}`)
       h.subtitleTrack = -1

@@ -16,6 +16,7 @@ export const diag = {
   events: [] as string[],
   pc: '', // "connection / ice" of the current session
   media: '', // <video> state while the player is open
+  sb: '', // hls.js per-SourceBuffer ranges + fragment counters
   inFlight: 0,
   peak: 0,
 }
@@ -47,7 +48,7 @@ export function pcState(pc: RTCPeerConnection) {
   event(`pc ${diag.pc}`)
 }
 
-const ranges = (r: TimeRanges) =>
+export const ranges = (r: TimeRanges) =>
   Array.from(
     { length: r.length },
     (_, i) => `${r.start(i).toFixed(1)}-${r.end(i).toFixed(1)}`,
@@ -80,6 +81,7 @@ export function watchVideo(v: HTMLVideoElement) {
     names.forEach((n) => v.removeEventListener(n, on))
     clearInterval(t)
     diag.media = ''
+    diag.sb = ''
     changed()
   }
 }

@@ -15,6 +15,7 @@ export const diag = {
   reqs: [] as Req[],
   events: [] as string[],
   pc: '', // "connection / ice" of the current session
+  media: '', // <video> state while the player is open
   inFlight: 0,
   peak: 0,
 }
@@ -37,13 +38,50 @@ const push = <T>(a: T[], x: T, max: number) => {
 }
 
 export function event(msg: string) {
-  push(diag.events, `${new Date().toLocaleTimeString()} ${msg}`, 30)
+  push(diag.events, `${new Date().toLocaleTimeString()} ${msg}`, 50)
   changed()
 }
 
 export function pcState(pc: RTCPeerConnection) {
   diag.pc = `${pc.connectionState} / ${pc.iceConnectionState}`
   event(`pc ${diag.pc}`)
+}
+
+const ranges = (r: TimeRanges) =>
+  Array.from(
+    { length: r.length },
+    (_, i) => `${r.start(i).toFixed(1)}-${r.end(i).toFixed(1)}`,
+  ).join(' ') || 'none'
+
+/** Logs a <video>'s events and keeps diag.media current; returns the stop function. */
+export function watchVideo(v: HTMLVideoElement) {
+  const names = [
+    'loadedmetadata',
+    'canplay',
+    'play',
+    'playing',
+    'pause',
+    'waiting',
+    'stalled',
+    'seeking',
+    'seeked',
+    'error',
+  ]
+  const on = (e: Event) =>
+    event(
+      `video ${e.type}${v.error ? ` (code ${v.error.code} ${v.error.message})` : ''} @${v.currentTime.toFixed(1)}`,
+    )
+  names.forEach((n) => v.addEventListener(n, on))
+  const t = setInterval(() => {
+    diag.media = `t=${v.currentTime.toFixed(1)} ready=${v.readyState} paused=${v.paused} buffered=${ranges(v.buffered)}`
+    changed()
+  }, 1000)
+  return () => {
+    names.forEach((n) => v.removeEventListener(n, on))
+    clearInterval(t)
+    diag.media = ''
+    changed()
+  }
 }
 
 /** Tracks one tunnel request; call the returned functions as it progresses. */

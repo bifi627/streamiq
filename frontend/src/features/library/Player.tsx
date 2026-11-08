@@ -12,6 +12,7 @@ import {
   event,
   ranges,
   transcodeOn,
+  fmp4On,
   watchVideo,
 } from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
@@ -86,6 +87,9 @@ export function Player({
           AllowAudioStreamCopy: 'false',
           MaxAudioChannels: '2',
         }),
+        // Diagnostic: Jellyfin muxes fMP4 itself, so hls.js appends it as-is
+        // (no .ts → fMP4 repackaging). Stream copy stays allowed.
+        ...(fmp4On() && { SegmentContainer: 'mp4' }),
         ...(text && {
           SubtitleStreamIndex: String(text.Index),
           SubtitleMethod: 'Hls',

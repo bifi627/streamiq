@@ -33,9 +33,6 @@ namespace StreamIq.Api.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<string>("Email")
-                        .HasColumnType("text");
-
                     b.Property<string>("FirebaseUid")
                         .IsRequired()
                         .HasColumnType("text");

@@ -8,7 +8,7 @@ namespace StreamIq.Api.Auth;
 /// firebase_uid UNIQUE constraint settles the concurrent-first-request race.
 public class UserProvisioner(StreamIqDbContext db)
 {
-    public async Task<AppUser> ResolveOrProvisionAsync(string firebaseUid, string? email, CancellationToken ct)
+    public async Task<AppUser> ResolveOrProvisionAsync(string firebaseUid, CancellationToken ct)
     {
         var existing = await db.Users.FirstOrDefaultAsync(u => u.FirebaseUid == firebaseUid, ct);
         if (existing is not null)
@@ -18,7 +18,7 @@ public class UserProvisioner(StreamIqDbContext db)
 
         var tenant = new Tenant();
         db.Tenants.Add(tenant);                 // EF assigns client-generated Guid on Add
-        var user = new AppUser { FirebaseUid = firebaseUid, Email = email, TenantId = tenant.Id };
+        var user = new AppUser { FirebaseUid = firebaseUid, TenantId = tenant.Id };
         db.Users.Add(user);
 
         try

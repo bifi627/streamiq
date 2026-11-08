@@ -11,7 +11,6 @@ public static class GetMe
         app.MapGet("/me", (ClaimsPrincipal user) => Results.Ok(new
         {
             userId = user.FindFirstValue(ClaimTypes.NameIdentifier),
-            email = user.FindFirstValue(ClaimTypes.Email),
             tenantId = user.FindFirstValue("tenant_id"),
         })).RequireAuthorization();
     }

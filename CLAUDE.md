@@ -209,6 +209,9 @@ Copy `.env.example` only to override.
 - **Never `latest`** for the Jellyfin image; update the pin deliberately.
 - **Firebase UID is not a primary key** — own `users.id` (UUID) +
   `firebase_uid` column.
+- **No PII in our DB** (email, name, photo, IPs): Firebase owns profile data, we keep only
+  the pseudonymous `firebase_uid`. Account deletion must stay "Firebase delete + `DELETE`
+  the tenant row" (every tenant-owned FK cascades). Rationale: #65.
 - **CRUD stays boring** (plain EF Core, no repository ceremony). The
   cleverness budget goes to tunnel/signaling/gateway only. The owner works
   ponytail-style: laziest solution that works, stdlib first, shortest diff.

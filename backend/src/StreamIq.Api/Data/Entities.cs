@@ -11,7 +11,6 @@ public class AppUser
 {
     public Guid Id { get; set; }                    // our PK — never the Firebase UID
     public required string FirebaseUid { get; set; }
-    public string? Email { get; set; }
     public Guid TenantId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

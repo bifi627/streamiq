@@ -24,6 +24,6 @@ public class GetMeTests(IntegrationFixture fx)
         var body = await client.GetFromJsonAsync<JsonElement>("/me");
         Assert.False(string.IsNullOrEmpty(body.GetProperty("userId").GetString()));
         Assert.False(string.IsNullOrEmpty(body.GetProperty("tenantId").GetString()));
-        Assert.Equal("me@x.test", body.GetProperty("email").GetString());
+        Assert.False(body.TryGetProperty("email", out _)); // #65: no PII in our DB or API; Firebase owns it
     }
 }

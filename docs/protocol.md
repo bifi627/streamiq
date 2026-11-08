@@ -85,7 +85,9 @@ session because TURN refreshes need a valid credential. Dev: TURN REST creds for
 base64(HMAC-SHA1(STREAMIQ_TURN_SECRET, username))` (coturn `--use-auth-secret`),
 expiry only. Neither configured, or Cloudflare failing: STUN only. The browser
 applies them with `setConfiguration` before creating its offer. `?relay` in the
-app URL sets `iceTransportPolicy: "relay"` (diagnostic; the e2e uses it). The
+app URL, or "Force relay" in the Diagnostics panel (header button, for TVs that
+can't edit the URL; `?debug` also opens it), sets `iceTransportPolicy: "relay"`
+(diagnostic; the e2e uses the panel). The
 gateway stays on its own config (STUN, optional `STREAMIQ_ICE_*`): the browser's
 relay candidate is enough, as the e2e's forced-relay step shows.
 

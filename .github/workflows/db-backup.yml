@@ -1,0 +1,48 @@
+name: Database backup
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC daily
+  workflow_dispatch: {} # manual: run it right before a risky migration
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # One leg per environment; each GitHub Environment holds its own DB_BACKUP_URL secret
+    # (Railway DATABASE_PUBLIC_URL). Add `stage` here once it exists. fail-fast off so one
+    # failing env doesn't skip the others.
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [production]
+    environment: ${{ matrix.env }}
+    steps:
+      - name: Dump and upload
+        env:
+          DB_URL: ${{ secrets.DB_BACKUP_URL }}
+          SA_KEY: ${{ secrets.GCS_BACKUP_SA_KEY }}
+          BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
+          ENV_NAME: ${{ matrix.env }}
+        run: |
+          set -euo pipefail
+          : "${DB_URL:?DB_BACKUP_URL secret not set for $ENV_NAME}"
+          : "${SA_KEY:?GCS_BACKUP_SA_KEY secret not set}"
+          : "${BUCKET:?GCS_BACKUP_BUCKET variable not set}"
+
+          FILE="streamiq-${ENV_NAME}-$(date -u +%Y%m%dT%H%M%SZ).dump"
+
+          # -Fc: compressed custom format for pg_restore.
+          # ponytail: client from the postgres:18 image (= Railway's major), not the runner's
+          # preinstalled older pg_dump. Bump with the server.
+          docker run --rm -e DB_URL -v "$PWD:/out" postgres:18 \
+            pg_dump --no-owner --no-privileges -Fc "$DB_URL" -f "/out/$FILE"
+
+          printf '%s' "$SA_KEY" > "$RUNNER_TEMP/gcs.json"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/gcs.json"
+          gcloud storage cp "$FILE" "gs://${BUCKET}/${ENV_NAME}/${FILE}"
+
+          echo "Backed up ${ENV_NAME} → gs://${BUCKET}/${ENV_NAME}/${FILE} ($(du -h "$FILE" | cut -f1))"

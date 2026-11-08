@@ -28,6 +28,19 @@ services:
       #   source: 'D:\Movies'
       #   target: /media/movies
       #   read_only: true
+    # GPU transcoding (optional; see "GPU transcoding" in docs/install.md, then
+    # turn it on in Jellyfin: Dashboard → Playback → Transcoding).
+    # NVIDIA (Windows Docker Desktop, or Linux with the NVIDIA Container Toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    # Intel / AMD on Linux (VA-API / QSV). Not available in Docker on Windows:
+    # devices:
+    #   - /dev/dri:/dev/dri
 volumes:
   config:
   cache:

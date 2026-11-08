@@ -91,6 +91,43 @@ can take a while for big collections.
    direct or relayed. Each browser (phone, laptop, …) is paired once; remove
    browsers on the local page.
 
+## GPU transcoding (optional)
+
+Most files play as-is (stream copy). Jellyfin re-encodes the video when a
+device can't play it that way (some older TVs fall back to this automatically).
+On the CPU that can max out a small NAS; a GPU does it almost for free.
+
+**1. Give the container the GPU** (Docker compose file only; a native Jellyfin
+sees the GPU already). In `jellyfin-compose.yml`, uncomment one block, then run
+`docker compose -f jellyfin-compose.yml up -d` again:
+
+- **NVIDIA** (`deploy:` block): on Windows, Docker Desktop with the WSL 2 backend
+  and a current NVIDIA driver is enough. On Linux, install the
+  [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+  first.
+- **Intel / AMD on Linux** (`devices: /dev/dri` block).
+- **Intel QSV / AMD AMF on Windows:** not available in Docker on Windows
+  (WSL 2), per Jellyfin's docs. Use a
+  [native Jellyfin](https://jellyfin.org/downloads) instead (step 1).
+
+**2. Turn it on in Jellyfin:** **Dashboard → Playback → Transcoding**:
+
+- **Hardware acceleration:** NVIDIA NVENC (Intel: QSV or VA-API; AMD: VA-API
+  on Linux, AMF on Windows)
+- **Enable hardware decoding for:** tick the codecs your GPU decodes
+  (H.264, HEVC, …)
+- **Throttle transcodes:** on (stops encoding far ahead of the player)
+- **Encoder preset:** `fast` or `medium`, not `auto`: with NVENC, `auto`
+  means the lowest-quality preset (p1)
+
+**3. Check it works.** Play something that transcodes (in the web app:
+**Diagnostics → Force transcode**, then play):
+
+- NVIDIA: `docker exec streamiq-jellyfin-jellyfin-1 nvidia-smi` lists the GPU,
+  and shows an `ffmpeg` process while it plays.
+- Windows: **Task Manager → Performance → GPU**; the **Video Encode** graph
+  moves while it plays.
+
 ## Removing a gateway
 
 **Gateways → Remove** in the web app revokes the gateway's credential at once:

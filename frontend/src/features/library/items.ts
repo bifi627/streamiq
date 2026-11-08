@@ -24,3 +24,22 @@ export function rangeHeader(start?: number, end?: number) {
 
 /** Jellyfin time unit: 100 ns ticks. */
 export const TICKS_PER_SECOND = 10_000_000
+
+/** Video appends in a row that may leave the playhead without video before
+ * the player gives up on stream copy (#81: webOS drops stream-copied open-GOP
+ * h264 after a seek/resume; the appends "succeed" but buffer nothing). */
+export const STUCK_APPENDS = 4
+
+type Ranges = {
+  length: number
+  start(i: number): number
+  end(i: number): number
+}
+
+/** Whether a (video) buffered range covers t. 1 s slack: a fragment's first
+ * frame can land just after the requested position. */
+export const covers = (r: Ranges | undefined, t: number) =>
+  !!r &&
+  Array.from({ length: r.length }).some(
+    (_, i) => r.start(i) - 1 <= t && t <= r.end(i) + 1,
+  )

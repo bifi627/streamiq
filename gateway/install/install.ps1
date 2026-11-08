@@ -16,22 +16,23 @@ if (-not (Test-Path $envFile) -and -not $env:STREAMIQ_API_URL) {
     throw 'StreamIQ: first install needs the command from the web app (Gateways -> Add gateway)'
 }
 
-$tmp = Join-Path ([IO.Path]::GetTempPath()) "streamiq-$([guid]::NewGuid())"
-New-Item -ItemType Directory $tmp | Out-Null
+# Download next to the install, not into %TEMP%: "exe dropped in Temp" is an AV heuristic signal (#69).
+New-Item -ItemType Directory -Force (Join-Path $dir 'state') | Out-Null
+$new = "$exe.new"
+$sums = Join-Path $dir 'SHA256SUMS.new'
 try {
-    Invoke-WebRequest "$dl/$bin" -OutFile (Join-Path $tmp $bin)
-    Invoke-WebRequest "$dl/SHA256SUMS" -OutFile (Join-Path $tmp 'SHA256SUMS')
-    $want = (Get-Content (Join-Path $tmp 'SHA256SUMS') | Where-Object { $_ -match "[ *]$([regex]::Escape($bin))$" }) -split '\s+' | Select-Object -First 1
-    $got = (Get-FileHash (Join-Path $tmp $bin) -Algorithm SHA256).Hash
+    Invoke-WebRequest "$dl/$bin" -OutFile $new
+    Invoke-WebRequest "$dl/SHA256SUMS" -OutFile $sums
+    $want = (Get-Content $sums | Where-Object { $_ -match "[ *]$([regex]::Escape($bin))$" }) -split '\s+' | Select-Object -First 1
+    $got = (Get-FileHash $new -Algorithm SHA256).Hash
     if (-not $want -or $got -ne $want) { throw "StreamIQ: checksum mismatch for $bin, not installing" }
 
-    New-Item -ItemType Directory -Force (Join-Path $dir 'state') | Out-Null
     # Running copy (update): stop it so the exe can be replaced.
     Get-Process gateway -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
     Start-Sleep -Seconds 1
-    Move-Item -Force (Join-Path $tmp $bin) $exe
+    Move-Item -Force $new $exe
 } finally {
-    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+    Remove-Item -Force $new, $sums -ErrorAction SilentlyContinue
 }
 
 if (-not (Test-Path $envFile)) {
@@ -46,17 +47,20 @@ if (-not (Test-Path $envFile)) {
 
 # The enrollment token only matters on the first start (inherited env); never stored.
 Remove-Item (Join-Path $dir 'state\page-link') -ErrorAction SilentlyContinue # wait below for this start's fresh link
-Start-Process $exe -WorkingDirectory $dir -WindowStyle Hidden `
-    -RedirectStandardError (Join-Path $dir 'gateway.log') -RedirectStandardOutput (Join-Path $dir 'gateway.out.log')
+# Own console window = its log; closing it stops the gateway. cmd /k keeps the window
+# open if the gateway exits, so a fatal error stays readable. (No -WindowStyle Hidden:
+# download-exe + hidden start is an antivirus heuristic trigger, #69.)
+Start-Process cmd -ArgumentList "/k `"$exe`"" -WorkingDirectory $dir
 Remove-Item Env:STREAMIQ_ENROLL_TOKEN -ErrorAction SilentlyContinue
 Write-Host "StreamIQ gateway started"
+Write-Host "  installed:  $dir"
 $port = (Get-Content $envFile | Where-Object { $_ -match '^STREAMIQ_PAGE_PORT=' }) -replace '^STREAMIQ_PAGE_PORT=', ''
 Write-Host "  local page: http://localhost:$(if ($port) { $port } else { '8097' })"
 # The gateway writes its LAN login link once enrolled (page token, item 6 / #42).
 $link = Join-Path $dir 'state\page-link'
 foreach ($i in 1..10) { if (Test-Path $link) { break }; Start-Sleep 1 }
 if (Test-Path $link) { Write-Host "  from another device: $(Get-Content $link)" }
-Write-Host "  log:        $(Join-Path $dir 'gateway.log')"
+Write-Host "  log:        the gateway's console window (closing it stops the gateway)"
 Write-Host "  Windows Firewall may ask once: allow on private networks."
 Write-Host "  autostart (not set up for you):"
 Write-Host "    schtasks /Create /SC ONLOGON /TN streamiq-gateway /TR `"'$exe'`""

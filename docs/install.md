@@ -158,7 +158,7 @@ is kept, so paired browsers don't need to pair again.
 | Install dir | `%LOCALAPPDATA%\streamiq` | `~/.local/share/streamiq` |
 | Settings | `gateway.env` (yours, kept on updates) | same |
 | Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates) | `state/` |
-| Log | `gateway.log` | `gateway.log` |
+| Log | the gateway's console window (closing it stops the gateway) | `gateway.log` |
 
 `STREAMIQ_DIR` overrides the install dir. Set `STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` on
 the first install to change the gateway's name or page port.

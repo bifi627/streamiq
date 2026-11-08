@@ -178,6 +178,9 @@ Copy `.env.example` only to override.
     with `bash scripts/issue-status.sh <n> "<status>"`: *Ready* when its spec is done,
     *In progress* when work starts, *In review* when the PR is ready. New issues and
     *Done* are automatic. Needs gh scope `project` (`gh auth refresh -s project`).
+  - Label `agent` (owner only) starts an agent thread via T3 webhook: no acceptance
+    criteria or `needs-spec` → refinement with the owner; Ready → build to a PR. The
+    owner approves a spec by removing `needs-spec` (`docs/tools.md` has the wiring).
   - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a
     duplicate, then **propose** the issue (title, labels, body) in chat; create it only
     after the owner approves.

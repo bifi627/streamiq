@@ -3,6 +3,9 @@
 // Resume: start at Jellyfin's saved position; report it every 10 s, on pause
 // and on exit. (/Sessions/Playing* is ignored for API-key callers, so the
 // position goes straight to the user's UserData.)
+// Fallback (#81): some devices (webOS TV, Chrome 87) drop stream-copied video
+// after a seek/resume. When video appends stop covering the playhead, reload
+// there with a video transcode for the rest of this playback.
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
@@ -16,7 +19,24 @@ import {
   watchVideo,
 } from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
-import { clock, TICKS_PER_SECOND, type Item } from './items'
+import {
+  clock,
+  covers,
+  STUCK_APPENDS,
+  TICKS_PER_SECOND,
+  type Item,
+} from './items'
+
+// Transcode output ceilings. Jellyfin only scales down and clamps the bitrate
+// to the source's, so smaller sources keep their size. Never send these with
+// stream copy: a bitrate there makes Jellyfin transcode anything above it.
+// ponytail: fixed 1080p/8 Mbps; a quality picker (per device/uplink) replaces this.
+const TRANSCODE = {
+  AllowVideoStreamCopy: 'false',
+  VideoBitrate: '8000000',
+  MaxHeight: '1080',
+  MaxWidth: '1920',
+}
 
 type PlaybackInfo = {
   PlaySessionId: string
@@ -60,16 +80,14 @@ export function Player({
       }
     }
 
-    ;(async () => {
-      if (!Hls.isSupported())
-        throw new Error(
-          'this browser has no MSE (iOS Safari is not supported yet)',
-        )
-      // Fresh UserData: the listing may be stale (resume position).
-      const [fresh, info] = await Promise.all([
-        tunnelJson<Item>(pc, `/Items/${item.Id}`),
-        tunnelJson<PlaybackInfo>(pc, `/Items/${item.Id}/PlaybackInfo`, {}),
-      ])
+    // Loads the stream at `at` seconds; called again by the fallback.
+    const start = async (transcode: boolean, at: number) => {
+      // A new PlaySessionId, so Jellyfin starts a new job for new params.
+      const info = await tunnelJson<PlaybackInfo>(
+        pc,
+        `/Items/${item.Id}/PlaybackInfo`,
+        {},
+      )
       if (gone) return
       const src = info.MediaSources[0]
       const text = src.MediaStreams.find(
@@ -80,10 +98,9 @@ export function Player({
         PlaySessionId: info.PlaySessionId,
         videoCodec: 'h264',
         audioCodec: 'aac',
-        // Diagnostic: re-encode instead of copying an already-h264 source.
-        // Diagnostic: re-encode video and audio (stereo) instead of copying.
+        ...(transcode && TRANSCODE),
+        // Diagnostic: also re-encode audio (stereo) instead of copying.
         ...(transcodeOn() && {
-          AllowVideoStreamCopy: 'false',
           AllowAudioStreamCopy: 'false',
           MaxAudioChannels: '2',
         }),
@@ -97,8 +114,7 @@ export function Player({
       })
       h = new Hls({
         loader: tunnelLoader(pc),
-        startPosition:
-          (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
+        startPosition: at,
         renderTextTracksNatively: true,
         // hls.js grows the forward buffer up to 600 s for low bitrates; a TV's
         // MSE quota fills long before that (bufferFullError on webOS).
@@ -156,16 +172,42 @@ export function Player({
         parsed++
         sb()
       })
+      let stuck = 0 // video appends in a row that left the playhead empty
       h.on(Hls.Events.BUFFER_APPENDED, (_e, d) => {
         appended++
         r = d.timeRanges
         sb()
+        if (transcode || d.type !== 'video') return
+        if (covers(d.timeRanges.video, v.currentTime)) stuck = 0
+        else if (++stuck >= STUCK_APPENDS) {
+          const t = v.currentTime
+          event(`fallback: transcode @${t.toFixed(1)}`)
+          const old = h
+          h = null // no position reports while the media detaches
+          old?.destroy()
+          start(true, t).catch((e: Error) => setErr(e.message))
+        }
       })
       h.attachMedia(v)
       h.loadSource(`${TUNNEL_ORIGIN}/Videos/${item.Id}/master.m3u8?${q}`)
       h.subtitleTrack = -1
+      setSub(-1)
       hls.current = h
       v.play().catch(() => {}) // autoplay may need a click; controls are there
+    }
+
+    ;(async () => {
+      if (!Hls.isSupported())
+        throw new Error(
+          'this browser has no MSE (iOS Safari is not supported yet)',
+        )
+      // Fresh UserData: the listing may be stale (resume position).
+      const fresh = await tunnelJson<Item>(pc, `/Items/${item.Id}`)
+      if (gone) return
+      await start(
+        transcodeOn(),
+        (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
+      )
     })().catch((e: Error) => setErr(e.message))
 
     const unwatch = watchVideo(v)

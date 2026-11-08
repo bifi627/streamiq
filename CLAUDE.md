@@ -7,13 +7,14 @@ user's hardware.
 
 ## Read this first
 
-All design lives in `docs/superpowers/specs/` (all dated 2026-07-05).
-Authority order when they disagree:
+Direction and specs live in **GitHub Issues** (+ milestones): `gh issue list`. A
+feature's spec is its issue (acceptance criteria + out of scope); a multi-PR
+feature is a parent issue with sub-issues. No new spec files in the repo.
 
-1. `…-streamiq-implementation-plan.md` — **phasing, stack, checkpoints. Start here.**
-2. `…-streamiq-feasibility-design.md` — architecture rationale, risks, privacy rules, cost model
-3. `…-streamiq-handover-notes.md` — **fine print + what-if hedges. Read before writing tunnel/gateway/auth code.**
-4. `…-streamiq-dev-environment.md` — dev env & testing strategy (this scaffold implements it)
+`docs/superpowers/` holds the founding design docs and per-feature specs up to
+2026-11. They are **history, not authority**: don't plan from them or cite their
+phasing, checkpoints or out-of-scope lists. The rules that still hold are in
+"Non-negotiable conventions" below; protocol facts live in `docs/protocol.md`.
 
 Tool/service inventory + every credential and how to rotate it: `docs/tools.md`.
 **Update it in the same diff** whenever a tool/service or credential is added,
@@ -21,17 +22,19 @@ removed, or changed (new env secret, new image, new cloud service).
 
 ## Current state
 
-**Phase 0 POC complete — Checkpoint 1 passed 2026-07-08 (verdict: GO, proceed
-to MVP as designed).** Proven end-to-end: cellular→home connectivity (86%
-direct, cellular 100%), TURN fallback, 1080p+subtitles, seek, HEVC transcode
-and remux over the tunnel, 4K feasible via ABR. Full record + criteria mapping:
-`docs/poc-connectivity-spike.md`. POC code (hardcoded room `poc`, no
-auth/tenancy) was deleted in item 5 PR A; git holds it. Carried into MVP (non-blocking): iOS
-Safari device test, codec census over real libraries, Jellyfin NAS footprint +
-GPLv2 check. Phase 1 MVP items 1–5 are complete (below); item 6 (hardening) is in
-progress. Open work: `gh issue list`.
+**Where we are (2026-11-08):** the core works end to end with auth, tenancy,
+pairing and TURN: streaming over the tunnel is proven on mobile (cellular) and on a
+TV browser. What's weak: **gateway setup and management are clunky**, and the
+**whole UI is only functional** (no design pass yet). Open work: `gh issue list`.
+The paragraphs below record what is built ("item N" = the original MVP build order).
 
-**Phase 1 MVP — item 1 (control-plane foundation) complete.** Migration #1
+**POC (2026-07-08, GO).** Proven: cellular→home connectivity (86%
+direct, cellular 100%), TURN fallback, 1080p+subtitles, seek, HEVC transcode
+and remux over the tunnel, 4K feasible via ABR. Record: `docs/poc-connectivity-spike.md`.
+POC code was deleted in item 5 PR A; git holds it. Still open: iOS Safari device
+test, codec census over real libraries, Jellyfin NAS footprint + GPLv2 check.
+
+**Item 1 — control-plane foundation.** Migration #1
 (tenants/users/devices, now `gateways`), Firebase ID-token verification (FirebaseAdmin, same path
 dev+prod), first-sign-in tenant provisioning, and the ONE EF global query filter
 enforcing tenant isolation are in. Integration harness: Testcontainers Postgres +
@@ -39,20 +42,17 @@ Firebase Auth emulator, real tokens minted through the prod verify path; behavio
 covered by Reqnroll (isolation/provisioning/auth-reject) + xUnit edges. React:
 Firebase sign-in + empty authed shell.
 
-**Items 2+3** (design: `docs/superpowers/specs/2026-11-01-streamiq-agent-pairing-design.md`,
-supersedes the plan's QR/claim-code sketch; it predates the rename below). **PR A
+**Items 2+3 — pairing + broker.** **PR A
 (onboarding):** migration #2, enrollment token → `/gateways/enroll` → credential,
 authenticated `/gateways/ws` heartbeat, persistent 10-year gateway DTLS cert + state dir,
 local gateway page (Host/Origin guard), Gateways list. **PR B (broker + pairing):**
 tenant-scoped broker (`/broker/ws`, session routing), browser WebCrypto client key,
 session-bound connection auth, commit/reveal comparison code approved on the gateway
 page, allowlist, pins enforced both directions; protocol in `docs/protocol.md`.
-**Item 4 — productized gateway** (design: `docs/superpowers/specs/2026-11-04-streamiq-gateway-productization-design.md`;
-pivoted from a Docker sidecar after a spike: on Docker Desktop, a containerized gateway gets
-relayed on cellular). Complete. **PR A:** native binaries on GitHub Releases
+**Item 4 — productized gateway** (pivoted from a Docker sidecar after a spike: on Docker
+Desktop, a containerized gateway gets relayed on cellular). **PR A:** native binaries on GitHub Releases
 (`gateway-v*` tag → `release-gateway.yml`), `install.sh`/`install.ps1` (install = update,
-SHA256-checked), `gateway.env` config file, daily update *notice* (notify-only, which is a
-recorded plan deviation), version in heartbeat + Gateways list (migration #5), JSON logs.
+SHA256-checked), `gateway.env` config file, daily update *notice* (notify-only), version in heartbeat + Gateways list (migration #5), JSON logs.
 User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (gateway page),
 so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin credential without manual
 steps (`gateway/internal/jellyfin`: wizard bootstrap on a fresh Jellyfin, else one admin login
@@ -60,8 +60,7 @@ on the local page; since #50 a non-admin viewer token, not an API key, in `state
 `install/jellyfin-compose.yml` release asset (pin = `jellyfin.Tested`, test-enforced), local
 page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapped admin creds).
 
-**Item 5 — streaming client** (design: `docs/superpowers/specs/2026-11-02-streamiq-streaming-client-design.md`;
-consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /
+**Item 5 — streaming client** (consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /
 series / episodes → hls.js player over the tunnel (custom loader), subtitles, resume
 via Jellyfin UserData. The gateway owns the Jellyfin credential (since #50 the hidden
 non-admin user `streamiq-viewer`'s token; dev: `scripts/setup-jellyfin.sh`, then Connect
@@ -72,7 +71,7 @@ coturn in dev; per-session since item 6), `connection_sessions` telemetry (migra
 the POC's `poc_connectivity`), privacy indicator (direct vs relayed); `?relay`
 forces the relay path. **Hosting:** the root `Dockerfile` builds the SPA into the
 API image (`wwwroot`, same origin, no CORS in prod); Railway Root Directory = repo root.
-**Item 6 — hardening** (no design doc; protocol in `docs/protocol.md`). **PR A:** signaling
+**Item 6 — hardening** (protocol in `docs/protocol.md`). **PR A:** signaling
 rate limits (per client IP via `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`, plus
 per-socket message buckets, 10 s auth deadline), TURN creds minted per broker session
 in `ready` and revoked at its end (`GET /turn` is gone; dev coturn uses TURN REST
@@ -87,7 +86,7 @@ Postgres backups: daily `pg_dump` → GCS (`db-backup.yml`), restore runbook `do
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,
 `STREAMIQ_API_URL`). "Media server" means Jellyfin only; "relay" means TURN only.
-Dated specs/plans keep the old words.
+Docs under `docs/superpowers/` keep the old words.
 **Project name:** StreamIQ (was "r8er" until 2026-11-06). Code forms: `streamiq` (paths,
 module, DB, binaries), `StreamIq` (.NET namespaces/types), `STREAMIQ_` (env vars); "StreamIQ"
 in user-visible text. Don't reintroduce the old name (historical records such as
@@ -170,7 +169,7 @@ Copy `.env.example` only to override.
     don't start it. Template: `.github/ISSUE_TEMPLATE/task.md`.
   - One issue → one worktree thread → one PR. Branch `<type>/<n>-<slug>`
     (`fix/42-cert-rotation`); PR body `Fixes #<n>`. Multi-PR feature = parent issue
-    (links its spec) + sub-issues.
+    (the spec) + sub-issues.
   - Before starting: `gh issue view <n>`, and check the issue has no linked PR (taken).
     Open a draft PR early so the issue shows it's taken.
   - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a

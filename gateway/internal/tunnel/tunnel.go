@@ -1,7 +1,7 @@
 // Package tunnel is the HTTP-over-data-channel primitive (docs/protocol.md,
 // "Tunnel framing"): one data channel per request, response head as a text
-// frame, body as ~16KB binary chunks under bufferedAmount backpressure, channel
-// close = EOF. Media bytes pass through untouched (never recompressed); the
+// frame, body as ~16KB binary chunks under bufferedAmount backpressure, then an
+// `{"eof":true}` text frame; the browser closes the channel. Media bytes pass through untouched (never recompressed); the
 // Jellyfin policy (jellyfin.go) decides what may pass and redacts the token.
 package tunnel
 
@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -20,6 +21,9 @@ import (
 const (
 	ChunkSize   = 16 * 1024 // ponytail: 16KB chunks per the data-channel rule
 	MaxBuffered = 1 << 20   // 1MB send-buffer high-water mark (backpressure)
+	// EOFGrace: how long the gateway waits for the browser to close after EOF.
+	// Backstop for a browser that never does (old client, dead tab).
+	EOFGrace = 10 * time.Second
 )
 
 // Gate returns a wait() to call before each Send. It blocks until the channel's
@@ -50,17 +54,30 @@ type tunnelReq struct {
 }
 
 // Serve treats the channel's first message as an HTTP request, proxies it
-// to Jellyfin, and streams the response back. One channel == one request/response;
-// closing the channel is the body's EOF marker for the browser.
+// to Jellyfin, and streams the response back. One channel == one request/response.
 func Serve(d *webrtc.DataChannel, j *Jellyfin) {
 	var once sync.Once
+	closed := make(chan struct{})
+	var closeOnce sync.Once
+	d.OnClose(func() { closeOnce.Do(func() { close(closed) }) })
 	d.OnMessage(func(m webrtc.DataChannelMessage) {
-		once.Do(func() { go handleReq(d, j, m.Data) })
+		once.Do(func() { go handleReq(d, j, m.Data, closed) })
 	})
 }
 
-func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte) {
-	defer d.Close()
+// handleReq ends with an explicit EOF frame and lets the browser close the
+// channel: closing right after the last frame loses it on old Chromium (Chrome
+// 87 on webOS drops frames still in flight on a remote close, #71/#72).
+func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, closed <-chan struct{}) {
+	defer func() {
+		if err := d.SendText(`{"eof":true}`); err == nil {
+			select {
+			case <-closed:
+			case <-time.After(EOFGrace):
+			}
+		}
+		d.Close()
+	}()
 
 	status, hdr, body, err := proxy(j, raw)
 	if err != nil {
@@ -135,7 +152,7 @@ func streamBody(d *webrtc.DataChannel, body io.Reader) {
 			}
 		}
 		if err != nil {
-			return // io.EOF (or read error) → defer closes the channel = EOF
+			return // io.EOF (or read error) → caller sends the EOF frame
 		}
 	}
 }

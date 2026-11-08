@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -234,18 +235,36 @@ func (b *browser) say(v map[string]any) map[string]any {
 	}
 }
 
-// fetch opens a tunnel channel for an allowlisted GET and returns the body ("" if refused).
+// fetch opens a tunnel channel for an allowlisted GET and returns the body ("" if
+// refused). Like the browser: a served response must end with the EOF frame,
+// after which the client closes the channel; a refused one is just closed.
 func (b *browser) fetch() string {
 	d, _ := b.pc.CreateDataChannel("req", nil)
-	body := make(chan string, 1)
+	body := make(chan string, 2)
 	var got []byte
+	var head, eof atomic.Bool
 	d.OnOpen(func() { d.SendText(`{"method":"GET","url":"/System/Info/Public"}`) })
 	d.OnMessage(func(m webrtc.DataChannelMessage) {
-		if !m.IsString {
+		switch {
+		case !m.IsString:
 			got = append(got, m.Data...)
+		case string(m.Data) == `{"eof":true}`:
+			if !head.Load() {
+				b.t.Error("EOF frame before the response head")
+			}
+			eof.Store(true)
+			body <- string(got)
+			d.Close()
+		default:
+			head.Store(true)
 		}
 	})
-	d.OnClose(func() { body <- string(got) })
+	d.OnClose(func() {
+		if head.Load() && !eof.Load() {
+			b.t.Error("gateway closed a served channel; the browser closes after EOF")
+		}
+		body <- string(got)
+	})
 	select {
 	case s := <-body:
 		return s

@@ -3,12 +3,29 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut,
   type User,
 } from 'firebase/auth'
 import { auth } from './firebase'
 import { getMe } from './api'
 import { Gateways } from './features/gateways/Gateways'
+
+// Readable text for the popup failures a user can cause; anything else keeps
+// Firebase's message (still useful when reported).
+const authErrors: Record<string, string> = {
+  'auth/popup-closed-by-user': 'Sign-in window was closed before finishing.',
+  'auth/cancelled-popup-request': 'Sign-in window was closed before finishing.',
+  'auth/popup-blocked':
+    'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.',
+}
+function authMessage(e: unknown) {
+  const code = (e as { code?: string }).code
+  return (
+    (code && authErrors[code]) ?? (e instanceof Error ? e.message : String(e))
+  )
+}
 
 function SignIn() {
   const [email, setEmail] = useState('')
@@ -24,7 +41,16 @@ function SignIn() {
           : createUserWithEmailAndPassword
       await fn(auth, email, password)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
+      setErr(authMessage(e))
+    }
+  }
+
+  async function google() {
+    setErr(null)
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider())
+    } catch (e) {
+      setErr(authMessage(e))
     }
   }
 
@@ -52,6 +78,9 @@ function SignIn() {
           Create account
         </button>
       </div>
+      <button type="button" onClick={google}>
+        Continue with Google
+      </button>
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
     </main>
   )

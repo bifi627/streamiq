@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using StreamIq.Api.Data;
@@ -44,6 +46,41 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
         Assert.Equal(1, await db.Users.CountAsync());
         Assert.Equal(1, await db.Tenants.CountAsync());
+    }
+
+    private async Task<string> TenantOf(string token)
+    {
+        using var client = fx.Factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var me = await client.GetFromJsonAsync<JsonElement>("/me");
+        return me.GetProperty("tenantId").GetString() ?? throw new InvalidOperationException("/me without tenantId");
+    }
+
+    [Fact]
+    public async Task Google_sign_in_provisions_a_tenant_and_stores_no_profile_claims()
+    {
+        await fx.ResetAsync();
+        var token = await TokenMinter.MintGoogleIdTokenAsync(fx.EmulatorHost, $"g-{Guid.NewGuid():N}", $"g-{Guid.NewGuid():N}@x.test");
+
+        var tenant = await TenantOf(token);
+        Assert.Equal(tenant, await TenantOf(token)); // returning Google user resolves, not re-provisions
+
+        using var scope = fx.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
+        Assert.Equal(1, await db.Users.CountAsync());
+        Assert.Equal(1, await db.Tenants.CountAsync());
+        // #65/#66: name/picture claims must not land in our DB.
+        Assert.Null(await db.Tenants.Select(t => t.Name).SingleAsync());
+    }
+
+    [Fact]
+    public async Task Google_sign_in_with_an_existing_password_email_lands_in_the_same_tenant()
+    {
+        await fx.ResetAsync();
+        var email = $"both-{Guid.NewGuid():N}@x.test";
+        var passwordTenant = await TenantOf(await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123"));
+        var googleTenant = await TenantOf(await TokenMinter.MintGoogleIdTokenAsync(fx.EmulatorHost, $"g-{Guid.NewGuid():N}", email));
+        Assert.Equal(passwordTenant, googleTenant); // Firebase one-account-per-email: same UID
     }
 
     [Fact]

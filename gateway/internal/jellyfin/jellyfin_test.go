@@ -28,11 +28,14 @@ type fake struct {
 	tokens    map[string]string // token → user name
 	keys      map[string]bool   // pre-#50 admin API keys
 	n         int
-	loggedOut []string // users whose session was logged out
+	loggedOut []string       // users whose session was logged out
+	enc       map[string]any // /System/Configuration/encoding
+	encPosts  int
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
-	f := &fake{wizard: wizardDone, users: map[string]*fakeUser{}, tokens: map[string]string{}, keys: map[string]bool{}}
+	f := &fake{wizard: wizardDone, users: map[string]*fakeUser{}, tokens: map[string]string{}, keys: map[string]bool{},
+		enc: map[string]any{"HardwareAccelerationType": "none", "EnableThrottling": false, "EncoderPreset": "auto", "QsvDevice": "keep me"}}
 	if wizardDone {
 		f.users["streamiq"] = &fakeUser{id: "id-admin", pw: "pw", admin: true}
 	}
@@ -157,6 +160,21 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		delete(f.keys, id)
+	case "GET /System/Configuration/encoding":
+		if !admin {
+			deny(401)
+			return
+		}
+		json.NewEncoder(w).Encode(f.enc)
+	case "POST /System/Configuration/encoding":
+		var e map[string]any
+		json.NewDecoder(r.Body).Decode(&e)
+		if !admin || e["QsvDevice"] == nil { // the whole object goes back
+			deny(400)
+			return
+		}
+		f.enc = e
+		f.encPosts++
 	case "POST /Sessions/Logout":
 		f.loggedOut = append(f.loggedOut, f.tokens[tok])
 		delete(f.tokens, tok)
@@ -325,5 +343,118 @@ func TestPinsMatchTested(t *testing.T) {
 		if m == nil || !strings.HasPrefix(string(m[1]), Tested+".") {
 			t.Errorf("%s: Jellyfin image %q, want %s.*", f, m, Tested)
 		}
+	}
+}
+
+// encoding returns the fake's encoding config and POST count.
+func (f *fake) encoding() (map[string]any, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.enc, f.encPosts
+}
+
+// A Jellyfin the gateway set up gets every config step right away, as the
+// stored admin (logged out again), with unknown fields kept.
+func TestBootstrapSeedsConfig(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.poll(context.Background())
+	connected(t, f, s, got)
+	enc, posts := f.encoding()
+	if posts != 1 || enc["EnableThrottling"] != true || enc["EnableSegmentDeletion"] != true ||
+		enc["HardwareAccelerationType"] != "none" || enc["QsvDevice"] != "keep me" {
+		t.Fatalf("after bootstrap: %d posts, %v", posts, enc)
+	}
+	if v := s.View(); !v.Managed || v.Err != "" || s.creds.ConfigSteps != len(configSteps) {
+		t.Fatalf("view %+v, creds %+v", v, s.creds)
+	}
+	s.poll(context.Background())
+	if _, n := f.encoding(); n != 1 {
+		t.Fatalf("nothing pending, still posted (%d)", n)
+	}
+}
+
+// After an update only the new steps run: a setting the user changed since
+// the first step stays changed.
+func TestUpdateAppliesOnlyNewSteps(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.poll(context.Background())
+	f.mu.Lock()
+	f.enc["EnableThrottling"] = false // the user turned it off in the Dashboard
+	f.mu.Unlock()
+	old := configSteps
+	t.Cleanup(func() { configSteps = old })
+	configSteps = append(old[:len(old):len(old)], func(enc map[string]any) { enc["H264Crf"] = 20 })
+	s.poll(context.Background())
+	if enc, n := f.encoding(); n != 2 || enc["EnableThrottling"] != false || enc["H264Crf"] != float64(20) {
+		t.Fatalf("%d posts, %v", n, enc)
+	}
+	if s.creds.ConfigSteps != len(configSteps) {
+		t.Fatalf("creds %+v", s.creds)
+	}
+}
+
+// STREAMIQ_JELLYFIN_HWACCEL is followed both ways; turning NVENC off keeps
+// the rest (it does nothing without an accelerator).
+func TestHWAccelFollowsEnv(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.HWAccel = "nvenc"
+	s.poll(context.Background())
+	enc, _ := f.encoding()
+	if enc["HardwareAccelerationType"] != "nvenc" || enc["EncoderPreset"] != "fast" || enc["EnableHardwareEncoding"] != true ||
+		enc["AllowHevcEncoding"] != false || len(enc["HardwareDecodingCodecs"].([]any)) != 7 || s.View().HWAccel != "nvenc" {
+		t.Fatalf("nvenc: %v", enc)
+	}
+	s.HWAccel = "" // e.g. no GPU in the container after all
+	s.poll(context.Background())
+	enc, n := f.encoding()
+	if n != 2 || enc["HardwareAccelerationType"] != "none" || enc["EncoderPreset"] != "fast" || s.View().HWAccel != "" {
+		t.Fatalf("off: %d posts, %v", n, enc)
+	}
+}
+
+// A Jellyfin the user brought (admin login, no stored password) is never
+// configured, whatever the env says.
+func TestUserJellyfinUntouched(t *testing.T) {
+	f, srv := newFake(t, true)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.HWAccel = "nvenc"
+	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	s.poll(context.Background())
+	if _, n := f.encoding(); n != 0 || s.View().Managed || s.View().Err != "" {
+		t.Fatalf("configured a user's Jellyfin: %d posts, view %+v", n, s.View())
+	}
+}
+
+// The user changed the bootstrapped admin's password: the page says so,
+// playback keeps its token, and the next poll retries.
+func TestConfigAdminRefused(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.poll(context.Background())
+	f.mu.Lock()
+	pw := f.users["streamiq"].pw
+	f.users["streamiq"].pw = "changed"
+	f.mu.Unlock()
+	s.HWAccel = "nvenc"
+	s.poll(context.Background())
+	if v := s.View(); v.Err == "" || !v.HasKey || got[0] == "" || v.HWAccel != "" {
+		t.Fatalf("refused: view %+v", v)
+	}
+	f.mu.Lock()
+	f.users["streamiq"].pw = pw
+	f.mu.Unlock()
+	s.poll(context.Background())
+	if enc, _ := f.encoding(); enc["HardwareAccelerationType"] != "nvenc" || s.View().Err != "" {
+		t.Fatalf("retry: %v, view %+v", enc, s.View())
 	}
 }

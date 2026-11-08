@@ -51,6 +51,8 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 {{if .Untested}} · <b style="color:#c80">not tested with this gateway (tested: {{.Tested}}.x)</b>{{end}}
 {{else}}<b style="color:#c00">not reachable</b>{{end}}
 · token: {{if .LegacyKey}}<b style="color:#c80">admin API key: reconnect Jellyfin</b>{{else if .HasKey}}<b>set</b> (user {{.Viewer}}){{else}}<b style="color:#c00">missing</b>, playback refused{{end}}</li>
+{{if .HasKey}}<li>Transcoding settings: {{if .Managed}}<b>managed</b> · hardware acceleration {{or .HWAccel "off"}}
+(<code>STREAMIQ_JELLYFIN_HWACCEL</code> in gateway.env){{else}}not managed (your Jellyfin: Dashboard → Playback → Transcoding){{end}}</li>{{end}}
 {{if .Err}}<li style="color:#c00">{{.Err}}</li>{{end}}
 {{end}}
 </ul>

@@ -29,7 +29,7 @@ services:
       #   target: /media/movies
       #   read_only: true
     # GPU transcoding (optional; see "GPU transcoding" in docs/install.md, then
-    # turn it on in Jellyfin: Dashboard → Playback → Transcoding).
+    # set STREAMIQ_JELLYFIN_HWACCEL=nvenc in the gateway's gateway.env).
     # NVIDIA (Windows Docker Desktop, or Linux with the NVIDIA Container Toolkit):
     # deploy:
     #   resources:

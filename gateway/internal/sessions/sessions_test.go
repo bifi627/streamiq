@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -166,6 +167,9 @@ type browser struct {
 	pc   *webrtc.PeerConnection
 	auth *webrtc.DataChannel
 	in   chan map[string]any
+
+	mu    sync.Mutex                // gateway → browser signaling arrives from several goroutines
+	early []webrtc.ICECandidateInit // gateway candidates that beat the answer
 }
 
 // connect wires a browser peer to the gateway through Handle (no network broker)
@@ -179,7 +183,13 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 	}
 	t.Cleanup(func() { pc.Close() })
 	b := &browser{t: t, pc: pc, in: make(chan map[string]any, 8)}
-	toGateway := func(m Msg) { raw, _ := json.Marshal(m); gateway.Handle(raw, func(v any) { b.fromGateway(v.(Msg)) }) }
+	// Signaling behaves like production: the gateway reads its control socket one
+	// message at a time and the browser sends the offer before any candidate
+	// (inOrder); the browser holds candidates that beat the answer (fromGateway).
+	// Without both, candidates got dropped and ICE sometimes never connected (#105).
+	var inOrder sync.Mutex
+	handle := func(m Msg) { raw, _ := json.Marshal(m); gateway.Handle(raw, func(v any) { b.fromGateway(v.(Msg)) }) }
+	toGateway := func(m Msg) { inOrder.Lock(); defer inOrder.Unlock(); handle(m) }
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c != nil {
 			init := c.ToJSON()
@@ -193,8 +203,10 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 		b.in <- v
 	})
 	offer, _ := pc.CreateOffer(nil)
+	inOrder.Lock() // candidates gathered from here on queue behind the offer
 	pc.SetLocalDescription(offer)
-	toGateway(Msg{Type: "offer", Session: id, SDP: pc.LocalDescription()})
+	handle(Msg{Type: "offer", Session: id, SDP: pc.LocalDescription()})
+	inOrder.Unlock()
 
 	ch := b.say(nil)
 	if ch["type"] != "challenge" {
@@ -209,12 +221,24 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 	return b
 }
 
+// fromGateway applies the gateway's signaling like the frontend (connect.ts):
+// candidates that arrive before the answer wait for it.
 func (b *browser) fromGateway(m Msg) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	switch m.Type {
 	case "answer":
 		b.pc.SetRemoteDescription(*m.SDP)
+		for _, c := range b.early {
+			b.pc.AddICECandidate(c)
+		}
+		b.early = nil
 	case "ice":
-		b.pc.AddICECandidate(*m.Candidate)
+		if b.pc.RemoteDescription() == nil {
+			b.early = append(b.early, *m.Candidate)
+		} else {
+			b.pc.AddICECandidate(*m.Candidate)
+		}
 	}
 }
 

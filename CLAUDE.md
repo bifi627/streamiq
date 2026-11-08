@@ -169,7 +169,9 @@ Copy `.env.example` only to override.
     don't start it. Template: `.github/ISSUE_TEMPLATE/task.md`.
   - One issue → one worktree thread → one PR. Branch `<type>/<n>-<slug>`
     (`fix/42-cert-rotation`); PR body `Fixes #<n>`. Multi-PR feature = parent issue
-    (the spec) + sub-issues.
+    (the spec) + sub-issues. Milestone = what's being worked toward now; no milestone
+    = backlog. Not wanted anymore: close as *not planned* with a comment (why + what
+    would bring it back); reopen instead of re-filing.
   - Before starting: `gh issue view <n>`, and check the issue has no linked PR (taken).
     Open a draft PR early so the issue shows it's taken.
   - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a

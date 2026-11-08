@@ -11,6 +11,7 @@ import {
 import { auth } from './firebase'
 import { getMe } from './api'
 import { Gateways } from './features/gateways/Gateways'
+import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 
 // Readable text for the popup failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
@@ -99,10 +100,14 @@ function Shell({ user }: { user: User }) {
     <main style={{ maxWidth: 960, margin: '2rem auto', padding: '0 1rem' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between' }}>
         <span>{user.email}</span>
-        <button type="button" onClick={() => signOut(auth)}>
-          Sign out
-        </button>
+        <span style={{ display: 'flex', gap: 8 }}>
+          <DiagnosticsToggle />
+          <button type="button" onClick={() => signOut(auth)}>
+            Sign out
+          </button>
+        </span>
       </header>
+      <Diagnostics />
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
       <p style={{ color: '#888', fontSize: 12 }}>tenant {tenantId}</p>
       <Gateways />

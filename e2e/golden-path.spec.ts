@@ -104,18 +104,26 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: '← Gateways' }).click()
     })
 
-    await test.step('forced relay (?relay) → tunnel works, indicator says relayed', async () => {
-      await a.goto(`${process.env.E2E_APP_URL}/?relay`)
+    // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
+    await test.step('diagnostics panel: force relay → tunnel works, panel logs it', async () => {
+      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      await a.getByLabel('Force relay (TURN) on next connect').check()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(
         a.getByText(/relayed \(encrypted, StreamIQ cannot decrypt\)/),
       ).toBeVisible({ timeout: 30_000 })
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible() // a tunnel request made it
+      await expect(a.getByText('peer: connected / connected')).toBeVisible()
+      await expect(
+        a.getByRole('row', { name: /opened.*HTTP 200.*\/UserViews/ }).first(), // newest first; earlier sessions' rows are kept too
+      ).toBeVisible()
       await a.getByRole('button', { name: '← Gateways' }).click()
+      await a.getByLabel('Force relay (TURN) on next connect').uncheck()
+      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
     })
 
     await test.step('pin + key survive a reload (IndexedDB)', async () => {
-      await a.goto(process.env.E2E_APP_URL!) // drops ?relay
+      await a.reload()
       await a.getByRole('button', { name: 'Test connection' }).click()
       await tunnelOk(a)
     })

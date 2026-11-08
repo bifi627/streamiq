@@ -4,6 +4,7 @@
 import { auth } from '../../firebase'
 import { API, authed } from '../../api'
 import { pairInfo } from '../../stats'
+import { pcState, relayOn } from '../../diag'
 import {
   authMessage,
   b64,
@@ -39,11 +40,12 @@ export async function connect(
   // ICE servers arrive with the broker's `ready`: this session's own TURN
   // credential, revoked when the session ends.
   const pc = new RTCPeerConnection({
-    // Diagnostic: `?relay` in the app URL forces the TURN path.
-    iceTransportPolicy: new URLSearchParams(location.search).has('relay')
-      ? 'relay'
-      : 'all',
+    // Diagnostic: `?relay` or the diagnostics panel's toggle forces the TURN path.
+    iceTransportPolicy: relayOn() ? 'relay' : 'all',
   })
+  // addEventListener: the handlers below own the on* properties.
+  pc.addEventListener('connectionstatechange', () => pcState(pc))
+  pc.addEventListener('iceconnectionstatechange', () => pcState(pc))
   // Connection telemetry: one row per attempt. A tunnel that came up gets its
   // ICE pair now and totals on close; a failed one gets its reason. ponytail: a
   // closed tab skips the end PATCH (row keeps EndedAt null), and so does a tab

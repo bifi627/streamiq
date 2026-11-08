@@ -1,6 +1,7 @@
 // Tunnel framing (docs/protocol.md): one data channel per request. The request
 // is one text frame, the response head one text frame, the body binary frames;
 // the gateway closing the channel is EOF.
+import { request } from './diag'
 
 export type TunnelResponse = {
   status: number
@@ -17,13 +18,23 @@ export function tunnelFetch(
     body?: string
   } = {},
 ) {
+  const d = request(url)
   return new Promise<TunnelResponse>((resolve, reject) => {
-    const dc = pc.createDataChannel(`req:${url.slice(0, 200)}`)
+    let dc: RTCDataChannel
+    try {
+      dc = pc.createDataChannel(`req:${url.slice(0, 200)}`)
+    } catch (e) {
+      d.done(`createDataChannel: ${e instanceof Error ? e.message : e}`)
+      throw e
+    }
     dc.binaryType = 'arraybuffer'
     let head: { status: number; headers?: Record<string, string> } | null = null
     const chunks: Uint8Array[] = []
     let size = 0
-    dc.onopen = () =>
+    dc.onerror = (e) =>
+      d.done(`channel error: ${(e as RTCErrorEvent).error?.message ?? '?'}`)
+    dc.onopen = () => {
+      d.opened()
       dc.send(
         JSON.stringify({
           method: opts.method ?? 'GET',
@@ -32,6 +43,7 @@ export function tunnelFetch(
           ...(opts.body !== undefined && { body: opts.body }),
         }),
       )
+    }
     dc.onmessage = (e) => {
       if (typeof e.data === 'string') head = JSON.parse(e.data)
       else {
@@ -40,7 +52,11 @@ export function tunnelFetch(
       }
     }
     dc.onclose = () => {
-      if (!head) return reject(new Error(`tunnel: no response for ${url}`))
+      if (!head) {
+        d.done('closed before response')
+        return reject(new Error(`tunnel: no response for ${url}`))
+      }
+      d.done(`HTTP ${head.status}`)
       const body = new Uint8Array(size)
       let off = 0
       for (const c of chunks) {

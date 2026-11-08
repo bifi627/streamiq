@@ -124,6 +124,7 @@ image). Hosting = Railway. TURN = Cloudflare (local coturn in dev).
 ```bash
 bash scripts/check.sh                   # GOLDEN PATH: all checks (mirrors CI). Run + read output before claiming done.
 powershell -File scripts/dev.ps1        # run the app: emulator + backend (:5028) + frontend (:5173); Ctrl+C stops all
+powershell -File scripts/prune-worktrees.ps1 [-DryRun]  # remove worktrees + local branches already on main (merged PR / no commits); skips dirty ones
 
 docker compose up -d                    # deps: postgres, jellyfin, firebase auth emulator
 docker compose --profile relay up -d    # + local coturn (force relay via iceTransportPolicy)

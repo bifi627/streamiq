@@ -13,6 +13,9 @@
 // The viewer's own password is stored, so a revoked token repairs itself.
 // Files from before #50 hold an admin API key: it keeps working until the next
 // page login, which replaces it and deletes the key in Jellyfin.
+//
+// Transcoding settings (#82): only on a Jellyfin the gateway set up (admin
+// password stored), never on one the user brought. See configure.
 package jellyfin
 
 import (
@@ -51,6 +54,44 @@ type Creds struct {
 	User           string `json:"user,omitempty"`           // the admin the gateway created; before #50: the user the key was pinned to
 	Password       string `json:"password,omitempty"`       // only when the gateway created the admin
 	APIKey         string `json:"apiKey,omitempty"`         // before #50: an admin API key
+	ConfigSteps    int    `json:"configSteps,omitempty"`    // len(configSteps) applied (managed Jellyfin only)
+	HWAccel        string `json:"hwAccel,omitempty"`        // STREAMIQ_JELLYFIN_HWACCEL last applied
+}
+
+// configSteps are the encoding settings the gateway owns, applied in order and
+// once each to a Jellyfin it set up: a fresh one gets all, an existing one the
+// ones added since its last update. Append only, never edit or reorder: the
+// count applied is stored. Each step sets only its own fields, so a field
+// the user changed in the Dashboard later stays changed.
+var configSteps = []func(enc map[string]any){
+	func(enc map[string]any) { // #82: stop encoding far ahead of the player, delete old segments
+		enc["EnableThrottling"], enc["EnableSegmentDeletion"] = true, true
+	},
+}
+
+// HWAccels are the STREAMIQ_JELLYFIN_HWACCEL values ("" = none).
+var HWAccels = []string{"", "nvenc"}
+
+// hwAccel switches hardware transcoding. NVENC without a GPU in the container
+// makes every transcode fail (no CPU fallback), so it is opt-in. Turning it
+// off leaves the other fields alone: they do nothing without an accelerator.
+func hwAccel(enc map[string]any, kind string) {
+	if kind == "" {
+		enc["HardwareAccelerationType"] = "none"
+		return
+	}
+	for k, v := range map[string]any{
+		"HardwareAccelerationType":       kind,
+		"HardwareDecodingCodecs":         []string{"h264", "hevc", "mpeg2video", "vc1", "vp8", "vp9", "av1"},
+		"EnableDecodingColorDepth10Hevc": true, "EnableDecodingColorDepth10Vp9": true,
+		"EnableDecodingColorDepth10HevcRext": false, "EnableDecodingColorDepth12HevcRext": false,
+		"EnableEnhancedNvdecDecoder": true, "EnableHardwareEncoding": true,
+		"AllowHevcEncoding": false, "AllowAv1Encoding": false, // the browser may not play what comes out
+		"EnableTonemapping": true,
+		"EncoderPreset":     "fast", // "auto" is NVENC's lowest quality (p1)
+	} {
+		enc[k] = v
+	}
 }
 
 // View is what the status page shows.
@@ -60,6 +101,8 @@ type View struct {
 	Untested                      bool // reachable, but not the Tested major.minor
 	Version, Tested, Err          string
 	User, Viewer                  string
+	Managed                       bool   // the gateway owns the transcoding settings (it set Jellyfin up)
+	HWAccel                       string // applied STREAMIQ_JELLYFIN_HWACCEL
 	PasswordFile                  string // set only if the gateway created the admin: where its password is
 }
 
@@ -70,6 +113,7 @@ type Setup struct {
 	URL      string // e.g. http://localhost:8096
 	StateDir string
 	OnKey    func(token, userID string)
+	HWAccel  string // STREAMIQ_JELLYFIN_HWACCEL, one of HWAccels
 
 	mu        sync.Mutex
 	creds     Creds
@@ -155,6 +199,7 @@ func (s *Setup) poll(ctx context.Context) {
 	case err != nil:
 	case c.Token != "":
 		s.check(ctx, c)
+		s.configure(ctx)
 	case c.APIKey != "":
 		if legacyID == "" {
 			s.legacy(ctx, c)
@@ -167,6 +212,7 @@ func (s *Setup) poll(ctx context.Context) {
 		}
 		s.setErr("")
 		slog.Info("gateway: completed the Jellyfin setup wizard", "admin", adminName, "password_in", s.path())
+		s.configure(ctx) // seed now, not a poll later
 	}
 }
 
@@ -210,8 +256,8 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 	if err != nil {
 		return err
 	}
-	if old.Password != "" { // keep the bootstrapped admin's password for the human
-		c.User, c.Password = old.User, old.Password
+	if old.Password != "" { // keep the bootstrapped admin's password for the human (and configure)
+		c.User, c.Password, c.ConfigSteps, c.HWAccel = old.User, old.Password, old.ConfigSteps, old.HWAccel
 	}
 	if err := s.save(c); err != nil {
 		return err
@@ -292,6 +338,54 @@ func (s *Setup) ensureViewer(ctx context.Context, admin, name string) (id, pw st
 		return "", "", err
 	}
 	return u.Id, pw, nil
+}
+
+// configure applies pending configSteps and a changed HWAccel to a Jellyfin
+// the gateway set up, as its stored admin. A failure (e.g. the user changed
+// that password) shows on the page and is retried next poll; playback runs on
+// the viewer token either way.
+func (s *Setup) configure(ctx context.Context) {
+	s.mu.Lock()
+	c := s.creds
+	s.mu.Unlock()
+	if c.Token == "" || c.Password == "" || (c.ConfigSteps >= len(configSteps) && c.HWAccel == s.HWAccel) {
+		return
+	}
+	if err := s.applyConfig(ctx, c); err != nil {
+		s.setErr("Jellyfin transcoding settings: " + err.Error())
+		slog.Error("gateway: Jellyfin transcoding settings not applied", "err", err)
+		return
+	}
+	s.setErr("")
+	slog.Info("gateway: applied Jellyfin transcoding settings", "steps", len(configSteps), "hwaccel", s.HWAccel)
+}
+
+func (s *Setup) applyConfig(ctx context.Context, c Creds) error {
+	admin, err := s.signIn(ctx, c.User, c.Password)
+	if err != nil {
+		return err
+	}
+	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
+	// Whole object back, like the viewer policy: fields this code doesn't know survive.
+	var enc map[string]any
+	if err := s.call(ctx, "GET", "/System/Configuration/encoding", admin, "", &enc); err != nil {
+		return err
+	}
+	for _, step := range configSteps[min(c.ConfigSteps, len(configSteps)):] {
+		step(enc)
+	}
+	if c.HWAccel != s.HWAccel {
+		hwAccel(enc, s.HWAccel)
+	}
+	b, _ := json.Marshal(enc)
+	if err := s.call(ctx, "POST", "/System/Configuration/encoding", admin, string(b), nil); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	c = s.creds // a page login may have replaced the token meanwhile
+	s.mu.Unlock()
+	c.ConfigSteps, c.HWAccel = len(configSteps), s.HWAccel
+	return s.save(c)
 }
 
 // signIn returns an access token. Signing in again replaces this gateway's
@@ -401,6 +495,7 @@ func (s *Setup) View() View {
 		HasKey: c.Token != "" || legacy, LegacyKey: legacy, Untested: s.reachable && untested(s.version),
 		NeedsLogin: s.reachable && s.wizard && c.Token == "", // also offered to move off a legacy key
 		User:       c.User, Viewer: c.Viewer,
+		Managed: c.Password != "", HWAccel: c.HWAccel,
 	}
 	if c.Password != "" { // never the password itself: the page is open to the whole LAN
 		v.PasswordFile, _ = filepath.Abs(s.path())

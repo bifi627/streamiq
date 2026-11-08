@@ -110,7 +110,21 @@ sees the GPU already). In `jellyfin-compose.yml`, uncomment one block, then run
   (WSL 2), per Jellyfin's docs. Use a
   [native Jellyfin](https://jellyfin.org/downloads) instead (step 1).
 
-**2. Turn it on in Jellyfin:** **Dashboard → Playback → Transcoding**:
+**2. Turn it on.** If the gateway set Jellyfin up (the local page says
+**Transcoding settings: managed**), add this line to `gateway.env` and restart
+the gateway:
+
+```
+STREAMIQ_JELLYFIN_HWACCEL=nvenc
+```
+
+The gateway sets NVENC, hardware decoding, tone mapping and the encoder preset
+for you. With NVENC on but no GPU in the container, every transcode fails:
+remove the line (or leave it empty) and restart, and the gateway turns it off
+again. Only NVIDIA is automated so far.
+
+Your own Jellyfin (**not managed**), or Intel / AMD: **Dashboard → Playback →
+Transcoding**:
 
 - **Hardware acceleration:** NVIDIA NVENC (Intel: QSV or VA-API; AMD: VA-API
   on Linux, AMF on Windows)

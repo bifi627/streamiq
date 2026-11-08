@@ -18,4 +18,4 @@ labels: needs-spec
 -
 
 ## Notes
-<!-- Plan sketch, links to specs (docs/superpowers/specs/), related issues. -->
+<!-- Plan sketch, design decisions, related issues. The issue is the spec. -->

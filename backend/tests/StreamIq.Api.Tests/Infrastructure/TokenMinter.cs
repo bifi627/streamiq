@@ -44,4 +44,26 @@ public static class TokenMinter
         return (await signInResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("idToken").GetString()
                 ?? throw new InvalidOperationException("emulator response without idToken");
     }
+
+    /// Google sign-in (#66) via the emulator's `signInWithIdp`: it accepts the Google
+    /// id_token as plain JSON claims (what its fake popup sends), no real Google project.
+    public static async Task<string> MintGoogleIdTokenAsync(string emulatorHost, string sub, string email)
+    {
+        using var http = new HttpClient();
+        var claims = JsonSerializer.Serialize(new { sub, email, email_verified = true, name = "G User", picture = "https://x.test/p.png" });
+        var payload = new
+        {
+            requestUri = "http://localhost",
+            returnSecureToken = true,
+            postBody = $"id_token={Uri.EscapeDataString(claims)}&providerId=google.com",
+        };
+        var url = $"http://{emulatorHost}/identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=fake-api-key";
+        var resp = await http.PostAsJsonAsync(url, payload);
+        if (!resp.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"emulator signInWithIdp failed: {(int)resp.StatusCode} {await resp.Content.ReadAsStringAsync()}");
+        }
+        return (await resp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("idToken").GetString()
+                ?? throw new InvalidOperationException("emulator response without idToken");
+    }
 }

@@ -56,7 +56,7 @@ export function Diagnostics() {
           checked={transcodeOn()}
           onChange={(e) => setFlag('transcode', e.target.checked)}
         />{' '}
-        Force transcode (no video stream copy) on next play
+        Force transcode (video + stereo audio, no stream copy) on next play
       </label>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <tbody>

@@ -74,7 +74,7 @@ export function watchVideo(v: HTMLVideoElement) {
     )
   names.forEach((n) => v.addEventListener(n, on))
   const t = setInterval(() => {
-    diag.media = `t=${v.currentTime.toFixed(1)} ready=${v.readyState} paused=${v.paused} buffered=${ranges(v.buffered)}`
+    diag.media = `t=${v.currentTime.toFixed(1)} ready=${v.readyState} paused=${v.paused} ${v.videoWidth}x${v.videoHeight} muted=${v.muted} vol=${v.volume} buffered=${ranges(v.buffered)}`
     changed()
   }, 1000)
   return () => {

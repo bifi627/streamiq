@@ -80,7 +80,12 @@ export function Player({
         videoCodec: 'h264',
         audioCodec: 'aac',
         // Diagnostic: re-encode instead of copying an already-h264 source.
-        ...(transcodeOn() && { AllowVideoStreamCopy: 'false' }),
+        // Diagnostic: re-encode video and audio (stereo) instead of copying.
+        ...(transcodeOn() && {
+          AllowVideoStreamCopy: 'false',
+          AllowAudioStreamCopy: 'false',
+          MaxAudioChannels: '2',
+        }),
         ...(text && {
           SubtitleStreamIndex: String(text.Index),
           SubtitleMethod: 'Hls',
@@ -91,6 +96,9 @@ export function Player({
         startPosition:
           (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
         renderTextTracksNatively: true,
+        // hls.js grows the forward buffer up to 600 s for low bitrates; a TV's
+        // MSE quota fills long before that (bufferFullError on webOS).
+        maxMaxBufferLength: 60,
       })
       h.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_e, d) =>
         setSubs(
@@ -110,11 +118,20 @@ export function Player({
       h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
         Object.entries(d).forEach(([k, t]) => {
           const type = t?.codec && `${t.container};codecs="${t.codec}"`
+          const m = t?.metadata
           if (type)
             event(
-              `hls ${k}: ${type} supported=${MediaSource.isTypeSupported(type)}`,
+              `hls ${k}: ${type} supported=${MediaSource.isTypeSupported(type)}${m?.channelCount ? ` ${m.channelCount}ch` : ''}${m?.width ? ` ${m.width}x${m.height}` : ''}`,
             )
         }),
+      )
+      h.on(Hls.Events.MANIFEST_PARSED, (_e, d) =>
+        event(
+          `hls levels: ${d.levels.map((l, i) => `#${i} ${l.height || '?'}p ${(l.bitrate / 1e6).toFixed(1)}Mbps`).join(', ')}`,
+        ),
+      )
+      h.on(Hls.Events.LEVEL_SWITCHED, (_e, d) =>
+        event(`hls level → #${d.level}`),
       )
       // Diagnostics: are segments parsed and appended, and where do audio and
       // video land? video.buffered is only their overlap.

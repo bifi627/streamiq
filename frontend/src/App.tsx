@@ -7,7 +7,7 @@ import {
   GoogleAuthProvider,
   signOut,
   type User,
-} from 'firebase/auth'
+} from '@firebase/auth'
 import { auth } from './firebase'
 import { getMe } from './api'
 import { Gateways } from './features/gateways/Gateways'

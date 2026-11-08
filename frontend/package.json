@@ -13,7 +13,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "firebase": "^13.1.0",
+    "@firebase/app": "^0.16.4",
+    "@firebase/auth": "^1.13.8",
     "hls.js": "^1.7.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

@@ -33,6 +33,7 @@ export function Diagnostics() {
         <b>{diag.inFlight}</b> (peak {diag.peak})
       </div>
       {diag.media && <div>video: {diag.media}</div>}
+      {diag.sb && <div>hls: {diag.sb}</div>}
       <label>
         <input
           type="checkbox"

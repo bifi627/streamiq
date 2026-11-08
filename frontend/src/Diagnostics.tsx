@@ -1,5 +1,13 @@
 import { useSyncExternalStore } from 'react'
-import { debugOn, diag, relayOn, setFlag, snapshot, subscribe } from './diag'
+import {
+  debugOn,
+  diag,
+  relayOn,
+  setFlag,
+  snapshot,
+  subscribe,
+  transcodeOn,
+} from './diag'
 
 /** Header button: a TV remote can reach it, unlike the URL bar. */
 export function DiagnosticsToggle() {
@@ -41,6 +49,14 @@ export function Diagnostics() {
           onChange={(e) => setFlag('relay', e.target.checked)}
         />{' '}
         Force relay (TURN) on next connect
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={transcodeOn()}
+          onChange={(e) => setFlag('transcode', e.target.checked)}
+        />{' '}
+        Force transcode (no video stream copy) on next play
       </label>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <tbody>

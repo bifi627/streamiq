@@ -82,7 +82,7 @@ closes its open sessions (gateway-side `pc.Close()`; the API never knows client 
 **Local-page secret:** the page no longer shows the Jellyfin admin password, only the path
 of `state/jellyfin.json` (0600) holding it. LAN access to the page needs a token
 (`state/page-token`; login link `state/page-link`, printed by the installer; loopback exempt).
-Postgres backup/restore deferred (#44).
+Postgres backups: daily `pg_dump` → GCS (`db-backup.yml`), restore runbook `docs/db-recovery.md`.
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,

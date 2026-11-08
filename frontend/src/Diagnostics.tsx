@@ -20,6 +20,7 @@ export function Diagnostics() {
       style={{
         fontFamily: 'monospace',
         fontSize: 14,
+        textAlign: 'left',
         border: '1px solid #888',
         padding: 8,
         margin: '1rem 0',

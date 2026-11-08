@@ -1,6 +1,7 @@
 // Tunnel framing (docs/protocol.md): one data channel per request. The request
-// is one text frame, the response head one text frame, the body binary frames;
-// the gateway closing the channel is EOF.
+// is one text frame, the response head one text frame, the body binary frames,
+// then an `{"eof":true}` text frame, after which the browser closes the channel.
+// Not the gateway: old Chromium (webOS TVs) loses frames on a remote close (#72).
 import { request } from './diag'
 
 export type TunnelResponse = {
@@ -45,16 +46,18 @@ export function tunnelFetch(
       )
     }
     dc.onmessage = (e) => {
-      if (typeof e.data === 'string') head = JSON.parse(e.data)
-      else {
+      if (typeof e.data !== 'string') {
         chunks.push(new Uint8Array(e.data))
         size += e.data.byteLength
+        return
       }
-    }
-    dc.onclose = () => {
+      const m = JSON.parse(e.data)
+      if (!m.eof) return void (head = m)
+      dc.onclose = null
+      dc.close()
       if (!head) {
-        d.done('closed before response')
-        return reject(new Error(`tunnel: no response for ${url}`))
+        d.done('EOF without response head')
+        return reject(new Error(`tunnel: no response head for ${url}`))
       }
       d.done(`HTTP ${head.status}`)
       const body = new Uint8Array(size)
@@ -64,6 +67,14 @@ export function tunnelFetch(
         off += c.length
       }
       resolve({ status: head.status, headers: head.headers ?? {}, body })
+    }
+    dc.onclose = () => {
+      d.done(head ? 'closed before EOF' : 'closed before response')
+      reject(
+        new Error(
+          `tunnel: ${head ? 'truncated response' : 'no response'} for ${url}`,
+        ),
+      )
     }
   })
 }

@@ -174,15 +174,19 @@ Sequence on a request channel:
    ```json
    { "status": 206, "headers": { "Content-Range": "bytes 0-99/9723", "...": "..." } }
    ```
-   A refused request gets a head only: `403` (not allowlisted), `413` (body too
+   A refused request gets a head (then EOF) only: `403` (not allowlisted), `413` (body too
    large), `503` (gateway has no Jellyfin key), `502` (Jellyfin unreachable).
 3. **Gateway → browser** (zero or more binary frames): the body, in ~16 KB
    chunks under `bufferedAmount` backpressure. A whole segment is never sent
    as one message.
-4. **Gateway closes the channel.** Close is the body's **EOF** marker.
+4. **Gateway → browser** (one text frame): `{"eof":true}`, the end of the body.
+5. **Browser closes the channel.** The gateway closes only if the browser hasn't
+   within 10 s (`EOFGrace`). A channel that closes before the EOF frame is a
+   failed request. The gateway must not close first: Chrome 87 (webOS TVs) drops
+   frames still in flight on a remote close (#71, #72).
 
-The head is a **text** frame and body chunks are **binary**, so the browser
-tells them apart by type.
+The head and EOF are **text** frames and body chunks are **binary**, so the
+browser tells them apart by type.
 
 **Media bytes are untouched.** The gateway never negotiates or applies
 content compression for the browser. Go's default transport would inject

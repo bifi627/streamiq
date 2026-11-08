@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
+import { event, watchVideo } from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { clock, TICKS_PER_SECOND, type Item } from './items'
 
@@ -90,9 +91,21 @@ export function Player({
           })),
         ),
       )
-      h.on(
-        Hls.Events.ERROR,
-        (_e, d) => d.fatal && setErr(`playback error: ${d.details}`),
+      h.on(Hls.Events.ERROR, (_e, d) => {
+        event(
+          `hls ${d.fatal ? 'FATAL' : 'error'}: ${d.details}${d.error ? ` (${d.error.message})` : ''}`,
+        )
+        if (d.fatal) setErr(`playback error: ${d.details}`)
+      })
+      // Diagnostics: what the TV is asked to decode, and whether it says it can.
+      h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
+        Object.entries(d).forEach(([k, t]) => {
+          const type = t && `${t.container};codecs="${t.codec}"`
+          if (type)
+            event(
+              `hls ${k}: ${type} supported=${MediaSource.isTypeSupported(type)}`,
+            )
+        }),
       )
       h.attachMedia(v)
       h.loadSource(`${TUNNEL_ORIGIN}/Videos/${item.Id}/master.m3u8?${q}`)
@@ -101,6 +114,7 @@ export function Player({
       v.play().catch(() => {}) // autoplay may need a click; controls are there
     })().catch((e: Error) => setErr(e.message))
 
+    const unwatch = watchVideo(v)
     const tick = setInterval(report, 10_000)
     const ended = () => save({ Played: true, PlaybackPositionTicks: 0 })
     v.addEventListener('pause', report)
@@ -109,6 +123,7 @@ export function Player({
     window.addEventListener('pagehide', report)
     return () => {
       gone = true
+      unwatch()
       clearInterval(tick)
       report()
       v.removeEventListener('pause', report)

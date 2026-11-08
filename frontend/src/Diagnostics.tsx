@@ -32,6 +32,7 @@ export function Diagnostics() {
         peer: <b>{diag.pc || 'no session'}</b> · channels in flight:{' '}
         <b>{diag.inFlight}</b> (peak {diag.peak})
       </div>
+      {diag.media && <div>video: {diag.media}</div>}
       <label>
         <input
           type="checkbox"

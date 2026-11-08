@@ -6,7 +6,14 @@
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
-import { changed, diag, event, ranges, watchVideo } from '../../diag'
+import {
+  changed,
+  diag,
+  event,
+  ranges,
+  transcodeOn,
+  watchVideo,
+} from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { clock, TICKS_PER_SECOND, type Item } from './items'
 
@@ -72,6 +79,8 @@ export function Player({
         PlaySessionId: info.PlaySessionId,
         videoCodec: 'h264',
         audioCodec: 'aac',
+        // Diagnostic: re-encode instead of copying an already-h264 source.
+        ...(transcodeOn() && { AllowVideoStreamCopy: 'false' }),
         ...(text && {
           SubtitleStreamIndex: String(text.Index),
           SubtitleMethod: 'Hls',

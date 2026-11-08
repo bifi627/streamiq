@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 
@@ -26,16 +27,20 @@ public static class TokenMinter
         // endpoint for that case — still a real emulator round trip, still verified
         // through the production path, just the "returning user" leg instead of
         // "first ever sign-up".
-        var errorBody = await signUpResp.Content.ReadFromJsonAsync<JsonElement>();
-        var errorMessage = errorBody.GetProperty("error").GetProperty("message").GetString();
-        if (errorMessage != "EMAIL_EXISTS")
+        // ponytail: substring match, not a parse: a non-JSON/odd body can't throw here and mask the real failure (#39).
+        var errorBody = await signUpResp.Content.ReadAsStringAsync();
+        if (signUpResp.StatusCode != HttpStatusCode.BadRequest || !errorBody.Contains("EMAIL_EXISTS"))
         {
-            signUpResp.EnsureSuccessStatusCode(); // not the expected conflict — surface the real failure
+            throw new HttpRequestException($"emulator signUp failed: {(int)signUpResp.StatusCode} {errorBody}");
         }
 
         var signInUrl = $"http://{emulatorHost}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-api-key";
         var signInResp = await http.PostAsJsonAsync(signInUrl, payload);
-        signInResp.EnsureSuccessStatusCode();
+        if (!signInResp.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"emulator signIn failed: {(int)signInResp.StatusCode} {await signInResp.Content.ReadAsStringAsync()}");
+        }
         return (await signInResp.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("idToken").GetString()
                 ?? throw new InvalidOperationException("emulator response without idToken");
     }

@@ -25,11 +25,10 @@ public class ListGatewaysTests(IntegrationFixture fx)
 
         // Tenant A signs in (provisions), then gets a gateway seeded into its tenant.
         using var clientA = await SignedInClient("a@x.test");
-        await clientA.GetAsync("/me");                       // provision A
+        var tenantAId = (await clientA.GetFromJsonAsync<JsonElement>("/me")).GetProperty("tenantId").GetGuid(); // provisions A
         using (var scope = fx.Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
-            var tenantAId = db.Users.Single(u => u.Email == "a@x.test").TenantId;
             db.Gateways.Add(new Gateway { TenantId = tenantAId, Name = "a-box", CredentialHash = "seeded" });
             await db.SaveChangesAsync();
         }

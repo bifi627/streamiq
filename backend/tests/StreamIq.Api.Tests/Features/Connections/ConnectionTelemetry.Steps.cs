@@ -36,10 +36,14 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
     [Given("\"(.*)\" owns a gateway named \"(.*)\"")]
     public async Task GivenOwnsGateway(string email, string name)
     {
-        (await SignIn(email)).Dispose();
+        Guid tenantId;
+        using (var client = await SignIn(email))
+        {
+            tenantId = (await client.GetFromJsonAsync<JsonElement>("/me")).GetProperty("tenantId").GetGuid();
+        }
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
-        var gw = new Gateway { TenantId = db.Users.Single(u => u.Email == email).TenantId, Name = name };
+        var gw = new Gateway { TenantId = tenantId, Name = name };
         db.Gateways.Add(gw);
         await db.SaveChangesAsync();
         _gateways[name] = gw.Id;

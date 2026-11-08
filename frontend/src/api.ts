@@ -18,5 +18,4 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   return (res.status === 204 ? null : res.json()) as Promise<T>
 }
 
-export const getMe = () =>
-  authed<{ userId: string; email: string; tenantId: string }>('/me')
+export const getMe = () => authed<{ userId: string; tenantId: string }>('/me')

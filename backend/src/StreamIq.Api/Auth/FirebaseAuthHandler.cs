@@ -38,15 +38,13 @@ public class FirebaseAuthHandler(
             return AuthenticateResult.Fail(ex.Message);
         }
 
-        var email = decoded.Claims.TryGetValue("email", out var e) ? e as string : null;
-        var user = await provisioner.ResolveOrProvisionAsync(decoded.Uid, email, Context.RequestAborted);
+        var user = await provisioner.ResolveOrProvisionAsync(decoded.Uid, Context.RequestAborted);
 
         db.CurrentTenantId = user.TenantId;
 
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Email, user.Email ?? ""),
             new Claim("tenant_id", user.TenantId.ToString()),
             new Claim("firebase_uid", user.FirebaseUid),
         };

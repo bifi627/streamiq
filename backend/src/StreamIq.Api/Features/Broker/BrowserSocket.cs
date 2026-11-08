@@ -47,7 +47,7 @@ public static class BrowserSocket
                 try
                 {
                     var t = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync((string?)first["token"], ct);
-                    user = await provisioner.ResolveOrProvisionAsync(t.Uid, t.Claims.GetValueOrDefault("email") as string, ct);
+                    user = await provisioner.ResolveOrProvisionAsync(t.Uid, ct);
                 }
                 catch (Exception)
                 {

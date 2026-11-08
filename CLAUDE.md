@@ -174,6 +174,10 @@ Copy `.env.example` only to override.
     would bring it back); reopen instead of re-filing.
   - Before starting: `gh issue view <n>`, and check the issue has no linked PR (taken).
     Open a draft PR early so the issue shows it's taken.
+  - Board: project "StreamIQ" (github.com/users/bifi627/projects/2). Move the issue
+    with `bash scripts/issue-status.sh <n> "<status>"`: *Ready* when its spec is done,
+    *In progress* when work starts, *In review* when the PR is ready. New issues and
+    *Done* are automatic. Needs gh scope `project` (`gh auth refresh -s project`).
   - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a
     duplicate, then **propose** the issue (title, labels, body) in chat; create it only
     after the owner approves.

@@ -16,22 +16,23 @@ if (-not (Test-Path $envFile) -and -not $env:STREAMIQ_API_URL) {
     throw 'StreamIQ: first install needs the command from the web app (Gateways -> Add gateway)'
 }
 
-$tmp = Join-Path ([IO.Path]::GetTempPath()) "streamiq-$([guid]::NewGuid())"
-New-Item -ItemType Directory $tmp | Out-Null
+# Download next to the install, not into %TEMP%: "exe dropped in Temp" is an AV heuristic signal (#69).
+New-Item -ItemType Directory -Force (Join-Path $dir 'state') | Out-Null
+$new = "$exe.new"
+$sums = Join-Path $dir 'SHA256SUMS.new'
 try {
-    Invoke-WebRequest "$dl/$bin" -OutFile (Join-Path $tmp $bin)
-    Invoke-WebRequest "$dl/SHA256SUMS" -OutFile (Join-Path $tmp 'SHA256SUMS')
-    $want = (Get-Content (Join-Path $tmp 'SHA256SUMS') | Where-Object { $_ -match "[ *]$([regex]::Escape($bin))$" }) -split '\s+' | Select-Object -First 1
-    $got = (Get-FileHash (Join-Path $tmp $bin) -Algorithm SHA256).Hash
+    Invoke-WebRequest "$dl/$bin" -OutFile $new
+    Invoke-WebRequest "$dl/SHA256SUMS" -OutFile $sums
+    $want = (Get-Content $sums | Where-Object { $_ -match "[ *]$([regex]::Escape($bin))$" }) -split '\s+' | Select-Object -First 1
+    $got = (Get-FileHash $new -Algorithm SHA256).Hash
     if (-not $want -or $got -ne $want) { throw "StreamIQ: checksum mismatch for $bin, not installing" }
 
-    New-Item -ItemType Directory -Force (Join-Path $dir 'state') | Out-Null
     # Running copy (update): stop it so the exe can be replaced.
     Get-Process gateway -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
     Start-Sleep -Seconds 1
-    Move-Item -Force (Join-Path $tmp $bin) $exe
+    Move-Item -Force $new $exe
 } finally {
-    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+    Remove-Item -Force $new, $sums -ErrorAction SilentlyContinue
 }
 
 if (-not (Test-Path $envFile)) {

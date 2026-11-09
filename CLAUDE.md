@@ -228,4 +228,7 @@ Copy `.env.example` only to override.
   this table.
 - Data-channel payloads are **chunked (~16–64KB) with backpressure**
   (`bufferedAmount` both ends) — never send whole segments as one message.
+- **English-only UI** (#97): user-visible strings stay inline (no message map, no i18n
+  library). Dates, times and numbers go through `Intl` / `toLocale*()` with the browser's
+  default locale, never a hardcoded format or locale. A second language: #110.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

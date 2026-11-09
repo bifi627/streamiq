@@ -191,7 +191,10 @@ function Privacy({ pc }: { pc: RTCPeerConnection }) {
     return () => clearInterval(t)
   }, [pc])
   if (!p) return null
-  const mb = ((p.bytesReceived + p.bytesSent) / 1e6).toFixed(1)
+  const mb = ((p.bytesReceived + p.bytesSent) / 1e6).toLocaleString(undefined, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })
   return (
     <p>
       <small>

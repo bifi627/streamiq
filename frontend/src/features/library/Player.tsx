@@ -9,14 +9,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
-import {
-  changed,
-  diag,
-  event,
-  ranges,
-  transcodeOn,
-  watchVideo,
-} from '../../diag'
+import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import {
   clock,
@@ -98,12 +91,6 @@ export function Player({
         videoCodec: 'h264',
         audioCodec: 'aac',
         ...(transcode && TRANSCODE),
-        // "Force transcode" toggle: also re-encode audio (stereo) instead of
-        // copying; the automatic fallback only fixes video.
-        ...(transcodeOn() && {
-          AllowAudioStreamCopy: 'false',
-          MaxAudioChannels: '2',
-        }),
         ...(text && {
           SubtitleStreamIndex: String(text.Index),
           SubtitleMethod: 'Hls',
@@ -195,7 +182,7 @@ export function Player({
       const fresh = await tunnelJson<Item>(pc, `/Items/${item.Id}`)
       if (gone) return
       await start(
-        transcodeOn(),
+        false,
         (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
       )
     })().catch((e: Error) => setErr(e.message))

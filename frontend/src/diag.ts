@@ -132,7 +132,6 @@ export function setFlag(name: string, on: boolean) {
 const q = () => new URLSearchParams(location.search)
 export const debugOn = () => q().has('debug') || flag('debug')
 export const relayOn = () => q().has('relay') || flag('relay')
-export const transcodeOn = () => flag('transcode')
 
 // Errors nobody caught would otherwise vanish on a TV.
 addEventListener('error', (e) => event(`error: ${e.message}`))

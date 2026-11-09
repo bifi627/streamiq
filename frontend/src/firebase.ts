@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app'
-import { getAuth, connectAuthEmulator } from 'firebase/auth'
+import { initializeApp } from '@firebase/app'
+import { getAuth, connectAuthEmulator } from '@firebase/auth'
 
 // Dev uses the emulator (no real Firebase project needed). projectId is all the
 // emulator requires; prod supplies the real apiKey/authDomain via VITE_ vars.

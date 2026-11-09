@@ -134,8 +134,8 @@ Transcoding**:
 - **Encoder preset:** `fast` or `medium`, not `auto`: with NVENC, `auto`
   means the lowest-quality preset (p1)
 
-**3. Check it works.** Play something that transcodes (in the web app:
-**Diagnostics → Force transcode**, then play):
+**3. Check it works.** Play something that transcodes (an HEVC file: the web
+app always asks for H.264):
 
 - NVIDIA: `docker exec streamiq-jellyfin-jellyfin-1 nvidia-smi` lists the GPU,
   and shows an `ffmpeg` process while it plays.

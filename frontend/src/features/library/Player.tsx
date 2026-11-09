@@ -1,23 +1,15 @@
 // HLS playback through the tunnel. Jellyfin decides remux vs transcode
 // (videoCodec=h264&audioCodec=aac); hls.js plays it via the tunnel loader.
 // Resume: start at Jellyfin's saved position; report it every 10 s, on pause
-// and on exit. (/Sessions/Playing* is ignored for API-key callers, so the
-// position goes straight to the user's UserData.)
+// and on exit, straight to the viewer's UserData (/Sessions/Playing* is not
+// on the gateway allowlist).
 // Fallback (#81): some devices (webOS TV, Chrome 87) drop stream-copied video
 // after a seek/resume. When video appends stop covering the playhead, reload
 // there with a video transcode for the rest of this playback.
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
-import {
-  changed,
-  diag,
-  event,
-  ranges,
-  transcodeOn,
-  fmp4On,
-  watchVideo,
-} from '../../diag'
+import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import {
   clock,
@@ -99,14 +91,6 @@ export function Player({
         videoCodec: 'h264',
         audioCodec: 'aac',
         ...(transcode && TRANSCODE),
-        // Diagnostic: also re-encode audio (stereo) instead of copying.
-        ...(transcodeOn() && {
-          AllowAudioStreamCopy: 'false',
-          MaxAudioChannels: '2',
-        }),
-        // Diagnostic: Jellyfin muxes fMP4 itself, so hls.js appends it as-is
-        // (no .ts → fMP4 repackaging). Stream copy stays allowed.
-        ...(fmp4On() && { SegmentContainer: 'mp4' }),
         ...(text && {
           SubtitleStreamIndex: String(text.Index),
           SubtitleMethod: 'Hls',
@@ -134,7 +118,7 @@ export function Player({
         )
         if (d.fatal) setErr(`playback error: ${d.details}`)
       })
-      // Diagnostics: what the TV is asked to decode, and whether it says it can.
+      // What the device is asked to decode, and whether it says it can.
       h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
         Object.entries(d).forEach(([k, t]) => {
           const type = t?.codec && `${t.container};codecs="${t.codec}"`
@@ -145,16 +129,9 @@ export function Player({
             )
         }),
       )
-      h.on(Hls.Events.MANIFEST_PARSED, (_e, d) =>
-        event(
-          `hls levels: ${d.levels.map((l, i) => `#${i} ${l.height || '?'}p ${(l.bitrate / 1e6).toFixed(1)}Mbps`).join(', ')}`,
-        ),
-      )
-      h.on(Hls.Events.LEVEL_SWITCHED, (_e, d) =>
-        event(`hls level → #${d.level}`),
-      )
-      // Diagnostics: are segments parsed and appended, and where do audio and
-      // video land? video.buffered is only their overlap.
+      // Are segments parsed and appended, and where do audio and video land?
+      // video.buffered is only their overlap; an empty video range here is the
+      // stuck state the fallback below detects.
       let parsed = 0
       let appended = 0
       let r: Partial<Record<string, TimeRanges>> = {}
@@ -205,7 +182,7 @@ export function Player({
       const fresh = await tunnelJson<Item>(pc, `/Items/${item.Id}`)
       if (gone) return
       await start(
-        transcodeOn(),
+        false,
         (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
       )
     })().catch((e: Error) => setErr(e.message))

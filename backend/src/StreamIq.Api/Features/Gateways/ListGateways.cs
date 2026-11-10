@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using StreamIq.Api.Data;
 
@@ -15,9 +16,20 @@ public static class ListGateways
         app.MapGet("/gateways", async (StreamIqDbContext db, CancellationToken ct) =>
         {
             var onlineSince = DateTimeOffset.UtcNow - OnlineWindow;
-            return await db.Gateways.Where(d => d.CredentialHash != null).OrderBy(d => d.CreatedAt)   // revoked = hidden
-                .Select(d => new { d.Id, d.Name, d.LastSeenAt, d.LanUrl, d.Version, Online = d.LastSeenAt > onlineSince })
+            var rows = await db.Gateways.Where(d => d.CredentialHash != null).OrderBy(d => d.CreatedAt)   // revoked = hidden
+                .Select(d => new { d.Id, d.Name, d.LastSeenAt, d.LanUrl, d.Version, d.Status, Online = d.LastSeenAt > onlineSince })
                 .ToListAsync(ct);
+            // Status: the last heartbeat's snapshot (GatewayStatus), kept while offline.
+            return rows.Select(d => new
+            {
+                d.Id,
+                d.Name,
+                d.LastSeenAt,
+                d.LanUrl,
+                d.Version,
+                d.Online,
+                Status = d.Status is null ? null : JsonNode.Parse(d.Status),
+            });
         }).RequireAuthorization();
     }
 }

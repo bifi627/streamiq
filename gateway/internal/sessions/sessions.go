@@ -71,6 +71,13 @@ func NewAPI() (*webrtc.API, error) {
 	return webrtc.NewAPI(webrtc.WithSettingEngine(se)), nil
 }
 
+// Active counts open browser sessions (heartbeat status).
+func (s *Sessions) Active() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pcs)
+}
+
 // Handle processes one broker message; send writes JSON to the current control socket.
 func (s *Sessions) Handle(raw []byte, send func(any)) {
 	var m Msg

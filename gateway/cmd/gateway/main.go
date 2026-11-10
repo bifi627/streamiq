@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -233,9 +234,19 @@ func run(ctx context.Context) {
 		sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, API: webAPI}
 		store.OnRemove = sess.Drop // removing a browser ends its open sessions
 		var lastBeat atomic.Int64
-		var notice atomic.Pointer[string]
+		var notice, newer atomic.Pointer[string]
 		notice.Store(new(string))
-		go checkUpdates(ctx, &notice)
+		newer.Store(new(string))
+		go checkUpdates(ctx, &notice, &newer)
+		started := time.Now().UTC()
+		status := func() onboarding.Status {
+			v := setup.View()
+			return onboarding.Status{
+				OS: runtime.GOOS, Arch: runtime.GOARCH, StartedAt: started, Update: *newer.Load(),
+				Jellyfin:      onboarding.JellyfinStatus{Reachable: v.Reachable, Version: v.Version, Untested: v.Untested, Token: v.Token()},
+				PairedClients: len(store.Paired()), ActiveSessions: sess.Active(),
+			}
+		}
 		token, err := localpage.Token(stateDir, lan)
 		if err != nil {
 			log.Fatalf("gateway: page token: %v", err)
@@ -250,7 +261,7 @@ func run(ctx context.Context) {
 			log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
 		}()
 		go forever(ctx, func(ctx context.Context) error {
-			return onboarding.RunControl(ctx, api, st, lan, version, &lastBeat, sess.Handle)
+			return onboarding.RunControl(ctx, api, st, lan, version, &lastBeat, status, sess.Handle)
 		})
 	}
 
@@ -287,7 +298,7 @@ func forever(ctx context.Context, fn func(context.Context) error) {
 
 // checkUpdates asks GitHub for the latest release at start, then daily, and
 // publishes a notice (log + local page) when it's newer. Dev builds skip it.
-func checkUpdates(ctx context.Context, notice *atomic.Pointer[string]) {
+func checkUpdates(ctx context.Context, notice, newer *atomic.Pointer[string]) {
 	if version == "dev" {
 		return
 	}
@@ -298,6 +309,7 @@ func checkUpdates(ctx context.Context, notice *atomic.Pointer[string]) {
 		} else if update.Newer(latest, version) {
 			msg := fmt.Sprintf("v%s → v%s. Run: %s", version, latest, update.Command())
 			notice.Store(&msg)
+			newer.Store(&latest)
 			slog.Warn("gateway: update available " + msg)
 		}
 		select {

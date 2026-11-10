@@ -168,6 +168,18 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         b.getByText('this browser is not paired with the gateway'),
       ).toBeVisible()
+
+      // Status comes from the heartbeat, not the tunnel: B sees it unpaired (#129).
+      // Up to one 30s heartbeat after Jellyfin got its token.
+      await b.getByText('Status', { exact: true }).click()
+      await expect(
+        b.getByText(/Jellyfin: reachable, version .* · token set/),
+      ).toBeVisible({
+        timeout: 35_000,
+      })
+      await expect(
+        b.getByText(/Paired browsers: 1 · open sessions/),
+      ).toBeVisible()
     })
 
     await test.step('new gateway certificate → red warning → re-pair', async () => {

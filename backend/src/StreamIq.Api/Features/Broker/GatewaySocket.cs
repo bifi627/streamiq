@@ -1,12 +1,13 @@
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using StreamIq.Api.Data;
+using StreamIq.Api.Features.Gateways;
 using StreamIq.Api.Features.Onboarding;
 
 namespace StreamIq.Api.Features.Broker;
 
 /// The gateway's control socket, authenticated by its credential (Bearer):
-/// heartbeats (last_seen_at + advertised LAN URL + version) and the gateway's half of
+/// heartbeats (last_seen_at + advertised LAN URL + version + status snapshot) and the gateway's half of
 /// brokered browser sessions (answer/ice back to the session's browser).
 public static class GatewaySocket
 {
@@ -46,13 +47,15 @@ public static class GatewaySocket
                         case "heartbeat":
                             var lanUrl = SafeLanUrl((string?)msg["lanUrl"]);
                             var version = (string?)msg["version"] is { Length: <= 40 } v ? v : null;
+                            var status = GatewayStatus.From(msg);
                             // Matching the hash, not just the id: a socket that authenticated
                             // just before a revoke is closed at its next heartbeat.
                             var live = await db.Gateways.Where(d => d.Id == gateway.Id && d.CredentialHash == hash)
                                 .ExecuteUpdateAsync(s => s
                                     .SetProperty(d => d.LastSeenAt, DateTimeOffset.UtcNow)
                                     .SetProperty(d => d.LanUrl, lanUrl)
-                                    .SetProperty(d => d.Version, version), ct);
+                                    .SetProperty(d => d.Version, version)
+                                    .SetProperty(d => d.Status, status), ct);
                             if (live == 0)
                             {
                                 await me.KillAsync("revoked");

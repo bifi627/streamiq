@@ -503,6 +503,18 @@ func (s *Setup) View() View {
 	return v
 }
 
+// Token is the credential state for the heartbeat: "ok", "legacy" (pre-#50
+// admin API key) or "missing".
+func (v View) Token() string {
+	switch {
+	case v.LegacyKey:
+		return "legacy"
+	case v.HasKey:
+		return "ok"
+	}
+	return "missing"
+}
+
 func untested(version string) bool { return !strings.HasPrefix(version, Tested+".") }
 
 func randPassword() string {

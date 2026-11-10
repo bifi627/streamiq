@@ -4,6 +4,7 @@ import {
   getGateways,
   removeGateway,
   type Gateway,
+  type GatewayStatus,
   type Install,
 } from './api'
 import { Pairing } from '../pairing/Pairing'
@@ -97,6 +98,7 @@ export function Gateways() {
               <button type="button" onClick={() => remove(d)}>
                 Remove
               </button>
+              <StatusDetails g={d} />
             </li>
           ))}
         </ul>
@@ -136,5 +138,77 @@ export function Gateways() {
         </div>
       )}
     </section>
+  )
+}
+
+const tokenText = {
+  ok: 'token set',
+  missing: 'token missing: open the gateway page and Connect Jellyfin',
+  legacy: 'admin API key: reconnect Jellyfin on the gateway page',
+}
+
+// Read-only status from the gateway's heartbeat (#129). Offline: last known
+// values, dated. No tunnel needed, so it works before this browser is paired.
+function StatusDetails({ g }: { g: Gateway }) {
+  const s: GatewayStatus | null = g.status
+  const at = (iso: string) => new Date(iso).toLocaleString()
+  if (!s)
+    return (
+      <details>
+        <summary>Status</summary>
+        <p>
+          No status yet
+          {g.version ? ' (gateway too old to report it: update it)' : ''}.
+        </p>
+      </details>
+    )
+  const jf = s.jellyfin
+  return (
+    <details>
+      <summary>Status</summary>
+      {!g.online && g.lastSeenAt && <p>Offline. As of {at(g.lastSeenAt)}:</p>}
+      <ul>
+        <li>
+          StreamIQ:{' '}
+          {g.online && g.lastSeenAt
+            ? `connected, last heartbeat ${new Date(g.lastSeenAt).toLocaleTimeString()}`
+            : 'not connected'}
+        </li>
+        <li>
+          Version {g.version ?? 'unknown'}
+          {s.update && (
+            <b>
+              {' '}
+              · update available: {s.update}, run{' '}
+              <code>
+                {s.os === 'windows' ? 'gateway update' : 'install.sh'}
+              </code>{' '}
+              on the gateway
+            </b>
+          )}
+        </li>
+        {(s.os || s.startedAt) && (
+          <li>
+            {s.os && `${s.os}/${s.arch ?? '?'}`}
+            {s.os && s.startedAt && ' · '}
+            {s.startedAt && `running since ${at(s.startedAt)}`}
+          </li>
+        )}
+        <li>
+          Jellyfin:{' '}
+          {!jf
+            ? 'unknown'
+            : !jf.reachable
+              ? 'not reachable'
+              : `reachable, version ${jf.version ?? '?'}`}
+          {jf?.untested && <b> · not tested with this gateway</b>}
+          {jf?.token && ` · ${tokenText[jf.token]}`}
+        </li>
+        <li>
+          Paired browsers: {(s.pairedClients ?? '?').toLocaleString()} · open
+          sessions: {(s.activeSessions ?? '?').toLocaleString()}
+        </li>
+      </ul>
+    </details>
   )
 }

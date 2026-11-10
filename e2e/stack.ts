@@ -224,7 +224,7 @@ export type StackOptions = {
   /** Serve the app over HTTPS on all interfaces with the API + auth emulator
    *  proxied to the same origin (vite.preview.config.ts). PEM file paths. */
   lan?: { port: number; cert: string; key: string }
-  /** Also mount the repo's dev-media/ into Jellyfin's library. */
+  /** Also mount the repo's dev-media/ into Jellyfin's library (must exist). */
   media?: boolean
   /** Docker label on every container (the preview's `down` removes by it). */
   label?: string

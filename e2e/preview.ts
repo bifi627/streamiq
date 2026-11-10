@@ -2,7 +2,7 @@
 // from the shell that started it, seeded, served on the LAN over HTTPS so a phone
 // or TV can try it. Not a Playwright spec: `npm test` never runs it.
 //
-//   npm run preview --prefix e2e [-- up] [--media] [--port N]
+//   npm run preview --prefix e2e [-- up] [--port N] [--tunnel]
 //   npm run preview --prefix e2e -- status
 //   npm run preview --prefix e2e -- down
 //
@@ -10,6 +10,10 @@
 // wrote ready into .preview/state.json, prints the URLs and exits. `down` kills
 // that process tree, removes the containers (label streamiq.preview=<id>) and
 // waits until its ports are closed.
+//
+// --tunnel (#141): also a Cloudflare quick tunnel (https://….trycloudflare.com,
+// a trusted cert) for browsers that keep a self-signed exception for navigation
+// only (webOS TV). Public while it runs; open <LAN>/tv on the TV to get there.
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -40,6 +44,8 @@ type State = {
   lan?: string[]
   local?: string
   gatewayPage?: string
+  tunnel?: string
+  jellyfin?: string
   pids?: number[] // backend, vite, gateway: down kills them even if serve died
   ports?: number[]
 }
@@ -143,7 +149,17 @@ function print(s: State) {
                 (phone/TV on the same network; accept the certificate warning once)
   local:        ${s.local}
   login:        ${login.email} / ${login.password} (account exists)
-  gateway page: ${s.gatewayPage} (approve pairing requests here)
+${
+  s.tunnel
+    ? `  tunnel:       ${s.tunnel} (public while running; TV: open <LAN>/tv)
+`
+    : ''
+}${
+    s.jellyfin
+      ? `  jellyfin:     ${s.jellyfin} (streamiq / streamiq-e2e; new files in ${path.join(root, 'dev-media')}: Scan All Libraries)
+`
+      : ''
+  }  gateway page: ${s.gatewayPage} (approve pairing requests here)
   logs:         ${path.join(dir, 'logs')}, ${path.join(dir, 'preview.log')}
   stop:         npm run preview --prefix e2e -- down`)
 }
@@ -256,9 +272,45 @@ function status() {
   print(s)
 }
 
+// Pinned + checksummed (release notes' SHA256), like the gateway installer.
+// Bump: new version + both hashes from github.com/cloudflare/cloudflared/releases.
+const cloudflared = {
+  version: '2026.10.7',
+  win32: {
+    asset: 'cloudflared-windows-amd64.exe',
+    sha256: '2493dbc168923bb3e59e5e7716f71deced92992eea9acd6e9d74f84ac7751343',
+  },
+  linux: {
+    asset: 'cloudflared-linux-amd64',
+    sha256: '1f99fb518b83dec2ba8d870a7cc991d82a77e6196295a3d2754ba17ab9f91872',
+  },
+} as const
+
+async function ensureCloudflared() {
+  const pin =
+    process.platform === 'win32' || process.platform === 'linux'
+      ? cloudflared[process.platform]
+      : undefined
+  if (!pin)
+    throw new Error(`--tunnel: no cloudflared pin for ${process.platform}`)
+  const bin = path.join(dir, 'bin', `${cloudflared.version}-${pin.asset}`)
+  const ok = (b: Buffer) =>
+    createHash('sha256').update(b).digest('hex') === pin.sha256
+  if (fs.existsSync(bin) && ok(fs.readFileSync(bin))) return bin
+  const url = `https://github.com/cloudflare/cloudflared/releases/download/${cloudflared.version}/${pin.asset}`
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`)
+  const b = Buffer.from(await r.arrayBuffer())
+  if (!ok(b)) throw new Error(`${url}: SHA256 mismatch`)
+  fs.mkdirSync(path.dirname(bin), { recursive: true })
+  fs.writeFileSync(bin, b, { mode: 0o755 })
+  return bin
+}
+
 // The detached stack owner: everything below runs in the background process.
 async function serve() {
-  const { startStack, startGateway, started } = await import('./stack.ts')
+  const { start, startStack, startGateway, started } =
+    await import('./stack.ts')
   const cleanup = async (code: number) => {
     await Promise.all(started.map((p) => p.stop()))
     process.exit(code)
@@ -266,10 +318,12 @@ async function serve() {
   process.on('SIGTERM', () => cleanup(0)) // POSIX down; Windows: taskkill /T
   try {
     const port = Number(process.env.PREVIEW_PORT)
+    // Always mounted (gitignored): gen-test-media.sh output or your own files.
+    fs.mkdirSync(path.join(root, 'dev-media'), { recursive: true })
     const stack = await startStack({
       dir: path.join(dir, 'bin'),
       lan: { port, cert, key },
-      media: args.includes('--media'),
+      media: true,
       label: id,
     })
 
@@ -306,9 +360,40 @@ async function serve() {
       await new Promise((r) => setTimeout(r, 1000))
     }
 
+    let tunnel: string | undefined
+    if (args.includes('--tunnel')) {
+      // 127.0.0.1: Vite listens on IPv4 only. Self-signed origin: --no-tls-verify.
+      const cf = start(
+        'cloudflared',
+        await ensureCloudflared(),
+        [
+          'tunnel',
+          '--no-autoupdate',
+          '--no-tls-verify',
+          '--url',
+          `https://127.0.0.1:${port}`,
+        ],
+        { cwd: dir },
+      )
+      tunnel = await new Promise<string>((resolve, reject) => {
+        let out = ''
+        cf.proc.stderr!.on('data', (d) => {
+          out += d
+          const url = out.match(/https:\/\/[\w-]+\.trycloudflare\.com/)
+          if (url && out.includes('Registered tunnel connection'))
+            resolve(url[0])
+        })
+        cf.proc.once('exit', (c) =>
+          reject(new Error(`cloudflared exited (${c}): logs/cloudflared.log`)),
+        )
+      })
+    }
+
     write({
       ...read()!,
       ready: true,
+      tunnel,
+      jellyfin: process.env.E2E_JELLYFIN_URL,
       lan: lanIps().map((ip) => `https://${ip}:${port}`),
       local: stack.app,
       gatewayPage: gateway.pageUrl,

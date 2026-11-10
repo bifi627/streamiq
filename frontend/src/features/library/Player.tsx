@@ -1,16 +1,20 @@
-// HLS playback through the tunnel. Jellyfin decides remux vs transcode
-// (videoCodec=h264&audioCodec=aac); hls.js plays it via the tunnel loader.
+// HLS playback through the tunnel. Jellyfin decides remux vs transcode from a
+// DeviceProfile built from a capability probe (profile.ts, #115); hls.js plays
+// the TranscodingUrl it returns via the tunnel loader.
 // Resume: start at Jellyfin's saved position; report it every 10 s, on pause
 // and on exit, straight to the viewer's UserData (/Sessions/Playing* is not
 // on the gateway allowlist).
 // Fallback (#81): some devices (webOS TV, Chrome 87) drop stream-copied video
 // after a seek/resume. When video appends stop covering the playhead, reload
 // there with a video transcode for the rest of this playback.
+// Audio fallback (#115): on an audio decode/append error, reload there with
+// stereo AAC (no audio copy) for the rest of this playback.
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
+import { decision, describe, deviceProfile, probe, type Probe } from './profile'
 import {
   clock,
   covers,
@@ -19,28 +23,27 @@ import {
   type Item,
 } from './items'
 
-// Transcode output ceilings. Jellyfin only scales down and clamps the bitrate
-// to the source's, so smaller sources keep their size. Never send these with
-// stream copy: a bitrate there makes Jellyfin transcode anything above it.
+// Video transcode output ceilings, set on the TranscodingUrl only when Jellyfin
+// transcodes video. Jellyfin only scales down and clamps the bitrate to the
+// source's, so smaller sources keep their size. Never with stream copy: a
+// bitrate there makes Jellyfin transcode anything above it.
 // ponytail: fixed 1080p/8 Mbps; a quality picker (per device/uplink) replaces this.
 const TRANSCODE = {
-  AllowVideoStreamCopy: 'false',
   VideoBitrate: '8000000',
   MaxHeight: '1080',
   MaxWidth: '1920',
 }
 
 type PlaybackInfo = {
-  PlaySessionId: string
+  ErrorCode?: string
   MediaSources: {
-    Id: string
-    MediaStreams: {
-      Index: number
-      Type: string
-      IsTextSubtitleStream?: boolean
-    }[]
+    TranscodingUrl?: string
+    MediaStreams: NonNullable<Item['MediaStreams']>
   }[]
 }
+
+/** What the current load may stream-copy; the fallbacks turn these off. */
+type Copy = { video: boolean; audio: boolean }
 
 export function Player({
   pc,
@@ -74,30 +77,36 @@ export function Player({
       }
     }
 
-    // Loads the stream at `at` seconds; called again by the fallback.
-    const start = async (transcode: boolean, at: number) => {
-      // A new PlaySessionId, so Jellyfin starts a new job for new params.
+    let caps: Probe
+    let text: number | undefined // first text subtitle: offered via HLS, off by default
+    // Loads the stream at `at` seconds; called again by the fallbacks.
+    const start = async (copy: Copy, at: number) => {
+      // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
       const info = await tunnelJson<PlaybackInfo>(
         pc,
         `/Items/${itemId}/PlaybackInfo`,
-        {},
+        {
+          DeviceProfile: deviceProfile(caps, !copy.audio),
+          EnableDirectPlay: false,
+          EnableDirectStream: false,
+          AllowVideoStreamCopy: copy.video,
+          AllowAudioStreamCopy: copy.audio,
+          ...(!copy.audio && { MaxAudioChannels: 2 }),
+          ...(text !== undefined && { SubtitleStreamIndex: text }),
+        },
       )
       if (gone) return
       const src = info.MediaSources[0]
-      const text = src.MediaStreams.find(
-        (s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream,
-      )
-      const q = new URLSearchParams({
-        mediaSourceId: src.Id,
-        PlaySessionId: info.PlaySessionId,
-        videoCodec: 'h264',
-        audioCodec: 'aac',
-        ...(transcode && TRANSCODE),
-        ...(text && {
-          SubtitleStreamIndex: String(text.Index),
-          SubtitleMethod: 'Hls',
-        }),
-      })
+      if (!src?.TranscodingUrl)
+        throw new Error(
+          `Jellyfin offers no stream (${info.ErrorCode ?? 'no TranscodingUrl'})`,
+        )
+      const d = decision(src.TranscodingUrl, src.MediaStreams)
+      event(`jellyfin: ${d.text}`)
+      const [path, query] = src.TranscodingUrl.split('?')
+      const q = new URLSearchParams(query)
+      if (!d.videoCopy)
+        Object.entries(TRANSCODE).forEach(([k, val]) => q.set(k, val))
       h = new Hls({
         loader: tunnelLoader(pc),
         startPosition: at,
@@ -114,11 +123,20 @@ export function Player({
           })),
         ),
       )
-      h.on(Hls.Events.ERROR, (_e, d) => {
+      h.on(Hls.Events.ERROR, (_e, e) => {
         event(
-          `hls ${d.fatal ? 'FATAL' : 'error'}: ${d.details}${d.error ? ` (${d.error.message})` : ''}`,
+          `hls ${e.fatal ? 'FATAL' : 'error'}: ${e.details}${e.error ? ` (${e.error.message})` : ''}`,
         )
-        if (d.fatal) setErr(`playback error: ${d.details}`)
+        // Audio fallback: the device can't take the audio Jellyfin sent
+        // (e.g. 5.1 AAC on old webOS). Once per playback.
+        const audio =
+          e.sourceBufferName === 'audio' ||
+          /audio/i.test(
+            `${e.mimeType ?? ''} ${e.error?.message ?? ''} ${v.error?.message ?? ''}`,
+          )
+        if (copy.audio && audio && e.type === Hls.ErrorTypes.MEDIA_ERROR)
+          return reload({ ...copy, audio: false }, 'stereo AAC')
+        if (e.fatal) setErr(`playback error: ${e.details}`)
       })
       // What the device is asked to decode, and whether it says it can.
       h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
@@ -152,23 +170,17 @@ export function Player({
         sb()
       })
       let stuck = 0 // video appends in a row that left the playhead empty
-      h.on(Hls.Events.BUFFER_APPENDED, (_e, d) => {
+      h.on(Hls.Events.BUFFER_APPENDED, (_e, a) => {
         appended++
-        r = d.timeRanges
+        r = a.timeRanges
         sb()
-        if (transcode || d.type !== 'video') return
-        if (covers(d.timeRanges.video, v.currentTime)) stuck = 0
-        else if (++stuck >= STUCK_APPENDS) {
-          const t = v.currentTime
-          event(`fallback: transcode @${t.toFixed(1)}`)
-          const old = h
-          h = null // no position reports while the media detaches
-          old?.destroy()
-          start(true, t).catch((e: Error) => setErr(e.message))
-        }
+        if (!d.videoCopy || a.type !== 'video') return
+        if (covers(a.timeRanges.video, v.currentTime)) stuck = 0
+        else if (++stuck >= STUCK_APPENDS)
+          reload({ ...copy, video: false }, 'video transcode')
       })
       h.attachMedia(v)
-      h.loadSource(`${TUNNEL_ORIGIN}/Videos/${itemId}/master.m3u8?${q}`)
+      h.loadSource(`${TUNNEL_ORIGIN}${path}?${q}`)
       h.subtitleTrack = -1
       setSub(-1)
       hls.current = h
@@ -180,17 +192,33 @@ export function Player({
       })
     }
 
+    // Restarts at the playhead with less stream copy (the fallbacks).
+    const reload = (copy: Copy, why: string) => {
+      const t = v.currentTime
+      event(`fallback: ${why} @${t.toFixed(1)}`)
+      const old = h
+      h = null // no position reports while the media detaches
+      old?.destroy()
+      start(copy, t).catch((e: Error) => setErr(e.message))
+    }
+
     ;(async () => {
       if (!Hls.isSupported())
         throw new Error(
           'this browser has no MSE (iOS Safari is not supported yet)',
         )
+      caps = await probe()
+      event(`probe: ${describe(caps)}`)
+      deviceProfile(caps) // throws without H.264, before anything loads
       // Fresh UserData: the listing may be stale (resume position).
       const fresh = await tunnelJson<Item>(pc, `/Items/${itemId}`)
       if (gone) return
       setItem(fresh)
+      text = fresh.MediaStreams?.find(
+        (s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream,
+      )?.Index
       await start(
-        false,
+        { video: true, audio: true },
         (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
       )
     })().catch((e: Error) => setErr(e.message))

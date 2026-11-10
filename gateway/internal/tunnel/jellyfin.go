@@ -63,7 +63,9 @@ var allowed = []struct {
 	{"POST", regexp.MustCompile(`^/Items/` + id + `/PlaybackInfo$`)},
 	{"POST", regexp.MustCompile(`^/UserItems/` + id + `/UserData$`)}, // resume position / played
 	// Every GET under /Videos/{id}/ is a read: HLS playlists + segments, subtitles.
-	{"GET", regexp.MustCompile(`^/Videos/` + id + `/[A-Za-z0-9._/-]+$`)},
+	// Case-insensitive like Jellyfin's routing: PlaybackInfo's TranscodingUrl
+	// says /videos/.
+	{"GET", regexp.MustCompile(`(?i)^/Videos/` + id + `/[A-Za-z0-9._/-]+$`)},
 }
 
 // allow reports whether method+path is on the allowlist. path must already be

@@ -51,6 +51,8 @@ foreach ($b in git for-each-ref --format='%(refname:short)' refs/heads/) {
     if ($DryRun) { Write-Host "would prune  $b ($why)$(if ($path) { " + $path" })"; continue }
 
     if ($path) {
+        # A running preview (#135) holds files + ports in the worktree: stop it first.
+        if (Test-Path "$path/e2e/.preview/state.json") { node "$path/e2e/preview.ts" down }
         $out = git worktree remove $path 2>&1
         if ($LASTEXITCODE -ne 0) { Write-Host "skip  $b (removal failed: $out)" -ForegroundColor Yellow; continue }
     }

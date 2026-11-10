@@ -88,6 +88,8 @@ func TestAllowlist(t *testing.T) {
 		{"POST", "/UserItems/" + vid + "/UserData", true},
 		{"GET", "/Videos/" + vid + "/master.m3u8?mediaSourceId=" + vid, true},
 		{"GET", "/Videos/" + vid + "/" + vid + "/Subtitles/0/0/stream.vtt", true},
+		{"GET", "/videos/7a3ef65e-2921-cba5-c000-93ee87cf13e1/master.m3u8?MediaSourceId=" + vid, true}, // TranscodingUrl
+		{"GET", "/videos/" + vid + "/../../Auth/Keys", false},
 		{"GET", "/System/Info/Public", true},
 
 		{"DELETE", "/Items/" + vid, false},

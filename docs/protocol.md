@@ -232,7 +232,9 @@ stays a *viewer*:
   | POST | `/UserItems/{id}/UserData` (resume position, played) |
 
   The path must already be clean: no `..`, no `//`, no percent-encoding, not
-  absolute. `{id}` is 32–36 hex digits or dashes.
+  absolute. `{id}` is 32–36 hex digits or dashes. `/Videos/` matches in any
+  case (Jellyfin routes case-insensitively; `PlaybackInfo`'s `TranscodingUrl`
+  says `/videos/`).
 - **Redaction.** Jellyfin writes `ApiKey=<token>` into the URLs inside its HLS
   playlists. Text responses (`json`, `mpegurl`, `text/*`, at most 16 MB) are
   buffered, the token is replaced with `redacted`, and `Content-Length` is

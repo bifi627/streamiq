@@ -96,6 +96,13 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         a.getByText(/end-to-end encrypted · direct · StreamIQ carried 0 bytes/),
       ).toBeVisible() // same host: host candidates, no relay
+      // Device profile (#115): probe + Jellyfin's decision in the diagnostics.
+      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      await expect(a.getByText(/probe: h264 .* L\d/)).toBeVisible()
+      await expect(
+        a.getByText(/jellyfin: video remux \(h264\) · audio copy/),
+      ).toBeVisible()
+      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.getByRole('button', { name: 'Back' }).click() // saves the position
       await a.goBack() // browser history: folder → library home
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()

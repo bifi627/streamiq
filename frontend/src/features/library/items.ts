@@ -14,6 +14,13 @@ export type Item = {
   IndexNumber?: number
   ImageTags?: { Primary?: string }
   UserData?: { PlaybackPositionTicks?: number; Played?: boolean }
+  MediaStreams?: {
+    Index: number
+    Type: string
+    Codec?: string
+    Channels?: number
+    IsTextSubtitleStream?: boolean
+  }[]
 }
 
 export const clock = (s: number) =>

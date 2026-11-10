@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "preview": "node preview.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

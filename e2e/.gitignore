@@ -3,3 +3,4 @@ logs/
 test-results/
 playwright-report/
 .bin/
+.preview/

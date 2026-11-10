@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type Browser, type Page } from '@playwright/test'
-import { startGateway } from './stack'
+import { startGateway } from './stack.ts'
 
 const email = 'e2e@streamiq.test'
 const password = 'e2e-password'

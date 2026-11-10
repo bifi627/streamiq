@@ -22,7 +22,7 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123");
         var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        await client.GetAsync("/me");     // ensure provisioned
+        await client.GetAsync("/api/me");     // ensure provisioned
         return client;
     }
 
@@ -39,7 +39,7 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
         Guid tenantId;
         using (var client = await SignIn(email))
         {
-            tenantId = (await client.GetFromJsonAsync<JsonElement>("/me")).GetProperty("tenantId").GetGuid();
+            tenantId = (await client.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("tenantId").GetGuid();
         }
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
@@ -53,7 +53,7 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
     public async Task WhenStarts(string email, string gateway)
     {
         using var client = await SignIn(email);
-        _last = await client.PostAsJsonAsync("/connections", new
+        _last = await client.PostAsJsonAsync("/api/connections", new
         {
             gatewayId = _gateways[gateway],
             relay = true,
@@ -72,7 +72,7 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
     public async Task WhenFails(string email, string gateway, string reason)
     {
         using var client = await SignIn(email);
-        _last = await client.PostAsJsonAsync("/connections", new { gatewayId = _gateways[gateway], failure = reason });
+        _last = await client.PostAsJsonAsync("/api/connections", new { gatewayId = _gateways[gateway], failure = reason });
     }
 
     [Then("the session is stored as failed because \"(.*)\"")]
@@ -89,7 +89,7 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
     public async Task WhenEnds(string email, long bytes)
     {
         using var client = await SignIn(email);
-        _last = await client.PatchAsJsonAsync($"/connections/{_session}", new { bytesReceived = bytes, bytesSent = 10 });
+        _last = await client.PatchAsJsonAsync($"/api/connections/{_session}", new { bytesReceived = bytes, bytesSent = 10 });
     }
 
     [Then("the request is refused with 404")]

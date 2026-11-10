@@ -18,7 +18,7 @@ public class TenantIsolationSteps(IntegrationFixture fx)
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123");
         var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        await client.GetAsync("/me");     // ensure provisioned
+        await client.GetAsync("/api/me");     // ensure provisioned
         return client;
     }
 
@@ -43,7 +43,7 @@ public class TenantIsolationSteps(IntegrationFixture fx)
     public async Task WhenLists(string email)
     {
         using var client = await SignIn(email);
-        _lastList = await client.GetFromJsonAsync<JsonElement>("/gateways");
+        _lastList = await client.GetFromJsonAsync<JsonElement>("/api/gateways");
     }
 
     [Then("the gateway list is empty")]

@@ -13,7 +13,7 @@ public class CorsTests(IntegrationFixture fx)
     public async Task Preflight_allows_only_listed_origins(string origin, bool allowed)
     {
         using var client = fx.Factory.CreateClient();
-        using var preflight = new HttpRequestMessage(HttpMethod.Options, "/me");
+        using var preflight = new HttpRequestMessage(HttpMethod.Options, "/api/me");
         preflight.Headers.Add("Origin", origin);
         preflight.Headers.Add("Access-Control-Request-Method", "GET");
         preflight.Headers.Add("Access-Control-Request-Headers", "authorization");

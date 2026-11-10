@@ -16,7 +16,7 @@ using StreamIq.Api.Features.Onboarding;
 var builder = WebApplication.CreateBuilder(args);
 
 // CORS allowlist = the SPA origins (comma-separated CORS_ORIGINS; default = vite dev).
-// The gateway isn't a browser, and WebSockets ignore CORS (/broker/ws
+// The gateway isn't a browser, and WebSockets ignore CORS (/api/broker/ws
 // authenticates in-band), so only the SPA needs listing.
 var corsOrigins = (builder.Configuration["CORS_ORIGINS"] ?? "http://localhost:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -122,7 +122,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // SPA: the prod image copies the Vite build into wwwroot (dev: vite serves it).
-// ponytail: no MapFallbackToFile — the SPA has no client-side routes yet.
+// Client routes fall back to index.html (end of file); the API lives under /api.
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -136,15 +136,23 @@ app.UseWebSockets();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 // Vertical slices: one file per use case under Features/<Slice>/, mapped here.
-GetMe.Map(app);
-ListGateways.Map(app);
-RevokeGateway.Map(app);
-CreateEnrollmentToken.Map(app);
-Enroll.Map(app);
-GatewaySocket.Map(app);
-BrowserSocket.Map(app);
-StartConnection.Map(app);
-EndConnection.Map(app);
+// Every slice sits under /api (its own route, e.g. "/me", is relative to it), so
+// client routes own the rest of the path space. /healthz stays at the root.
+var api = app.MapGroup("/api");
+GetMe.Map(api);
+ListGateways.Map(api);
+RevokeGateway.Map(api);
+CreateEnrollmentToken.Map(api);
+Enroll.Map(api);
+GatewaySocket.Map(api);
+BrowserSocket.Map(api);
+StartConnection.Map(api);
+EndConnection.Map(api);
+
+// Unknown /api/* paths are a 404, never the SPA; any other path without a file
+// extension is a client route and gets index.html (404 if no SPA is built, e.g. dev).
+api.MapFallback(() => Results.NotFound());
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

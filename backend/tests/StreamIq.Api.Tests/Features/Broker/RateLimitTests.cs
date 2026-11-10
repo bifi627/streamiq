@@ -20,7 +20,7 @@ public class RateLimitTests(IntegrationFixture fx)
 
         async Task<HttpStatusCode> Enroll(string ip)
         {
-            using var rq = new HttpRequestMessage(HttpMethod.Post, "/gateways/enroll") { Content = JsonContent.Create(new { }) };
+            using var rq = new HttpRequestMessage(HttpMethod.Post, "/api/gateways/enroll") { Content = JsonContent.Create(new { }) };
             rq.Headers.Add("X-Real-IP", ip);
             return (await client.SendAsync(rq)).StatusCode;
         }
@@ -34,7 +34,7 @@ public class RateLimitTests(IntegrationFixture fx)
         var wsc = factory.Server.CreateWebSocketClient();
         wsc.ConfigureRequest = r => r.Headers["X-Real-IP"] = "203.0.113.1";
         var ex = await Assert.ThrowsAnyAsync<Exception>(() =>
-            wsc.ConnectAsync(new Uri(factory.Server.BaseAddress, "/broker/ws"), CancellationToken.None));
+            wsc.ConnectAsync(new Uri(factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None));
         Assert.Contains("429", ex.Message);
     }
 
@@ -43,7 +43,7 @@ public class RateLimitTests(IntegrationFixture fx)
     {
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, "flood@x.test", "password123");
         var ws = await fx.Factory.Server.CreateWebSocketClient()
-            .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/broker/ws"), CancellationToken.None);
+            .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
         await Send(ws, $$"""{"type":"auth","token":"{{token}}"}""");
 
         var buf = new byte[64 * 1024];

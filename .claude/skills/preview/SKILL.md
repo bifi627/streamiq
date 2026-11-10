@@ -10,8 +10,9 @@ description: >-
 disable-model-invocation: true
 ---
 
-User-invoked only (`/preview [tv] [media] | stop | status`). Arguments: `$ARGUMENTS`
-— none = start in LAN mode; `tv` = `--tunnel`; `media` = `--media`; `stop` /
+User-invoked only (`/preview [tunnel] [media] | stop | status`). Arguments: `$ARGUMENTS`
+— none = start in LAN mode; `tunnel` = `--tunnel`; `media` = `--media`
+(mounts the checkout's `dev-media/` = `scripts/gen-test-media.sh` fixtures); `stop` /
 `status` = those sections below.
 
 # Preview env: start / stop
@@ -26,9 +27,9 @@ the same. Background: `docs/tools.md` (Preview env + cloudflared rows).
 - **Foreground Bash with `timeout: 600000`.** `up` returns on its own once ready
   (2–4 min, first run longer). Never `run_in_background`, never `&`, no sleep
   loops: the stack is already detached.
-- **Mode:** a TV is mentioned (or any device whose browser fails every request
-  after accepting the cert warning) → `--tunnel`. Otherwise plain `up`. Add
-  `--media` only when the owner asks for their `dev-media/` library.
+- **Mode:** only the flags the arguments ask for. Tested on a TV (or any device
+  whose browser fails every request after accepting the cert warning) without
+  `tunnel` → say `/preview tunnel` is needed, don't add it silently.
 - Don't kill processes by name (`taskkill /IM cloudflared.exe` etc.): T3 Code runs
   its own `cloudflared`. Only `down` stops the preview (it kills the pids it
   recorded).

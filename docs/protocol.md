@@ -5,17 +5,22 @@ Contract-first (per CLAUDE.md): onboarding, broker, pairing, tunnel. Codegen
 messages are hand-mirrored in Go (`gateway/internal/{onboarding,sessions,pairing,tunnel}`),
 C# (`Features/Broker`) and TS (`frontend/src/features/pairing`, `frontend/src/tunnel.ts`).
 
+**Paths.** Every API endpoint is under `/api` (#120); the rest of the path space
+belongs to the SPA's client routes (prod serves `index.html` for them, unknown
+`/api/*` paths are 404). `/healthz` stays at the root. `STREAMIQ_API_URL` is the
+origin only; clients append `/api/…` themselves.
+
 ## Gateway onboarding (MVP item 2)
 
 Design: `superpowers/specs/2026-11-01-streamiq-agent-pairing-design.md`.
 Fingerprints everywhere use the form `sha-256 AA:BB:…` (32 upper-case hex
 pairs, SHA-256 over the DER certificate).
 
-**`POST /gateways/enrollment-tokens`** (Firebase Bearer) →
+**`POST /api/gateways/enrollment-tokens`** (Firebase Bearer) →
 `{ token, expiresAt, installCommand, installCommandPowershell }`. Token is
 random 128 bit, single-use, 15 min; the API stores only its SHA-256.
 
-**`POST /gateways/enroll`** (no auth — the token is the auth)
+**`POST /api/gateways/enroll`** (no auth — the token is the auth)
 ```json
 { "token": "…", "fingerprint": "sha-256 AB:…", "name": "nas" }
 ```
@@ -23,7 +28,7 @@ random 128 bit, single-use, 15 min; the API stores only its SHA-256.
 shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 `401` token unknown, expired, or used.
 
-**`GET /gateways/ws`** — gateway control WebSocket, `Authorization: Bearer
+**`GET /api/gateways/ws`** — gateway control WebSocket, `Authorization: Bearer
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
@@ -33,21 +38,21 @@ The API sets `last_seen_at = now`, `lan_url` (http/https only, else null) and
 `version` (≤ 40 chars, else null; `"dev"` for source builds). `version` is
 optional: older gateways omit it.
 
-**`DELETE /gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's
-credential (row kept, hidden from `GET /gateways`; its telemetry stays). The
+**`DELETE /api/gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's
+credential (row kept, hidden from `GET /api/gateways`; its telemetry stays). The
 broker closes its control socket (`1008 "revoked"`) and every browser session
 through it (`1008 "gateway revoked"`). Another tenant's or an already revoked
 gateway → `404`. A gateway that authenticated just before the revoke is closed
 at its next heartbeat. Re-adding the box = re-enroll (`docs/install.md`).
 
-**Rate limits.** `/broker/ws`, `/gateways/ws` and `/gateways/enroll` share a
+**Rate limits.** `/api/broker/ws`, `/api/gateways/ws` and `/api/gateways/enroll` share a
 budget of 120 new requests per client IP per minute; over it → `429` (for a
 socket: the upgrade is refused). A flood shield, not a per-user quota: a
 household needs a handful per minute, and the headroom keeps many users behind
 one shared IP (carrier NAT, office) clear of it. On an open socket, a message past its token
 bucket (browser: burst 50, 10/s; gateway: burst 200, 50/s) closes it with
 `1008 "rate limited"`. A browser socket must send `auth` within 10 s.
-`GET /gateways` reports `online` = last heartbeat within 90 s. The same socket
+`GET /api/gateways` reports `online` = last heartbeat within 90 s. The same socket
 carries the gateway's half of the broker (below).
 
 ## Broker (MVP item 3)
@@ -55,7 +60,7 @@ carries the gateway's half of the broker (below).
 Tenant-scoped signaling. One JSON object per WebSocket text frame. The broker
 relays SDP/ICE; it can't make either side trust the other (pins + pairing do).
 
-**`GET /broker/ws`** — browser socket, **one socket = one session to one gateway**.
+**`GET /api/broker/ws`** — browser socket, **one socket = one session to one gateway**.
 Closing it ends the session (broker sends the gateway `bye`).
 
 | direction | message |
@@ -67,7 +72,7 @@ Closing it ends the session (broker sends the gateway `bye`).
 | browser → broker | `{type:"ice", candidate}` |
 | broker → browser | `{type:"answer", sdp}` · `{type:"ice", candidate}` |
 
-**Gateway side** (on `/gateways/ws`): broker → gateway `{type:"offer", session, sdp}`,
+**Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, sdp}`,
 `{type:"ice", session, candidate}`, `{type:"bye", session}`; gateway → broker
 `{type:"answer"|"ice", session, …}`. The broker only routes a gateway's message
 into a session opened *for that gateway*. The gateway keeps one PeerConnection
@@ -92,9 +97,9 @@ gateway stays on its own config (STUN, optional `STREAMIQ_ICE_*`): the browser's
 relay candidate is enough, as the e2e's forced-relay step shows.
 
 **Telemetry**: once the tunnel is up the browser reads the selected candidate
-pair from `getStats()` and calls `POST /connections`
+pair from `getStats()` and calls `POST /api/connections`
 `{gatewayId, relay, ipv6, localCandidateType, remoteCandidateType, protocol}` →
-`{id}`; on close, `PATCH /connections/{id}` `{bytesReceived, bytesSent}` (stamps
+`{id}`; on close, `PATCH /api/connections/{id}` `{bytesReceived, bytesSent}` (stamps
 `EndedAt`). Rows live in `connection_sessions` (tenant-owned, global filter;
 another tenant's gateway or row → `404`). A closed tab skips the PATCH.
 A failed attempt (ICE `failed`, pin mismatch, unpaired, broker or gateway

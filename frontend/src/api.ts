@@ -1,9 +1,10 @@
 import { auth } from './firebase'
 
 // Prod: the API serves this bundle, so same origin. Dev: vite :5173, API :5028.
+// Every endpoint lives under /api (the rest of the path space is client routes).
 export const API =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? 'http://localhost:5028' : location.origin)
+  (import.meta.env.VITE_API_URL ??
+    (import.meta.env.DEV ? 'http://localhost:5028' : location.origin)) + '/api'
 
 export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await auth.currentUser?.getIdToken()

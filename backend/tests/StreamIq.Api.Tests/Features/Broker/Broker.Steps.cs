@@ -37,9 +37,9 @@ public class BrokerSteps(IntegrationFixture fx)
     {
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await IdToken(email));
-        var token = (await (await client.PostAsync("/gateways/enrollment-tokens", null)).Content.ReadFromJsonAsync<JsonElement>())
+        var token = (await (await client.PostAsync("/api/gateways/enrollment-tokens", null)).Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("token").GetString();
-        var enrolled = await (await client.PostAsJsonAsync("/gateways/enroll", new { token, fingerprint = Fp, name }))
+        var enrolled = await (await client.PostAsJsonAsync("/api/gateways/enroll", new { token, fingerprint = Fp, name }))
             .Content.ReadFromJsonAsync<JsonElement>();
         var id = enrolled.GetProperty("gatewayId").GetGuid();
 
@@ -122,7 +122,7 @@ public class BrokerSteps(IntegrationFixture fx)
     public async Task WhenRemove(string email, string name)
     {
         using var client = await SignedIn(email);
-        _removal = (await client.DeleteAsync($"/gateways/{_gateways[name].Id}")).StatusCode;
+        _removal = (await client.DeleteAsync($"/api/gateways/{_gateways[name].Id}")).StatusCode;
     }
 
     [Then("the removal succeeds")]
@@ -157,7 +157,7 @@ public class BrokerSteps(IntegrationFixture fx)
     public async Task ThenNotListed(string email, string name)
     {
         using var client = await SignedIn(email);
-        var list = await client.GetFromJsonAsync<JsonElement>("/gateways");
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/gateways");
         Assert.DoesNotContain(list.EnumerateArray(), g => g.GetProperty("id").GetGuid() == _gateways[name].Id);
     }
 
@@ -165,7 +165,7 @@ public class BrokerSteps(IntegrationFixture fx)
     {
         var wsc = fx.Factory.Server.CreateWebSocketClient();
         wsc.ConfigureRequest = r => r.Headers.Authorization = $"Bearer {credential}";
-        return wsc.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/gateways/ws"), CancellationToken.None);
+        return wsc.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/gateways/ws"), CancellationToken.None);
     }
 
     private async Task<HttpClient> SignedIn(string email)
@@ -183,7 +183,7 @@ public class BrokerSteps(IntegrationFixture fx)
     private async Task BrowserAuth(string token)
     {
         _browser = await fx.Factory.Server.CreateWebSocketClient()
-            .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/broker/ws"), CancellationToken.None);
+            .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
         await Send(_browser, new { type = "auth", token });
     }
 

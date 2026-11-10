@@ -17,7 +17,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
     {
         await fx.ResetAsync();
         using var client = fx.Factory.CreateClient();
-        var resp = await client.GetAsync("/me");
+        var resp = await client.GetAsync("/api/me");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
@@ -27,7 +27,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         await fx.ResetAsync();
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "not-a-jwt");
-        var resp = await client.GetAsync("/me");
+        var resp = await client.GetAsync("/api/me");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
@@ -39,7 +39,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var resp = await client.GetAsync("/me");         // triggers provisioning
+        var resp = await client.GetAsync("/api/me");         // triggers provisioning
         resp.EnsureSuccessStatusCode();
 
         using var scope = fx.Factory.Services.CreateScope();
@@ -52,8 +52,8 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
     {
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var me = await client.GetFromJsonAsync<JsonElement>("/me");
-        return me.GetProperty("tenantId").GetString() ?? throw new InvalidOperationException("/me without tenantId");
+        var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        return me.GetProperty("tenantId").GetString() ?? throw new InvalidOperationException("/api/me without tenantId");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         {
             using var client = fx.Factory.CreateClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            (await client.GetAsync("/me")).EnsureSuccessStatusCode();
+            (await client.GetAsync("/api/me")).EnsureSuccessStatusCode();
         }
         await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => Hit()));
 

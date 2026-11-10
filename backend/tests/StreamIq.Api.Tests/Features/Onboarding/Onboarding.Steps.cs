@@ -33,7 +33,7 @@ public class OnboardingSteps(IntegrationFixture fx)
     private async Task<string> CreateToken(string email)
     {
         using var client = await SignIn(email);
-        var res = await client.PostAsync("/gateways/enrollment-tokens", null);
+        var res = await client.PostAsync("/api/gateways/enrollment-tokens", null);
         res.EnsureSuccessStatusCode();
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         var token = body.GetProperty("token").GetString();
@@ -45,13 +45,13 @@ public class OnboardingSteps(IntegrationFixture fx)
     private async Task<HttpResponseMessage> Enroll(string token, string name = "box")
     {
         using var client = fx.Factory.CreateClient();
-        return await client.PostAsJsonAsync("/gateways/enroll", new { token, fingerprint = Fp, name });
+        return await client.PostAsJsonAsync("/api/gateways/enroll", new { token, fingerprint = Fp, name });
     }
 
     private async Task<JsonElement> Gateways(string email)
     {
         using var client = await SignIn(email);
-        return await client.GetFromJsonAsync<JsonElement>("/gateways");
+        return await client.GetFromJsonAsync<JsonElement>("/api/gateways");
     }
 
     [Given("\"(.*)\" created an enrollment token")]
@@ -108,7 +108,7 @@ public class OnboardingSteps(IntegrationFixture fx)
     {
         var ws = fx.Factory.Server.CreateWebSocketClient();
         ws.ConfigureRequest = r => r.Headers.Authorization = $"Bearer {credential}";
-        return await ws.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/gateways/ws"), CancellationToken.None);
+        return await ws.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/gateways/ws"), CancellationToken.None);
     }
 
     [When("a gateway connects with credential \"(.*)\"")]

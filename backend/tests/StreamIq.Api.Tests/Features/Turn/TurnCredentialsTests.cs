@@ -50,7 +50,7 @@ public class TurnCredentialsTests(IntegrationFixture fx)
         async Task<string> Session()
         {
             var ws = await factory.Server.CreateWebSocketClient()
-                .ConnectAsync(new Uri(factory.Server.BaseAddress, "/broker/ws"), CancellationToken.None);
+                .ConnectAsync(new Uri(factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
             await ws.SendAsync(Encoding.UTF8.GetBytes($$"""{"type":"auth","token":"{{token}}"}"""),
                 WebSocketMessageType.Text, true, CancellationToken.None);
             var buf = new byte[64 * 1024];
@@ -81,7 +81,7 @@ public class TurnCredentialsTests(IntegrationFixture fx)
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, "turn-down@x.test", "password123");
 
         var ws = await factory.Server.CreateWebSocketClient()
-            .ConnectAsync(new Uri(factory.Server.BaseAddress, "/broker/ws"), CancellationToken.None);
+            .ConnectAsync(new Uri(factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
         await ws.SendAsync(Encoding.UTF8.GetBytes($$"""{"type":"auth","token":"{{token}}"}"""),
             WebSocketMessageType.Text, true, CancellationToken.None);
         var buf = new byte[64 * 1024];

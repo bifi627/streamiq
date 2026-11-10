@@ -21,7 +21,7 @@ func TestEnrollOnceThenReuseState(t *testing.T) {
 		calls.Add(1)
 		var req map[string]string
 		json.NewDecoder(r.Body).Decode(&req)
-		if r.URL.Path != "/gateways/enroll" || req["token"] != "tok" || req["fingerprint"] != "fp" {
+		if r.URL.Path != "/api/gateways/enroll" || req["token"] != "tok" || req["fingerprint"] != "fp" {
 			http.Error(w, "bad", http.StatusBadRequest)
 			return
 		}

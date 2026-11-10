@@ -43,10 +43,10 @@ covered by Reqnroll (isolation/provisioning/auth-reject) + xUnit edges. React:
 Firebase sign-in + empty authed shell.
 
 **Items 2+3 — pairing + broker.** **PR A
-(onboarding):** migration #2, enrollment token → `/gateways/enroll` → credential,
-authenticated `/gateways/ws` heartbeat, persistent 10-year gateway DTLS cert + state dir,
+(onboarding):** migration #2, enrollment token → `/api/gateways/enroll` → credential,
+authenticated `/api/gateways/ws` heartbeat, persistent 10-year gateway DTLS cert + state dir,
 local gateway page (Host/Origin guard), Gateways list. **PR B (broker + pairing):**
-tenant-scoped broker (`/broker/ws`, session routing), browser WebCrypto client key,
+tenant-scoped broker (`/api/broker/ws`, session routing), browser WebCrypto client key,
 session-bound connection auth, commit/reveal comparison code approved on the gateway
 page, allowlist, pins enforced both directions; protocol in `docs/protocol.md`.
 **Item 4 — productized gateway** (pivoted from a Docker sidecar after a spike: on Docker
@@ -75,7 +75,7 @@ API image (`wwwroot`, same origin, no CORS in prod); Railway Root Directory = re
 rate limits (per client IP via `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`, plus
 per-socket message buckets, 10 s auth deadline), TURN creds minted per broker session
 in `ready` and revoked at its end (`GET /turn` is gone; dev coturn uses TURN REST
-`STREAMIQ_TURN_SECRET`), gateway revocation (`DELETE /gateways/{id}`: hash nulled, row
+`STREAMIQ_TURN_SECRET`), gateway revocation (`DELETE /api/gateways/{id}`: hash nulled, row
 kept for telemetry, sockets + sessions closed). Removing a client on the gateway page
 closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).
 **Local-page secret:** the page no longer shows the Jellyfin admin password, only the path

@@ -330,8 +330,8 @@ func TestLegacyKeyMigrates(t *testing.T) {
 	}
 }
 
-// The binary's Tested pin and both compose image pins must agree, or the
-// status page warns about the version we ship.
+// The binary's Tested and Image pins and both compose image pins must agree, or
+// the status page warns about the version we ship (or upgrade writes another).
 func TestPinsMatchTested(t *testing.T) {
 	re := regexp.MustCompile(`image: jellyfin/jellyfin:(\S+)`)
 	for _, f := range []string{"../../../docker-compose.yml", "../../install/jellyfin-compose.yml"} {
@@ -340,9 +340,12 @@ func TestPinsMatchTested(t *testing.T) {
 			t.Fatal(err)
 		}
 		m := re.FindSubmatch(b)
-		if m == nil || !strings.HasPrefix(string(m[1]), Tested+".") {
-			t.Errorf("%s: Jellyfin image %q, want %s.*", f, m, Tested)
+		if m == nil || "jellyfin/jellyfin:"+string(m[1]) != Image {
+			t.Errorf("%s: Jellyfin image %q, want %s", f, m, Image)
 		}
+	}
+	if !strings.HasPrefix(Image, "jellyfin/jellyfin:"+Tested+".") {
+		t.Errorf("Image %s is not Jellyfin %s", Image, Tested)
 	}
 }
 

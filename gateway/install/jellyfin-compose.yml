@@ -1,8 +1,8 @@
 # Optional Jellyfin for StreamIQ: just Jellyfin, pinned to the version this
 # gateway release was tested with. Edit the media folders below (this file is
-# yours; updates never overwrite it), then:
-#
-#   docker compose -f jellyfin-compose.yml up -d
+# yours; updates never overwrite it), then run `gateway jellyfin up` (or
+# `docker compose -f jellyfin-compose.yml up -d`). `gateway jellyfin upgrade`
+# moves the image below to the gateway's tested version.
 #
 # Leave Jellyfin's setup wizard alone: the gateway completes it, creates the
 # admin user and shows its password on the gateway's local page

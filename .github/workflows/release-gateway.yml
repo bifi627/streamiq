@@ -35,7 +35,7 @@ jobs:
               -ldflags "-s -w -X main.version=$v" -o "../dist/streamiq-gateway-$os-$arch$ext" ./cmd/gateway
           done
           cp install/install.sh install/install.ps1 install/jellyfin-compose.yml ../dist/
-          (cd ../dist && sha256sum streamiq-gateway-* > SHA256SUMS)
+          (cd ../dist && sha256sum streamiq-gateway-* jellyfin-compose.yml > SHA256SUMS)
       - name: publish
         env:
           GH_TOKEN: ${{ github.token }}

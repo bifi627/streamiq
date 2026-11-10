@@ -18,14 +18,15 @@ Pick one:
   machine at `http://localhost:8096`.
 - **Native install:** install [Jellyfin](https://jellyfin.org/downloads), but
   **skip its setup wizard**. The gateway completes it in step 3.
-- **Docker:** download `jellyfin-compose.yml` from the
-  [latest release](https://github.com/bifi627/streamiq/releases/latest) into a
-  folder of your choice. It is just Jellyfin, pinned to the version the gateway
-  was tested with, on port 8096. Edit the media folders in it: one read-only
-  bind per folder, any number of drives, Windows paths like `'D:\Movies'` work.
-  Each `source` folder must exist. Then run
-  `docker compose -f jellyfin-compose.yml up -d` in that folder and leave the
-  setup wizard alone. The file is yours; updates never overwrite it.
+- **Docker:** install the gateway first (step 2), then run `gateway jellyfin up`
+  in its install dir. It downloads `jellyfin-compose.yml` there (checked against
+  the release's `SHA256SUMS`) and starts it: just Jellyfin, pinned to the version
+  the gateway was tested with, on port 8096. Edit the media folders in that file:
+  one read-only bind per folder, any number of drives, Windows paths like
+  `'D:\Movies'` work. Each `source` folder must exist. Then run
+  `gateway jellyfin up` again and leave the setup wizard alone. The file is
+  yours; updates never overwrite it. Needs Docker with Compose v2
+  (`docker compose`); the gateway says so if it's missing.
 
 ## 2. Install the gateway
 
@@ -103,7 +104,7 @@ On the CPU that can max out a small NAS; a GPU does it almost for free.
 
 **1. Give the container the GPU** (Docker compose file only; a native Jellyfin
 sees the GPU already). In `jellyfin-compose.yml`, uncomment one block, then run
-`docker compose -f jellyfin-compose.yml up -d` again:
+`gateway jellyfin up` again:
 
 - **NVIDIA** (`deploy:` block): on Windows, Docker Desktop with the WSL 2 backend
   and a current NVIDIA driver is enough. On Linux, install the
@@ -185,6 +186,11 @@ that command:
 
 Your settings and paired browsers stay. Nothing updates without you running it.
 
+**Jellyfin (Docker):** when the page warns that Jellyfin runs a version the
+gateway wasn't tested with, run `gateway jellyfin upgrade`. It changes only the
+`image:` line in `jellyfin-compose.yml` to the tested version and restarts
+Jellyfin; your media folders and everything else in the file stay.
+
 ## Start on boot
 
 - Windows: the installer runs `gateway service install`, which creates the
@@ -199,6 +205,6 @@ Your settings and paired browsers stay. Nothing updates without you running it.
 Push a tag `gateway-vX.Y.Z`. CI (`release-gateway.yml`) tests, builds all six
 binaries, and publishes the GitHub Release with `SHA256SUMS`, both install
 scripts and `jellyfin-compose.yml`. When bumping the Jellyfin pin, update
-`docker-compose.yml`, `gateway/install/jellyfin-compose.yml` and
-`jellyfin.Tested` together (a gateway test enforces it). A tag with a suffix (`gateway-v1.5.0-rc.1`) becomes a prerelease,
+`docker-compose.yml`, `gateway/install/jellyfin-compose.yml`,
+`jellyfin.Image` and `jellyfin.Tested` together (a gateway test enforces it). A tag with a suffix (`gateway-v1.5.0-rc.1`) becomes a prerelease,
 which `latest` and the update check skip.

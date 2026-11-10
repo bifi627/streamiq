@@ -57,7 +57,7 @@ User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (gate
 so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin credential without manual
 steps (`gateway/internal/jellyfin`: wizard bootstrap on a fresh Jellyfin, else one admin login
 on the local page; since #50 a non-admin viewer token, not an API key, in `state/jellyfin.json`),
-`install/jellyfin-compose.yml` release asset (pin = `jellyfin.Tested`, test-enforced), local
+`install/jellyfin-compose.yml` release asset (pin = `jellyfin.Image`, test-enforced; `gateway jellyfin up|upgrade`), local
 page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapped admin creds).
 
 **Item 5 — streaming client** (consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /

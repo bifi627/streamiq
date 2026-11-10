@@ -1,7 +1,7 @@
 // Run: node --test src/features/library/profile.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { decision, deviceProfile, type Probe } from './profile.ts'
+import { decision, deviceProfile, probe, type Probe } from './profile.ts'
 
 const webos: Probe = {
   h264: { profiles: ['high', 'main'], level: 51 },
@@ -122,4 +122,18 @@ test('decision: level/bit depth reasons mean video transcode', () => {
     h264aac,
   )
   assert.equal(d.videoCopy, false)
+})
+
+test('probe: audio muxed for fMP4 clients, alone for .ts clients', async () => {
+  // webOS: ac-3 passes alone, fails muxed with any video codec. No AV1.
+  let hevcOn = true
+  const isTypeSupported = (t: string) =>
+    !(t.startsWith('video/') && t.includes('ac-3')) &&
+    !t.includes('av01') &&
+    (hevcOn || !t.includes('hvc1'))
+  Object.assign(globalThis, { MediaSource: { isTypeSupported } })
+  assert.ok((await probe()).hevc)
+  assert.ok(!(await probe()).audio.includes('ac3'))
+  hevcOn = false
+  assert.ok((await probe()).audio.includes('ac3'))
 })

@@ -212,6 +212,18 @@ content compression for the browser. Go's default transport would inject
 drops `Content-Length`. Compression stays end-to-end. The one rewrite is
 key redaction in text responses (below).
 
+### Burst endpoint (throughput test, #90)
+
+`GET /streamiq/burst[?size=N]` on a tunnel channel is answered by the **gateway
+itself**, never proxied to Jellyfin (and needs no Jellyfin token): `200`,
+`Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
+bytes through the normal chunking and backpressure above. `size` defaults to
+4 MiB and is capped at 16 MiB; anything else (over the cap, negative, not a
+number) is `400`. Only a `GET` with that exact, unencoded path matches. Like
+every tunnel request it exists only after connection auth: an unpaired browser
+gets no tunnel channels. The browser's `/diagnostics` page times it for a
+throughput figure; nothing is stored.
+
 ### Jellyfin policy (gateway, `gateway/internal/tunnel/jellyfin.go`)
 
 The browser authenticates to StreamIQ, never to Jellyfin, and a paired browser

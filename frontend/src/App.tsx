@@ -30,6 +30,7 @@ import {
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 import { compatibleOn, setCompatible } from './settings'
+import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 
 // Readable text for the popup failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
@@ -223,6 +224,11 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: 'settings',
     component: Settings,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'diagnostics',
+    component: DiagnosticsPage,
   }),
   gatewayRoute.addChildren([
     createRoute({

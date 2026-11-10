@@ -6,6 +6,7 @@ export type Item = {
   Type: string
   IsFolder?: boolean
   SeriesId?: string
+  SeriesName?: string
   RunTimeTicks?: number
   ProductionYear?: number
   IndexNumber?: number

@@ -1,7 +1,8 @@
 // Library browsing over the tunnel (MVP item 5, consumption only). Functional,
-// not pretty: the UI is refactored later. ponytail: a useState view stack, no
-// router; browser Back is out of scope (add history.pushState if it annoys).
-import { useEffect, useState } from 'react'
+// not pretty: the UI is refactored later. Routes (App.tsx): /g/$gatewayId owns the
+// tunnel; its children (home, /i/$itemId) render through <Outlet /> and share it.
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { connect, PinMismatch, type Session } from '../pairing/connect'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { Player } from './Player'
@@ -18,17 +19,14 @@ type View =
 const playable = (i: Item) =>
   !i.IsFolder && i.Type !== 'Series' && i.Type !== 'Season'
 
-export function Library({
-  gatewayId,
-  onClose,
-}: {
-  gatewayId: string
-  onClose: () => void
-}) {
+const Tunnel = createContext<{ gatewayId: string; pc: RTCPeerConnection }>(
+  null!,
+)
+
+// Layout route: one tunnel per gateway, open while navigating inside it.
+export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [session, setSession] = useState<Session | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [stack, setStack] = useState<View[]>([{ kind: 'home' }])
-  const [playing, setPlaying] = useState<Item | null>(null)
 
   useEffect(() => {
     let s: Session | null = null
@@ -48,50 +46,94 @@ export function Library({
     }
   }, [gatewayId])
 
-  const view = stack[stack.length - 1]
-  const open = (i: Item) => {
-    if (playable(i)) return setPlaying(i)
-    const kind =
-      i.Type === 'Series' ? 'series' : i.Type === 'Season' ? 'season' : 'folder'
-    setStack([...stack, { kind, item: i }])
-  }
-
   return (
     <section>
       <p>
-        <button type="button" onClick={onClose}>
-          ← Gateways
-        </button>{' '}
-        {stack.map((v, n) => (
-          <span key={n}>
-            {' / '}
-            <a
-              href="#"
-              onClick={(e) => (
-                e.preventDefault(),
-                setPlaying(null),
-                setStack(stack.slice(0, n + 1))
-              )}
-            >
-              {v.kind === 'home' ? 'Library' : v.item.Name}
-            </a>
-          </span>
-        ))}
+        <Link to="/">← Gateways</Link>
       </p>
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
       {!session && !err && <p>Connecting…</p>}
-      {session && <Privacy pc={session.pc} />}
-      {session && playing && (
-        <Player
-          pc={session.pc}
-          item={playing}
-          onExit={() => setPlaying(null)}
-        />
-      )}
-      {session && !playing && (
-        <Listing key={stack.length} pc={session.pc} view={view} onOpen={open} />
+      {session && (
+        <Tunnel.Provider value={{ gatewayId, pc: session.pc }}>
+          <Privacy pc={session.pc} />
+          <Outlet />
+        </Tunnel.Provider>
       )}
     </section>
+  )
+}
+
+export const LibraryHome = () => <Browse view={HOME} />
+const HOME: View = { kind: 'home' }
+
+// Folder / series / season by Jellyfin item ID, so a reload or deep link restores it.
+export function ItemPage({ itemId }: { itemId: string }) {
+  const { pc } = useContext(Tunnel)
+  const [item, setItem] = useState<Item | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => {
+    tunnelJson<Item>(pc, `/Items/${itemId}`).then(setItem, (e: Error) =>
+      setErr(e.message),
+    )
+  }, [pc, itemId])
+  const view = useMemo<View | null>(
+    () =>
+      item && {
+        kind:
+          item.Type === 'Series'
+            ? 'series'
+            : item.Type === 'Season'
+              ? 'season'
+              : 'folder',
+        item,
+      },
+    [item],
+  )
+  if (err) return <p style={{ color: 'crimson' }}>{err}</p>
+  if (!view) return <p>Loading…</p>
+  return <Browse view={view} />
+}
+
+// Breadcrumbs from the item itself + the listing. ponytail: the player still
+// opens from state over the current route until #122 gives it its own.
+function Browse({ view }: { view: View }) {
+  const { gatewayId, pc } = useContext(Tunnel)
+  const navigate = useNavigate()
+  const [playing, setPlaying] = useState<Item | null>(null)
+  const item = view.kind === 'home' ? null : view.item
+  const crumb = (itemId: string, name: string) => (
+    <>
+      {' / '}
+      <Link to="/g/$gatewayId/i/$itemId" params={{ gatewayId, itemId }}>
+        {name}
+      </Link>
+    </>
+  )
+  const open = (i: Item) =>
+    playable(i)
+      ? setPlaying(i)
+      : navigate({
+          to: '/g/$gatewayId/i/$itemId',
+          params: { gatewayId, itemId: i.Id },
+        })
+
+  return (
+    <>
+      <p>
+        <Link to="/g/$gatewayId" params={{ gatewayId }}>
+          Library
+        </Link>
+        {item?.SeriesId &&
+          item.SeriesId !== item.Id &&
+          crumb(item.SeriesId, item.SeriesName ?? 'Series')}
+        {item && crumb(item.Id, item.Name)}
+      </p>
+      {playing ? (
+        <Player pc={pc} item={playing} onExit={() => setPlaying(null)} />
+      ) : (
+        <Listing pc={pc} view={view} onOpen={open} />
+      )}
+    </>
   )
 }
 

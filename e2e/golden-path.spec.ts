@@ -10,15 +10,16 @@ import { startGateway } from './stack'
 const email = 'e2e@streamiq.test'
 const password = 'e2e-password'
 
-async function signIn(browser: Browser, create = false) {
+async function signIn(browser: Browser, create = false, path = '/') {
   const page = await (await browser.newContext()).newPage() // own IndexedDB = own client key
-  await page.goto(process.env.E2E_APP_URL!)
+  await page.goto(process.env.E2E_APP_URL! + path)
   await page.getByPlaceholder('email').fill(email)
   await page.getByPlaceholder('password').fill(password)
   await page
     .getByRole('button', { name: create ? 'Create account' : 'Sign in' })
     .click()
-  await expect(page.getByRole('heading', { name: 'Gateways' })).toBeVisible()
+  if (path === '/')
+    await expect(page.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   return page
 }
 
@@ -85,6 +86,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await test.step('browse → play through the tunnel → resume', async () => {
       await a.getByRole('button', { name: 'Open' }).click()
       await a.getByRole('button', { name: /Movies/ }).click()
+      await expect(a).toHaveURL(/\/g\/[^/]+\/i\/[^/]+$/) // folder deep link
+      await a.reload() // restores the folder: item loaded by ID over a new tunnel
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
       await expect(a.getByLabel('Subtitles')).toBeVisible() // sidecar .srt → HLS rendition
       await expect
@@ -94,14 +97,15 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         a.getByText(/end-to-end encrypted · direct · StreamIQ carried 0 bytes/),
       ).toBeVisible() // same host: host candidates, no relay
       await a.getByRole('button', { name: 'Back' }).click() // saves the position
+      await a.goBack() // browser history: folder → library home
+      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.reload()
-      await a.getByRole('button', { name: 'Open' }).click()
       const resume = a.getByRole('button', {
         name: /streamiq e2e clip.*Resume 0:0[3-9]/,
       })
       await resume.click() // "Continue watching" row
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // starts there, not at 0
-      await a.getByRole('button', { name: '← Gateways' }).click()
+      await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
@@ -117,7 +121,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         a.getByRole('row', { name: /opened.*HTTP 200.*\/UserViews/ }).first(), // newest first; earlier sessions' rows are kept too
       ).toBeVisible()
-      await a.getByRole('button', { name: '← Gateways' }).click()
+      await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByLabel('Force relay (TURN) on next connect').uncheck()
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
     })
@@ -129,7 +133,15 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     })
 
     await test.step('browser B (same account, never paired) is refused', async () => {
-      const b = await signIn(browser)
+      // Signed out on a deep link: sign-in, then that same route loads.
+      const id = (await a.locator('li code').first().textContent())!
+      const b = await signIn(browser, false, `/g/${id}`)
+      await expect(
+        b.getByText('this browser is not paired with the gateway'),
+      ).toBeVisible()
+      expect(new URL(b.url()).pathname).toBe(`/g/${id}`)
+      await b.goto(process.env.E2E_APP_URL! + '/no-such-page')
+      await b.getByRole('link', { name: 'Go to your gateways' }).click()
       await b.getByRole('button', { name: 'Test connection' }).click()
       await expect(
         b.getByText('this browser is not paired with the gateway'),
@@ -160,7 +172,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       // The gateway closed the PeerConnection: the next request on it fails.
       await movies.click()
       await expect(a.locator('p[style*="crimson"]')).toBeVisible()
-      await a.getByRole('button', { name: '← Gateways' }).click()
+      await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Test connection' }).click()
       await expect(
         a.getByText('this browser is not paired with the gateway'),

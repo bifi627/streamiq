@@ -165,6 +165,31 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
     })
 
+    await test.step('diagnostics page (#90): direct vs relayed, burst throughput, report', async () => {
+      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      await a
+        .getByRole('link', { name: 'Client info + connection test' })
+        .click()
+      const report = a.locator('pre', { hasText: 'StreamIQ diagnostics' })
+      await expect(report).toContainText(/codecs: h264 .* L\d/) // the #115 probe
+      const run = async (path: RegExp) => {
+        await a.getByRole('button', { name: 'Test connection' }).click()
+        await expect(report).toContainText(
+          /throughput: [\d.]+ Mbps \(4\.0 MB in \d+ ms\)/,
+          { timeout: 30_000 },
+        )
+        await expect(report).toContainText('paired: yes')
+        await expect(report).toContainText(path)
+      }
+      await run(/path: direct .* RTT \d+ ms/)
+      await a.getByLabel('Force relay (TURN)', { exact: true }).check()
+      await run(/relay forced: yes[\s\S]*path: relayed \(TURN\)/)
+      await a.getByLabel('Force relay (TURN)', { exact: true }).uncheck()
+      await expect(report).not.toContainText(email)
+      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
+      await a.goto(process.env.E2E_APP_URL!)
+    })
+
     await test.step('pin + key survive a reload (IndexedDB)', async () => {
       await a.reload()
       await a.getByRole('button', { name: 'Test connection' }).click()
@@ -197,6 +222,13 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         b.getByText(/Paired browsers: 1 · open sessions/),
       ).toBeVisible()
+
+      // The diagnostics page says so too, and names the failed step.
+      await b.goto(process.env.E2E_APP_URL! + '/diagnostics')
+      await b.getByRole('button', { name: 'Test connection' }).click()
+      await expect(b.locator('pre')).toContainText(
+        /paired: no\s+failed at connect .*not paired/,
+      )
     })
 
     await test.step('new gateway certificate → red warning → re-pair', async () => {

@@ -23,6 +23,7 @@ import {
   GatewayLibrary,
   ItemPage,
   LibraryHome,
+  PlayerPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 
@@ -155,6 +156,14 @@ const itemRoute = createRoute({
     return <ItemPage key={itemId} itemId={itemId} />
   },
 })
+const playRoute = createRoute({
+  getParentRoute: () => gatewayRoute,
+  path: 'play/$itemId',
+  component: function Play() {
+    const { itemId } = playRoute.useParams()
+    return <PlayerPage key={itemId} itemId={itemId} />
+  },
+})
 const routeTree = rootRoute.addChildren([
   createRoute({
     getParentRoute: () => rootRoute,
@@ -168,6 +177,7 @@ const routeTree = rootRoute.addChildren([
       component: LibraryHome,
     }),
     itemRoute,
+    playRoute,
   ]),
 ])
 const router = createRouter({ routeTree })

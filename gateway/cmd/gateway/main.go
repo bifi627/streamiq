@@ -6,12 +6,13 @@
 //	pairing     client-key auth, comparison code, allowlist + pending approvals
 //	sessions    brokered browser sessions: auth channel, gated tunnel
 //	localpage   the gateway's status page on the home LAN (approve / remove browsers)
-//	jellyfin    non-admin Jellyfin viewer token without manual steps; transcoding settings; version check
+//	jellyfin    non-admin Jellyfin viewer token without manual steps; transcoding settings; version check;
+//	            `gateway jellyfin up|upgrade` (Docker compose)
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
 //	update      "newer release available" notice; `gateway update` swaps the binary
 //	service     Windows logon task (`gateway service install|uninstall`)
 //
-// Commands: gateway [run] | service install|uninstall | update | status.
+// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
 // env wins): STREAMIQ_API_URL (required), STREAMIQ_ENROLL_TOKEN, STREAMIQ_NAME, STREAMIQ_STATE_DIR,
@@ -84,6 +85,16 @@ func main() {
 		}
 	case cmd == "update":
 		err = selfUpdate(ctx, exe)
+	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "up":
+		err = jellyfinUp(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
+	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "upgrade":
+		var changed bool
+		changed, err = jellyfin.Upgrade(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
+		if err == nil && changed {
+			fmt.Println("Jellyfin now runs", jellyfin.Image)
+		} else if err == nil {
+			fmt.Println("Already on", jellyfin.Image)
+		}
 	case cmd == "status":
 		link, _ := os.ReadFile(filepath.Join(stateDir(), "page-link"))
 		err = localpage.PrintStatus(ctx, os.Stdout, pagePort(), strings.TrimSpace(string(link)))
@@ -102,6 +113,8 @@ const usage = `usage: gateway [command] [-h]
   service install|uninstall  start it at logon in its own window (Windows)
   update                     install the latest release (Windows)
   status                     show the running gateway's status
+  jellyfin up                start Jellyfin in Docker (downloads jellyfin-compose.yml once)
+  jellyfin upgrade           pin jellyfin-compose.yml to the tested Jellyfin and restart it
 
 Config: gateway.env next to the binary (see docs/install.md).`
 
@@ -129,6 +142,22 @@ func serviceInstall(ctx context.Context, exe string) error {
 	}
 	fmt.Printf("Gateway %q runs now and at every logon, in its own console window (task %s).\n", st.Name, service.Task)
 	return nil
+}
+
+// jellyfinUp downloads the release's compose file next to the binary unless the
+// user already has one (it's theirs from then on), then starts Jellyfin.
+func jellyfinUp(ctx context.Context, file string) error {
+	if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) {
+		if err := update.Download(ctx, env("STREAMIQ_DOWNLOAD", update.DownloadURL), jellyfin.ComposeFile, file); err != nil {
+			return err
+		}
+		// Its default bind; compose refuses a missing bind source.
+		if err := os.MkdirAll(filepath.Join(filepath.Dir(file), "media"), 0o755); err != nil {
+			return err
+		}
+		fmt.Printf("Downloaded %s. Point its media folders at yours, then run `gateway jellyfin up` again.\n", file)
+	}
+	return jellyfin.Compose(ctx, file, "up", "-d")
 }
 
 // selfUpdate installs the latest release over exe (user-invoked only) and

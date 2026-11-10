@@ -34,8 +34,8 @@ import (
 	"time"
 )
 
-// Tested is the Jellyfin major.minor this gateway release is tested with. The
-// image pins in docker-compose.yml and install/jellyfin-compose.yml must match
+// Tested is the Jellyfin major.minor this gateway release is tested with. Image
+// and the pins in docker-compose.yml and install/jellyfin-compose.yml must match
 // (TestPinsMatchTested).
 const Tested = "12.4"
 

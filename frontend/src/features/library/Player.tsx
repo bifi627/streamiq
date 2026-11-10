@@ -53,9 +53,6 @@ export function Player({
   const [item, setItem] = useState<Item | null>(null)
   const [blocked, setBlocked] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
-  const hls = useRef<Hls | null>(null)
-  const [subs, setSubs] = useState<{ id: number; name: string }[]>([])
-  const [sub, setSub] = useState(-1)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
@@ -75,7 +72,8 @@ export function Player({
 
     let caps: Probe
     const compatible = compatibleOn() // read once: applies from the next playback
-    let text: number | undefined // first text subtitle: offered via HLS, off by default
+    // First text subtitle: offered via HLS, off (no picker yet: #136).
+    let text: number | undefined
     // Loads the stream at `at` seconds; called again by the fallbacks.
     const start = async (copy: Copy, at: number) => {
       // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
@@ -113,11 +111,8 @@ export function Player({
         maxMaxBufferLength: 60,
       })
       h.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_e, d) =>
-        setSubs(
-          d.subtitleTracks.map((t) => ({
-            id: t.id,
-            name: t.name || t.lang || `track ${t.id}`,
-          })),
+        event(
+          `hls subtitles: ${d.subtitleTracks.map((t) => t.name || t.lang || t.id).join(', ') || 'none'}`,
         ),
       )
       h.on(Hls.Events.ERROR, (_e, e) => {
@@ -179,8 +174,6 @@ export function Player({
       h.attachMedia(v)
       h.loadSource(`${TUNNEL_ORIGIN}${path}?${q}`)
       h.subtitleTrack = -1
-      setSub(-1)
-      hls.current = h
       // Autoplay is blocked without a user gesture (deep link / reload): the
       // control bar stays up with Play focused, one Enter/tap starts it.
       v.play().catch((e: Error) => {
@@ -252,29 +245,6 @@ export function Player({
         duration={(item?.RunTimeTicks ?? 0) / TICKS_PER_SECOND}
         blocked={blocked}
         onBack={() => onExit(item)}
-        subtitles={
-          subs.length > 0 && (
-            <select
-              aria-label="Subtitles"
-              value={sub}
-              onChange={(e) => {
-                const id = Number(e.target.value)
-                setSub(id)
-                if (hls.current) {
-                  hls.current.subtitleTrack = id
-                  hls.current.subtitleDisplay = id >= 0
-                }
-              }}
-            >
-              <option value={-1}>Subtitles off</option>
-              {subs.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          )
-        }
       >
         <video ref={video} />
       </Controls>

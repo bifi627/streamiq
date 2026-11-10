@@ -68,14 +68,12 @@ export function Controls({
   duration,
   blocked,
   onBack,
-  subtitles,
   children,
 }: {
   video: RefObject<HTMLVideoElement | null>
   duration: number
   blocked: boolean
   onBack: () => void
-  subtitles: ReactNode
   children: ReactNode
 }) {
   const root = useRef<HTMLDivElement>(null)
@@ -191,7 +189,7 @@ export function Controls({
       const rows = Array.from(bar.current!.querySelectorAll('[data-row]'))
       const row = rows.findIndex((r) => r.contains(a))
       const items = (r: Element) =>
-        Array.from(r.querySelectorAll<HTMLElement>('button, input, select'))
+        Array.from(r.querySelectorAll<HTMLElement>('button, input'))
       if (horizontal) {
         if (a.dataset.seek) return ui.seek(left ? -SKIP : SKIP)
         const its = items(rows[row])
@@ -312,7 +310,6 @@ export function Controls({
             value={muted ? 0 : volume}
             onChange={(e) => setVol(video.current!, Number(e.target.value))}
           />
-          {subtitles}
           <span className="spacer" />
           <button
             type="button"

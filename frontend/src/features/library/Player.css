@@ -59,7 +59,6 @@
 }
 
 .player .bar button,
-.player .bar select,
 .player .bar input {
   min-width: 44px;
   min-height: 44px;
@@ -84,18 +83,8 @@
   fill: currentColor;
   vertical-align: middle;
 }
-.player .bar select {
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  font: inherit;
-  padding: 0 8px;
-  max-width: 160px;
-}
-
 /* Couch-distance focus: thick ring + fill (D-pad never clicks, so :focus). */
 .player .bar button:focus,
-.player .bar select:focus,
 .player .bar input:focus {
   outline: 4px solid white;
   outline-offset: 2px;

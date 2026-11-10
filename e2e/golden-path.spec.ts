@@ -89,7 +89,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(a).toHaveURL(/\/g\/[^/]+\/i\/[^/]+$/) // folder deep link
       await a.reload() // restores the folder: item loaded by ID over a new tunnel
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
-      await expect(a.getByLabel('Subtitles')).toBeVisible() // sidecar .srt → HLS rendition
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(3)
@@ -99,6 +98,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       // Device profile (#115): probe + Jellyfin's decision in the diagnostics.
       await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(a.getByText(/probe: h264 .* L\d/)).toBeVisible()
+      await expect(a.getByText(/hls subtitles: (?!none)/)).toBeVisible() // sidecar .srt → HLS rendition
       await expect(
         a.getByText(/jellyfin: video remux \(h264\) · audio copy/),
       ).toBeVisible()

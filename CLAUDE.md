@@ -136,7 +136,7 @@ npm run build --prefix frontend               # frontend build check
 go run ./cmd/gateway                          # gateway (from gateway/; reads gateway/gateway.env from setup-jellyfin.sh)
 go test ./...                                 # gateway tests (from gateway/)
 npm test --prefix e2e                         # E2E golden path (Playwright + Chrome, Docker; ~30s)
-npm run preview --prefix e2e [-- status|down]  # this worktree's stack on the LAN (HTTPS) for phone/TV tests; agents: use `up`, never a background shell (docs/tools.md)
+npm run preview --prefix e2e [-- status|down]  # this worktree's stack on the LAN (HTTPS) for phone/TV tests; agents: follow the `preview` skill (docs/tools.md)
 ```
 
 Env: no `.env` needed — defaults line up (backend `:5028`, frontend → `:5028`, auth →

@@ -62,13 +62,26 @@ export async function probe(): Promise<Probe> {
   } catch {
     // no mediaCapabilities: stay stereo
   }
+  const hevc = !!hevcLevel
+  const av1 = ok('av01.0.08M.08')
+  // fMP4 (HEVC/AV1 clients, see deviceProfile) plays from one muxed
+  // audiovideo SourceBuffer: audio must pass muxed with every video codec it
+  // can sit beside (webOS: audio/mp4 ac-3 yes, video/mp4 avc1+ac-3 no). .ts
+  // transmuxes into separate buffers, so there audio alone is the right test.
+  const muxed = [
+    'avc1.42E01E',
+    hevc && 'hvc1.1.6.L93.B0',
+    av1 && 'av01.0.08M.08',
+  ].filter(Boolean)
   return {
     h264: profiles.length && h264Level ? { profiles, level: h264Level } : null,
-    hevc: hevcLevel
-      ? { level: hevcLevel, main10: ok('hvc1.2.4.L153.B0') }
-      : null,
-    av1: ok('av01.0.08M.08') ? { main10: ok('av01.0.08M.10') } : null,
-    audio: Object.keys(AUDIO).filter((c) => ok(AUDIO[c], 'audio')),
+    hevc: hevc ? { level: hevcLevel, main10: ok('hvc1.2.4.L153.B0') } : null,
+    av1: av1 ? { main10: ok('av01.0.08M.10') } : null,
+    audio: Object.keys(AUDIO).filter((c) =>
+      hevc || av1
+        ? muxed.every((v) => ok(`${v},${AUDIO[c]}`))
+        : ok(AUDIO[c], 'audio'),
+    ),
     surround,
   }
 }

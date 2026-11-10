@@ -279,9 +279,12 @@ async function serve() {
       `${stack.emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
       {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...login, returnSecureToken: true }),
       },
     ).then((r) => r.json())
+    if (!signUp.idToken)
+      throw new Error(`emulator signUp: ${JSON.stringify(signUp)}`)
     const authed = async (p: string, method = 'GET') => {
       const r = await fetch(`${stack.api}/api${p}`, {
         method,

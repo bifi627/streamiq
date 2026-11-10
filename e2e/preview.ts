@@ -2,7 +2,7 @@
 // from the shell that started it, seeded, served on the LAN over HTTPS so a phone
 // or TV can try it. Not a Playwright spec: `npm test` never runs it.
 //
-//   npm run preview --prefix e2e [-- up] [--media] [--port N] [--tunnel]
+//   npm run preview --prefix e2e [-- up] [--port N] [--tunnel]
 //   npm run preview --prefix e2e -- status
 //   npm run preview --prefix e2e -- down
 //
@@ -45,7 +45,7 @@ type State = {
   local?: string
   gatewayPage?: string
   tunnel?: string
-  jellyfin?: string // --media only
+  jellyfin?: string
   pids?: number[] // backend, vite, gateway: down kills them even if serve died
   ports?: number[]
 }
@@ -318,10 +318,12 @@ async function serve() {
   process.on('SIGTERM', () => cleanup(0)) // POSIX down; Windows: taskkill /T
   try {
     const port = Number(process.env.PREVIEW_PORT)
+    // Always mounted (gitignored): gen-test-media.sh output or your own files.
+    fs.mkdirSync(path.join(root, 'dev-media'), { recursive: true })
     const stack = await startStack({
       dir: path.join(dir, 'bin'),
       lan: { port, cert, key },
-      media: args.includes('--media'),
+      media: true,
       label: id,
     })
 
@@ -391,9 +393,7 @@ async function serve() {
       ...read()!,
       ready: true,
       tunnel,
-      jellyfin: args.includes('--media')
-        ? process.env.E2E_JELLYFIN_URL
-        : undefined,
+      jellyfin: process.env.E2E_JELLYFIN_URL,
       lan: lanIps().map((ip) => `https://${ip}:${port}`),
       local: stack.app,
       gatewayPage: gateway.pageUrl,

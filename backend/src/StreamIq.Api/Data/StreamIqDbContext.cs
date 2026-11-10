@@ -33,6 +33,7 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
         {
             e.ToTable("gateways");
             e.HasIndex(x => x.CredentialHash).IsUnique();
+            e.Property(x => x.Status).HasColumnType("jsonb");
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
 

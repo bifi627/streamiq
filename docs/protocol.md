@@ -32,11 +32,24 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0" }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0",
+  "os": "windows", "arch": "amd64", "startedAt": "2026-11-10T08:00:00Z", "update": "1.5.0",
+  "jellyfin": { "reachable": true, "version": "10.11.2", "untested": false, "token": "ok" },
+  "pairedClients": 2, "activeSessions": 1 }
 ```
 The API sets `last_seen_at = now`, `lan_url` (http/https only, else null) and
 `version` (≤ 40 chars, else null; `"dev"` for source builds). `version` is
 optional: older gateways omit it.
+
+The rest is the **status snapshot** (#129), stored as `gateways.status` (jsonb) and
+returned as `status` by `GET /api/gateways`, last known while offline. Every field is
+optional; the API keeps only these, each checked, and drops the rest:
+`os`, `arch` (≤ 20 chars), `update` (newer release version, absent = up to date; ≤ 40),
+`startedAt` (ISO 8601, stored as UTC), `pairedClients`, `activeSessions` (ints
+0–100000), `jellyfin.reachable`, `jellyfin.untested` (bools), `jellyfin.version` (≤ 40),
+`jellyfin.token` (`ok` | `missing` | `legacy` = pre-#50 admin API key). Counts only:
+no client names or anything else that identifies a person (#65). No status fields →
+`status` null.
 
 **`DELETE /api/gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's
 credential (row kept, hidden from `GET /api/gateways`; its telemetry stays). The

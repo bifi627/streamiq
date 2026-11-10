@@ -139,6 +139,41 @@ public class OnboardingSteps(IntegrationFixture fx)
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);   // server finishes the frame first
     }
 
+    [When("gateway \"(.*)\" heartbeats a status with Jellyfin token \"(.*)\", (\\d+) paired clients and an extra field \"(.*)\"")]
+    public async Task WhenHeartbeatStatus(string name, string token, int paired, string extra)
+    {
+        using var ws = await Connect(_credentials[name]);
+        var hb = new Dictionary<string, object>
+        {
+            ["type"] = "heartbeat",
+            ["version"] = "1.5.0",
+            ["os"] = "windows",
+            ["arch"] = "amd64",
+            ["startedAt"] = "2026-11-10T08:00:00Z",
+            ["pairedClients"] = paired,
+            ["activeSessions"] = 1,
+            ["jellyfin"] = new { reachable = true, version = "10.11.2", untested = false, token },
+            [extra] = new[] { "Jo's iPhone" },   // a gateway must not get names into our DB
+        };
+        await ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(hb), WebSocketMessageType.Text, true, CancellationToken.None);
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Then("\"(.*)\" sees \"(.*)\" with Jellyfin token \"(.*)\" and (\\d+) paired clients")]
+    public async Task ThenStatus(string email, string name, string token, int paired)
+    {
+        var s = (await Gateway(email, name)).GetProperty("status");
+        Assert.Equal(token, s.GetProperty("jellyfin").GetProperty("token").GetString());
+        Assert.Equal(paired, s.GetProperty("pairedClients").GetInt32());
+        Assert.Equal("windows", s.GetProperty("os").GetString());
+    }
+
+    [Then("\"(.*)\" sees no \"(.*)\" in the status of \"(.*)\"")]
+    public async Task ThenNoField(string email, string field, string name)
+    {
+        Assert.False((await Gateway(email, name)).GetProperty("status").TryGetProperty(field, out _));
+    }
+
     private async Task<JsonElement> Gateway(string email, string name)
     {
         return (await Gateways(email)).EnumerateArray().Single(d => d.GetProperty("name").GetString() == name);

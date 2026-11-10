@@ -33,3 +33,9 @@ Feature: Gateway onboarding
     Then "alice@home.test" sees "nas" online at "http://192.168.1.20:8097/"
     And "alice@home.test" sees "nas" at version "1.4.0"
     And "alice@home.test" sees "pc" offline
+
+  Scenario: A heartbeat's status snapshot reaches the web app, sanitized
+    Given "alice@home.test" has an enrolled gateway "nas"
+    When gateway "nas" heartbeats a status with Jellyfin token "ok", 2 paired clients and an extra field "clientNames"
+    Then "alice@home.test" sees "nas" with Jellyfin token "ok" and 2 paired clients
+    And "alice@home.test" sees no "clientNames" in the status of "nas"

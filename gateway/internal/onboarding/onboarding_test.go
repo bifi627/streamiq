@@ -59,7 +59,7 @@ func TestRunControlRevokedCredential(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	err := RunControl(context.Background(), srv.URL, &State{Credential: "old"}, "", "dev", new(atomic.Int64), nil)
+	err := RunControl(context.Background(), srv.URL, &State{Credential: "old"}, "", "dev", new(atomic.Int64), nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "revoked") {
 		t.Fatalf("want a revoked-credential error, got %v", err)
 	}
@@ -67,7 +67,7 @@ func TestRunControlRevokedCredential(t *testing.T) {
 
 // The control socket authenticates with the credential and heartbeats the LAN URL.
 func TestRunControlHeartbeats(t *testing.T) {
-	got := make(chan map[string]string, 1)
+	got := make(chan map[string]any, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer cred-1" {
 			http.Error(w, "no", http.StatusUnauthorized)
@@ -78,7 +78,7 @@ func TestRunControlHeartbeats(t *testing.T) {
 			return
 		}
 		_, b, _ := c.Read(r.Context())
-		var hb map[string]string
+		var hb map[string]any
 		json.Unmarshal(b, &hb)
 		got <- hb
 		c.Close(websocket.StatusNormalClosure, "")
@@ -88,11 +88,22 @@ func TestRunControlHeartbeats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var lastBeat atomic.Int64
-	go RunControl(ctx, srv.URL, &State{Credential: "cred-1"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat, func([]byte, func(any)) {})
+	go RunControl(ctx, srv.URL, &State{Credential: "cred-1"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat,
+		func() Status {
+			return Status{OS: "windows", Arch: "amd64", PairedClients: 2, Jellyfin: JellyfinStatus{Reachable: true, Version: "10.11.2", Token: "ok"}}
+		}, func([]byte, func(any)) {})
 	select {
 	case hb := <-got:
 		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" {
 			t.Fatalf("heartbeat = %v", hb)
+		}
+		// The status snapshot is flattened into the heartbeat (docs/protocol.md).
+		jf, _ := hb["jellyfin"].(map[string]any)
+		if hb["os"] != "windows" || hb["pairedClients"] != 2.0 || jf["token"] != "ok" || jf["version"] != "10.11.2" {
+			t.Fatalf("heartbeat status = %v", hb)
+		}
+		if _, ok := hb["update"]; ok {
+			t.Fatalf("up to date: want no update field, got %v", hb["update"])
 		}
 	case <-ctx.Done():
 		t.Fatal("no heartbeat received")

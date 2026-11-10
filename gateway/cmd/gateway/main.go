@@ -65,7 +65,13 @@ func main() {
 	if len(os.Args) > 1 {
 		cmd = os.Args[1]
 	}
+	// ponytail: one usage text for every command; per-command help when a command grows flags.
+	help := slices.ContainsFunc(os.Args[1:], func(a string) bool {
+		return a == "-h" || a == "--help" || a == "-help" || a == "help"
+	})
 	switch {
+	case help:
+		fmt.Println(usage)
 	case cmd == "run":
 		run(ctx)
 	case cmd == "service" && len(os.Args) == 3 && os.Args[2] == "install":
@@ -81,11 +87,7 @@ func main() {
 		link, _ := os.ReadFile(filepath.Join(stateDir(), "page-link"))
 		err = localpage.PrintStatus(ctx, os.Stdout, pagePort(), strings.TrimSpace(string(link)))
 	default:
-		fmt.Fprintln(os.Stderr, `usage: gateway [command]
-  run                        run the gateway (default)
-  service install|uninstall  start it at logon in its own window (Windows)
-  update                     install the latest release (Windows)
-  status                     show the running gateway's status`)
+		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
 	}
 	if err != nil {
@@ -93,6 +95,14 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+const usage = `usage: gateway [command] [-h]
+  run                        run the gateway (default)
+  service install|uninstall  start it at logon in its own window (Windows)
+  update                     install the latest release (Windows)
+  status                     show the running gateway's status
+
+Config: gateway.env next to the binary (see docs/install.md).`
 
 func stateDir() string { return env("STREAMIQ_STATE_DIR", "streamiq-state") }
 func pagePort() string { return env("STREAMIQ_PAGE_PORT", "8097") } // Jellyfin owns 8096

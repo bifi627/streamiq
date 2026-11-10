@@ -7,7 +7,7 @@ import {
   type Install,
 } from './api'
 import { Pairing } from '../pairing/Pairing'
-import { Library } from '../library/Library'
+import { useNavigate } from '@tanstack/react-router'
 
 // Gateways list + "Add gateway" (onboarding flow 1). Polls so a freshly installed
 // gateway shows up, and online/offline stays current. ponytail: 5s poll, push
@@ -16,7 +16,7 @@ export function Gateways() {
   const [gateways, setGateways] = useState<Gateway[]>([])
   const [install, setInstall] = useState<Install | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [opened, setOpened] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const load = () =>
@@ -54,9 +54,6 @@ export function Gateways() {
     }
   }
 
-  if (opened)
-    return <Library gatewayId={opened} onClose={() => setOpened(null)} />
-
   return (
     <section>
       <h2>Gateways</h2>
@@ -83,7 +80,15 @@ export function Gateways() {
               {d.online && (
                 <>
                   {' · '}
-                  <button type="button" onClick={() => setOpened(d.id)}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate({
+                        to: '/g/$gatewayId',
+                        params: { gatewayId: d.id },
+                      })
+                    }
+                  >
                     Open
                   </button>
                   <Pairing gatewayId={d.id} lanUrl={d.lanUrl} />

@@ -8,9 +8,22 @@ import {
   signOut,
   type User,
 } from '@firebase/auth'
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Link,
+  Outlet,
+  RouterProvider,
+} from '@tanstack/react-router'
 import { auth } from './firebase'
 import { getMe } from './api'
 import { Gateways } from './features/gateways/Gateways'
+import {
+  GatewayLibrary,
+  ItemPage,
+  LibraryHome,
+} from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 
 // Readable text for the popup failures a user can cause; anything else keeps
@@ -87,7 +100,8 @@ function SignIn() {
   )
 }
 
-function Shell({ user }: { user: User }) {
+// Root layout; only mounted while signed in (App gates the whole router).
+function Shell() {
   const [tenantId, setTenantId] = useState('')
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
@@ -99,7 +113,7 @@ function Shell({ user }: { user: User }) {
   return (
     <main style={{ maxWidth: 960, margin: '2rem auto', padding: '0 1rem' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span>{user.email}</span>
+        <span>{auth.currentUser?.email}</span>
         <span style={{ display: 'flex', gap: 8 }}>
           <DiagnosticsToggle />
           <button type="button" onClick={() => signOut(auth)}>
@@ -110,9 +124,57 @@ function Shell({ user }: { user: User }) {
       <Diagnostics />
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
       <p style={{ color: '#888', fontSize: 12 }}>tenant {tenantId}</p>
-      <Gateways />
+      <Outlet />
     </main>
   )
+}
+
+// Code-based route tree. Client routes never start with /api or /healthz (the
+// API serves index.html for everything else).
+const rootRoute = createRootRoute({
+  component: Shell,
+  notFoundComponent: () => (
+    <p>
+      Page not found. <Link to="/">Go to your gateways</Link>
+    </p>
+  ),
+})
+const gatewayRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'g/$gatewayId',
+  component: function Gateway() {
+    const { gatewayId } = gatewayRoute.useParams()
+    return <GatewayLibrary key={gatewayId} gatewayId={gatewayId} /> // new gateway = fresh tunnel state
+  },
+})
+const itemRoute = createRoute({
+  getParentRoute: () => gatewayRoute,
+  path: 'i/$itemId',
+  component: function Item() {
+    const { itemId } = itemRoute.useParams()
+    return <ItemPage key={itemId} itemId={itemId} />
+  },
+})
+const routeTree = rootRoute.addChildren([
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/',
+    component: Gateways,
+  }),
+  gatewayRoute.addChildren([
+    createRoute({
+      getParentRoute: () => gatewayRoute,
+      path: '/',
+      component: LibraryHome,
+    }),
+    itemRoute,
+  ]),
+])
+const router = createRouter({ routeTree })
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
 }
 
 export default function App() {
@@ -129,5 +191,6 @@ export default function App() {
   )
 
   if (!ready) return null
-  return user ? <Shell user={user} /> : <SignIn />
+  // Signed out on a deep link: SignIn renders at that URL, so it loads after sign-in.
+  return user ? <RouterProvider router={router} /> : <SignIn />
 }

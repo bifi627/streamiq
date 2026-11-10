@@ -68,7 +68,9 @@ export async function probe(): Promise<Probe> {
       ? { level: hevcLevel, main10: ok('hvc1.2.4.L153.B0') }
       : null,
     av1: ok('av01.0.08M.08') ? { main10: ok('av01.0.08M.10') } : null,
-    audio: Object.keys(AUDIO).filter((c) => ok(AUDIO[c], 'audio')),
+    // Probed muxed with H.264: fMP4 plays from one audiovideo SourceBuffer, and
+    // webOS says yes to audio/mp4 ac-3 alone but no to video/mp4 avc1+ac-3.
+    audio: Object.keys(AUDIO).filter((c) => ok(`avc1.42E01E,${AUDIO[c]}`)),
     surround,
   }
 }

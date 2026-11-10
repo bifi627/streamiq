@@ -166,8 +166,10 @@ export function Player({
         appended++
         r = a.timeRanges
         sb()
-        if (!d.videoCopy || a.type !== 'video') return
-        if (covers(a.timeRanges.video, v.currentTime)) stuck = 0
+        // fMP4 (HEVC/AV1-capable devices) muxes into one 'audiovideo' buffer.
+        if (!d.videoCopy || (a.type !== 'video' && a.type !== 'audiovideo'))
+          return
+        if (covers(a.timeRanges[a.type], v.currentTime)) stuck = 0
         else if (++stuck >= STUCK_APPENDS)
           reload({ ...copy, video: false }, 'video transcode')
       })

@@ -15,6 +15,9 @@ import {
   Link,
   Outlet,
   RouterProvider,
+  useCanGoBack,
+  useNavigate,
+  useRouter,
 } from '@tanstack/react-router'
 import { auth } from './firebase'
 import { getMe } from './api'
@@ -26,6 +29,7 @@ import {
   PlayerPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
+import { compatibleOn, setCompatible } from './settings'
 
 // Readable text for the popup failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
@@ -101,8 +105,50 @@ function SignIn() {
   )
 }
 
+// Per-device settings (#113). Back goes back in history; after a deep link
+// (no in-app history) it goes home instead of leaving the app.
+function Settings() {
+  const router = useRouter()
+  const canGoBack = useCanGoBack()
+  const navigate = useNavigate()
+  const [compatible, setOn] = useState(compatibleOn)
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() =>
+          canGoBack
+            ? router.history.back()
+            : navigate({ to: '/', replace: true })
+        }
+      >
+        Back
+      </button>
+      <h2>Settings</h2>
+      <p style={{ color: '#888' }}>These apply to this device only.</p>
+      <label>
+        <input
+          type="checkbox"
+          autoFocus
+          checked={compatible}
+          onChange={(e) => {
+            setCompatible(e.target.checked)
+            setOn(e.target.checked)
+          }}
+        />{' '}
+        Compatible mode
+      </label>
+      <p style={{ color: '#888', margin: '4px 0 0 24px' }}>
+        For old TVs: plays everything in the safest format, costs more work on
+        your home PC.
+      </p>
+    </section>
+  )
+}
+
 // Root layout; only mounted while signed in (App gates the whole router).
 function Shell() {
+  const navigate = useNavigate()
   const [tenantId, setTenantId] = useState('')
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
@@ -116,6 +162,9 @@ function Shell() {
       <header style={{ display: 'flex', justifyContent: 'space-between' }}>
         <span>{auth.currentUser?.email}</span>
         <span style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => navigate({ to: '/settings' })}>
+            Settings
+          </button>
           <DiagnosticsToggle />
           <button type="button" onClick={() => signOut(auth)}>
             Sign out
@@ -169,6 +218,11 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: '/',
     component: Gateways,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'settings',
+    component: Settings,
   }),
   gatewayRoute.addChildren([
     createRoute({

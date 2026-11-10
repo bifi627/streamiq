@@ -89,9 +89,22 @@ const TS_AUDIO = ['aac', 'ac3', 'eac3', 'mp3']
 // realistic bitrate; #108 sets this from the quality picker.
 const MAX_BITRATE = 120_000_000
 
+// Compatible mode (#113) caps: they hold even for a remux (Jellyfin transcodes
+// anything above them).
+const COMPATIBLE = { bitrate: 8_000_000, width: 1920, height: 1080 }
+
 /** The DeviceProfile for PlaybackInfo. stereo = the audio fallback: AAC 2.0
- * only. Throws when there is no H.264 (the one transcode target). */
-export function deviceProfile(p: Probe, stereo = false) {
+ * only. compatible = the most restrictive profile (#113): H.264 only, stereo
+ * AAC, .ts, 1080p / 8 Mbps. Throws when there is no H.264 (the one transcode
+ * target). */
+export function deviceProfile(
+  probed: Probe,
+  stereo = false,
+  compatible = false,
+) {
+  const p: Probe = compatible
+    ? { ...probed, hevc: null, av1: null, audio: ['aac'], surround: false }
+    : probed
   if (!p.h264) throw new Error("this browser can't play H.264")
   // hls.js plays HEVC/AV1 only from fMP4; .ts stays the proven (webOS) path.
   const fmp4 = !!(p.hevc || p.av1)
@@ -114,7 +127,7 @@ export function deviceProfile(p: Probe, stereo = false) {
   const depth = (main10?: boolean) =>
     cond('VideoBitDepth', 'LessThanEqual', main10 ? 10 : 8)
   return {
-    MaxStreamingBitrate: MAX_BITRATE,
+    MaxStreamingBitrate: compatible ? COMPATIBLE.bitrate : MAX_BITRATE,
     DirectPlayProfiles: [], // always HLS over the tunnel
     TranscodingProfiles: [
       {
@@ -137,6 +150,12 @@ export function deviceProfile(p: Probe, stereo = false) {
           depth(),
           cond('VideoProfile', 'EqualsAny', p.h264.profiles.join('|')),
           cond('VideoLevel', 'LessThanEqual', p.h264.level),
+          ...(compatible
+            ? [
+                cond('Width', 'LessThanEqual', COMPATIBLE.width),
+                cond('Height', 'LessThanEqual', COMPATIBLE.height),
+              ]
+            : []),
         ],
       },
       ...(p.hevc

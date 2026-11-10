@@ -38,6 +38,29 @@ test('audio fallback: stereo AAC only', () => {
   assert.equal(t.MaxAudioChannels, '2')
 })
 
+test('compatible mode: H.264 + stereo AAC in .ts, 1080p / 8 Mbps caps', () => {
+  const p = deviceProfile(
+    { ...webos, hevc: { level: 153, main10: true }, av1: { main10: true } },
+    false,
+    true,
+  )
+  assert.equal(tp(p).Container, 'ts')
+  assert.equal(tp(p).VideoCodec, 'h264')
+  assert.equal(tp(p).AudioCodec, 'aac')
+  assert.equal(tp(p).MaxAudioChannels, '2')
+  assert.equal(p.MaxStreamingBitrate, 8_000_000)
+  assert.deepEqual(
+    p.CodecProfiles.map((c) => c.Codec),
+    ['h264'],
+  )
+  assert.deepEqual(
+    p.CodecProfiles[0].Conditions.slice(-2).map(
+      (c) => `${c.Property} ${c.Condition} ${c.Value}`,
+    ),
+    ['Width LessThanEqual 1920', 'Height LessThanEqual 1080'],
+  )
+})
+
 test('no H.264: clear error', () => {
   assert.throws(
     () => deviceProfile({ ...webos, h264: null }),

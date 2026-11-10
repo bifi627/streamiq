@@ -115,6 +115,23 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(a).toHaveURL(/\/play\/[^/]+$/) // the player has its own route
       await a.reload() // player deep link: tunnel → item by ID → saved position
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
+      // Compatible mode (#113): Settings view → next playback uses the
+      // restricted profile; an H.264 + AAC file still remuxes.
+      await a.getByRole('button', { name: 'Settings' }).click()
+      await a.getByLabel('Compatible mode').check()
+      await a.getByRole('button', { name: 'Back' }).click() // player remounts
+      await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
+      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      await expect(
+        a.getByText(
+          // newest first: this playback's decision, after its mode line
+          /jellyfin: video remux \(h264\) · audio copy[\s\S]*compatible mode: on/,
+        ),
+      ).toBeVisible()
+      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
+      await a.getByRole('button', { name: 'Settings' }).click()
+      await a.getByLabel('Compatible mode').uncheck()
+      await a.getByRole('button', { name: 'Back' }).click()
       // Opened in a new tab (no in-app history): Back goes to the item's folder.
       const tab = await a.context().newPage()
       await tab.goto(a.url())

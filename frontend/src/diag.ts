@@ -132,6 +132,9 @@ export function setFlag(name: string, on: boolean) {
 const q = () => new URLSearchParams(location.search)
 export const debugOn = () => q().has('debug') || flag('debug')
 export const relayOn = () => q().has('relay') || flag('relay')
+// ponytail: settings (#113) reuse the flag store: one boolean so far; a typed
+// settings module when a non-boolean setting (#108) arrives.
+export const compatibleOn = () => flag('compatible')
 
 // Errors nobody caught would otherwise vanish on a TV.
 addEventListener('error', (e) => event(`error: ${e.message}`))

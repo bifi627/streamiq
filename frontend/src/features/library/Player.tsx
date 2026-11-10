@@ -12,7 +12,14 @@
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
-import { changed, diag, event, ranges, watchVideo } from '../../diag'
+import {
+  changed,
+  compatibleOn,
+  diag,
+  event,
+  ranges,
+  watchVideo,
+} from '../../diag'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { decision, describe, deviceProfile, probe, type Probe } from './profile'
 import {
@@ -78,6 +85,7 @@ export function Player({
     }
 
     let caps: Probe
+    const compatible = compatibleOn() // read once: applies from the next playback
     let text: number | undefined // first text subtitle: offered via HLS, off by default
     // Loads the stream at `at` seconds; called again by the fallbacks.
     const start = async (copy: Copy, at: number) => {
@@ -86,7 +94,7 @@ export function Player({
         pc,
         `/Items/${itemId}/PlaybackInfo`,
         {
-          DeviceProfile: deviceProfile(caps, !copy.audio),
+          DeviceProfile: deviceProfile(caps, !copy.audio, compatible),
           EnableDirectPlay: false,
           EnableDirectStream: false,
           AllowVideoStreamCopy: copy.video,
@@ -207,9 +215,10 @@ export function Player({
         throw new Error(
           'this browser has no MSE (iOS Safari is not supported yet)',
         )
+      if (compatible) event('compatible mode: on')
       caps = await probe()
       event(`probe: ${describe(caps)}`)
-      deviceProfile(caps) // throws without H.264, before anything loads
+      deviceProfile(caps, false, compatible) // throws without H.264, before anything loads
       // Fresh UserData: the listing may be stale (resume position).
       const fresh = await tunnelJson<Item>(pc, `/Items/${itemId}`)
       if (gone) return

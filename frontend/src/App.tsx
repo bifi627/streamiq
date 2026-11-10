@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -26,6 +26,7 @@ import {
   PlayerPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
+import { compatibleOn, setFlag, snapshot, subscribe } from './diag'
 
 // Readable text for the popup failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
@@ -101,8 +102,39 @@ function SignIn() {
   )
 }
 
+// Per-device settings (#113), stored in localStorage via the diag.ts flags.
+// Read at playback start, so a change applies from the next playback.
+function Settings({ onBack }: { onBack: () => void }) {
+  useSyncExternalStore(subscribe, snapshot)
+  return (
+    <section>
+      <button type="button" onClick={onBack}>
+        Back
+      </button>
+      <h2>Settings</h2>
+      <p style={{ color: '#888' }}>These apply to this device only.</p>
+      <label>
+        <input
+          type="checkbox"
+          autoFocus
+          checked={compatibleOn()}
+          onChange={(e) => setFlag('compatible', e.target.checked)}
+        />{' '}
+        Compatible mode
+      </label>
+      <p style={{ color: '#888', margin: '4px 0 0 24px' }}>
+        For old TVs: plays everything in the safest format, costs more work on
+        your home PC.
+      </p>
+    </section>
+  )
+}
+
 // Root layout; only mounted while signed in (App gates the whole router).
+// ponytail: Settings is a view switch, not a route (#113): Back needs no
+// history, and the page under it remounts (a player resumes from its position).
 function Shell() {
+  const [settings, setSettings] = useState(false)
   const [tenantId, setTenantId] = useState('')
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
@@ -116,6 +148,9 @@ function Shell() {
       <header style={{ display: 'flex', justifyContent: 'space-between' }}>
         <span>{auth.currentUser?.email}</span>
         <span style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => setSettings(true)}>
+            Settings
+          </button>
           <DiagnosticsToggle />
           <button type="button" onClick={() => signOut(auth)}>
             Sign out
@@ -125,7 +160,7 @@ function Shell() {
       <Diagnostics />
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
       <p style={{ color: '#888', fontSize: 12 }}>tenant {tenantId}</p>
-      <Outlet />
+      {settings ? <Settings onBack={() => setSettings(false)} /> : <Outlet />}
     </main>
   )
 }

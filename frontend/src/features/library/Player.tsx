@@ -15,14 +15,9 @@ import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { compatibleOn } from '../../settings'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
+import { Controls } from './Controls'
 import { decision, describe, deviceProfile, probe, type Probe } from './profile'
-import {
-  clock,
-  covers,
-  STUCK_APPENDS,
-  TICKS_PER_SECOND,
-  type Item,
-} from './items'
+import { covers, STUCK_APPENDS, TICKS_PER_SECOND, type Item } from './items'
 
 // Video transcode output ceilings, set on the TranscodingUrl only when Jellyfin
 // transcodes video. Jellyfin only scales down and clamps the bitrate to the
@@ -187,7 +182,7 @@ export function Player({
       setSub(-1)
       hls.current = h
       // Autoplay is blocked without a user gesture (deep link / reload): the
-      // native controls are the one action needed (#91 adds its own UI).
+      // control bar stays up with Play focused, one Enter/tap starts it.
       v.play().catch((e: Error) => {
         event(`autoplay blocked: ${e.name}`)
         setBlocked(true)
@@ -252,19 +247,15 @@ export function Player({
   return (
     <div>
       <h3>{item?.Name}</h3>
-      <video
-        ref={video}
-        controls
-        style={{ width: '100%', background: 'black' }}
-      />
-      <p>
-        <button type="button" onClick={() => onExit(item)}>
-          Back
-        </button>{' '}
-        {subs.length > 0 && (
-          <label>
-            Subtitles{' '}
+      <Controls
+        video={video}
+        duration={(item?.RunTimeTicks ?? 0) / TICKS_PER_SECOND}
+        blocked={blocked}
+        onBack={() => onExit(item)}
+        subtitles={
+          subs.length > 0 && (
             <select
+              aria-label="Subtitles"
               value={sub}
               onChange={(e) => {
                 const id = Number(e.target.value)
@@ -275,19 +266,18 @@ export function Player({
                 }
               }}
             >
-              <option value={-1}>Off</option>
+              <option value={-1}>Subtitles off</option>
               {subs.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
             </select>
-          </label>
-        )}{' '}
-        {item?.RunTimeTicks && (
-          <small>{clock(item.RunTimeTicks / TICKS_PER_SECOND)}</small>
-        )}
-      </p>
+          )
+        }
+      >
+        <video ref={video} />
+      </Controls>
       {blocked && <p>Press play to start.</p>}
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
     </div>

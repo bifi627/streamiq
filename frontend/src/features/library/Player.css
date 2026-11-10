@@ -1,0 +1,105 @@
+/* Player control bar (#91). Plain CSS that Chrome 87 (webOS TV) understands:
+   no nesting, :is/:where/:has, container queries or accent-color. */
+.player {
+  position: relative;
+  background: black;
+  outline: none;
+}
+.player video {
+  display: block;
+  width: 100%;
+}
+.player:fullscreen video {
+  height: 100%;
+}
+.player[data-idle='true'] {
+  cursor: none;
+}
+
+.player .bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 24px 12px 8px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  color: white;
+  text-align: left;
+  transition: opacity 0.3s;
+}
+.player .bar[data-shown='false'] {
+  opacity: 0;
+}
+/* Touch: a hidden bar lets taps through to the picture, which shows it. */
+@media (pointer: coarse) {
+  .player .bar[data-shown='false'] {
+    pointer-events: none;
+  }
+}
+
+.player .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.player .row input[data-seek] {
+  flex: 1;
+  min-width: 120px;
+}
+.player .time {
+  font-variant-numeric: tabular-nums;
+  padding: 0 8px;
+}
+.player .spacer {
+  flex: 1;
+}
+.player .volume {
+  width: 90px;
+}
+
+.player .bar button,
+.player .bar select,
+.player .bar input {
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  border-radius: 8px;
+}
+.player .bar button {
+  border: 0;
+  padding: 0 8px;
+  background: transparent;
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.player .bar button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+.player .bar svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+  vertical-align: middle;
+}
+.player .bar select {
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font: inherit;
+  padding: 0 8px;
+  max-width: 160px;
+}
+
+/* Couch-distance focus: thick ring + fill (D-pad never clicks, so :focus). */
+.player .bar button:focus,
+.player .bar select:focus,
+.player .bar input:focus {
+  outline: 4px solid white;
+  outline-offset: 2px;
+}
+.player .bar button:focus {
+  background: rgba(255, 255, 255, 0.3);
+}

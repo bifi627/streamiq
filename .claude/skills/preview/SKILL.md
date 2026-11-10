@@ -7,7 +7,12 @@ description: >-
   "give me a URL", "stop / tear down the preview", or before handing back device
   work. Covers the LAN (self-signed) mode and `--tunnel` (Cloudflare quick tunnel,
   needed for the webOS TV). Not for the E2E test run (`npm test --prefix e2e`).
+disable-model-invocation: true
 ---
+
+User-invoked only (`/preview [tv] [media] | stop | status`). Arguments: `$ARGUMENTS`
+— none = start in LAN mode; `tv` = `--tunnel`; `media` = `--media`; `stop` /
+`status` = those sections below.
 
 # Preview env: start / stop
 

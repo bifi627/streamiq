@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState } from 'react'
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -15,6 +15,9 @@ import {
   Link,
   Outlet,
   RouterProvider,
+  useCanGoBack,
+  useNavigate,
+  useRouter,
 } from '@tanstack/react-router'
 import { auth } from './firebase'
 import { getMe } from './api'
@@ -26,7 +29,7 @@ import {
   PlayerPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
-import { compatibleOn, setFlag, snapshot, subscribe } from './diag'
+import { compatibleOn, setCompatible } from './settings'
 
 // Readable text for the popup failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
@@ -102,13 +105,23 @@ function SignIn() {
   )
 }
 
-// Per-device settings (#113), stored in localStorage via the diag.ts flags.
-// Read at playback start, so a change applies from the next playback.
-function Settings({ onBack }: { onBack: () => void }) {
-  useSyncExternalStore(subscribe, snapshot)
+// Per-device settings (#113). Back goes back in history; after a deep link
+// (no in-app history) it goes home instead of leaving the app.
+function Settings() {
+  const router = useRouter()
+  const canGoBack = useCanGoBack()
+  const navigate = useNavigate()
+  const [compatible, setOn] = useState(compatibleOn)
   return (
     <section>
-      <button type="button" onClick={onBack}>
+      <button
+        type="button"
+        onClick={() =>
+          canGoBack
+            ? router.history.back()
+            : navigate({ to: '/', replace: true })
+        }
+      >
         Back
       </button>
       <h2>Settings</h2>
@@ -117,8 +130,11 @@ function Settings({ onBack }: { onBack: () => void }) {
         <input
           type="checkbox"
           autoFocus
-          checked={compatibleOn()}
-          onChange={(e) => setFlag('compatible', e.target.checked)}
+          checked={compatible}
+          onChange={(e) => {
+            setCompatible(e.target.checked)
+            setOn(e.target.checked)
+          }}
         />{' '}
         Compatible mode
       </label>
@@ -131,10 +147,8 @@ function Settings({ onBack }: { onBack: () => void }) {
 }
 
 // Root layout; only mounted while signed in (App gates the whole router).
-// ponytail: Settings is a view switch, not a route (#113): Back needs no
-// history, and the page under it remounts (a player resumes from its position).
 function Shell() {
-  const [settings, setSettings] = useState(false)
+  const navigate = useNavigate()
   const [tenantId, setTenantId] = useState('')
   const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
@@ -148,7 +162,7 @@ function Shell() {
       <header style={{ display: 'flex', justifyContent: 'space-between' }}>
         <span>{auth.currentUser?.email}</span>
         <span style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => setSettings(true)}>
+          <button type="button" onClick={() => navigate({ to: '/settings' })}>
             Settings
           </button>
           <DiagnosticsToggle />
@@ -160,7 +174,7 @@ function Shell() {
       <Diagnostics />
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
       <p style={{ color: '#888', fontSize: 12 }}>tenant {tenantId}</p>
-      {settings ? <Settings onBack={() => setSettings(false)} /> : <Outlet />}
+      <Outlet />
     </main>
   )
 }
@@ -204,6 +218,11 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: '/',
     component: Gateways,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'settings',
+    component: Settings,
   }),
   gatewayRoute.addChildren([
     createRoute({

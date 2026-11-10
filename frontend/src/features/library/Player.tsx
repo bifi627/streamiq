@@ -12,14 +12,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
-import {
-  changed,
-  compatibleOn,
-  diag,
-  event,
-  ranges,
-  watchVideo,
-} from '../../diag'
+import { changed, diag, event, ranges, watchVideo } from '../../diag'
+import { compatibleOn } from '../../settings'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { decision, describe, deviceProfile, probe, type Probe } from './profile'
 import {

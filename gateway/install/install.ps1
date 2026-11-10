@@ -1,8 +1,8 @@
-# StreamIQ gateway: install, or update in place (item 4). The web app's
-# Gateways -> Add gateway shows the first-run command (it sets STREAMIQ_API_URL +
-# STREAMIQ_ENROLL_TOKEN); later, updating is just:
-#   irm https://github.com/bifi627/streamiq/releases/latest/download/install.ps1 | iex
-# The state dir (cert, credential, paired browsers) is never touched.
+# StreamIQ gateway: install (download + verify + `gateway service install`). The
+# web app's Gateways -> Add gateway shows the first-run command (it sets
+# STREAMIQ_API_URL + STREAMIQ_ENROLL_TOKEN). Updating later: `gateway update`;
+# re-running this script also works. The state dir (cert, credential, paired
+# browsers) is never touched.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue' # the progress bar makes downloads ~10x slower
 $dir = if ($env:STREAMIQ_DIR) { $env:STREAMIQ_DIR } else { Join-Path $env:LOCALAPPDATA 'streamiq' }
@@ -45,14 +45,15 @@ if (-not (Test-Path $envFile)) {
     Set-Content -Encoding ascii $envFile $lines
 }
 
-# The enrollment token only matters on the first start (inherited env); never stored.
+# Enrolls on the first install (the token is spent here, never stored), then
+# creates the logon task streamiq-gateway and starts it: its own console window
+# is the log; closing it stops the gateway (no hidden start: AV heuristic, #69).
 Remove-Item (Join-Path $dir 'state\page-link') -ErrorAction SilentlyContinue # wait below for this start's fresh link
-# Own console window = its log; closing it stops the gateway. cmd /k keeps the window
-# open if the gateway exits, so a fatal error stays readable. (No -WindowStyle Hidden:
-# download-exe + hidden start is an antivirus heuristic trigger, #69.)
-Start-Process cmd -ArgumentList "/k `"$exe`"" -WorkingDirectory $dir
+& $exe service install
+$rc = $LASTEXITCODE
 Remove-Item Env:STREAMIQ_ENROLL_TOKEN -ErrorAction SilentlyContinue
-Write-Host "StreamIQ gateway started"
+if ($rc -ne 0) { throw "StreamIQ: gateway service install failed (exit $rc)" }
+Write-Host "StreamIQ gateway started (and at every logon)"
 Write-Host "  installed:  $dir"
 $port = (Get-Content $envFile | Where-Object { $_ -match '^STREAMIQ_PAGE_PORT=' }) -replace '^STREAMIQ_PAGE_PORT=', ''
 Write-Host "  local page: http://localhost:$(if ($port) { $port } else { '8097' })"
@@ -61,6 +62,5 @@ $link = Join-Path $dir 'state\page-link'
 foreach ($i in 1..10) { if (Test-Path $link) { break }; Start-Sleep 1 }
 if (Test-Path $link) { Write-Host "  from another device: $(Get-Content $link)" }
 Write-Host "  log:        the gateway's console window (closing it stops the gateway)"
+Write-Host "  commands:   $exe status | update | service uninstall"
 Write-Host "  Windows Firewall may ask once: allow on private networks."
-Write-Host "  autostart (not set up for you):"
-Write-Host "    schtasks /Create /SC ONLOGON /TN streamiq-gateway /TR `"'$exe'`""

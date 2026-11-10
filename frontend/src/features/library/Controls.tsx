@@ -6,7 +6,9 @@
 //   ↑/↓ switch between the seek row and the button row (on volume: ±10 %).
 // - Back (Escape, webOS 461/GoBack): hides the bar if shown, else exits.
 // - F fullscreen, M mute, anywhere. Any key / mouse move shows the bar; it hides
-//   after HIDE_MS while playing and stays while paused. Touch: tap toggles it.
+//   after HIDE_MS (playing or paused; it stays only while autoplay is blocked).
+// - Mouse (and Magic Remote pointer) on the picture: click play-pause, double
+//   click fullscreen. Touch: tap toggles the bar.
 import {
   useEffect,
   useRef,
@@ -31,7 +33,6 @@ const ICON = {
   full: 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z',
   unfull:
     'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z',
-  back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
 }
 const Icon = ({ d }: { d: string }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -90,9 +91,12 @@ export function Controls({
   // Handlers live in refs (stable for the key listener); these keep them current.
   const back = useRef(onBack)
   const dur = useRef(duration)
+  const isBlocked = useRef(blocked)
+  const pointer = useRef('') // last pointerType: clicks act only for a mouse
   useEffect(() => {
     back.current = onBack
     dur.current = duration
+    isBlocked.current = blocked
   })
 
   // Handlers for clicks and the key listener; only touch refs and setters.
@@ -108,7 +112,7 @@ export function Controls({
         setShown(true)
         clearTimeout(timer.current)
         timer.current = window.setTimeout(() => {
-          if (!video.current?.paused) ui.hide()
+          if (!isBlocked.current) ui.hide()
         }, HIDE_MS)
       },
       toggle: () => toggle(video.current!),
@@ -216,7 +220,9 @@ export function Controls({
     if (blocked) play.current?.focus({ preventScroll: true })
   }, [blocked])
 
-  const visible = shown || paused
+  const visible = shown || blocked
+  const onPicture = (e: { target: unknown }) =>
+    !bar.current?.contains(e.target as Node)
   return (
     <div
       ref={root}
@@ -225,16 +231,18 @@ export function Controls({
       tabIndex={-1}
       onPointerMove={(e) => e.pointerType === 'mouse' && ui.poke()}
       onPointerDown={(e) => {
+        pointer.current = e.pointerType
         // Touch: a tap on the picture toggles the bar (a hidden bar ignores
         // touches, see Player.css); mouse/pointer just shows it.
-        if (
-          e.pointerType === 'mouse' ||
-          bar.current?.contains(e.target as Node)
-        )
-          ui.poke()
+        if (e.pointerType === 'mouse' || !onPicture(e)) ui.poke()
         else if (visible) ui.hide()
         else ui.poke()
       }}
+      // A double click also toggles twice (net: unchanged), like most players.
+      onClick={(e) =>
+        pointer.current === 'mouse' && onPicture(e) && ui.toggle()
+      }
+      onDoubleClick={(e) => onPicture(e) && ui.fullscreen()}
     >
       {children}
       <div
@@ -312,13 +320,6 @@ export function Controls({
             onClick={ui.fullscreen}
           >
             <Icon d={full ? ICON.unfull : ICON.full} />
-          </button>
-          <button
-            type="button"
-            aria-label="Back"
-            onClick={() => back.current()}
-          >
-            <Icon d={ICON.back} />
           </button>
         </div>
       </div>

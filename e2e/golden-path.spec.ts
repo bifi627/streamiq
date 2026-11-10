@@ -103,7 +103,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         a.getByText(/jellyfin: video remux \(h264\) · audio copy/),
       ).toBeVisible()
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
-      await a.getByRole('button', { name: 'Back' }).click() // saves the position
+      await a.goBack() // leaving the player saves the position
       await a.goBack() // browser history: folder → library home
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.reload()
@@ -138,8 +138,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         tab.getByRole('heading', { name: /streamiq e2e clip/ }),
       ).toBeVisible() // item loaded: Back knows its folder
-      await tab.getByRole('button', { name: 'Back' }).click()
-      await expect(tab).toHaveURL(/\/i\/[^/]+$/)
+      // The Back key (Escape / TV remote) hides a shown bar first, then exits.
+      await expect(async () => {
+        await tab.keyboard.press('Escape')
+        await expect(tab).toHaveURL(/\/i\/[^/]+$/, { timeout: 1000 })
+      }).toPass()
       await expect(
         tab.getByRole('button', { name: /streamiq e2e clip/ }),
       ).toBeVisible()

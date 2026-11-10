@@ -1,11 +1,14 @@
 package localpage
 
 import (
+	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"streamiq/gateway/internal/pairing"
 )
@@ -62,5 +65,49 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "password in <code>/home/u/state/jellyfin.json</code>") ||
 		!strings.Contains(w.Body.String(), "<b>managed</b> · hardware acceleration off") {
 		t.Fatalf("status %d, body:\n%s", w.Code, w.Body)
+	}
+}
+
+// `gateway status` reads /status.json over loopback; the LAN never gets it.
+func TestStatusJSON(t *testing.T) {
+	store, err := pairing.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var beat atomic.Int64
+	beat.Store(time.Now().Add(-5 * time.Second).Unix())
+	var upd atomic.Pointer[string]
+	msg := "v1.0.0 → v1.1.0"
+	upd.Store(&msg)
+	jf := struct {
+		Reachable, HasKey bool
+		Version           string
+	}{true, true, "10.11.2"}
+	h := Handler(Config{Name: "nas", Version: "1.0.0", LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
+
+	r := httptest.NewRequest("GET", "/status.json", nil)
+	r.RemoteAddr = "192.168.1.30:5555"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("LAN request: status %d, want 403", w.Code)
+	}
+
+	srv := httptest.NewServer(h) // 127.0.0.1
+	defer srv.Close()
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
+	var out strings.Builder
+	if err := PrintStatus(context.Background(), &out, port, "http://192.168.1.20:8097/?t=x"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"nas, version 1.0.0", "available: v1.0.0 → v1.1.0", "connected, last heartbeat",
+		"reachable, version 10.11.2, token set", "from another device: http://192.168.1.20:8097/?t=x"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("missing %q in:\n%s", want, out.String())
+		}
+	}
+	srv.Close()
+	if err := PrintStatus(context.Background(), &out, port, ""); err == nil || !strings.Contains(err.Error(), "not running") {
+		t.Fatalf("stopped gateway: err = %v", err)
 	}
 }

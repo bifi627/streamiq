@@ -37,6 +37,10 @@ Pick one:
 3. Open the local page it prints (`http://localhost:8097`). On Windows, allow
    the firewall prompt for private networks. The web app now lists the gateway.
 
+On Windows the installer also sets the gateway to start at every logon (see
+[Start on boot](#start-on-boot)). `gateway status` (in the install dir) shows
+whether it is connected, Jellyfin, the version and the local page link.
+
 From another device (phone, laptop; the usual case for a NAS) the page asks for
 a token. Open the link the installer printed after **from another device**
 (`http://<lan-ip>:8097/?t=…`) once in that browser; it stays signed in for a
@@ -159,6 +163,8 @@ is kept, so paired browsers don't need to pair again.
 | Settings | `gateway.env` (yours, kept on updates) | same |
 | Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates) | `state/` |
 | Log | the gateway's console window (closing it stops the gateway) | `gateway.log` |
+| Autostart | scheduled task `streamiq-gateway` (`gateway service install`) | your crontab line |
+| Previous binary after `gateway update` | `gateway.exe.old` (replaced by the next update) | — |
 
 `STREAMIQ_DIR` overrides the install dir. Set `STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` on
 the first install to change the gateway's name or page port.
@@ -169,17 +175,24 @@ The gateway checks GitHub once a day. When a newer release exists, it logs
 `update available vA → vB. Run: …` and shows the same on its local page. Run
 that command:
 
+- Windows: `%LOCALAPPDATA%\streamiq\gateway.exe update` (cmd) or
+  `& "$env:LOCALAPPDATA\streamiq\gateway.exe" update` (PowerShell). It downloads
+  the release, checks it against `SHA256SUMS` (a mismatch installs nothing),
+  swaps the binary and restarts the `streamiq-gateway` task. Without the task it
+  tells you to restart the gateway yourself.
 - Linux / macOS: `curl -fsSL https://github.com/bifi627/streamiq/releases/latest/download/install.sh | sh`
-- Windows: `irm https://github.com/bifi627/streamiq/releases/latest/download/install.ps1 | iex`
+  stops the running gateway, swaps the binary and starts it again.
 
-It stops the running gateway, swaps the binary and starts it again. Your
-settings and paired browsers stay. Nothing updates without you running it
-(notify-only for now).
+Your settings and paired browsers stay. Nothing updates without you running it.
 
-## Start on boot (manual for now)
+## Start on boot
 
-- Windows: `schtasks /Create /SC ONLOGON /TN streamiq-gateway /TR "'%LOCALAPPDATA%\StreamIQ\gateway.exe'"`
-- Linux / macOS: `crontab -e`, add `@reboot cd ~/.local/share/streamiq && ./gateway >> gateway.log 2>&1`
+- Windows: the installer runs `gateway service install`, which creates the
+  scheduled task `streamiq-gateway`: the gateway starts at your logon in its own
+  console window (closing it stops the gateway until the next logon). Start it
+  again now with `schtasks /Run /TN streamiq-gateway`. `gateway service uninstall`
+  stops it and removes the task; `state\` and `gateway.env` stay.
+- Linux / macOS (manual for now): `crontab -e`, add `@reboot cd ~/.local/share/streamiq && ./gateway >> gateway.log 2>&1`
 
 ## Releasing (maintainers)
 

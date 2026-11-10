@@ -8,7 +8,10 @@
 //	localpage   the gateway's status page on the home LAN (approve / remove browsers)
 //	jellyfin    non-admin Jellyfin viewer token without manual steps; transcoding settings; version check
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
-//	update      "newer release available" notice (never self-updates)
+//	update      "newer release available" notice; `gateway update` swaps the binary
+//	service     Windows logon task (`gateway service install|uninstall`)
+//
+// Commands: gateway [run] | service install|uninstall | update | status.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
 // env wins): STREAMIQ_API_URL (required), STREAMIQ_ENROLL_TOKEN, STREAMIQ_NAME, STREAMIQ_STATE_DIR,
@@ -19,6 +22,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -37,6 +41,7 @@ import (
 	"streamiq/gateway/internal/localpage"
 	"streamiq/gateway/internal/onboarding"
 	"streamiq/gateway/internal/pairing"
+	"streamiq/gateway/internal/service"
 	"streamiq/gateway/internal/sessions"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
@@ -50,12 +55,126 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	if exe, err := os.Executable(); err == nil {
+	exe, err := os.Executable()
+	if err == nil {
 		loadEnvFile(filepath.Join(filepath.Dir(exe), "gateway.env")) // installed
 	}
 	loadEnvFile("gateway.env") // dev: gateway/gateway.env from scripts/setup-jellyfin.sh
 
-	stateDir := env("STREAMIQ_STATE_DIR", "streamiq-state")
+	cmd := "run"
+	if len(os.Args) > 1 {
+		cmd = os.Args[1]
+	}
+	// ponytail: one usage text for every command; per-command help when a command grows flags.
+	help := slices.ContainsFunc(os.Args[1:], func(a string) bool {
+		return a == "-h" || a == "--help" || a == "-help" || a == "help"
+	})
+	switch {
+	case help:
+		fmt.Println(usage)
+	case cmd == "run":
+		run(ctx)
+	case cmd == "service" && len(os.Args) == 3 && os.Args[2] == "install":
+		err = serviceInstall(ctx, exe)
+	case cmd == "service" && len(os.Args) == 3 && os.Args[2] == "uninstall":
+		err = service.Uninstall(exe)
+		if err == nil {
+			fmt.Println("Removed the logon task and stopped the gateway. state/ and gateway.env are kept.")
+		}
+	case cmd == "update":
+		err = selfUpdate(ctx, exe)
+	case cmd == "status":
+		link, _ := os.ReadFile(filepath.Join(stateDir(), "page-link"))
+		err = localpage.PrintStatus(ctx, os.Stdout, pagePort(), strings.TrimSpace(string(link)))
+	default:
+		fmt.Fprintln(os.Stderr, usage)
+		os.Exit(2)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "gateway:", err)
+		os.Exit(1)
+	}
+}
+
+const usage = `usage: gateway [command] [-h]
+  run                        run the gateway (default)
+  service install|uninstall  start it at logon in its own window (Windows)
+  update                     install the latest release (Windows)
+  status                     show the running gateway's status
+
+Config: gateway.env next to the binary (see docs/install.md).`
+
+func stateDir() string { return env("STREAMIQ_STATE_DIR", "streamiq-state") }
+func pagePort() string { return env("STREAMIQ_PAGE_PORT", "8097") } // Jellyfin owns 8096
+
+// serviceInstall enrolls first if needed (a scheduled task doesn't inherit the
+// installer's env, so the token is spent here and never stored), then installs
+// and starts the logon task.
+func serviceInstall(ctx context.Context, exe string) error {
+	if !service.Supported() {
+		return service.ErrUnsupported
+	}
+	_, fp, err := identity.LoadOrCreate(stateDir())
+	if err != nil {
+		return err
+	}
+	api := strings.TrimRight(os.Getenv("STREAMIQ_API_URL"), "/")
+	st, err := onboarding.LoadOrEnroll(ctx, stateDir(), api, os.Getenv("STREAMIQ_ENROLL_TOKEN"), fp)
+	if err != nil {
+		return err
+	}
+	if err := service.Install(exe); err != nil {
+		return err
+	}
+	fmt.Printf("Gateway %q runs now and at every logon, in its own console window (task %s).\n", st.Name, service.Task)
+	return nil
+}
+
+// selfUpdate installs the latest release over exe (user-invoked only) and
+// restarts the logon task if there is one.
+func selfUpdate(ctx context.Context, exe string) error {
+	if !service.Supported() {
+		return service.ErrUnsupported
+	}
+	if version == "dev" {
+		return errors.New("dev build: rebuild it instead")
+	}
+	latest, err := update.Latest(ctx, update.LatestURL)
+	if err != nil {
+		return err
+	}
+	if !update.Newer(latest, version) {
+		fmt.Printf("Up to date (v%s).\n", version)
+		return nil
+	}
+	fmt.Printf("Downloading v%s…\n", latest)
+	if err := update.Download(ctx, env("STREAMIQ_DOWNLOAD", update.DownloadURL), update.Asset(), exe+".new"); err != nil {
+		return err
+	}
+	task := service.Installed()
+	if task {
+		service.Stop(exe)
+	}
+	err = update.Swap(exe, exe+".new")
+	if task {
+		if serr := service.Start(); err == nil {
+			err = serr
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if task {
+		fmt.Printf("Updated v%s → v%s and restarted.\n", version, latest)
+	} else {
+		fmt.Printf("Updated v%s → v%s. Restart the gateway to run it (or: gateway service install).\n", version, latest)
+	}
+	return nil
+}
+
+// run is the gateway daemon.
+func run(ctx context.Context) {
+	stateDir := stateDir()
 	cert, fp, err := identity.LoadOrCreate(stateDir)
 	if err != nil {
 		log.Fatalf("gateway: certificate: %v", err)
@@ -97,7 +216,7 @@ func main() {
 			log.Fatalf("gateway: %v", err)
 		}
 		log.Printf("gateway: id %s (%s)", st.GatewayID, st.Name)
-		port := env("STREAMIQ_PAGE_PORT", "8097") // Jellyfin owns 8096
+		port := pagePort()
 		lan := onboarding.LANURL(port)
 		lanHost := ""
 		if u, err := url.Parse(lan); err == nil {

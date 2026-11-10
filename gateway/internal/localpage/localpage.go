@@ -5,7 +5,10 @@ package localpage
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"html/template"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -112,6 +115,19 @@ func Handler(c Config) http.Handler {
 			"Jellyfin": c.Jellyfin(), "Pending": c.Store.Pending(), "Paired": c.Store.Paired(),
 		})
 	})
+	// For `gateway status` on this machine. Loopback only, even with a page
+	// cookie: it's a machine-local API, not part of the LAN page.
+	mux.HandleFunc("GET /status.json", func(w http.ResponseWriter, r *http.Request) {
+		if ip, _, err := net.SplitHostPort(r.RemoteAddr); err != nil || !net.ParseIP(ip).IsLoopback() {
+			http.Error(w, "loopback only", http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(Status{
+			Name: c.Name, Version: c.Version, Update: *c.Update.Load(),
+			LastBeat: c.LastBeat.Load(), Jellyfin: c.Jellyfin(),
+		})
+	})
 	mux.HandleFunc("POST /jellyfin/login", func(w http.ResponseWriter, r *http.Request) {
 		if err := c.Login(r.Context(), r.FormValue("user"), r.FormValue("pw")); err != nil {
 			http.Error(w, "Jellyfin sign-in failed: "+err.Error(), http.StatusBadRequest)
@@ -134,4 +150,70 @@ func Handler(c Config) http.Handler {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
 	return mux
+}
+
+// Status is GET /status.json. Jellyfin is jellyfin.View (this slice doesn't
+// import it); PrintStatus reads the fields it shows.
+type Status struct {
+	Name, Version, Update string
+	LastBeat              int64 // unix seconds, 0 = not connected
+	Jellyfin              any
+}
+
+// PrintStatus asks the gateway running on this machine (page at
+// http://127.0.0.1:port) for its status and prints it. pageLink is the LAN
+// login link (state/page-link), "" if unknown.
+func PrintStatus(ctx context.Context, w io.Writer, port, pageLink string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", "http://127.0.0.1:"+port+"/status.json", nil)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("not running (nothing answers on port %s)", port)
+	}
+	defer res.Body.Close()
+	var s struct {
+		Status
+		Jellyfin struct {
+			Reachable, HasKey, LegacyKey, NeedsLogin bool
+			Version, Err                             string
+		}
+	}
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("port %s: HTTP %d (another program, or an older gateway: run `gateway update`)", port, res.StatusCode)
+	}
+	if err := json.NewDecoder(res.Body).Decode(&s); err != nil {
+		return fmt.Errorf("port %s: %w", port, err)
+	}
+	beat := "not connected"
+	if s.LastBeat != 0 {
+		beat = fmt.Sprintf("connected, last heartbeat %s ago", time.Since(time.Unix(s.LastBeat, 0)).Round(time.Second))
+	}
+	jf := "not reachable"
+	if j := s.Jellyfin; j.Reachable {
+		jf = "reachable, version " + j.Version + ", token "
+		switch {
+		case j.LegacyKey:
+			jf += "admin API key (reconnect Jellyfin on the local page)"
+		case j.HasKey:
+			jf += "set"
+		case j.NeedsLogin:
+			jf += "missing (Connect Jellyfin on the local page)"
+		default:
+			jf += "missing"
+		}
+	}
+	if s.Jellyfin.Err != "" {
+		jf += " (" + s.Jellyfin.Err + ")"
+	}
+	upd := "up to date"
+	if s.Update != "" {
+		upd = "available: " + s.Update
+	}
+	fmt.Fprintf(w, "gateway    %s, version %s\nupdate     %s\nStreamIQ   %s\nJellyfin   %s\nlocal page http://localhost:%s\n",
+		s.Name, s.Version, upd, beat, jf, port)
+	if pageLink != "" {
+		fmt.Fprintf(w, "           from another device: %s\n", pageLink)
+	}
+	return nil
 }

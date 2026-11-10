@@ -1,13 +1,19 @@
-// Package update tells the user when a newer gateway release exists (item 4
-// design: notify-only for dogfood). It never downloads or replaces anything:
-// the install script does that when the user runs the printed command.
+// Package update tells the user when a newer gateway release exists, and on
+// Windows `gateway update` downloads, verifies and swaps the binary (#117).
+// Nothing updates in the background: only the user runs `gateway update`.
 package update
 
 import (
+	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -79,11 +85,111 @@ func parse(v string) []int {
 	return out
 }
 
+// DownloadURL is where release assets live (STREAMIQ_DOWNLOAD overrides it, as in the installers).
+const DownloadURL = "https://github.com/bifi627/streamiq/releases/latest/download"
+
 // Command is the one line the user runs to update on this OS.
 func Command() string {
-	const dl = "https://github.com/bifi627/streamiq/releases/latest/download/"
 	if runtime.GOOS == "windows" {
-		return "irm " + dl + "install.ps1 | iex"
+		exe, err := os.Executable()
+		if err != nil {
+			exe = "gateway.exe"
+		}
+		return exe + " update"
 	}
-	return "curl -fsSL " + dl + "install.sh | sh"
+	return "curl -fsSL " + DownloadURL + "/install.sh | sh"
+}
+
+// Asset is this platform's release binary, as release-gateway.yml names it.
+func Asset() string {
+	ext := ""
+	if runtime.GOOS == "windows" {
+		ext = ".exe"
+	}
+	return "streamiq-gateway-" + runtime.GOOS + "-" + runtime.GOARCH + ext
+}
+
+// Download fetches dl/asset to dst and checks it against dl/SHA256SUMS, as the
+// installers do. On a mismatch dst is removed and nothing else changes.
+// ponytail: SHA256SUMS comes from the same release, so it catches corruption,
+// not a compromised release; signing is #69.
+func Download(ctx context.Context, dl, asset, dst string) error {
+	want, err := sum(ctx, dl+"/SHA256SUMS", asset)
+	if err != nil {
+		return err
+	}
+	body, err := get(ctx, dl+"/"+asset)
+	if err != nil {
+		return err
+	}
+	defer body.Close()
+	f, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	h := sha256.New()
+	_, err = io.Copy(io.MultiWriter(f, h), body)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && hex.EncodeToString(h.Sum(nil)) != want {
+		err = fmt.Errorf("checksum mismatch for %s, not installing", asset)
+	}
+	if err != nil {
+		os.Remove(dst)
+	}
+	return err
+}
+
+func sum(ctx context.Context, url, asset string) (string, error) {
+	body, err := get(ctx, url)
+	if err != nil {
+		return "", err
+	}
+	defer body.Close()
+	sc := bufio.NewScanner(body)
+	for sc.Scan() { // sha256sum format: "<hex>  <name>" (or "<hex> *<name>")
+		f := strings.Fields(sc.Text())
+		if len(f) == 2 && strings.TrimPrefix(f[1], "*") == asset {
+			return strings.ToLower(f[0]), nil
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("%s not in SHA256SUMS", asset)
+}
+
+func get(ctx context.Context, url string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		res.Body.Close()
+		return nil, fmt.Errorf("download %s: HTTP %d", url, res.StatusCode)
+	}
+	return res.Body, nil
+}
+
+// Swap puts newPath in place of exe. Windows can't overwrite a running exe but
+// can rename it, so exe moves aside to exe.old first (removed by the next
+// update, once nothing runs from it). If the move-in fails, exe is restored.
+func Swap(exe, newPath string) error {
+	old := exe + ".old"
+	if err := os.Remove(old); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove %s: %w", old, err)
+	}
+	if err := os.Rename(exe, old); err != nil {
+		return err
+	}
+	if err := os.Rename(newPath, exe); err != nil {
+		os.Rename(old, exe)
+		return err
+	}
+	return nil
 }

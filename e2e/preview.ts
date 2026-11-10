@@ -45,6 +45,7 @@ type State = {
   local?: string
   gatewayPage?: string
   tunnel?: string
+  jellyfin?: string // --media only
   pids?: number[] // backend, vite, gateway: down kills them even if serve died
   ports?: number[]
 }
@@ -153,7 +154,12 @@ ${
     ? `  tunnel:       ${s.tunnel} (public while running; TV: open <LAN>/tv)
 `
     : ''
-}  gateway page: ${s.gatewayPage} (approve pairing requests here)
+}${
+    s.jellyfin
+      ? `  jellyfin:     ${s.jellyfin} (streamiq / streamiq-e2e; new files in ${path.join(root, 'dev-media')}: Scan All Libraries)
+`
+      : ''
+  }  gateway page: ${s.gatewayPage} (approve pairing requests here)
   logs:         ${path.join(dir, 'logs')}, ${path.join(dir, 'preview.log')}
   stop:         npm run preview --prefix e2e -- down`)
 }
@@ -385,6 +391,9 @@ async function serve() {
       ...read()!,
       ready: true,
       tunnel,
+      jellyfin: args.includes('--media')
+        ? process.env.E2E_JELLYFIN_URL
+        : undefined,
       lan: lanIps().map((ip) => `https://${ip}:${port}`),
       local: stack.app,
       gatewayPage: gateway.pageUrl,

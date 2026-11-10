@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 User-invoked only (`/preview [tunnel] [media] | stop | status`). Arguments: `$ARGUMENTS`
 — none = start in LAN mode; `tunnel` = `--tunnel`; `media` = `--media`
-(mounts the checkout's `dev-media/` = `scripts/gen-test-media.sh` fixtures); `stop` /
+(mounts the checkout's `dev-media/`, made by `scripts/gen-test-media.sh`; new files there: "Scan All Libraries" on the printed `jellyfin:` address); `stop` /
 `status` = those sections below.
 
 # Preview env: start / stop

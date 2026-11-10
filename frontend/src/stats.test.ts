@@ -31,9 +31,14 @@ const report = (pair: Record<string, unknown>, localType: string) =>
     ['R', { candidateType: 'host', address: '192.0.2.1' }],
   ])
 
-test('selected pair: relay, IPv6, bytes', () => {
+test('selected pair: relay, IPv6, bytes, RTT', () => {
   assert.deepEqual(
-    pairInfo(report({ bytesReceived: 7, bytesSent: 3 }, 'relay')),
+    pairInfo(
+      report(
+        { bytesReceived: 7, bytesSent: 3, currentRoundTripTime: 0.0234 },
+        'relay',
+      ),
+    ),
     {
       relay: true,
       ipv6: true,
@@ -42,6 +47,7 @@ test('selected pair: relay, IPv6, bytes', () => {
       protocol: 'udp',
       bytesReceived: 7,
       bytesSent: 3,
+      rttMs: 23,
     },
   )
   assert.equal(pairInfo(report({}, 'srflx'))!.relay, false)

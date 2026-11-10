@@ -18,6 +18,7 @@ import {
 import { clientKey, getPin, setPin } from './store'
 
 export class PinMismatch extends Error {}
+export class NotPaired extends Error {}
 
 export type Session = { pc: RTCPeerConnection; close: () => void }
 
@@ -198,7 +199,7 @@ export async function connect(
         case 'unpaired':
           if (!onCode)
             return fail(
-              new Error('this browser is not paired with the gateway'),
+              new NotPaired('this browser is not paired with the gateway'),
             )
           nB = nonce()
           return say({

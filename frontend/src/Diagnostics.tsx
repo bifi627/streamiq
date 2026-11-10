@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { Link } from '@tanstack/react-router'
 import { debugOn, diag, relayOn, setFlag, snapshot, subscribe } from './diag'
 
 /** Header button: a TV remote can reach it, unlike the URL bar. */
@@ -27,7 +28,10 @@ export function Diagnostics() {
         overflowX: 'auto',
       }}
     >
-      <div>{navigator.userAgent}</div>
+      <div>
+        {navigator.userAgent} ·{' '}
+        <Link to="/diagnostics">Client info + connection test</Link>
+      </div>
       <div>
         peer: <b>{diag.pc || 'no session'}</b> · channels in flight:{' '}
         <b>{diag.inFlight}</b> (peak {diag.peak})

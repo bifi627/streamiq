@@ -10,6 +10,8 @@ export type PairInfo = {
   protocol?: string
   bytesReceived: number
   bytesSent: number
+  /** current round-trip time of the pair, ms (absent until measured) */
+  rttMs?: number
 }
 
 export function pairInfo(report: Stats): PairInfo | null {
@@ -35,5 +37,9 @@ export function pairInfo(report: Stats): PairInfo | null {
     protocol: local?.protocol,
     bytesReceived: pair.bytesReceived ?? 0,
     bytesSent: pair.bytesSent ?? 0,
+    rttMs:
+      pair.currentRoundTripTime == null
+        ? undefined
+        : Math.round(pair.currentRoundTripTime * 1000),
   }
 }

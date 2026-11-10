@@ -174,6 +174,36 @@ func TestNoToken(t *testing.T) {
 	}
 }
 
+// The burst endpoint (#90) is served by the gateway itself: no Jellyfin call,
+// works without a token, size defaults and is capped; other methods/paths don't hit it.
+func TestBurst(t *testing.T) {
+	j, last := fakeJellyfin(t)
+	j.SetKey("", "") // no Jellyfin token needed
+	status, hdr, body := do(t, j, tunnelReq{Method: "GET", URL: BurstPath})
+	if status != 200 || len(body) != BurstDefault || hdr["Content-Length"] != fmt.Sprint(BurstDefault) || last.URL != nil {
+		t.Fatalf("default burst = %d, %d bytes, %v, jellyfin hit %v", status, len(body), hdr, last.URL)
+	}
+	if status, _, body := do(t, j, tunnelReq{Method: "GET", URL: BurstPath + "?size=1000"}); status != 200 || len(body) != 1000 {
+		t.Fatalf("size=1000 = %d, %d bytes", status, len(body))
+	}
+	for _, rq := range []tunnelReq{
+		{Method: "GET", URL: fmt.Sprintf("%s?size=%d", BurstPath, BurstMax+1)},
+		{Method: "GET", URL: BurstPath + "?size=-1"},
+		{Method: "GET", URL: BurstPath + "?size=lots"},
+	} {
+		raw, _ := json.Marshal(rq)
+		if status, _, _, err := proxy(j, raw); status != http.StatusBadRequest || err == nil {
+			t.Errorf("%s: status %d, want 400", rq.URL, status)
+		}
+	}
+	for _, rq := range []tunnelReq{{Method: "POST", URL: BurstPath}, {Method: "GET", URL: "/streamiq/%62urst"}} {
+		raw, _ := json.Marshal(rq)
+		if status, _, _, _ := proxy(j, raw); status == 200 {
+			t.Errorf("%s %s: got 200", rq.Method, rq.URL)
+		}
+	}
+}
+
 func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte) {
 	t.Helper()
 	raw, _ := json.Marshal(rq)

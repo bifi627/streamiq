@@ -105,6 +105,21 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       })
       await resume.click() // "Continue watching" row
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // starts there, not at 0
+      await expect(a).toHaveURL(/\/play\/[^/]+$/) // the player has its own route
+      await a.reload() // player deep link: tunnel → item by ID → saved position
+      await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
+      // Opened in a new tab (no in-app history): Back goes to the item's folder.
+      const tab = await a.context().newPage()
+      await tab.goto(a.url())
+      await expect(
+        tab.getByRole('heading', { name: /streamiq e2e clip/ }),
+      ).toBeVisible() // item loaded: Back knows its folder
+      await tab.getByRole('button', { name: 'Back' }).click()
+      await expect(tab).toHaveURL(/\/i\/[^/]+$/)
+      await expect(
+        tab.getByRole('button', { name: /streamiq e2e clip/ }),
+      ).toBeVisible()
+      await tab.close()
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 

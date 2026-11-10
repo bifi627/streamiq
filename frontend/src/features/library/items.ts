@@ -7,6 +7,8 @@ export type Item = {
   IsFolder?: boolean
   SeriesId?: string
   SeriesName?: string
+  SeasonId?: string
+  ParentId?: string
   RunTimeTicks?: number
   ProductionYear?: number
   IndexNumber?: number

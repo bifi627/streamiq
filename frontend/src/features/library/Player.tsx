@@ -44,13 +44,15 @@ type PlaybackInfo = {
 
 export function Player({
   pc,
-  item,
+  itemId,
   onExit,
 }: {
   pc: RTCPeerConnection
-  item: Item
-  onExit: () => void
+  itemId: string
+  onExit: (item: Item | null) => void
 }) {
+  const [item, setItem] = useState<Item | null>(null)
+  const [blocked, setBlocked] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
   const hls = useRef<Hls | null>(null)
   const [subs, setSubs] = useState<{ id: number; name: string }[]>([])
@@ -63,7 +65,7 @@ export function Player({
     let gone = false
     let lastSaved = -1
     const save = (body: object) =>
-      tunnelJson(pc, `/UserItems/${item.Id}/UserData`, body).catch(() => {})
+      tunnelJson(pc, `/UserItems/${itemId}/UserData`, body).catch(() => {})
     const report = () => {
       const t = Math.floor(v.currentTime)
       if (h && t > 0 && t !== lastSaved) {
@@ -77,7 +79,7 @@ export function Player({
       // A new PlaySessionId, so Jellyfin starts a new job for new params.
       const info = await tunnelJson<PlaybackInfo>(
         pc,
-        `/Items/${item.Id}/PlaybackInfo`,
+        `/Items/${itemId}/PlaybackInfo`,
         {},
       )
       if (gone) return
@@ -166,11 +168,16 @@ export function Player({
         }
       })
       h.attachMedia(v)
-      h.loadSource(`${TUNNEL_ORIGIN}/Videos/${item.Id}/master.m3u8?${q}`)
+      h.loadSource(`${TUNNEL_ORIGIN}/Videos/${itemId}/master.m3u8?${q}`)
       h.subtitleTrack = -1
       setSub(-1)
       hls.current = h
-      v.play().catch(() => {}) // autoplay may need a click; controls are there
+      // Autoplay is blocked without a user gesture (deep link / reload): the
+      // native controls are the one action needed (#91 adds its own UI).
+      v.play().catch((e: Error) => {
+        event(`autoplay blocked: ${e.name}`)
+        setBlocked(true)
+      })
     }
 
     ;(async () => {
@@ -179,8 +186,9 @@ export function Player({
           'this browser has no MSE (iOS Safari is not supported yet)',
         )
       // Fresh UserData: the listing may be stale (resume position).
-      const fresh = await tunnelJson<Item>(pc, `/Items/${item.Id}`)
+      const fresh = await tunnelJson<Item>(pc, `/Items/${itemId}`)
       if (gone) return
+      setItem(fresh)
       await start(
         false,
         (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
@@ -190,6 +198,8 @@ export function Player({
     const unwatch = watchVideo(v)
     const tick = setInterval(report, 10_000)
     const ended = () => save({ Played: true, PlaybackPositionTicks: 0 })
+    const playing = () => setBlocked(false)
+    v.addEventListener('play', playing)
     v.addEventListener('pause', report)
     v.addEventListener('seeked', report)
     v.addEventListener('ended', ended)
@@ -199,24 +209,25 @@ export function Player({
       unwatch()
       clearInterval(tick)
       report()
+      v.removeEventListener('play', playing)
       v.removeEventListener('pause', report)
       v.removeEventListener('seeked', report)
       v.removeEventListener('ended', ended)
       window.removeEventListener('pagehide', report)
       h?.destroy()
     }
-  }, [pc, item.Id])
+  }, [pc, itemId])
 
   return (
     <div>
-      <h3>{item.Name}</h3>
+      <h3>{item?.Name}</h3>
       <video
         ref={video}
         controls
         style={{ width: '100%', background: 'black' }}
       />
       <p>
-        <button type="button" onClick={onExit}>
+        <button type="button" onClick={() => onExit(item)}>
           Back
         </button>{' '}
         {subs.length > 0 && (
@@ -242,10 +253,11 @@ export function Player({
             </select>
           </label>
         )}{' '}
-        {item.RunTimeTicks && (
+        {item?.RunTimeTicks && (
           <small>{clock(item.RunTimeTicks / TICKS_PER_SECOND)}</small>
         )}
       </p>
+      {blocked && <p>Press play to start.</p>}
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
     </div>
   )

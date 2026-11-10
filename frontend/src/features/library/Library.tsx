@@ -2,7 +2,13 @@
 // not pretty: the UI is refactored later. Routes (App.tsx): /g/$gatewayId owns the
 // tunnel; its children (home, /i/$itemId) render through <Outlet /> and share it.
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { Link, Outlet, useNavigate } from '@tanstack/react-router'
+import {
+  Link,
+  Outlet,
+  useCanGoBack,
+  useNavigate,
+  useRouter,
+} from '@tanstack/react-router'
 import { connect, PinMismatch, type Session } from '../pairing/connect'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { Player } from './Player'
@@ -94,12 +100,34 @@ export function ItemPage({ itemId }: { itemId: string }) {
   return <Browse view={view} />
 }
 
-// Breadcrumbs from the item itself + the listing. ponytail: the player still
-// opens from state over the current route until #122 gives it its own.
+// Player route: leaving it any way unmounts the Player, whose cleanup saves the
+// position. Back goes back in history; after a deep link (no in-app history)
+// it goes to the item's listing instead of leaving the app.
+export function PlayerPage({ itemId }: { itemId: string }) {
+  const { gatewayId, pc } = useContext(Tunnel)
+  const router = useRouter()
+  const canGoBack = useCanGoBack()
+  const navigate = useNavigate()
+  const back = (i: Item | null) => {
+    if (canGoBack) return router.history.back()
+    const parent = i?.SeasonId ?? i?.ParentId
+    navigate(
+      parent
+        ? {
+            to: '/g/$gatewayId/i/$itemId',
+            params: { gatewayId, itemId: parent },
+            replace: true,
+          }
+        : { to: '/g/$gatewayId', params: { gatewayId }, replace: true },
+    )
+  }
+  return <Player pc={pc} itemId={itemId} onExit={back} />
+}
+
+// Breadcrumbs from the item itself + the listing.
 function Browse({ view }: { view: View }) {
   const { gatewayId, pc } = useContext(Tunnel)
   const navigate = useNavigate()
-  const [playing, setPlaying] = useState<Item | null>(null)
   const item = view.kind === 'home' ? null : view.item
   const crumb = (itemId: string, name: string) => (
     <>
@@ -110,12 +138,12 @@ function Browse({ view }: { view: View }) {
     </>
   )
   const open = (i: Item) =>
-    playable(i)
-      ? setPlaying(i)
-      : navigate({
-          to: '/g/$gatewayId/i/$itemId',
-          params: { gatewayId, itemId: i.Id },
-        })
+    navigate({
+      to: playable(i)
+        ? '/g/$gatewayId/play/$itemId'
+        : '/g/$gatewayId/i/$itemId',
+      params: { gatewayId, itemId: i.Id },
+    })
 
   return (
     <>
@@ -128,11 +156,7 @@ function Browse({ view }: { view: View }) {
           crumb(item.SeriesId, item.SeriesName ?? 'Series')}
         {item && crumb(item.Id, item.Name)}
       </p>
-      {playing ? (
-        <Player pc={pc} item={playing} onExit={() => setPlaying(null)} />
-      ) : (
-        <Listing pc={pc} view={view} onOpen={open} />
-      )}
+      <Listing pc={pc} view={view} onOpen={open} />
     </>
   )
 }

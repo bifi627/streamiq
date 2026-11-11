@@ -17,7 +17,7 @@
 }
 
 .player .bar {
-  font-size: 14px;
+  font-size: 12px;
   position: absolute;
   left: 0;
   right: 0;
@@ -106,7 +106,7 @@
 }
 .player .popover .heading {
   padding: 4px 16px 6px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -126,7 +126,7 @@
   color: #8ab4f8;
 }
 .player .popover small {
-  font-size: 12px;
+  font-size: 11px;
   margin-left: auto;
   padding-left: 16px;
   color: #999;

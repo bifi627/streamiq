@@ -177,6 +177,12 @@ Copy `.env.example` only to override.
     (the spec) + sub-issues. Milestone = what's being worked toward now; no milestone
     = backlog. Not wanted anymore: close as *not planned* with a comment (why + what
     would bring it back); reopen instead of re-filing.
+  - **Group related issues** under a parent (sub-issues, order stated in the parent) when
+    they touch the same code or build on each other, even if each is one PR. A group
+    runs as one orchestrator thread on the parent, which starts one worker thread per
+    sub-issue, in order: the worker builds to a ready PR with green CI, the owner merges,
+    then the next one starts. Workers never merge. A spike that kills a sub-issue: close it
+    as *not planned* with the result, file the replacement, and update the parent.
   - Before starting: `gh issue view <n>`, and check the issue has no linked PR (taken).
     Open a draft PR early so the issue shows it's taken.
   - Board: project "StreamIQ" (github.com/users/bifi627/projects/2). Move the issue

@@ -4,7 +4,11 @@ import assert from 'node:assert/strict'
 import {
   decision,
   deviceProfile,
+  nowPlaying,
   probe,
+  qualities,
+  sizeName,
+  sourceHint,
   toQuality,
   type Probe,
 } from './profile.ts'
@@ -79,10 +83,12 @@ const hevcAv1: Probe = {
   av1: { main10: true },
 }
 
-test('quality Auto: no size limit, remux ceiling', () => {
-  const p = deviceProfile(hevcAv1)
-  assert.equal(p.MaxStreamingBitrate, 120_000_000)
-  assert.deepEqual(sizes(p), ['', '', ''])
+test('quality Auto / Source: no size limit, remux ceiling', () => {
+  for (const q of ['Auto', 'Source'] as const) {
+    const p = deviceProfile(hevcAv1, false, false, q)
+    assert.equal(p.MaxStreamingBitrate, 120_000_000)
+    assert.deepEqual(sizes(p), ['', '', ''])
+  }
 })
 
 test('quality 720p: bitrate + size on every codec', () => {
@@ -100,6 +106,10 @@ test('compatible mode: at most 1080p, a lower quality still applies', () => {
     deviceProfile(webos, false, true, 'Auto').MaxStreamingBitrate,
     8_000_000,
   )
+  assert.equal(
+    deviceProfile(webos, false, true, 'Source').MaxStreamingBitrate,
+    8_000_000,
+  )
   const p = deviceProfile(webos, false, true, '480p')
   assert.equal(p.MaxStreamingBitrate, 1_500_000)
   assert.deepEqual(sizes(p), ['854x480'])
@@ -110,6 +120,61 @@ test('stored quality: invalid or missing = Auto', () => {
   assert.equal(toQuality(null), 'Auto')
   assert.equal(toQuality('4K'), 'Auto')
   assert.equal(toQuality('toString'), 'Auto')
+  assert.equal(toQuality('Source'), 'Source')
+})
+
+test('picker: only rungs that scale the source down', () => {
+  const at = (width: number, height: number, q = 'Auto' as const) =>
+    qualities({ width, height }, q).join(',')
+  assert.equal(at(3840, 2160), 'Auto,Source,1080p,720p,480p')
+  assert.equal(at(1920, 1080), 'Auto,Source,720p,480p')
+  assert.equal(at(1920, 800), 'Auto,Source,720p,480p') // scope 1080p
+  assert.equal(at(426, 240), 'Auto,Source')
+  assert.equal(at(0, 0), 'Auto,Source,1080p,720p,480p') // unknown: all
+  // a stored rung stays visible (and selected) even when it changes nothing
+  assert.equal(
+    qualities({ width: 426, height: 240 }, '720p').join(','),
+    'Auto,Source,720p',
+  )
+})
+
+test('picker labels: size names and the Source hint', () => {
+  assert.equal(sizeName({ width: 3840, height: 1600 }), '4K')
+  assert.equal(sizeName({ width: 1916, height: 1076 }), '1080p')
+  assert.equal(sizeName({ width: 1080, height: 1920 }), '1080p') // portrait
+  assert.equal(sizeName({ width: 640, height: 360 }), '360p')
+  assert.equal(
+    sourceHint({ width: 3840, height: 2160 }, 40_000_000),
+    '4K, 40 Mbps',
+  )
+  assert.equal(sourceHint({ width: 1280, height: 720 }), '720p')
+  assert.equal(sourceHint({ width: 0, height: 0 }), '')
+})
+
+test('picker status: original, or the transcode size', () => {
+  const uhd = { width: 3840, height: 2160 }
+  const qs = (s: string) => new URLSearchParams(s)
+  assert.equal(nowPlaying(true, qs(''), uhd), 'Original 4K')
+  assert.equal(
+    nowPlaying(false, qs('MaxWidth=1280&MaxHeight=720'), uhd),
+    'Transcoded to 720p',
+  )
+  // never upscaled; aspect kept within both caps
+  assert.equal(
+    nowPlaying(false, qs('MaxWidth=1920&MaxHeight=1080'), {
+      width: 640,
+      height: 360,
+    }),
+    'Transcoded to 360p',
+  )
+  assert.equal(
+    nowPlaying(false, qs('MaxWidth=1280&MaxHeight=720'), {
+      width: 3840,
+      height: 1600,
+    }),
+    'Transcoded to 720p', // 1280x533: named by its width
+  )
+  assert.equal(nowPlaying(false, qs(''), { width: 0, height: 0 }), 'Transcoded')
 })
 
 test('no H.264: clear error', () => {

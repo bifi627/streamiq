@@ -149,23 +149,32 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Settings' }).click()
       await a.getByLabel('Compatible mode').uncheck()
       await a.getByRole('button', { name: 'Back' }).click()
-      // Quality (#108): a switch reloads at the playhead with the new limit;
-      // the 360p clip is within 480p, so it still remuxes. Remembered.
+      // Quality (#108, #161): the picker says what plays and hides rungs that
+      // would not scale the 360p clip down (480p too); a switch reloads at the
+      // playhead. Remembered.
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
       await a.getByRole('button', { name: 'Playback options' }).click()
-      await a.getByRole('menuitem', { name: /^Quality.*Auto/ }).click()
-      await a.getByRole('menuitemradio', { name: /^480p/ }).click()
+      await a
+        .getByRole('menuitem', { name: /^Quality.*Auto · Original 360p/ })
+        .click()
+      await expect(a.getByRole('menuitemradio')).toHaveText([
+        /Auto/, // ✓ Auto
+        /^Source360p, [\d.,]+ Mbps$/, // the clip's size + bitrate
+      ])
+      await a.getByRole('menuitemradio', { name: /^Source/ }).click()
       await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
-          /jellyfin: video remux \(h264\)[\s\S]*quality: 480p \(≤480p, 1.5 Mbps\)[\s\S]*quality: switch to 480p @([3-9]|[1-9]\d)\./, // reloaded at the playhead
+          /jellyfin: video remux \(h264\)[\s\S]*quality: Source \(no limit\)[\s\S]*quality: switch to Source @([3-9]|[1-9]\d)\./, // reloaded at the playhead
         ),
       ).toBeVisible()
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // and plays on there
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.reload()
       await a.getByRole('button', { name: 'Playback options' }).click()
-      await a.getByRole('menuitem', { name: /^Quality.*480p/ }).click() // remembered
+      await a
+        .getByRole('menuitem', { name: /^Quality.*Source · Original 360p/ }) // remembered
+        .click()
       await a.getByRole('menuitemradio', { name: /^Auto/ }).click()
       // Opened in a new tab (no in-app history): Back goes to the item's folder.
       const tab = await a.context().newPage()

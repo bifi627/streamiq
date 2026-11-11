@@ -19,6 +19,9 @@ export type Item = {
     Type: string
     Codec?: string
     Channels?: number
+    Width?: number
+    Height?: number
+    BitRate?: number
     IsTextSubtitleStream?: boolean
   }[]
 }

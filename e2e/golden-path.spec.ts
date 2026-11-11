@@ -13,13 +13,14 @@ import {
 } from '@playwright/test'
 import { startGateway } from './stack.ts'
 
-const email = 'e2e@streamiq.test'
+// One account per repeat: the Auth emulator lives for the whole run.
+const email = () => `e2e-${test.info().repeatEachIndex}@streamiq.test`
 const password = 'e2e-password'
 
 async function signIn(browser: Browser, create = false, path = '/') {
   const page = await (await browser.newContext()).newPage() // own IndexedDB = own client key
   await page.goto(process.env.E2E_APP_URL! + path)
-  await page.getByPlaceholder('email').fill(email)
+  await page.getByPlaceholder('email').fill(email())
   await page.getByPlaceholder('password').fill(password)
   await page
     .getByRole('button', { name: create ? 'Create account' : 'Sign in' })
@@ -204,7 +205,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByLabel('Force relay (TURN)', { exact: true }).check()
       await run(/relay forced: yes[\s\S]*path: relayed \(TURN\)/)
       await a.getByLabel('Force relay (TURN)', { exact: true }).uncheck()
-      await expect(report).not.toContainText(email)
+      await expect(report).not.toContainText(email())
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.goto(process.env.E2E_APP_URL!)
     })

@@ -25,7 +25,7 @@ public class Gateway : ITenantOwned
     public string? LanUrl { get; set; }                 // gateway page on the home LAN, from heartbeat
     public string? Version { get; set; }                // gateway release version, from heartbeat
     public DateTimeOffset? LastSeenAt { get; set; }      // heartbeat → online/offline
-    public string? Status { get; set; }                 // jsonb: sanitized heartbeat status snapshot (GatewayStatus), last known
+    public string? Update { get; set; }                 // newer gateway release, from heartbeat; null = up to date
     public DateTimeOffset CreatedAt { get; set; }
 }
 

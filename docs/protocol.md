@@ -32,24 +32,14 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0",
-  "os": "windows", "arch": "amd64", "startedAt": "2026-11-10T08:00:00Z", "update": "1.5.0",
-  "jellyfin": { "reachable": true, "version": "10.11.2", "untested": false, "token": "ok" },
-  "pairedClients": 2, "activeSessions": 1 }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0" }
 ```
-The API sets `last_seen_at = now`, `lan_url` (http/https only, else null) and
-`version` (≤ 40 chars, else null; `"dev"` for source builds). `version` is
-optional: older gateways omit it.
-
-The rest is the **status snapshot** (#129), stored as `gateways.status` (jsonb) and
-returned as `status` by `GET /api/gateways`, last known while offline. Every field is
-optional; the API keeps only these, each checked, and drops the rest:
-`os`, `arch` (≤ 20 chars), `update` (newer release version, absent = up to date; ≤ 40),
-`startedAt` (ISO 8601, stored as UTC), `pairedClients`, `activeSessions` (ints
-0–100000), `jellyfin.reachable`, `jellyfin.untested` (bools), `jellyfin.version` (≤ 40),
-`jellyfin.token` (`ok` | `missing` | `legacy` = pre-#50 admin API key). Counts only:
-no client names or anything else that identifies a person (#65). No status fields →
-`status` null.
+Liveness only (#140). The API sets `last_seen_at = now`, `lan_url` (http/https only,
+else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
+`update` (newer release version, absent = up to date; ≤ 40 chars, else null), and
+ignores any other field. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
+`version` and `update`; everything richer comes from the gateway itself over the
+tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **`DELETE /api/gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's
 credential (row kept, hidden from `GET /api/gateways`; its telemetry stays). The
@@ -235,12 +225,24 @@ tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) is known to handlers;
 nothing is enforced per user yet (#92). Code: `gateway/internal/tunnel/tunnel.go`.
 
-**`GET /streamiq/status`** (#146): `200`, JSON, built on each request. Fields
-are added over time (#140); a client ignores ones it doesn't know.
+**`GET /streamiq/status`** (#146, #140): `200`, JSON, built on each request.
+Fields are added over time; a client ignores ones it doesn't know.
+```json
+{ "transcoding": "nvenc", "os": "windows", "arch": "amd64", "startedAt": "2026-11-10T08:00:00Z",
+  "jellyfin": { "reachable": true, "version": "10.11.2", "untested": false, "token": "ok" },
+  "pairedClients": 2, "activeSessions": 1 }
+```
 
 | Field | Values |
 |---|---|
 | `transcoding` | `"nvenc"` / `"none"`: the `STREAMIQ_JELLYFIN_HWACCEL` the gateway applied to a Jellyfin it set up; `"unmanaged"`: a Jellyfin the user brought (the gateway doesn't own its settings) |
+| `os`, `arch` | Go's `GOOS` / `GOARCH` |
+| `startedAt` | gateway process start, ISO 8601 UTC |
+| `jellyfin` | `reachable`, `untested` (version outside the tested line), `version`, `token`: `ok` / `missing` / `legacy` (pre-#50 admin API key) |
+| `pairedClients`, `activeSessions` | counts only, no client names (#65) |
+
+The web gateway page caches the last response per gateway in `localStorage` and
+shows it as "as of <time>" while the gateway is offline.
 
 The setting, not a live transcode, is the answer on purpose: Jellyfin doesn't
 fall back to the CPU silently (a broken GPU setup fails playback), and

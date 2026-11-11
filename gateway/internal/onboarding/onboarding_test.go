@@ -89,18 +89,14 @@ func TestRunControlHeartbeats(t *testing.T) {
 	defer cancel()
 	var lastBeat atomic.Int64
 	go RunControl(ctx, srv.URL, &State{Credential: "cred-1"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat,
-		func() Status {
-			return Status{OS: "windows", Arch: "amd64", PairedClients: 2, Jellyfin: JellyfinStatus{Reachable: true, Version: "10.11.2", Token: "ok"}}
-		}, func([]byte, func(any)) {})
+		func() string { return "" }, func([]byte, func(any)) {})
 	select {
 	case hb := <-got:
 		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" {
 			t.Fatalf("heartbeat = %v", hb)
 		}
-		// The status snapshot is flattened into the heartbeat (docs/protocol.md).
-		jf, _ := hb["jellyfin"].(map[string]any)
-		if hb["os"] != "windows" || hb["pairedClients"] != 2.0 || jf["token"] != "ok" || jf["version"] != "10.11.2" {
-			t.Fatalf("heartbeat status = %v", hb)
+		if len(hb) != 3 { // liveness only (#140): details are GET /streamiq/status
+			t.Fatalf("heartbeat has extra fields: %v", hb)
 		}
 		if _, ok := hb["update"]; ok {
 			t.Fatalf("up to date: want no update field, got %v", hb["update"])

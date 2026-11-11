@@ -233,9 +233,6 @@ func run(ctx context.Context) {
 		log.Fatalf("gateway: %v", err)
 	}
 	go setup.Run(ctx)
-	jf.Status = func() any { // gateway API GET /streamiq/status (docs/protocol.md)
-		return map[string]any{"transcoding": setup.View().Transcoding()}
-	}
 
 	// Enroll once, then heartbeat over the authenticated control socket and
 	// serve the local page.
@@ -271,12 +268,16 @@ func run(ctx context.Context) {
 		newer.Store(new(string))
 		go checkUpdates(ctx, &notice, &newer)
 		started := time.Now().UTC()
-		status := func() onboarding.Status {
+		jf.Status = func() any { // gateway API GET /streamiq/status (docs/protocol.md)
 			v := setup.View()
-			return onboarding.Status{
-				OS: runtime.GOOS, Arch: runtime.GOARCH, StartedAt: started, Update: *newer.Load(),
-				Jellyfin:      onboarding.JellyfinStatus{Reachable: v.Reachable, Version: v.Version, Untested: v.Untested, Token: v.Token()},
-				PairedClients: len(store.Paired()), ActiveSessions: sess.Active(),
+			return map[string]any{
+				"transcoding": v.Transcoding(),
+				"os":          runtime.GOOS, "arch": runtime.GOARCH, "startedAt": started,
+				"jellyfin": map[string]any{
+					"reachable": v.Reachable, "version": v.Version, "untested": v.Untested, "token": v.Token(),
+				},
+				// Counts only: no client names (#65).
+				"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
 			}
 		}
 		token, err := localpage.Token(stateDir, lan)
@@ -293,7 +294,7 @@ func run(ctx context.Context) {
 			log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
 		}()
 		go forever(ctx, func(ctx context.Context) error {
-			return onboarding.RunControl(ctx, api, st, lan, version, &lastBeat, status, sess.Handle)
+			return onboarding.RunControl(ctx, api, st, lan, version, &lastBeat, func() string { return *newer.Load() }, sess.Handle)
 		})
 	}
 

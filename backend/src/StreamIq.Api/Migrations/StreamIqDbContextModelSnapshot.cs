@@ -163,11 +163,11 @@ namespace StreamIq.Api.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("text");
 
-                    b.Property<string>("Status")
-                        .HasColumnType("jsonb");
-
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Update")
+                        .HasColumnType("text");
 
                     b.Property<string>("Version")
                         .HasColumnType("text");

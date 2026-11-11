@@ -199,12 +199,18 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await tunnelOk(a)
     })
 
-    await test.step('web gateway page: transcoding from the gateway API (#146)', async () => {
+    await test.step('web gateway page: status from the gateway API (#140)', async () => {
       // e2e's Jellyfin was set up by the test (wizard), not the gateway.
       await a.getByText('Status', { exact: true }).click()
       await expect(
         a.getByText('Transcoding: not managed by StreamIQ'),
       ).toBeVisible({ timeout: 15_000 })
+      await expect(
+        a.getByText(/Jellyfin: reachable, version .* · token set/),
+      ).toBeVisible()
+      await expect(
+        a.getByText(/Paired browsers: 1 · open sessions/),
+      ).toBeVisible()
     })
 
     await test.step('browser B (same account, never paired) is refused', async () => {
@@ -222,20 +228,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         b.getByText('this browser is not paired with the gateway'),
       ).toBeVisible()
 
-      // Status comes from the heartbeat, not the tunnel: B sees it unpaired (#129).
-      // Up to one 30s heartbeat after Jellyfin got its token.
+      // Unpaired, B sees only liveness from the heartbeat; the details need
+      // the tunnel (#140).
       await b.getByText('Status', { exact: true }).click()
+      await expect(b.getByText(/StreamIQ: connected/)).toBeVisible()
       await expect(
-        b.getByText(/Jellyfin: reachable, version .* · token set/),
-      ).toBeVisible({
-        timeout: 35_000,
-      })
-      await expect(
-        b.getByText(/Paired browsers: 1 · open sessions/),
-      ).toBeVisible()
-      await expect(
-        b.getByText('Transcoding: pair this browser to see it'),
+        b.getByText('Details: pair this browser to see them'),
       ).toBeVisible({ timeout: 15_000 })
+      await expect(b.getByText(/Jellyfin:|Paired browsers/)).toHaveCount(0)
 
       // The diagnostics page says so too, and names the failed step.
       await b.goto(process.env.E2E_APP_URL! + '/diagnostics')

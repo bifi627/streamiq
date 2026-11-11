@@ -149,28 +149,13 @@ const tokenText = {
   legacy: 'admin API key: reconnect Jellyfin on the gateway page',
 }
 
-// Read-only status from the gateway's heartbeat (#129). Offline: last known
-// values, dated. No tunnel needed, so it works before this browser is paired;
-// only the Transcoding line comes from the gateway API over the tunnel.
+// Liveness from the heartbeat (works unpaired); the details from the gateway API
+// over the tunnel (#140), which needs this browser paired.
 function StatusDetails({ g }: { g: Gateway }) {
   const [open, setOpen] = useState(false)
-  const s: GatewayStatus | null = g.status
-  const at = (iso: string) => new Date(iso).toLocaleString()
-  if (!s)
-    return (
-      <details>
-        <summary>Status</summary>
-        <p>
-          No status yet
-          {g.version ? ' (gateway too old to report it: update it)' : ''}.
-        </p>
-      </details>
-    )
-  const jf = s.jellyfin
   return (
     <details onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>Status</summary>
-      {!g.online && g.lastSeenAt && <p>Offline. As of {at(g.lastSeenAt)}:</p>}
       <ul>
         <li>
           StreamIQ:{' '}
@@ -180,39 +165,16 @@ function StatusDetails({ g }: { g: Gateway }) {
         </li>
         <li>
           Version {g.version ?? 'unknown'}
-          {s.update && (
+          {g.update && (
             <b>
               {' '}
-              · update available: {s.update}, run{' '}
-              <code>
-                {s.os === 'windows' ? 'gateway update' : 'install.sh'}
-              </code>{' '}
-              on the gateway
+              · update available: {g.update}, run <code>install.sh</code>{' '}
+              (Linux/macOS) or <code>gateway update</code> (Windows) on the
+              gateway
             </b>
           )}
         </li>
-        {(s.os || s.startedAt) && (
-          <li>
-            {s.os && `${s.os}/${s.arch ?? '?'}`}
-            {s.os && s.startedAt && ' · '}
-            {s.startedAt && `running since ${at(s.startedAt)}`}
-          </li>
-        )}
-        <li>
-          Jellyfin:{' '}
-          {!jf
-            ? 'unknown'
-            : !jf.reachable
-              ? 'not reachable'
-              : `reachable, version ${jf.version ?? '?'}`}
-          {jf?.untested && <b> · not tested with this gateway</b>}
-          {jf?.token && ` · ${tokenText[jf.token]}`}
-        </li>
-        <li>
-          Paired browsers: {(s.pairedClients ?? '?').toLocaleString()} · open
-          sessions: {(s.activeSessions ?? '?').toLocaleString()}
-        </li>
-        {open && <Transcoding g={g} />}
+        {open && <Details g={g} />}
       </ul>
     </details>
   )
@@ -224,10 +186,35 @@ const transcodingText: Record<string, string> = {
   unmanaged: 'not managed by StreamIQ',
 }
 
-// From the gateway API over the tunnel (#146), so it needs this browser paired
-// and the gateway online. One short session per opening of the details.
-function Transcoding({ g }: { g: Gateway }) {
-  const [text, setText] = useState('checking…')
+type Cached = { at: string; s: GatewayStatus }
+const cacheKey = (id: string) => `streamiq.gatewayStatus.${id}`
+
+// Offline view: the last response per gateway, from localStorage (may be
+// unavailable: private mode, blocked storage).
+function readCache(id: string): Cached | null {
+  try {
+    return JSON.parse(localStorage.getItem(cacheKey(id)) ?? 'null')
+  } catch {
+    return null
+  }
+}
+
+function writeCache(id: string, s: GatewayStatus) {
+  try {
+    localStorage.setItem(
+      cacheKey(id),
+      JSON.stringify({ at: new Date().toISOString(), s }),
+    )
+  } catch {
+    // ignore: the live view still works
+  }
+}
+
+// One short tunnel session per opening of the details while online; offline,
+// the cached last response, dated.
+function Details({ g }: { g: Gateway }) {
+  const [s, setS] = useState<GatewayStatus | null>(null)
+  const [msg, setMsg] = useState('checking…')
   useEffect(() => {
     if (!g.online) return
     let live = true
@@ -235,19 +222,20 @@ function Transcoding({ g }: { g: Gateway }) {
     connect(g.id)
       .then((x) => {
         sess = x
-        return tunnelJson<{ transcoding: string }>(x.pc, '/streamiq/status')
+        return tunnelJson<GatewayStatus>(x.pc, '/streamiq/status')
       })
-      .then(
-        (r) => live && setText(transcodingText[r.transcoding] ?? r.transcoding),
-      )
+      .then((r) => {
+        writeCache(g.id, r)
+        if (live) setS(r)
+      })
       .catch(
         (e: Error) =>
           live &&
-          setText(
+          setMsg(
             e instanceof NotPaired
-              ? 'pair this browser to see it'
+              ? 'pair this browser to see them'
               : e.message.includes('HTTP 404')
-                ? 'gateway too old to report it: update it'
+                ? 'gateway too old to report them: update it'
                 : `unavailable (${e.message})`,
           ),
       )
@@ -256,7 +244,49 @@ function Transcoding({ g }: { g: Gateway }) {
       live = false
     }
   }, [g.id, g.online])
+
+  if (!g.online) {
+    const c = readCache(g.id)
+    if (!c) return <li>Details: gateway offline, none seen yet</li>
+    return (
+      <>
+        <li>Gateway offline. As of {new Date(c.at).toLocaleString()}:</li>
+        <StatusLines s={c.s} />
+      </>
+    )
+  }
+  return s ? <StatusLines s={s} /> : <li>Details: {msg}</li>
+}
+
+function StatusLines({ s }: { s: GatewayStatus }) {
+  const jf = s.jellyfin
   return (
-    <li>Transcoding: {g.online ? text : 'gateway offline, not available'}</li>
+    <>
+      {(s.os || s.startedAt) && (
+        <li>
+          {s.os && `${s.os}/${s.arch ?? '?'}`}
+          {s.os && s.startedAt && ' · '}
+          {s.startedAt &&
+            `running since ${new Date(s.startedAt).toLocaleString()}`}
+        </li>
+      )}
+      <li>
+        Jellyfin:{' '}
+        {!jf
+          ? 'unknown'
+          : !jf.reachable
+            ? 'not reachable'
+            : `reachable, version ${jf.version ?? '?'}`}
+        {jf?.untested && <b> · not tested with this gateway</b>}
+        {jf?.token && ` · ${tokenText[jf.token]}`}
+      </li>
+      <li>
+        Paired browsers: {(s.pairedClients ?? '?').toLocaleString()} · open
+        sessions: {(s.activeSessions ?? '?').toLocaleString()}
+      </li>
+      {s.transcoding && (
+        <li>Transcoding: {transcodingText[s.transcoding] ?? s.transcoding}</li>
+      )}
+    </>
   )
 }

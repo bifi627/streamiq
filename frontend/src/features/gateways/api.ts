@@ -7,15 +7,16 @@ export type Gateway = {
   lanUrl: string | null
   version: string | null
   online: boolean
-  status: GatewayStatus | null // last heartbeat's snapshot, kept while offline; null = older gateway
+  update: string | null // newer gateway release, null = up to date
 }
 
-// Every field optional: the API drops anything a gateway sent malformed.
+// Gateway API GET /streamiq/status over the tunnel (docs/protocol.md). All
+// optional: older gateways send fewer fields.
 export type GatewayStatus = {
+  transcoding?: string
   os?: string
   arch?: string
   startedAt?: string
-  update?: string // newer release version
   pairedClients?: number
   activeSessions?: number
   jellyfin?: {

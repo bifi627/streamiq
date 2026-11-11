@@ -164,7 +164,9 @@ export function Controls({
     const v = video.current!
     const sync = () => {
       setPaused(v.paused)
-      setTime(v.currentTime)
+      // No frame yet (a reload, #109): currentTime reads 0 until the new
+      // stream seeks to the playhead; keep the bar where it was.
+      if (v.readyState >= v.HAVE_CURRENT_DATA) setTime(v.currentTime)
       setMuted(v.muted)
       setVolume(v.volume)
     }

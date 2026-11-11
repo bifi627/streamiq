@@ -92,3 +92,7 @@
 .player .bar button:focus {
   background: rgba(255, 255, 255, 0.3);
 }
+/* The current quality in the quality menu (#108). */
+.player .bar button[aria-pressed='true'] {
+  text-decoration: underline;
+}

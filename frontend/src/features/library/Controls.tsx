@@ -9,6 +9,8 @@
 //   after HIDE_MS (playing or paused; it stays only while autoplay is blocked).
 // - Mouse (and Magic Remote pointer) on the picture: click play-pause, double
 //   click fullscreen. Touch: tap toggles the bar.
+// - Quality (#108): the button opens a row of options above the buttons (plain
+//   buttons, so the D-pad model above covers it); picking one closes it.
 import {
   useEffect,
   useRef,
@@ -17,6 +19,7 @@ import {
   type RefObject,
 } from 'react'
 import { clock } from './items'
+import { QUALITIES, type Quality } from './profile'
 import './Player.css'
 
 const HIDE_MS = 4000
@@ -67,12 +70,16 @@ export function Controls({
   video,
   duration,
   blocked,
+  quality,
+  onQuality,
   onBack,
   children,
 }: {
   video: RefObject<HTMLVideoElement | null>
   duration: number
   blocked: boolean
+  quality: Quality
+  onQuality: (q: Quality) => void
   onBack: () => void
   children: ReactNode
 }) {
@@ -85,6 +92,8 @@ export function Controls({
   const [muted, setMuted] = useState(false)
   const [volume, setVolume] = useState(1)
   const [full, setFull] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const menuRow = useRef<HTMLDivElement>(null)
   const timer = useRef(0)
   // Handlers live in refs (stable for the key listener); these keep them current.
   const back = useRef(onBack)
@@ -103,6 +112,7 @@ export function Controls({
       hide() {
         clearTimeout(timer.current)
         setShown(false)
+        setMenu(false)
         if (bar.current?.contains(document.activeElement))
           root.current?.focus({ preventScroll: true })
       },
@@ -218,6 +228,14 @@ export function Controls({
     if (blocked) play.current?.focus({ preventScroll: true })
   }, [blocked])
 
+  // Opening the menu focuses the current option (D-pad lands in it).
+  useEffect(() => {
+    if (menu)
+      menuRow.current
+        ?.querySelector<HTMLElement>('[aria-pressed="true"]')
+        ?.focus({ preventScroll: true })
+  }, [menu])
+
   const visible = shown || blocked
   const onPicture = (e: { target: unknown }) =>
     !bar.current?.contains(e.target as Node)
@@ -269,6 +287,30 @@ export function Controls({
             {clock(time)} / {clock(duration)}
           </span>
         </div>
+        {menu && (
+          <div
+            data-row
+            ref={menuRow}
+            className="row"
+            role="group"
+            aria-label="Quality"
+          >
+            {QUALITIES.map((o) => (
+              <button
+                key={o}
+                type="button"
+                aria-pressed={o === quality}
+                onClick={() => {
+                  setMenu(false)
+                  play.current?.focus({ preventScroll: true })
+                  if (o !== quality) onQuality(o)
+                }}
+              >
+                {o}
+              </button>
+            ))}
+          </div>
+        )}
         <div data-row className="row">
           <button
             ref={play}
@@ -311,6 +353,14 @@ export function Controls({
             onChange={(e) => setVol(video.current!, Number(e.target.value))}
           />
           <span className="spacer" />
+          <button
+            type="button"
+            aria-label={`Quality: ${quality}`}
+            aria-expanded={menu}
+            onClick={() => setMenu(!menu)}
+          >
+            {quality}
+          </button>
           <button
             type="button"
             aria-label={full ? 'Exit fullscreen' : 'Fullscreen'}

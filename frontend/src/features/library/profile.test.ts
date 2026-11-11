@@ -1,7 +1,13 @@
 // Run: node --test src/features/library/profile.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { decision, deviceProfile, probe, type Probe } from './profile.ts'
+import {
+  decision,
+  deviceProfile,
+  probe,
+  toQuality,
+  type Probe,
+} from './profile.ts'
 
 const webos: Probe = {
   h264: { profiles: ['high', 'main'], level: 51 },
@@ -61,6 +67,51 @@ test('compatible mode: H.264 + stereo AAC in .ts, 1080p / 8 Mbps caps', () => {
   )
 })
 
+const sizes = (p: ReturnType<typeof deviceProfile>) =>
+  p.CodecProfiles.map((c) =>
+    c.Conditions.filter((x) => /Width|Height/.test(x.Property))
+      .map((x) => x.Value)
+      .join('x'),
+  )
+const hevcAv1: Probe = {
+  ...webos,
+  hevc: { level: 153, main10: true },
+  av1: { main10: true },
+}
+
+test('quality Auto: no size limit, remux ceiling', () => {
+  const p = deviceProfile(hevcAv1)
+  assert.equal(p.MaxStreamingBitrate, 120_000_000)
+  assert.deepEqual(sizes(p), ['', '', ''])
+})
+
+test('quality 720p: bitrate + size on every codec', () => {
+  const p = deviceProfile(hevcAv1, false, false, '720p')
+  assert.equal(p.MaxStreamingBitrate, 4_000_000)
+  assert.deepEqual(sizes(p), ['1280x720', '1280x720', '1280x720'])
+  assert.equal(
+    deviceProfile(hevcAv1, false, false, '480p').MaxStreamingBitrate,
+    1_500_000,
+  )
+})
+
+test('compatible mode: at most 1080p, a lower quality still applies', () => {
+  assert.equal(
+    deviceProfile(webos, false, true, 'Auto').MaxStreamingBitrate,
+    8_000_000,
+  )
+  const p = deviceProfile(webos, false, true, '480p')
+  assert.equal(p.MaxStreamingBitrate, 1_500_000)
+  assert.deepEqual(sizes(p), ['854x480'])
+})
+
+test('stored quality: invalid or missing = Auto', () => {
+  assert.equal(toQuality('720p'), '720p')
+  assert.equal(toQuality(null), 'Auto')
+  assert.equal(toQuality('4K'), 'Auto')
+  assert.equal(toQuality('toString'), 'Auto')
+})
+
 test('no H.264: clear error', () => {
   assert.throws(
     () => deviceProfile({ ...webos, h264: null }),
@@ -112,6 +163,31 @@ test('decision: HEVC client remuxes; fallback flags force transcode', () => {
     hevcac3,
   )
   assert.deepEqual([f.videoCopy, f.audioCopy], [false, false])
+})
+
+test('decision: over the quality limit means video transcode (no reason)', () => {
+  const v720 = [
+    {
+      Index: 0,
+      Type: 'Video',
+      Codec: 'h264',
+      Width: 1280,
+      Height: 720,
+      BitRate: 900_000,
+    },
+    h264aac[1],
+  ]
+  const q =
+    'VideoCodec=h264&AudioCodec=aac&AudioStreamIndex=1&TranscodeReasons=DirectPlayError&VideoBitrate=1430815'
+  assert.equal(decision(url(q), v720).videoCopy, true) // Auto: bitrate only
+  const d = decision(url(`${q}&MaxWidth=854&MaxHeight=480`), v720)
+  assert.equal(d.videoCopy, false)
+  assert.match(d.text, /over limit: width,height \(1280x720/)
+  assert.equal(
+    decision(url(q), [{ ...v720[0], BitRate: 5_000_000 }, h264aac[1]])
+      .videoCopy,
+    false,
+  )
 })
 
 test('decision: level/bit depth reasons mean video transcode', () => {

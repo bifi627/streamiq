@@ -35,7 +35,14 @@ test('audioTracks: audio streams only, language + title, codec + layout', () => 
     audioTracks([
       { Index: 0, Type: 'Video', Codec: 'h264' },
       { Index: 1, Type: 'Audio', Codec: 'ac3', Channels: 6, Language: 'eng' },
-      { Index: 2, Type: 'Audio', Codec: 'aac', Channels: 2, Language: 'deu', Title: 'Commentary' },
+      {
+        Index: 2,
+        Type: 'Audio',
+        Codec: 'aac',
+        Channels: 2,
+        Language: 'deu',
+        Title: 'Commentary',
+      },
       { Index: 3, Type: 'Audio', Codec: 'aac', Channels: 1, Language: 'und' },
       { Index: 4, Type: 'Subtitle', Language: 'eng' },
     ]),

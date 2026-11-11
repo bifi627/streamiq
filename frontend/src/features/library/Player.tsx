@@ -12,7 +12,9 @@
 // Quality (#108): the picker's limit goes into the profile; a switch reloads at
 // the playhead the same way (Jellyfin serves one HLS level per load).
 // Audio (#109): the same reload with AudioStreamIndex (no switchable audio
-// renditions in Jellyfin's HLS); the first load plays Jellyfin's default track.
+// renditions in Jellyfin's HLS) + MediaSourceId (without it Jellyfin ignores
+// the index); the first load plays Jellyfin's default track. Remux keeps
+// stream copy of the chosen track.
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
@@ -53,6 +55,7 @@ const AUTO_TRANSCODE = {
 type PlaybackInfo = {
   ErrorCode?: string
   MediaSources: {
+    Id: string
     TranscodingUrl?: string
     MediaStreams: NonNullable<Item['MediaStreams']>
   }[]
@@ -103,6 +106,7 @@ export function Player({
     let text: number | undefined
     let sub = -1 // the hls.js subtitle track, kept across reloads
     let track: number | undefined // audio stream; unset = Jellyfin's default
+    let source: string | undefined // Jellyfin ignores AudioStreamIndex without it
     let copy: Copy = { video: true, audio: true }
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
@@ -124,7 +128,10 @@ export function Player({
           AllowAudioStreamCopy: copy.audio,
           ...(!copy.audio && { MaxAudioChannels: 2 }),
           ...(text !== undefined && { SubtitleStreamIndex: text }),
-          ...(track !== undefined && { AudioStreamIndex: track }),
+          ...(track !== undefined && {
+            AudioStreamIndex: track,
+            MediaSourceId: source,
+          }),
         },
       )
       if (gone || load !== loads) return
@@ -137,6 +144,7 @@ export function Player({
       event(`jellyfin: ${d.text}`)
       const [path, query] = src.TranscodingUrl.split('?')
       const params = new URLSearchParams(query)
+      source = src.Id
       setTracks(audioTracks(src.MediaStreams))
       setAudio(params.get('AudioStreamIndex') ?? '')
       if (!d.videoCopy && !max)

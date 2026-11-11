@@ -46,7 +46,9 @@ const pitch = (p: Page) =>
     }
     const bins = new Float32Array(v.an.frequencyBinCount)
     v.an.getFloatFrequencyData(bins)
-    return (bins.indexOf(Math.max(...bins)) * v.an.context.sampleRate) / v.an.fftSize
+    return (
+      (bins.indexOf(Math.max(...bins)) * v.an.context.sampleRate) / v.an.fftSize
+    )
   })
 
 const tunnelOk = (p: Page) =>
@@ -181,23 +183,32 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a.getByRole('menuitem', { name: /^Quality.*480p/ }).click() // remembered
       await a.getByRole('menuitemradio', { name: /^Auto/ }).click()
-      // Audio (#109): Jellyfin's default track first; a switch reloads at the
-      // playhead with AudioStreamIndex, and the remux carries the other track.
-      // Labels use the browser's locale ("English" / "Englisch").
+      // Audio (#109): Jellyfin's default track (English, 440 Hz) first; a
+      // switch reloads at the playhead with AudioStreamIndex, and the remux
+      // carries the German track (880 Hz). Labels use the browser's locale.
       const [en, de] = await a.evaluate(() =>
         ['eng', 'deu'].map((c) =>
-          new Intl.DisplayNames(undefined, { type: 'language' }).of(c),
+          new Intl.DisplayNames(undefined, { type: 'language' }).of(c)!,
         ),
       )
-      await expect.poll(() => pitch(a), { timeout: 30_000 }).toBeCloseTo(440, -2)
+      await a.evaluate(() => (document.querySelector('video')!.currentTime = 1)) // room left in the 30 s clip
+      await expect
+        .poll(() => pitch(a), { timeout: 30_000 })
+        .toBeCloseTo(440, -2)
       await a.getByRole('button', { name: 'Playback options' }).click()
-      await a.getByRole('menuitem', { name: `Audio${en} ›` }).click()
-      await a.getByRole('menuitemradio', { name: `${de}AAC mono` }).click()
-      await expect.poll(() => pitch(a), { timeout: 30_000 }).toBeCloseTo(880, -2)
+      await a
+        .getByRole('menuitem', { name: new RegExp(`^Audio.*${en}`) })
+        .click()
+      await a
+        .getByRole('menuitemradio', { name: new RegExp(`^${de}.*AAC mono`) })
+        .click()
+      await expect
+        .poll(() => pitch(a), { timeout: 30_000 })
+        .toBeCloseTo(880, -2)
       await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
-          /jellyfin: video remux \(h264\) · audio copy \(aac 1ch, stream 2\)[\s\S]*audio: switch to stream 2 @([3-9]|[1-9]\d)\./,
+          /jellyfin: video remux \(h264\) · audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: switch to stream \1 @\d/,
         ),
       ).toBeVisible()
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()

@@ -17,6 +17,7 @@
 }
 
 .player .bar {
+  font-size: 12px;
   position: absolute;
   left: 0;
   right: 0;
@@ -91,4 +92,56 @@
 }
 .player .bar button:focus {
   background: rgba(255, 255, 255, 0.3);
+}
+/* Quality popover (#108): floats above the quality button, over the picture. */
+.player .popover {
+  position: absolute;
+  right: 60px;
+  bottom: calc(100% - 16px); /* above the seek row */
+  min-width: 200px;
+  padding: 6px 0;
+  background: rgba(28, 28, 28, 0.92);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+/* An options page's header: goes back to the main page. */
+.player .bar .popover .heading {
+  color: #aaa;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+.player .bar .popover button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border-radius: 0;
+  padding: 0 16px;
+  text-align: left;
+  font-weight: 500;
+}
+.player .popover .check {
+  width: 24px;
+  color: #8ab4f8;
+}
+.player .popover small {
+  font-size: 11px;
+  margin-left: auto;
+  padding-left: 16px;
+  color: #999;
+}
+.player .bar .popover button:focus {
+  outline-offset: -4px;
+}
+/* Portrait phones: one button row (no volume slider: phones have hardware
+   keys; mute stays), and the settings popover sits over the controls,
+   compact, so it fits the short player. */
+@media (orientation: portrait) {
+  .player .volume {
+    display: none;
+  }
+  .player .popover {
+    bottom: 8px;
+  }
+  .player .bar .popover button {
+    min-height: 36px;
+  }
 }

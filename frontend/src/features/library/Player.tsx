@@ -9,25 +9,37 @@
 // there with a video transcode for the rest of this playback.
 // Audio fallback (#115): on an audio decode/append error, reload there with
 // stereo AAC (no audio copy) for the rest of this playback.
+// Quality (#108): the picker's limit goes into the profile; a switch reloads at
+// the playhead the same way (Jellyfin serves one HLS level per load).
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
-import { compatibleOn } from '../../settings'
+import { compatibleOn, quality, setQuality } from '../../settings'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { Controls } from './Controls'
-import { decision, describe, deviceProfile, probe, type Probe } from './profile'
+import {
+  decision,
+  describe,
+  deviceProfile,
+  limit,
+  probe,
+  QUALITIES,
+  QUALITY,
+  type Probe,
+  type Quality,
+} from './profile'
 import { covers, STUCK_APPENDS, TICKS_PER_SECOND, type Item } from './items'
 
-// Video transcode output ceilings, set on the TranscodingUrl only when Jellyfin
-// transcodes video. Jellyfin only scales down and clamps the bitrate to the
-// source's, so smaller sources keep their size. Never with stream copy: a
-// bitrate there makes Jellyfin transcode anything above it.
-// ponytail: fixed 1080p/8 Mbps; a quality picker (per device/uplink) replaces this.
-const TRANSCODE = {
-  VideoBitrate: '8000000',
-  MaxHeight: '1080',
-  MaxWidth: '1920',
+// Auto's video transcode output ceilings (e.g. the #81 fallback), set on the
+// TranscodingUrl only when Jellyfin transcodes video; with a quality limit
+// Jellyfin puts that limit there itself. Jellyfin only scales down and clamps
+// the bitrate to the source's, so smaller sources keep their size. Never with
+// stream copy: a bitrate there makes Jellyfin transcode anything above it.
+const AUTO_TRANSCODE = {
+  VideoBitrate: String(QUALITY['1080p'].bitrate),
+  MaxHeight: String(QUALITY['1080p'].height),
+  MaxWidth: String(QUALITY['1080p'].width),
 }
 
 type PlaybackInfo = {
@@ -54,6 +66,8 @@ export function Player({
   const [blocked, setBlocked] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [q, setQ] = useState(quality)
+  const pick = useRef<(q: Quality) => void>(() => {})
 
   useEffect(() => {
     const v = video.current!
@@ -72,16 +86,25 @@ export function Player({
 
     let caps: Probe
     const compatible = compatibleOn() // read once: applies from the next playback
+    let q = quality()
     // First text subtitle: offered via HLS, off (no picker yet: #136).
     let text: number | undefined
-    // Loads the stream at `at` seconds; called again by the fallbacks.
-    const start = async (copy: Copy, at: number) => {
+    let sub = -1 // the hls.js subtitle track, kept across reloads
+    let copy: Copy = { video: true, audio: true }
+    let loads = 0 // only the latest start() attaches (quick quality switches)
+    // Loads the stream at `at` seconds; called again by reload().
+    const start = async (at: number) => {
+      const load = ++loads
+      const max = limit(q, compatible)
+      event(
+        `quality: ${q}${max ? ` (≤${max.height}p, ${max.bitrate / 1e6} Mbps)` : ' (no limit)'}`,
+      )
       // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
       const info = await tunnelJson<PlaybackInfo>(
         pc,
         `/Items/${itemId}/PlaybackInfo`,
         {
-          DeviceProfile: deviceProfile(caps, !copy.audio, compatible),
+          DeviceProfile: deviceProfile(caps, !copy.audio, compatible, q),
           EnableDirectPlay: false,
           EnableDirectStream: false,
           AllowVideoStreamCopy: copy.video,
@@ -90,7 +113,7 @@ export function Player({
           ...(text !== undefined && { SubtitleStreamIndex: text }),
         },
       )
-      if (gone) return
+      if (gone || load !== loads) return
       const src = info.MediaSources[0]
       if (!src?.TranscodingUrl)
         throw new Error(
@@ -99,9 +122,13 @@ export function Player({
       const d = decision(src.TranscodingUrl, src.MediaStreams)
       event(`jellyfin: ${d.text}`)
       const [path, query] = src.TranscodingUrl.split('?')
-      const q = new URLSearchParams(query)
+      const params = new URLSearchParams(query)
+      if (!d.videoCopy && !max)
+        Object.entries(AUTO_TRANSCODE).forEach(([k, val]) => params.set(k, val))
       if (!d.videoCopy)
-        Object.entries(TRANSCODE).forEach(([k, val]) => q.set(k, val))
+        event(
+          `transcode to ≤${params.get('MaxHeight') ?? '?'}p, ${params.get('VideoBitrate')} bps`,
+        )
       h = new Hls({
         loader: tunnelLoader(pc),
         startPosition: at,
@@ -127,7 +154,7 @@ export function Player({
             `${e.mimeType ?? ''} ${e.error?.message ?? ''} ${v.error?.message ?? ''}`,
           )
         if (copy.audio && audio && e.type === Hls.ErrorTypes.MEDIA_ERROR)
-          return reload({ ...copy, audio: false }, 'stereo AAC')
+          return reload('fallback: stereo AAC', { audio: false })
         if (e.fatal) setErr(`playback error: ${e.details}`)
       })
       // What the device is asked to decode, and whether it says it can.
@@ -171,11 +198,11 @@ export function Player({
           return
         if (covers(a.timeRanges[a.type], v.currentTime)) stuck = 0
         else if (++stuck >= STUCK_APPENDS)
-          reload({ ...copy, video: false }, 'video transcode')
+          reload('fallback: video transcode', { video: false })
       })
       h.attachMedia(v)
-      h.loadSource(`${TUNNEL_ORIGIN}${path}?${q}`)
-      h.subtitleTrack = -1
+      h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
+      h.subtitleTrack = sub
       // Autoplay is blocked without a user gesture (deep link / reload): the
       // control bar stays up with Play focused, one Enter/tap starts it.
       v.play().catch((e: Error) => {
@@ -184,14 +211,22 @@ export function Player({
       })
     }
 
-    // Restarts at the playhead with less stream copy (the fallbacks).
-    const reload = (copy: Copy, why: string) => {
+    // Restarts at the playhead: with less stream copy (the fallbacks) or
+    // another quality. Keeps the subtitle choice.
+    const reload = (why: string, less: Partial<Copy> = {}) => {
+      if (!caps) return // still starting: the first load picks it up
       const t = v.currentTime
-      event(`fallback: ${why} @${t.toFixed(1)}`)
+      event(`${why} @${t.toFixed(1)}`)
+      copy = { ...copy, ...less }
       const old = h
+      if (old) sub = old.subtitleTrack
       h = null // no position reports while the media detaches
       old?.destroy()
-      start(copy, t).catch((e: Error) => setErr(e.message))
+      start(t).catch((e: Error) => setErr(e.message))
+    }
+    pick.current = (next) => {
+      q = next
+      reload(`quality: switch to ${next}`)
     }
 
     ;(async () => {
@@ -211,7 +246,6 @@ export function Player({
         (s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream,
       )?.Index
       await start(
-        { video: true, audio: true },
         (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
       )
     })().catch((e: Error) => setErr(e.message))
@@ -246,6 +280,25 @@ export function Player({
         video={video}
         duration={(item?.RunTimeTicks ?? 0) / TICKS_PER_SECOND}
         blocked={blocked}
+        settings={[
+          {
+            name: 'Quality',
+            value: q,
+            options: QUALITIES.map((o) => ({
+              value: o,
+              label: o,
+              hint: QUALITY[o]
+                ? `${(QUALITY[o].bitrate / 1e6).toLocaleString()} Mbps`
+                : 'no limit',
+            })),
+            pick: (v) => {
+              const next = v as Quality
+              setQ(next)
+              setQuality(next)
+              pick.current(next)
+            },
+          },
+        ]}
         onBack={() => onExit(item)}
       >
         <video ref={video} />

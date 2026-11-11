@@ -98,23 +98,42 @@ export const describe = (p: Probe) =>
 // Jellyfin plays only these audio codecs in HLS .ts (StreamBuilder).
 const TS_AUDIO = ['aac', 'ac3', 'eac3', 'mp3']
 
-// ponytail: fixed 120 Mbps ceiling (≈ jellyfin-web's), so sources remux at any
-// realistic bitrate; #108 sets this from the quality picker.
+// Auto's ceiling (≈ jellyfin-web's), so sources remux at any realistic bitrate.
 const MAX_BITRATE = 120_000_000
 
-// Compatible mode (#113) caps: they hold even for a remux (Jellyfin transcodes
-// anything above them).
-const COMPATIBLE = { bitrate: 8_000_000, width: 1920, height: 1080 }
+/** Quality picker (#108). Auto = no limit (Jellyfin decides). The others cap
+ * MaxStreamingBitrate and the size: Jellyfin remuxes a source within them and
+ * transcodes a larger one down (it only scales down). Ordered from least to
+ * most restrictive. */
+export const QUALITY = {
+  Auto: null,
+  '1080p': { bitrate: 8_000_000, width: 1920, height: 1080 },
+  '720p': { bitrate: 4_000_000, width: 1280, height: 720 },
+  '480p': { bitrate: 1_500_000, width: 854, height: 480 },
+}
+export type Quality = keyof typeof QUALITY
+export const QUALITIES = Object.keys(QUALITY) as Quality[]
+
+/** A stored value as a Quality; invalid or missing = Auto. */
+export const toQuality = (v: unknown): Quality =>
+  QUALITIES.includes(v as Quality) ? (v as Quality) : 'Auto'
+
+/** The limit in effect: the quality's, but at most 1080p in compatible mode
+ * (#113). null = no limit. */
+export const limit = (quality: Quality, compatible = false) =>
+  QUALITY[compatible && quality === 'Auto' ? '1080p' : quality]
 
 /** The DeviceProfile for PlaybackInfo. stereo = the audio fallback: AAC 2.0
  * only. compatible = the most restrictive profile (#113): H.264 only, stereo
- * AAC, .ts, 1080p / 8 Mbps. Throws when there is no H.264 (the one transcode
- * target). */
+ * AAC, .ts, at most 1080p / 8 Mbps. quality = the picker's limit (#108).
+ * Throws when there is no H.264 (the one transcode target). */
 export function deviceProfile(
   probed: Probe,
   stereo = false,
   compatible = false,
+  quality: Quality = 'Auto',
 ) {
+  const max = limit(quality, compatible)
   const p: Probe = compatible
     ? { ...probed, hevc: null, av1: null, audio: ['aac'], surround: false }
     : probed
@@ -139,8 +158,15 @@ export function deviceProfile(
   const sdr = cond('VideoRangeType', 'EqualsAny', 'SDR') // HDR transcodes (tone-mapped)
   const depth = (main10?: boolean) =>
     cond('VideoBitDepth', 'LessThanEqual', main10 ? 10 : 8)
+  // On every codec: the limit holds for a remux too (above it, transcode).
+  const size = max
+    ? [
+        cond('Width', 'LessThanEqual', max.width),
+        cond('Height', 'LessThanEqual', max.height),
+      ]
+    : []
   return {
-    MaxStreamingBitrate: compatible ? COMPATIBLE.bitrate : MAX_BITRATE,
+    MaxStreamingBitrate: max?.bitrate ?? MAX_BITRATE,
     DirectPlayProfiles: [], // always HLS over the tunnel
     TranscodingProfiles: [
       {
@@ -163,12 +189,7 @@ export function deviceProfile(
           depth(),
           cond('VideoProfile', 'EqualsAny', p.h264.profiles.join('|')),
           cond('VideoLevel', 'LessThanEqual', p.h264.level),
-          ...(compatible
-            ? [
-                cond('Width', 'LessThanEqual', COMPATIBLE.width),
-                cond('Height', 'LessThanEqual', COMPATIBLE.height),
-              ]
-            : []),
+          ...size,
         ],
       },
       ...(p.hevc
@@ -180,6 +201,7 @@ export function deviceProfile(
                 sdr,
                 depth(p.hevc.main10),
                 cond('VideoLevel', 'LessThanEqual', p.hevc.level),
+                ...size,
               ],
             },
           ]
@@ -189,7 +211,7 @@ export function deviceProfile(
             {
               Type: 'Video',
               Codec: 'av1',
-              Conditions: [sdr, depth(p.av1.main10)],
+              Conditions: [sdr, depth(p.av1.main10), ...size],
             },
           ]
         : []),
@@ -198,11 +220,20 @@ export function deviceProfile(
   }
 }
 
-type Stream = { Index: number; Type: string; Codec?: string; Channels?: number }
+type Stream = {
+  Index: number
+  Type: string
+  Codec?: string
+  Channels?: number
+  Width?: number
+  Height?: number
+  BitRate?: number
+}
 
 /** What Jellyfin will do with a TranscodingUrl, from its params (mirrors
  * EncodingHelper.CanStreamCopy*): video remux/transcode, audio copy/transcode,
- * and the TranscodeReasons. */
+ * and the TranscodeReasons. A quality limit (#108) puts MaxWidth/MaxHeight/
+ * VideoBitrate in the URL but no reason, so `over` says which one it is. */
 export function decision(url: string, streams: Stream[]) {
   const q = new URLSearchParams(url.split('?')[1])
   const has = (list: string | null, c?: string) =>
@@ -212,7 +243,15 @@ export function decision(url: string, streams: Stream[]) {
   const a = streams.find(
     (s) => s.Type === 'Audio' && String(s.Index) === q.get('AudioStreamIndex'),
   )
+  const num = (k: string) => Number(q.get(k) ?? Infinity)
+  const over = [
+    (v?.Width ?? 0) > num('MaxWidth') && 'width',
+    (v?.Height ?? 0) > num('MaxHeight') && 'height',
+    // Jellyfin transcodes a source of unknown bitrate when one is set.
+    (v?.BitRate ?? Infinity) > num('VideoBitrate') && 'bitrate',
+  ].filter(Boolean)
   const videoCopy =
+    !over.length &&
     q.get('allowVideoStreamCopy') !== 'false' &&
     has(q.get('VideoCodec'), v?.Codec) &&
     !/Video|ContainerBitrate|Interlaced|Anamorphic|RefFrames/.test(reasons)
@@ -224,6 +263,6 @@ export function decision(url: string, streams: Stream[]) {
     videoCopy,
     audioCopy,
     reasons,
-    text: `video ${videoCopy ? 'remux' : 'transcode'} (${v?.Codec ?? '?'}) · audio ${audioCopy ? 'copy' : 'transcode'} (${a?.Codec ?? '?'} ${a?.Channels ?? '?'}ch) · reasons ${reasons || 'none'}`,
+    text: `video ${videoCopy ? 'remux' : 'transcode'} (${v?.Codec ?? '?'}) · audio ${audioCopy ? 'copy' : 'transcode'} (${a?.Codec ?? '?'} ${a?.Channels ?? '?'}ch) · reasons ${reasons || 'none'}${over.length ? ` · over limit: ${over.join(',')} (${v?.Width}x${v?.Height}, ${v?.BitRate ?? '?'} bps)` : ''}`,
   }
 }

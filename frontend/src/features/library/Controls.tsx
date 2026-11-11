@@ -68,6 +68,8 @@ export type Setting = {
   name: string
   value: string
   options: { value: string; label: string; hint?: string }[]
+  /** What is in effect, shown next to the value (e.g. "Original 4K"). */
+  status?: string
   pick: (value: string) => void
 }
 
@@ -347,7 +349,8 @@ export function Controls({
               >
                 {st.name}
                 <small>
-                  {st.options.find((o) => o.value === st.value)?.label} ›
+                  {st.options.find((o) => o.value === st.value)?.label}
+                  {st.status && ` · ${st.status}`} ›
                 </small>
               </button>
             ))}

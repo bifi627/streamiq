@@ -101,12 +101,14 @@ const TS_AUDIO = ['aac', 'ac3', 'eac3', 'mp3']
 // Auto's ceiling (≈ jellyfin-web's), so sources remux at any realistic bitrate.
 const MAX_BITRATE = 120_000_000
 
-/** Quality picker (#108). Auto = no limit (Jellyfin decides). The others cap
- * MaxStreamingBitrate and the size: Jellyfin remuxes a source within them and
- * transcodes a larger one down (it only scales down). Ordered from least to
- * most restrictive. */
+/** Quality picker (#108, #161). Source = no limit: the original file plays
+ * unless the device can't take it. Auto = Source for now (#162 caps it from
+ * the measured link). The others cap MaxStreamingBitrate and the size:
+ * Jellyfin remuxes a source within them and transcodes a larger one down (it
+ * only scales down). Ordered from least to most restrictive. */
 export const QUALITY = {
   Auto: null,
+  Source: null,
   '1080p': { bitrate: 8_000_000, width: 1920, height: 1080 },
   '720p': { bitrate: 4_000_000, width: 1280, height: 720 },
   '480p': { bitrate: 1_500_000, width: 854, height: 480 },
@@ -121,7 +123,72 @@ export const toQuality = (v: unknown): Quality =>
 /** The limit in effect: the quality's, but at most 1080p in compatible mode
  * (#113). null = no limit. */
 export const limit = (quality: Quality, compatible = false) =>
-  QUALITY[compatible && quality === 'Auto' ? '1080p' : quality]
+  QUALITY[compatible && !QUALITY[quality] ? '1080p' : quality]
+
+/** The source's video size; 0 = unknown. */
+export type Size = { width: number; height: number }
+
+/** The picker's options for a source: a rung that would not scale it down is
+ * hidden (Jellyfin never upscales), unless it is the current choice. Unknown
+ * size = all. */
+export const qualities = (src: Size, current: Quality) =>
+  QUALITIES.filter((o) => {
+    const r = QUALITY[o]
+    return (
+      !r ||
+      o === current ||
+      !src.height ||
+      r.height < src.height ||
+      r.width < src.width
+    )
+  })
+
+const NAMES: [number, number, string][] = [
+  [3840, 2160, '4K'],
+  [2560, 1440, '1440p'],
+  [1920, 1080, '1080p'],
+  [1280, 720, '720p'],
+  [854, 480, '480p'],
+]
+/** A video size by its usual name: 3840x1600 (scope) is 4K, 640x360 is 360p.
+ * 5 % slack for crops (1916x1076); portrait by its short side. */
+export function sizeName({ width, height }: Size) {
+  const [long, short] = [Math.max(width, height), Math.min(width, height)] // portrait too
+  return (
+    NAMES.find(([w, h]) => long >= w * 0.95 || short >= h * 0.95)?.[2] ??
+    `${short}p`
+  )
+}
+
+/** "4K, 40 Mbps" for the Source option; parts that are unknown are left out. */
+export const sourceHint = (src: Size, bitrate?: number) =>
+  [
+    src.height && sizeName(src),
+    bitrate &&
+      `${(bitrate / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 })} Mbps`,
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+/** What plays, for the picker: the original, or the transcode's size from the
+ * final TranscodingUrl params (Jellyfin keeps the aspect within MaxWidth/
+ * MaxHeight and never upscales). */
+export function nowPlaying(
+  videoCopy: boolean,
+  params: URLSearchParams,
+  src: Size,
+) {
+  if (videoCopy) return `Original${src.height ? ` ${sizeName(src)}` : ''}`
+  const num = (k: string) => Number(params.get(k) ?? Infinity)
+  const scale = Math.min(
+    1,
+    num('MaxHeight') / src.height,
+    num('MaxWidth') / src.width,
+  )
+  return src.height
+    ? `Transcoded to ${sizeName({ width: Math.round(src.width * scale), height: Math.round(src.height * scale) })}`
+    : 'Transcoded'
+}
 
 /** The DeviceProfile for PlaybackInfo. stereo = the audio fallback: AAC 2.0
  * only. compatible = the most restrictive profile (#113): H.264 only, stereo

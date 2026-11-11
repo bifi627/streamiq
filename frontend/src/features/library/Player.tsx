@@ -10,7 +10,9 @@
 // Audio fallback (#115): on an audio decode/append error, reload there with
 // stereo AAC (no audio copy) for the rest of this playback.
 // Quality (#108): the picker's limit goes into the profile; a switch reloads at
-// the playhead the same way (Jellyfin serves one HLS level per load).
+// the playhead the same way (Jellyfin serves one HLS level per load). The
+// picker (#161) offers only rungs that scale this source down, and says what
+// plays (original or transcode size).
 // Audio (#109): the same reload with AudioStreamIndex (no switchable audio
 // renditions in Jellyfin's HLS) + MediaSourceId (without it Jellyfin ignores
 // the index); the first load plays Jellyfin's default track. Remux keeps
@@ -27,11 +29,14 @@ import {
   describe,
   deviceProfile,
   limit,
+  nowPlaying,
   probe,
-  QUALITIES,
+  qualities,
   QUALITY,
+  sourceHint,
   type Probe,
   type Quality,
+  type Size,
 } from './profile'
 import {
   audioTracks,
@@ -57,6 +62,7 @@ type PlaybackInfo = {
   MediaSources: {
     Id: string
     TranscodingUrl?: string
+    Bitrate?: number
     MediaStreams: NonNullable<Item['MediaStreams']>
   }[]
 }
@@ -94,6 +100,10 @@ export function Player({
   const video = useRef<HTMLVideoElement>(null)
   const [err, setErr] = useState<string | null>(null)
   const [q, setQ] = useState(quality)
+  const [file, setFile] = useState<{ size: Size; bitrate?: number }>({
+    size: { width: 0, height: 0 },
+  })
+  const [now, setNow] = useState<string>()
   const pick = useRef<(q: Quality) => void>(() => {})
   // The audio menu: the item's tracks and the one playing (from the URL).
   const [tracks, setTracks] = useState<ReturnType<typeof audioTracks>>([])
@@ -158,6 +168,9 @@ export function Player({
         )
       const d = decision(src.TranscodingUrl, src.MediaStreams)
       event(`jellyfin: ${d.text}`)
+      const sv = src.MediaStreams.find((s) => s.Type === 'Video')
+      const size = { width: sv?.Width ?? 0, height: sv?.Height ?? 0 }
+      setFile({ size, bitrate: src.Bitrate ?? sv?.BitRate })
       const [path, query] = src.TranscodingUrl.split('?')
       const params = new URLSearchParams(query)
       source = src.Id
@@ -169,6 +182,7 @@ export function Player({
         event(
           `transcode to ≤${params.get('MaxHeight') ?? '?'}p, ${params.get('VideoBitrate')} bps`,
         )
+      setNow(nowPlaying(d.videoCopy, params, size))
       h = new Hls({
         loader: tunnelLoader(pc),
         startPosition: at,
@@ -329,16 +343,19 @@ export function Player({
           {
             name: 'Quality',
             value: q,
-            options: QUALITIES.map((o) => ({
+            status: now,
+            options: qualities(file.size, q).map((o) => ({
               value: o,
               label: o,
               hint: QUALITY[o]
                 ? `${(QUALITY[o].bitrate / 1e6).toLocaleString()} Mbps`
-                : 'no limit',
+                : (o === 'Source' && sourceHint(file.size, file.bitrate)) ||
+                  'no limit',
             })),
             pick: (v) => {
               const next = v as Quality
               setQ(next)
+              setNow(undefined) // until the reload's decision
               setQuality(next)
               pick.current(next)
             },

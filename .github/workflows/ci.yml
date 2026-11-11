@@ -79,6 +79,7 @@ jobs:
         working-directory: e2e
       # ponytail: no `playwright install --with-deps chrome`: the runner image ships Google Chrome
       # (channel 'chrome'), and that step's apt run failed whenever the Ubuntu mirrors were down (#157).
+      - run: /opt/google/chrome/chrome --version  # the binary Playwright's channel 'chrome' launches on Linux
       - run: npx playwright test
         working-directory: e2e
       - if: failure()

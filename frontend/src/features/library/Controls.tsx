@@ -9,9 +9,11 @@
 //   after HIDE_MS (playing or paused; it stays only while autoplay is blocked).
 // - Mouse (and Magic Remote pointer) on the picture: click play-pause, double
 //   click fullscreen. Touch: tap toggles the bar.
-// - Quality (#108): the button opens a popover over the picture, focused on the
-//   current option. In it: ↑/↓ move, Enter picks and closes, Back closes it.
-//   A click outside closes it too.
+// - Settings (#108, #153): the gear opens a popover over the picture: a main
+//   page with one row per setting (name + current value), each opening its
+//   options page. ↑/↓ move, Enter opens / picks (and closes), Back goes up one
+//   page, then closes. A click outside closes it. One button for every setting,
+//   so the bar stays one row on a phone and the remote model stays ↑/↓ + Enter.
 import {
   useEffect,
   useRef,
@@ -20,7 +22,6 @@ import {
   type RefObject,
 } from 'react'
 import { clock } from './items'
-import { QUALITIES, QUALITY, type Quality } from './profile'
 import './Player.css'
 
 const HIDE_MS = 4000
@@ -62,6 +63,17 @@ const setVol = (v: HTMLVideoElement, x: number) => {
   v.muted = v.volume === 0
 }
 
+/** One entry of the settings menu (quality, later audio #109, subtitles #136). */
+export type Setting = {
+  name: string
+  value: string
+  options: { value: string; label: string; hint?: string }[]
+  pick: (value: string) => void
+}
+
+/** The settings popover's page: closed, main, or that setting's options. */
+type Page = null | 'main' | number
+
 const isBack = (e: KeyboardEvent) =>
   e.key === 'Escape' ||
   e.key === 'GoBack' ||
@@ -72,16 +84,14 @@ export function Controls({
   video,
   duration,
   blocked,
-  quality,
-  onQuality,
+  settings,
   onBack,
   children,
 }: {
   video: RefObject<HTMLVideoElement | null>
   duration: number
   blocked: boolean
-  quality: Quality
-  onQuality: (q: Quality) => void
+  settings: Setting[]
   onBack: () => void
   children: ReactNode
 }) {
@@ -94,7 +104,8 @@ export function Controls({
   const [muted, setMuted] = useState(false)
   const [volume, setVolume] = useState(1)
   const [full, setFull] = useState(false)
-  const [menu, setMenu] = useState(false)
+  const [page, setPage] = useState<Page>(null)
+  const [from, setFrom] = useState(0) // setting whose page was open last (main focuses it)
   const menuRow = useRef<HTMLDivElement>(null)
   const qBtn = useRef<HTMLButtonElement>(null)
   const timer = useRef(0)
@@ -115,7 +126,7 @@ export function Controls({
       hide() {
         clearTimeout(timer.current)
         setShown(false)
-        setMenu(false)
+        setPage(null)
         if (bar.current?.contains(document.activeElement))
           root.current?.focus({ preventScroll: true })
       },
@@ -174,10 +185,11 @@ export function Controls({
       const pop = menuRow.current
       if (isBack(e)) {
         e.preventDefault() // the browser's own Back would leave the player too
-        if (pop) {
-          setMenu(false)
+        if (pop?.dataset.page === 'main') {
+          setPage(null)
           qBtn.current?.focus({ preventScroll: true })
-        } else if (inBar || bar.current?.dataset.shown === 'true') ui.hide()
+        } else if (pop) setPage('main')
+        else if (inBar || bar.current?.dataset.shown === 'true') ui.hide()
         else back.current()
         return
       }
@@ -250,13 +262,13 @@ export function Controls({
     if (blocked) play.current?.focus({ preventScroll: true })
   }, [blocked])
 
-  // Opening the menu focuses the current option (D-pad lands in it).
+  // Each page focuses its [data-focus] item (D-pad lands in it): on the main
+  // page the setting just left, on an options page the current option.
   useEffect(() => {
-    if (menu)
-      menuRow.current
-        ?.querySelector<HTMLElement>('[aria-checked="true"]')
-        ?.focus({ preventScroll: true })
-  }, [menu])
+    menuRow.current
+      ?.querySelector<HTMLElement>('[data-focus="true"]')
+      ?.focus({ preventScroll: true })
+  }, [page])
 
   const visible = shown || blocked
   const onPicture = (e: { target: unknown }) =>
@@ -272,7 +284,7 @@ export function Controls({
         pointer.current = e.pointerType
         const t = e.target as Element
         if (!menuRow.current?.contains(t) && !qBtn.current?.contains(t))
-          setMenu(false) // a click outside closes the popover
+          setPage(null) // a click outside closes the popover
         // Touch: a tap on the picture toggles the bar (a hidden bar ignores
         // touches, see Player.css); mouse/pointer just shows it.
         if (e.pointerType === 'mouse' || !onPicture(e)) ui.poke()
@@ -312,35 +324,67 @@ export function Controls({
             {clock(time)} / {clock(duration)}
           </span>
         </div>
-        {menu && (
+        {page === 'main' && (
+          <div
+            ref={menuRow}
+            className="popover"
+            data-page="main"
+            role="menu"
+            aria-label="Settings"
+          >
+            {settings.map((st, i) => (
+              <button
+                key={st.name}
+                type="button"
+                role="menuitem"
+                data-focus={i === from}
+                onClick={() => {
+                  setFrom(i)
+                  setPage(i)
+                }}
+              >
+                {st.name}
+                <small>
+                  {st.options.find((o) => o.value === st.value)?.label} ›
+                </small>
+              </button>
+            ))}
+          </div>
+        )}
+        {typeof page === 'number' && settings[page] && (
           <div
             ref={menuRow}
             className="popover"
             role="menu"
-            aria-label="Quality"
+            aria-label={settings[page].name}
           >
-            <div className="heading">Quality</div>
-            {QUALITIES.map((o) => {
-              const max = QUALITY[o]
+            <button
+              type="button"
+              role="menuitem"
+              className="heading"
+              onClick={() => setPage('main')}
+            >
+              ‹ {settings[page].name}
+            </button>
+            {settings[page].options.map((o) => {
+              const st = settings[page]
+              const on = o.value === st.value
               return (
                 <button
-                  key={o}
+                  key={o.value}
                   type="button"
                   role="menuitemradio"
-                  aria-checked={o === quality}
+                  aria-checked={on}
+                  data-focus={on}
                   onClick={() => {
-                    setMenu(false)
+                    setPage(null)
                     qBtn.current?.focus({ preventScroll: true })
-                    if (o !== quality) onQuality(o)
+                    if (!on) st.pick(o.value)
                   }}
                 >
-                  <span className="check">{o === quality ? '✓' : ''}</span>
-                  {o}
-                  <small>
-                    {max
-                      ? `${(max.bitrate / 1e6).toLocaleString()} Mbps`
-                      : 'no limit'}
-                  </small>
+                  <span className="check">{on ? '✓' : ''}</span>
+                  {o.label}
+                  {o.hint && <small>{o.hint}</small>}
                 </button>
               )
             })}
@@ -391,12 +435,12 @@ export function Controls({
           <button
             ref={qBtn}
             type="button"
-            aria-label={`Quality: ${quality}`}
+            aria-label="Playback options"
             aria-haspopup="menu"
-            aria-expanded={menu}
-            onClick={() => setMenu(!menu)}
+            aria-expanded={page !== null}
+            onClick={() => setPage(page === null ? 'main' : null)}
           >
-            <Icon d={ICON.gear} /> <span className="label">{quality}</span>
+            <Icon d={ICON.gear} />
           </button>
           <button
             type="button"

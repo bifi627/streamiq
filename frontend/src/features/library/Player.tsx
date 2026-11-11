@@ -24,6 +24,7 @@ import {
   deviceProfile,
   limit,
   probe,
+  QUALITIES,
   QUALITY,
   type Probe,
   type Quality,
@@ -279,12 +280,25 @@ export function Player({
         video={video}
         duration={(item?.RunTimeTicks ?? 0) / TICKS_PER_SECOND}
         blocked={blocked}
-        quality={q}
-        onQuality={(next) => {
-          setQ(next)
-          setQuality(next)
-          pick.current(next)
-        }}
+        settings={[
+          {
+            name: 'Quality',
+            value: q,
+            options: QUALITIES.map((o) => ({
+              value: o,
+              label: o,
+              hint: QUALITY[o]
+                ? `${(QUALITY[o].bitrate / 1e6).toLocaleString()} Mbps`
+                : 'no limit',
+            })),
+            pick: (v) => {
+              const next = v as Quality
+              setQ(next)
+              setQuality(next)
+              pick.current(next)
+            },
+          },
+        ]}
         onBack={() => onExit(item)}
       >
         <video ref={video} />

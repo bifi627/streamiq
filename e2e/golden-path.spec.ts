@@ -152,7 +152,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       // Quality (#108): a switch reloads at the playhead with the new limit;
       // the 360p clip is within 480p, so it still remuxes. Remembered.
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
-      await a.getByRole('button', { name: 'Quality: Auto' }).click()
+      await a.getByRole('button', { name: 'Playback options' }).click()
+      await a.getByRole('menuitem', { name: /^Quality.*Auto/ }).click()
       await a.getByRole('menuitemradio', { name: /^480p/ }).click()
       await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
@@ -163,7 +164,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // and plays on there
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.reload()
-      await a.getByRole('button', { name: 'Quality: 480p' }).click()
+      await a.getByRole('button', { name: 'Playback options' }).click()
+      await a.getByRole('menuitem', { name: /^Quality.*480p/ }).click() // remembered
       await a.getByRole('menuitemradio', { name: /^Auto/ }).click()
       // Opened in a new tab (no in-app history): Back goes to the item's folder.
       const tab = await a.context().newPage()

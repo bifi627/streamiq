@@ -104,13 +104,10 @@
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
-.player .popover .heading {
-  padding: 4px 16px 6px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+/* An options page's header: goes back to the main page. */
+.player .bar .popover .heading {
   color: #aaa;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
 .player .bar .popover button {
   display: flex;
@@ -134,13 +131,11 @@
 .player .bar .popover button:focus {
   outline-offset: -4px;
 }
-/* Portrait phones: one button row (gear without its label, no volume slider:
-   phones have hardware keys; mute stays), and the quality popover sits over
-   the controls, compact, so it fits the short player. */
+/* Portrait phones: one button row (no volume slider: phones have hardware
+   keys; mute stays), and the settings popover sits over the controls,
+   compact, so it fits the short player. */
 @media (orientation: portrait) {
-  .player .bar .label,
-  .player .volume,
-  .player .popover .heading {
+  .player .volume {
     display: none;
   }
   .player .popover {

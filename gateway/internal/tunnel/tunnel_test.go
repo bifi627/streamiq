@@ -204,6 +204,37 @@ func TestBurst(t *testing.T) {
 	}
 }
 
+// The gateway API (#146): /streamiq/* is answered by the gateway, never
+// Jellyfin (any spelling of the prefix, any method), unknown paths are 404, and
+// status is built per request without a Jellyfin token.
+func TestGatewayAPI(t *testing.T) {
+	j, last := fakeJellyfin(t)
+	j.SetKey("", "")
+	n := 0
+	j.Status = func() any { n++; return map[string]any{"transcoding": "nvenc"} }
+	status, hdr, body := do(t, j, tunnelReq{Method: "GET", URL: StatusPath})
+	if status != 200 || hdr["Content-Type"] != "application/json" || string(body) != `{"transcoding":"nvenc"}` || n != 1 {
+		t.Fatalf("status = %d %v %s (built %d times)", status, hdr, body, n)
+	}
+	j.SetKey(key, uid) // a token would let a forwarded request through: none may be
+	for _, rq := range []tunnelReq{
+		{Method: "GET", URL: "/streamiq/nope"},
+		{Method: "GET", URL: "/streamiq"},
+		{Method: "GET", URL: "/StreamIQ/status"},
+		{Method: "GET", URL: "/streamiq/%73tatus"},
+		{Method: "POST", URL: StatusPath, Body: "{}"},
+		{Method: "GET", URL: "/streamiq/../streamiq/status"},
+	} {
+		raw, _ := json.Marshal(rq)
+		if status, _, _, _ := proxy(j, raw); status != http.StatusNotFound {
+			t.Errorf("%s %s: status %d, want 404", rq.Method, rq.URL, status)
+		}
+	}
+	if last.URL != nil || n != 1 {
+		t.Fatalf("jellyfin hit %v, status built %d times", last.URL, n)
+	}
+}
+
 func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte) {
 	t.Helper()
 	raw, _ := json.Marshal(rq)

@@ -20,6 +20,7 @@ public class BrokerSteps(IntegrationFixture fx)
     // ! assigned by the browser-connect step before any step uses it
     private WebSocket _browser = null!;
     private string _session = "";
+    private string _offerer = "";
 
     [AfterScenario]
     public void Close()
@@ -56,6 +57,7 @@ public class BrokerSteps(IntegrationFixture fx)
     [When("\"(.*)\" offers to gateway \"(.*)\"")]
     public async Task WhenOffer(string email, string name)
     {
+        _offerer = email;
         await BrowserAuth(await IdToken(email));
         var ready = Assert.NotNull(await Receive(_browser));
         Assert.Equal("ready", ready.GetProperty("type").GetString());
@@ -70,6 +72,10 @@ public class BrokerSteps(IntegrationFixture fx)
         var m = Assert.NotNull(await Receive(_gateways[name].Ws));
         Assert.Equal("offer", m.GetProperty("type").GetString());
         Assert.Equal("v=0 fake", m.GetProperty("sdp").GetProperty("sdp").GetString());
+        // The broker stamps the offering user's internal id (users.id, not the Firebase UID).
+        using var me = await SignedIn(_offerer);
+        Assert.Equal((await me.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("userId").GetString(),
+            m.GetProperty("user").GetString());
         var session = m.GetProperty("session").GetString();
         Assert.NotNull(session);
         _session = session;

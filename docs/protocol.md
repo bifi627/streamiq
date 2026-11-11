@@ -85,11 +85,23 @@ Closing it ends the session (broker sends the gateway `bye`).
 | browser → broker | `{type:"ice", candidate}` |
 | broker → browser | `{type:"answer", sdp}` · `{type:"ice", candidate}` |
 
-**Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, sdp}`,
+**Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, user, sdp}`,
 `{type:"ice", session, candidate}`, `{type:"bye", session}`; gateway → broker
 `{type:"answer"|"ice", session, …}`. The broker only routes a gateway's message
 into a session opened *for that gateway*. The gateway keeps one PeerConnection
 per session (several browsers at once).
+
+**Device + user (#138).** Every session has both, checked independently:
+- **device** = the client key, proven on the `auth` channel (pairing, below): *which
+  device*. Paired once per browser, e.g. a shared TV.
+- **user** = `user` in the gateway's `offer`: the signed-in browser's `users.id` (never
+  the Firebase UID), stamped by the broker from the authenticated browser socket; the
+  browser can't set it. *Who acts*: any household member signs in on a shared device as
+  themselves. The gateway refuses an offer without `user` and keeps it on the session
+  for gateway API handlers. The gateway never contacts Firebase.
+- Not tied together: a stolen key alone gets nothing without a household sign-in; a
+  compromised API alone gets nothing without a paired device. Nothing is enforced per
+  user yet (one member per household); roles in the offer come with #92.
 
 ## ICE servers + connection telemetry (MVP item 5)
 
@@ -143,12 +155,12 @@ it is authorized, the gateway closes every other channel immediately.
 | 4 | browser → gateway | `{type:"commit", h, name}` — h = hex(SHA-256(utf8(nB))), nB = hex(32 random bytes) |
 | 5 | gateway → browser | `{type:"nonce", n: nA}` — only after the commit |
 | 6 | browser → gateway | `{type:"reveal", n: nB}` — gateway checks it against h |
-| 7 | both | `code = uint32_be(SHA-256(utf8(gatewayFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; gateway page lists the request (name + code), browser shows the code |
-| 8 | gateway → browser | `{type:"approved"}` after **Approve on the gateway's local page** (key persisted to `allowlist.json`; browser stores the pin), or `{type:"rejected", reason}` (Reject, 5-min expiry, >3 pending, bad signature/reveal) |
+| 7 | both | `code = uint32_be(SHA-256(utf8(gatewayFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; local gateway page lists the request (name + code), browser shows the code |
+| 8 | gateway → browser | `{type:"approved"}` after **Approve on the local gateway page** (key persisted to `allowlist.json`; browser stores the pin), or `{type:"rejected", reason}` (Reject, 5-min expiry, >3 pending, bad signature/reveal) |
 
 The commit makes the code ungrindable: a MITM gets one guess (10⁻⁶).
 
-**Remove** (gateway's local page) drops the key from `allowlist.json` and closes
+**Remove** (local gateway page) drops the key from `allowlist.json` and closes
 every open session authed with it: the gateway closes the PeerConnection, so all
 its channels end. Signaling can't do this — the tunnel is peer-to-peer and the
 broker never sees client keys. No message is sent; the browser sees the
@@ -242,7 +254,7 @@ stays a *viewer*:
   browser-sent `userId` is dropped (Jellyfin also answers `403` to another
   user's id with this token). Tenant = household = one Jellyfin user. A
   gateway set up before #50 still runs on an admin API key pinned to the user
-  stored with it, until the next admin login on its local page replaces it.
+  stored with it, until the next admin login on its local gateway page replaces it.
 - **Allowlist.** Defense in depth on top of the viewer token: only these pass
   (anything else is `403`):
 
@@ -267,7 +279,7 @@ stays a *viewer*:
   gateway strips like any other browser-sent key.
 - **Token repair.** Once a minute the gateway checks the token (`GET /Users/Me`).
   On `401` it signs in again as the viewer with the stored viewer password; if
-  Jellyfin refuses that too, the local page asks for an admin login again.
+  Jellyfin refuses that too, the local gateway page asks for an admin login again.
 
 Resume goes through `UserData` (`PlaybackPositionTicks`). `/Sessions/Playing*`
 isn't allowlisted (Jellyfin ignored it from the pre-#50 API key; not needed).

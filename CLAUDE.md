@@ -53,10 +53,10 @@ page, allowlist, pins enforced both directions; protocol in `docs/protocol.md`.
 Desktop, a containerized gateway gets relayed on cellular). **PR A:** native binaries on GitHub Releases
 (`gateway-v*` tag → `release-gateway.yml`), `install.sh`/`install.ps1` (install = update,
 SHA256-checked), `gateway.env` config file, daily update *notice* (notify-only), version in heartbeat + Gateways list (migration #5), JSON logs.
-User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (gateway page),
+User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (local gateway page),
 so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin credential without manual
 steps (`gateway/internal/jellyfin`: wizard bootstrap on a fresh Jellyfin, else one admin login
-on the local page; since #50 a non-admin viewer token, not an API key, in `state/jellyfin.json`),
+on the local gateway page; since #50 a non-admin viewer token, not an API key, in `state/jellyfin.json`),
 `install/jellyfin-compose.yml` release asset (pin = `jellyfin.Image`, test-enforced; `gateway jellyfin up|upgrade`), local
 page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapped admin creds).
 
@@ -76,16 +76,20 @@ rate limits (per client IP via `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`
 per-socket message buckets, 10 s auth deadline), TURN creds minted per broker session
 in `ready` and revoked at its end (`GET /turn` is gone; dev coturn uses TURN REST
 `STREAMIQ_TURN_SECRET`), gateway revocation (`DELETE /api/gateways/{id}`: hash nulled, row
-kept for telemetry, sockets + sessions closed). Removing a client on the gateway page
+kept for telemetry, sockets + sessions closed). Removing a client on the local gateway page
 closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).
-**Local-page secret:** the page no longer shows the Jellyfin admin password, only the path
+**Local gateway page secret:** the page no longer shows the Jellyfin admin password, only the path
 of `state/jellyfin.json` (0600) holding it. LAN access to the page needs a token
 (`state/page-token`; login link `state/page-link`, printed by the installer; loopback exempt).
 Postgres backups: daily `pg_dump` → GCS (`db-backup.yml`), restore runbook `docs/db-recovery.md`.
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,
-`STREAMIQ_API_URL`). "Media server" means Jellyfin only; "relay" means TURN only.
+`STREAMIQ_API_URL`); **broker** = the API's signaling endpoint (`/api/broker/ws` +
+`/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home
+LAN (code: `localpage`); **web gateway page** = the web app's view of a gateway;
+**gateway API** = endpoints the gateway serves under `/streamiq/*` over the tunnel
+(#138; a session carries device = client key and user = `users.id` from the broker). "Media server" means Jellyfin only; "relay" means TURN only.
 Docs under `docs/superpowers/` keep the old words.
 **Project name:** StreamIQ (was "r8er" until 2026-11-06). Code forms: `streamiq` (paths,
 module, DB, binaries), `StreamIq` (.NET namespaces/types), `STREAMIQ_` (env vars); "StreamIQ"

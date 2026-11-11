@@ -47,6 +47,9 @@ func TestPairThenTunnel(t *testing.T) {
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
 	b := connect(t, gateway, "s1", key, false)
+	if got := gateway.User("s1"); got != "user-s1" {
+		t.Fatalf("session user = %q, want the offer's user", got)
+	}
 	if b.say(nil)["type"] != "unpaired" {
 		t.Fatal("want unpaired for an unknown key")
 	}
@@ -84,6 +87,17 @@ func TestPairThenTunnel(t *testing.T) {
 	other, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if connect(t, gateway, "s3", other, false).say(nil)["type"] != "unpaired" {
 		t.Fatal("a different key must not inherit the pairing")
+	}
+}
+
+// An offer without the broker-stamped user gets no session and no answer.
+func TestOfferWithoutUserRefused(t *testing.T) {
+	gateway := &Sessions{}
+	sent := false
+	raw, _ := json.Marshal(Msg{Type: "offer", Session: "s", SDP: &webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: "v=0"}})
+	gateway.Handle(raw, func(any) { sent = true })
+	if sent || gateway.Active() != 0 || gateway.User("s") != "" {
+		t.Fatal("offer without user must be refused")
 	}
 }
 
@@ -205,7 +219,7 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 	offer, _ := pc.CreateOffer(nil)
 	inOrder.Lock() // candidates gathered from here on queue behind the offer
 	pc.SetLocalDescription(offer)
-	handle(Msg{Type: "offer", Session: id, SDP: pc.LocalDescription()})
+	handle(Msg{Type: "offer", Session: id, User: "user-" + id, SDP: pc.LocalDescription()})
 	inOrder.Unlock()
 
 	ch := b.say(nil)

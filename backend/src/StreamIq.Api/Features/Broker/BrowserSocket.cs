@@ -9,7 +9,8 @@ namespace StreamIq.Api.Features.Broker;
 
 /// A browser's signaling socket: one WebSocket = one session to one gateway. The
 /// Firebase ID token arrives as the first message (not a query param — keeps it
-/// out of logs); the offer may only target an online gateway of the caller's tenant.
+/// out of logs); the offer may only target an online gateway of the caller's tenant,
+/// and the broker stamps the caller's `users.id` on it as `user`.
 /// `ready` carries this session's ICE servers; a revocable TURN credential is
 /// revoked when the socket closes (closing it also ends the session: `bye`).
 public static class BrowserSocket
@@ -96,6 +97,8 @@ public static class BrowserSocket
                             {
                                 ["type"] = "offer",
                                 ["session"] = session.ToString(),
+                                // Who acts (users.id, never the Firebase UID); the client key says which device.
+                                ["user"] = user.Id.ToString(),
                                 ["sdp"] = msg["sdp"]?.DeepClone(),
                             }, ct);
                             break;

@@ -23,6 +23,14 @@ ffmpeg -y -f lavfi -i "testsrc=duration=600:size=1280x720:rate=30" \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest \
   dev-media/h264-aac-long.mp4
 
+# Two audio tracks (#109): English 440 Hz, German 880 Hz, to hear a switch.
+ffmpeg -y -f lavfi -i "testsrc=duration=120:size=1280x720:rate=30" \
+  -f lavfi -i "sine=frequency=440:duration=120" \
+  -f lavfi -i "sine=frequency=880:duration=120" \
+  -map 0:v -map 1:a -map 2:a -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest \
+  -metadata:s:a:0 language=eng -metadata:s:a:1 language=deu \
+  dev-media/h264-two-audio.mp4
+
 # 1080p + subtitle fixture for the Checkpoint-1 "sustained 1080p + subs over the
 # away path" test. CBR ~6 Mbps (a realistic 1080p streaming bitrate) — testsrc is
 # highly compressible, so without a forced bitrate it'd encode to ~1 Mbps and

@@ -263,6 +263,6 @@ export function decision(url: string, streams: Stream[]) {
     videoCopy,
     audioCopy,
     reasons,
-    text: `video ${videoCopy ? 'remux' : 'transcode'} (${v?.Codec ?? '?'}) · audio ${audioCopy ? 'copy' : 'transcode'} (${a?.Codec ?? '?'} ${a?.Channels ?? '?'}ch) · reasons ${reasons || 'none'}${over.length ? ` · over limit: ${over.join(',')} (${v?.Width}x${v?.Height}, ${v?.BitRate ?? '?'} bps)` : ''}`,
+    text: `video ${videoCopy ? 'remux' : 'transcode'} (${v?.Codec ?? '?'}) · audio ${audioCopy ? 'copy' : 'transcode'} (${a?.Codec ?? '?'} ${a?.Channels ?? '?'}ch, stream ${a?.Index ?? '?'}) · reasons ${reasons || 'none'}${over.length ? ` · over limit: ${over.join(',')} (${v?.Width}x${v?.Height}, ${v?.BitRate ?? '?'} bps)` : ''}`,
   }
 }

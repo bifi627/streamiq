@@ -11,6 +11,8 @@
 // stereo AAC (no audio copy) for the rest of this playback.
 // Quality (#108): the picker's limit goes into the profile; a switch reloads at
 // the playhead the same way (Jellyfin serves one HLS level per load).
+// Audio (#109): the same reload with AudioStreamIndex (no switchable audio
+// renditions in Jellyfin's HLS); the first load plays Jellyfin's default track.
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
@@ -29,7 +31,13 @@ import {
   type Probe,
   type Quality,
 } from './profile'
-import { covers, STUCK_APPENDS, TICKS_PER_SECOND, type Item } from './items'
+import {
+  audioTracks,
+  covers,
+  STUCK_APPENDS,
+  TICKS_PER_SECOND,
+  type Item,
+} from './items'
 
 // Auto's video transcode output ceilings (e.g. the #81 fallback), set on the
 // TranscodingUrl only when Jellyfin transcodes video; with a quality limit
@@ -68,6 +76,10 @@ export function Player({
   const [err, setErr] = useState<string | null>(null)
   const [q, setQ] = useState(quality)
   const pick = useRef<(q: Quality) => void>(() => {})
+  // The audio menu: the item's tracks and the one playing (from the URL).
+  const [tracks, setTracks] = useState<ReturnType<typeof audioTracks>>([])
+  const [audio, setAudio] = useState('')
+  const pickAudio = useRef<(index: number) => void>(() => {})
 
   useEffect(() => {
     const v = video.current!
@@ -90,6 +102,7 @@ export function Player({
     // First text subtitle: offered via HLS, off (no picker yet: #136).
     let text: number | undefined
     let sub = -1 // the hls.js subtitle track, kept across reloads
+    let track: number | undefined // audio stream; unset = Jellyfin's default
     let copy: Copy = { video: true, audio: true }
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
@@ -111,6 +124,7 @@ export function Player({
           AllowAudioStreamCopy: copy.audio,
           ...(!copy.audio && { MaxAudioChannels: 2 }),
           ...(text !== undefined && { SubtitleStreamIndex: text }),
+          ...(track !== undefined && { AudioStreamIndex: track }),
         },
       )
       if (gone || load !== loads) return
@@ -123,6 +137,8 @@ export function Player({
       event(`jellyfin: ${d.text}`)
       const [path, query] = src.TranscodingUrl.split('?')
       const params = new URLSearchParams(query)
+      setTracks(audioTracks(src.MediaStreams))
+      setAudio(params.get('AudioStreamIndex') ?? '')
       if (!d.videoCopy && !max)
         Object.entries(AUTO_TRANSCODE).forEach(([k, val]) => params.set(k, val))
       if (!d.videoCopy)
@@ -211,8 +227,8 @@ export function Player({
       })
     }
 
-    // Restarts at the playhead: with less stream copy (the fallbacks) or
-    // another quality. Keeps the subtitle choice.
+    // Restarts at the playhead: with less stream copy (the fallbacks), another
+    // quality or audio track. Keeps the other choices.
     const reload = (why: string, less: Partial<Copy> = {}) => {
       if (!caps) return // still starting: the first load picks it up
       const t = v.currentTime
@@ -227,6 +243,10 @@ export function Player({
     pick.current = (next) => {
       q = next
       reload(`quality: switch to ${next}`)
+    }
+    pickAudio.current = (index) => {
+      track = index
+      reload(`audio: switch to stream ${index}`)
     }
 
     ;(async () => {
@@ -298,6 +318,20 @@ export function Player({
               pick.current(next)
             },
           },
+          // Only with a choice to make: one track = no entry.
+          ...(tracks.length > 1
+            ? [
+                {
+                  name: 'Audio',
+                  value: audio,
+                  options: tracks,
+                  pick: (v: string) => {
+                    setAudio(v)
+                    pickAudio.current(Number(v))
+                  },
+                },
+              ]
+            : []),
         ]}
         onBack={() => onExit(item)}
       >

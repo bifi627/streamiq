@@ -329,7 +329,8 @@ export async function startStack(o: StackOptions) {
   const emulator = `http://${firebase.getHost()}:${firebase.getMappedPort(9099)}`
   process.env.E2E_JELLYFIN_URL = `http://${jellyfin.getHost()}:${jellyfin.getMappedPort(8096)}`
   // Fixture media, made in the container by Jellyfin's own ffmpeg (no host
-  // ffmpeg in CI): a 30 s H.264/AAC clip + sidecar English subtitle, in
+  // ffmpeg in CI): a 30 s H.264 clip with two AAC tracks (English 440 Hz,
+  // German 880 Hz: the audio menu, #109) + sidecar English subtitle, in
   // Jellyfin's one-folder-per-movie layout.
   const sh = (cmd: string) =>
     jellyfin.exec(['sh', '-c', cmd]).then((r) => {
@@ -338,7 +339,9 @@ export async function startStack(o: StackOptions) {
   await sh(
     'D="/media/streamiq e2e clip" && mkdir -p "$D" && /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -y ' +
       '-f lavfi -i testsrc=duration=30:size=640x360:rate=30 -f lavfi -i sine=frequency=440:duration=30 ' +
-      '-c:v libx264 -pix_fmt yuv420p -c:a aac -shortest -metadata title="streamiq e2e clip" "$D/streamiq e2e clip.mp4" && ' +
+      '-f lavfi -i sine=frequency=880:duration=30 -map 0:v -map 1:a -map 2:a ' +
+      '-c:v libx264 -pix_fmt yuv420p -c:a aac -shortest -metadata:s:a:0 language=eng -metadata:s:a:1 language=deu ' +
+      '-metadata title="streamiq e2e clip" "$D/streamiq e2e clip.mp4" && ' +
       `printf '1\n00:00:00,000 --> 00:00:30,000\nstreamiq e2e subtitle\n' > "$D/streamiq e2e clip.en.srt"`,
   )
   await setupJellyfin(process.env.E2E_JELLYFIN_URL)

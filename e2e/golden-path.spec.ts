@@ -35,6 +35,20 @@ const videoTime = (p: Page) =>
     .locator('video')
     .evaluate((v: HTMLVideoElement) => (v.readyState >= 2 ? v.currentTime : -1))
 
+// Dominant frequency (Hz) of the <video>'s audio: tells the fixture's 440 Hz
+// English track from its 880 Hz German one (#109).
+const pitch = (p: Page) =>
+  p.locator('video').evaluate((v: HTMLVideoElement & { an?: AnalyserNode }) => {
+    if (!v.an) {
+      const ctx = new AudioContext()
+      v.an = ctx.createAnalyser()
+      ctx.createMediaElementSource(v).connect(v.an).connect(ctx.destination)
+    }
+    const bins = new Float32Array(v.an.frequencyBinCount)
+    v.an.getFloatFrequencyData(bins)
+    return (bins.indexOf(Math.max(...bins)) * v.an.context.sampleRate) / v.an.fftSize
+  })
+
 const tunnelOk = (p: Page) =>
   expect(p.getByText('Tunnel OK · HTTP 200')).toBeVisible()
 
@@ -167,6 +181,26 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a.getByRole('menuitem', { name: /^Quality.*480p/ }).click() // remembered
       await a.getByRole('menuitemradio', { name: /^Auto/ }).click()
+      // Audio (#109): Jellyfin's default track first; a switch reloads at the
+      // playhead with AudioStreamIndex, and the remux carries the other track.
+      // Labels use the browser's locale ("English" / "Englisch").
+      const [en, de] = await a.evaluate(() =>
+        ['eng', 'deu'].map((c) =>
+          new Intl.DisplayNames(undefined, { type: 'language' }).of(c),
+        ),
+      )
+      await expect.poll(() => pitch(a), { timeout: 30_000 }).toBeCloseTo(440, -2)
+      await a.getByRole('button', { name: 'Playback options' }).click()
+      await a.getByRole('menuitem', { name: `Audio${en} ›` }).click()
+      await a.getByRole('menuitemradio', { name: `${de}AAC mono` }).click()
+      await expect.poll(() => pitch(a), { timeout: 30_000 }).toBeCloseTo(880, -2)
+      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      await expect(
+        a.getByText(
+          /jellyfin: video remux \(h264\) · audio copy \(aac 1ch, stream 2\)[\s\S]*audio: switch to stream 2 @([3-9]|[1-9]\d)\./,
+        ),
+      ).toBeVisible()
+      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       // Opened in a new tab (no in-app history): Back goes to the item's folder.
       const tab = await a.context().newPage()
       await tab.goto(a.url())

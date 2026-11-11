@@ -19,8 +19,38 @@ export type Item = {
     Type: string
     Codec?: string
     Channels?: number
+    Language?: string
+    Title?: string
     IsTextSubtitleStream?: boolean
   }[]
+}
+
+type Stream = NonNullable<Item['MediaStreams']>[number]
+
+/** The audio menu's options (#109): language (browser locale) + title, the
+ * codec and channels as the hint. */
+export function audioTracks(streams: Stream[] = []) {
+  const lang = (code?: string) => {
+    if (!code || code === 'und') return undefined
+    try {
+      return new Intl.DisplayNames(undefined, { type: 'language' }).of(code)
+    } catch {
+      return code // not a language code Intl knows
+    }
+  }
+  const layout = (n?: number) =>
+    n === 1 ? 'mono' : n === 2 ? 'stereo' : n ? `${n - 1}.1` : ''
+  return streams
+    .filter((s) => s.Type === 'Audio')
+    .map((s, i) => ({
+      value: String(s.Index),
+      label:
+        [lang(s.Language), s.Title].filter(Boolean).join(' · ') ||
+        `Track ${i + 1}`,
+      hint: [s.Codec?.toUpperCase(), layout(s.Channels)]
+        .filter(Boolean)
+        .join(' '),
+    }))
 }
 
 export const clock = (s: number) =>

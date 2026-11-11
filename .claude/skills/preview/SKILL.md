@@ -55,7 +55,7 @@ the same. Background: `docs/tools.md` (Preview env + cloudflared rows).
    - Phone / desktop: <first LAN URL> (accept the certificate warning once)
    - TV: <first LAN URL>/tv → redirects to <tunnel URL>     ← only with --tunnel
    - Login: preview@streamiq.test / preview-password
-   - Pairing: approve on the gateway page <gateway page URL> (this machine)
+   - Pairing: auto-approved, just press Pair this browser
    - Public while running: anyone with the tunnel URL can reach it  ← only with --tunnel
    - Stop: tell me, or `npm run preview --prefix e2e -- down`
    ```

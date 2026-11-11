@@ -14,6 +14,11 @@
 // --tunnel (#141): also a Cloudflare quick tunnel (https://….trycloudflare.com,
 // a trusted cert) for browsers that keep a self-signed exception for navigation
 // only (webOS TV). Public while it runs; open <LAN>/tv on the TV to get there.
+//
+// Pairing (#155): serve approves every pending request on the local gateway
+// page itself, so devices pair without anyone at this PC. The whole pairing
+// flow still runs; only the human code comparison is skipped. With --tunnel,
+// anyone with the URL + preview login gets paired (owner accepted).
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -159,7 +164,7 @@ ${
       ? `  jellyfin:     ${s.jellyfin} (streamiq / streamiq-e2e; new files in ${path.join(root, 'dev-media')}: Scan All Libraries)
 `
       : ''
-  }  gateway page: ${s.gatewayPage} (approve pairing requests here)
+  }  pairing:      auto-approved (gateway page: ${s.gatewayPage})
   logs:         ${path.join(dir, 'logs')}, ${path.join(dir, 'preview.log')}
   stop:         npm run preview --prefix e2e -- down`)
 }
@@ -359,6 +364,28 @@ async function serve() {
       if (i > 60) throw new Error('gateway not online after 60 s')
       await new Promise((r) => setTimeout(r, 1000))
     }
+
+    // ponytail: scrapes the page's /decide forms; breaks if the form markup changes.
+    const page = gateway.pageCookie && {
+      Cookie: `${gateway.pageCookie.name}=${gateway.pageCookie.value}`,
+    }
+    const approveAll = async () => {
+      const html = await fetch(gateway.pageUrl, { headers: page }).then((r) =>
+        r.text(),
+      )
+      for (const [, reqId] of html.matchAll(
+        /action="\/decide"[\s\S]*?name="id" value="([^"]+)"/g,
+      )) {
+        const r = await fetch(gateway.pageUrl + '/decide', {
+          method: 'POST',
+          headers: { Origin: gateway.pageUrl, ...page }, // the page's Guard
+          body: new URLSearchParams({ id: reqId, approve: '1' }),
+          redirect: 'manual',
+        })
+        console.log(`pairing request ${reqId} auto-approve: HTTP ${r.status}`)
+      }
+    }
+    setInterval(() => approveAll().catch((e) => console.error(e)), 1000)
 
     let tunnel: string | undefined
     if (args.includes('--tunnel')) {

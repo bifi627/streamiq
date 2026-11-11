@@ -47,7 +47,7 @@ public static class GatewaySocket
                         case "heartbeat":
                             var lanUrl = SafeLanUrl((string?)msg["lanUrl"]);
                             var version = (string?)msg["version"] is { Length: <= 40 } v ? v : null;
-                            var status = GatewayStatus.From(msg);
+                            var update = (string?)msg["update"] is { Length: > 0 and <= 40 } u ? u : null;
                             // Matching the hash, not just the id: a socket that authenticated
                             // just before a revoke is closed at its next heartbeat.
                             var live = await db.Gateways.Where(d => d.Id == gateway.Id && d.CredentialHash == hash)
@@ -55,7 +55,7 @@ public static class GatewaySocket
                                     .SetProperty(d => d.LastSeenAt, DateTimeOffset.UtcNow)
                                     .SetProperty(d => d.LanUrl, lanUrl)
                                     .SetProperty(d => d.Version, version)
-                                    .SetProperty(d => d.Status, status), ct);
+                                    .SetProperty(d => d.Update, update), ct);
                             if (live == 0)
                             {
                                 await me.KillAsync("revoked");

@@ -34,8 +34,8 @@ Feature: Gateway onboarding
     And "alice@home.test" sees "nas" at version "1.4.0"
     And "alice@home.test" sees "pc" offline
 
-  Scenario: A heartbeat's status snapshot reaches the web app, sanitized
+  Scenario: A heartbeat stores liveness only; the details stay on the gateway
     Given "alice@home.test" has an enrolled gateway "nas"
-    When gateway "nas" heartbeats a status with Jellyfin token "ok", 2 paired clients and an extra field "clientNames"
-    Then "alice@home.test" sees "nas" with Jellyfin token "ok" and 2 paired clients
-    And "alice@home.test" sees no "clientNames" in the status of "nas"
+    When gateway "nas" heartbeats update "1.6.0" plus old status fields "jellyfin" and "pairedClients"
+    Then "alice@home.test" sees "nas" with update "1.6.0"
+    And "alice@home.test" sees no "jellyfin" or "pairedClients" or "status" on "nas"

@@ -71,39 +71,19 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 	return &st, nil
 }
 
-// Status is the snapshot each heartbeat carries for the web app's gateway
-// status (#129, docs/protocol.md). Counts only: no client names (no PII, #65).
-type Status struct {
-	OS             string         `json:"os"`
-	Arch           string         `json:"arch"`
-	StartedAt      time.Time      `json:"startedAt"`
-	Update         string         `json:"update,omitempty"` // newer release version, "" = up to date
-	Jellyfin       JellyfinStatus `json:"jellyfin"`
-	PairedClients  int            `json:"pairedClients"`
-	ActiveSessions int            `json:"activeSessions"`
-}
-
-// JellyfinStatus: Token is "ok", "missing" or "legacy" (pre-#50 admin API key).
-type JellyfinStatus struct {
-	Reachable bool   `json:"reachable"`
-	Version   string `json:"version,omitempty"`
-	Untested  bool   `json:"untested"`
-	Token     string `json:"token"`
-}
-
 type heartbeat struct {
 	Type    string `json:"type"`
 	LanURL  string `json:"lanUrl"`
 	Version string `json:"version"`
-	Status
+	Update  string `json:"update,omitempty"` // newer release version, "" = up to date
 }
 
 // RunControl holds the authenticated control socket until it drops: heartbeats
-// (with status()) out, broker messages (signaling for browser sessions) in,
+// (liveness + update(), #140) out, broker messages (signaling for browser sessions) in,
 // handed to handle with a send func that writes JSON back on this socket.
 // lastBeat holds the last heartbeat's unix time, 0 while disconnected (status page).
 func RunControl(ctx context.Context, api string, st *State, lanURL, version string, lastBeat *atomic.Int64,
-	status func() Status, handle func(raw []byte, send func(any))) error {
+	update func() string, handle func(raw []byte, send func(any))) error {
 	conn, res, err := websocket.Dial(ctx, api+"/api/gateways/ws", &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + st.Credential}},
 	})
@@ -132,7 +112,7 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 		t := time.NewTicker(heartbeatEvery)
 		defer t.Stop()
 		for {
-			send(heartbeat{Type: "heartbeat", LanURL: lanURL, Version: version, Status: status()})
+			send(heartbeat{Type: "heartbeat", LanURL: lanURL, Version: version, Update: update()})
 			lastBeat.Store(time.Now().Unix())
 			select {
 			case <-ctx.Done():

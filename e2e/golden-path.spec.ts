@@ -246,6 +246,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     })
 
     await test.step('new gateway certificate → red warning → re-pair', async () => {
+      // The old page's 3s refresh would hit the dead port, and its error page
+      // can cancel pair()'s goto to the new one (#149).
+      await gatewayPage.goto('about:blank')
       await gateway.stop()
       fs.rmSync(path.join(stateDir, 'cert.pem'))
       // Same env; the spent token is ignored — gateway.json already holds the credential.

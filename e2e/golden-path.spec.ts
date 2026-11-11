@@ -4,16 +4,23 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { expect, test, type Browser, type Page } from '@playwright/test'
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test'
 import { startGateway } from './stack.ts'
 
-const email = 'e2e@streamiq.test'
+// One account per repeat: the Auth emulator lives for the whole run.
+const email = () => `e2e-${test.info().repeatEachIndex}@streamiq.test`
 const password = 'e2e-password'
 
 async function signIn(browser: Browser, create = false, path = '/') {
   const page = await (await browser.newContext()).newPage() // own IndexedDB = own client key
   await page.goto(process.env.E2E_APP_URL! + path)
-  await page.getByPlaceholder('email').fill(email)
+  await page.getByPlaceholder('email').fill(email())
   await page.getByPlaceholder('password').fill(password)
   await page
     .getByRole('button', { name: create ? 'Create account' : 'Sign in' })
@@ -31,14 +38,25 @@ const videoTime = (p: Page) =>
 const tunnelOk = (p: Page) =>
   expect(p.getByText('Tunnel OK · HTTP 200')).toBeVisible()
 
+/**
+ * Opens the local gateway page in a new tab. Navigating the old tab races its
+ * 3s meta refresh: whichever navigation starts second cancels the first (#149).
+ */
+async function gatewayTab(ctx: BrowserContext, url: string) {
+  for (const p of ctx.pages()) await p.close() // drops the pending refresh
+  const page = await ctx.newPage()
+  await page.goto(url)
+  return page
+}
+
 /** Pair from the web app; approve on the gateway page only if the codes match. */
-async function pair(app: Page, gatewayPage: Page, gatewayUrl: string) {
+async function pair(app: Page, ctx: BrowserContext, gatewayUrl: string) {
   await app.getByRole('button', { name: 'Pair this browser' }).click()
   const code = (await app
     .locator('p', { hasText: /^Code/ })
     .locator('b')
     .textContent())!
-  await gatewayPage.goto(gatewayUrl)
+  const gatewayPage = await gatewayTab(ctx, gatewayUrl)
   const request = gatewayPage.locator('form[action="/decide"]')
   await expect(request).toContainText(code) // page self-refreshes every 3s
   await request.getByRole('button', { name: 'Approve' }).click()
@@ -78,10 +96,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await expect(a.getByRole('listitem')).toContainText('online')
     const gatewayCtx = await browser.newContext()
     if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
-    const gatewayPage = await gatewayCtx.newPage()
 
     await test.step('browser A pairs; codes match on both sides', () =>
-      pair(a, gatewayPage, gateway.pageUrl))
+      pair(a, gatewayCtx, gateway.pageUrl))
 
     await test.step('browse → play through the tunnel → resume', async () => {
       await a.getByRole('button', { name: 'Open' }).click()
@@ -188,7 +205,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByLabel('Force relay (TURN)', { exact: true }).check()
       await run(/relay forced: yes[\s\S]*path: relayed \(TURN\)/)
       await a.getByLabel('Force relay (TURN)', { exact: true }).uncheck()
-      await expect(report).not.toContainText(email)
+      await expect(report).not.toContainText(email())
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.goto(process.env.E2E_APP_URL!)
     })
@@ -254,14 +271,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         a.getByText('Refused: this is not the gateway you paired with.'),
       ).toBeVisible()
-      await pair(a, gatewayPage, gateway.pageUrl)
+      await pair(a, gatewayCtx, gateway.pageUrl)
     })
 
     await test.step("Remove on the gateway page → A's open session dies, then A is refused", async () => {
       await a.getByRole('button', { name: 'Open' }).click()
       const movies = a.getByRole('button', { name: /Movies/ })
       await expect(movies).toBeVisible() // a live tunnel session, opened before Remove
-      await gatewayPage.goto(gateway.pageUrl)
+      const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       const paired = gatewayPage.locator('form[action="/remove"]')
       await expect(paired).toHaveCount(1)
       await paired.getByRole('button', { name: 'Remove' }).click()

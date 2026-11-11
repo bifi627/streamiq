@@ -17,6 +17,7 @@
 }
 
 .player .bar {
+  font-size: 14px;
   position: absolute;
   left: 0;
   right: 0;
@@ -105,7 +106,7 @@
 }
 .player .popover .heading {
   padding: 4px 16px 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -125,10 +126,27 @@
   color: #8ab4f8;
 }
 .player .popover small {
+  font-size: 12px;
   margin-left: auto;
   padding-left: 16px;
   color: #999;
 }
 .player .bar .popover button:focus {
   outline-offset: -4px;
+}
+/* Portrait phones: one button row (gear without its label, no volume slider:
+   phones have hardware keys; mute stays), and the quality popover sits over
+   the controls, compact, so it fits the short player. */
+@media (orientation: portrait) {
+  .player .bar .label,
+  .player .volume,
+  .player .popover .heading {
+    display: none;
+  }
+  .player .popover {
+    bottom: 8px;
+  }
+  .player .bar .popover button {
+    min-height: 36px;
+  }
 }

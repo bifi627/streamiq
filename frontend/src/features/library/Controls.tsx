@@ -396,7 +396,7 @@ export function Controls({
             aria-expanded={menu}
             onClick={() => setMenu(!menu)}
           >
-            <Icon d={ICON.gear} /> {quality}
+            <Icon d={ICON.gear} /> <span className="label">{quality}</span>
           </button>
           <button
             type="button"

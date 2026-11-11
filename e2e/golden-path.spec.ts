@@ -202,6 +202,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a
         .getByRole('menuitemradio', { name: new RegExp(`^${de}.*AAC mono`) })
         .click()
+      // The reload shows the last frame meanwhile, not a black, resized box.
+      expect(
+        await a.locator('video').evaluate((v: HTMLVideoElement) => v.poster),
+      ).toMatch(/^data:image\/jpeg/)
       await expect
         .poll(() => pitch(a), { timeout: 30_000 })
         .toBeCloseTo(880, -2)

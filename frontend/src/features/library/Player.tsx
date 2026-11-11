@@ -61,6 +61,22 @@ type PlaybackInfo = {
   }[]
 }
 
+/** Shows the current frame as the poster: a reload detaches the media, and
+ * without it the box goes black and falls back to 300×150 until the new
+ * stream's first frame (the poster also keeps the box's size). */
+function freeze(v: HTMLVideoElement) {
+  if (!v.videoWidth) return
+  const c = document.createElement('canvas')
+  c.width = v.videoWidth
+  c.height = v.videoHeight
+  try {
+    c.getContext('2d')?.drawImage(v, 0, 0)
+    v.poster = c.toDataURL('image/jpeg', 0.8)
+  } catch {
+    // no frame to copy: the reload just flickers
+  }
+}
+
 /** What the current load may stream-copy; the fallbacks turn these off. */
 type Copy = { video: boolean; audio: boolean }
 
@@ -242,6 +258,7 @@ export function Player({
       const t = v.currentTime
       event(`${why} @${t.toFixed(1)}`)
       copy = { ...copy, ...less }
+      freeze(v)
       const old = h
       if (old) sub = old.subtitleTrack
       h = null // no position reports while the media detaches

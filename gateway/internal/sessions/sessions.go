@@ -28,6 +28,7 @@ import (
 type Msg struct {
 	Type      string                     `json:"type"` // offer | answer | ice | bye
 	Session   string                     `json:"session"`
+	User      string                     `json:"user,omitempty"` // offer only: the signed-in user's users.id, stamped by the broker
 	SDP       *webrtc.SessionDescription `json:"sdp,omitempty"`
 	Candidate *webrtc.ICECandidateInit   `json:"candidate,omitempty"`
 }
@@ -38,10 +39,11 @@ type Sessions struct {
 	Store    *pairing.Store
 	Jellyfin *tunnel.Jellyfin // the tunnel's origin + policy
 
-	mu   sync.Mutex
-	pcs  map[string]*webrtc.PeerConnection
-	keys map[string]string // session id → client key fp, recorded before the allowlist check
-	API  *webrtc.API       // from NewAPI; nil = Pion defaults
+	mu    sync.Mutex
+	pcs   map[string]*webrtc.PeerConnection
+	keys  map[string]string // session id → client key fp, recorded before the allowlist check
+	users map[string]string // session id → user id from the offer (who acts; the key says which device)
+	API   *webrtc.API       // from NewAPI; nil = Pion defaults
 }
 
 // NewAPI builds the one WebRTC API all sessions share. Native runs need
@@ -86,7 +88,7 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 	}
 	s.mu.Lock()
 	if s.pcs == nil {
-		s.pcs, s.keys = map[string]*webrtc.PeerConnection{}, map[string]string{}
+		s.pcs, s.keys, s.users = map[string]*webrtc.PeerConnection{}, map[string]string{}, map[string]string{}
 	}
 	pc := s.pcs[m.Session]
 	s.mu.Unlock()
@@ -96,7 +98,12 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 		if pc != nil || m.SDP == nil {
 			return
 		}
-		pc, err := s.newPeer(m.Session, send)
+		if m.User == "" { // every session needs a user: the broker stamps it (docs/protocol.md)
+			log.Printf("gateway: session %s: offer without user refused", m.Session)
+			return
+		}
+		log.Printf("gateway: session %s: user %s", m.Session, m.User)
+		pc, err := s.newPeer(m.Session, m.User, send)
 		if err != nil {
 			log.Printf("gateway: session %s: %v", m.Session, err)
 			return
@@ -116,7 +123,15 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 	}
 }
 
-func (s *Sessions) newPeer(id string, send func(any)) (*webrtc.PeerConnection, error) {
+// User is the session's user id (from the broker's offer) for gateway API
+// handlers; "" for an unknown session. Nothing is enforced per user yet (#92).
+func (s *Sessions) User(session string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.users[session]
+}
+
+func (s *Sessions) newPeer(id, user string, send func(any)) (*webrtc.PeerConnection, error) {
 	api := s.API
 	if api == nil {
 		api = webrtc.NewAPI()
@@ -130,6 +145,7 @@ func (s *Sessions) newPeer(id string, send func(any)) (*webrtc.PeerConnection, e
 	}
 	s.mu.Lock()
 	s.pcs[id] = pc
+	s.users[id] = user
 	s.mu.Unlock()
 
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
@@ -146,6 +162,7 @@ func (s *Sessions) newPeer(id string, send func(any)) (*webrtc.PeerConnection, e
 			s.mu.Lock()
 			delete(s.pcs, id)
 			delete(s.keys, id)
+			delete(s.users, id)
 			s.mu.Unlock()
 		}
 	})

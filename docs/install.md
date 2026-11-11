@@ -7,7 +7,7 @@ anywhere, without router configuration. Two programs run on that machine:
 - the **StreamIQ gateway**, one native binary that connects Jellyfin to your
   browsers.
 
-Setup takes five steps. The gateway's local page (`http://localhost:8097`)
+Setup takes five steps. The local gateway page (`http://localhost:8097`)
 shows a status section for each of them.
 
 ## 1. Get Jellyfin
@@ -35,12 +35,12 @@ Pick one:
 2. Run it on the media machine:
    - Linux / macOS: `curl -fsSL …/install.sh | STREAMIQ_API_URL=… STREAMIQ_ENROLL_TOKEN=… sh`
    - Windows (PowerShell): `$env:STREAMIQ_API_URL='…'; $env:STREAMIQ_ENROLL_TOKEN='…'; irm …/install.ps1 | iex`
-3. Open the local page it prints (`http://localhost:8097`). On Windows, allow
+3. Open the local gateway page it prints (`http://localhost:8097`). On Windows, allow
    the firewall prompt for private networks. The web app now lists the gateway.
 
 On Windows the installer also sets the gateway to start at every logon (see
 [Start on boot](#start-on-boot)). `gateway status` (in the install dir) shows
-whether it is connected, Jellyfin, the version and the local page link.
+whether it is connected, Jellyfin, the version and the local gateway page link.
 
 From another device (phone, laptop; the usual case for a NAS) the page asks for
 a token. Open the link the installer printed after **from another device**
@@ -54,14 +54,14 @@ refuses a mismatch.
 
 ## 3. Connect Jellyfin
 
-The local page's status shows **Jellyfin: reachable** and whether the gateway
+The local gateway page's status shows **Jellyfin: reachable** and whether the gateway
 has its **token**. The gateway streams as its own hidden Jellyfin user,
 `streamiq-viewer`: not an administrator, can't delete anything, sees all
 libraries and keeps its own watch progress (separate from yours in Jellyfin).
 
 - **Fresh Jellyfin** (wizard not done): nothing to do. Within seconds the
   gateway completes the wizard, creates the Jellyfin admin `streamiq` with a
-  random password, and creates `streamiq-viewer`. The local page shows where
+  random password, and creates `streamiq-viewer`. The local gateway page shows where
   the admin password is (`state/jellyfin.json`, readable only on this
   computer), never the password itself. You use it to manage
   Jellyfin.
@@ -90,11 +90,11 @@ can take a while for big collections.
 ## 5. Pair a browser and watch
 
 1. In the web app: **Gateways → Open** on your gateway, then **Pair this browser**.
-2. The browser shows a code. The local page shows a pairing request with a code.
+2. The browser shows a code. The local gateway page shows a pairing request with a code.
    **Approve** only if both codes match.
 3. Browse your libraries and play. The player shows whether the connection is
    direct or relayed. Each browser (phone, laptop, …) is paired once; remove
-   browsers on the local page.
+   browsers on the local gateway page.
 
 ## GPU transcoding (optional)
 
@@ -115,7 +115,7 @@ sees the GPU already). In `jellyfin-compose.yml`, uncomment one block, then run
   (WSL 2), per Jellyfin's docs. Use a
   [native Jellyfin](https://jellyfin.org/downloads) instead (step 1).
 
-**2. Turn it on.** If the gateway set Jellyfin up (the local page says
+**2. Turn it on.** If the gateway set Jellyfin up (the local gateway page says
 **Transcoding settings: managed**), add this line to `gateway.env` and restart
 the gateway:
 
@@ -173,7 +173,7 @@ the first install to change the gateway's name or page port.
 ## Update
 
 The gateway checks GitHub once a day. When a newer release exists, it logs
-`update available vA → vB. Run: …` and shows the same on its local page. Run
+`update available vA → vB. Run: …` and shows the same on its local gateway page. Run
 that command:
 
 - Windows: `%LOCALAPPDATA%\streamiq\gateway.exe update` (cmd) or

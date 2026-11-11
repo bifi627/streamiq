@@ -8,6 +8,8 @@ import {
   type Install,
 } from './api'
 import { Pairing } from '../pairing/Pairing'
+import { connect, NotPaired, type Session } from '../pairing/connect'
+import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
 
 // Gateways list + "Add gateway" (onboarding flow 1). Polls so a freshly installed
@@ -148,8 +150,10 @@ const tokenText = {
 }
 
 // Read-only status from the gateway's heartbeat (#129). Offline: last known
-// values, dated. No tunnel needed, so it works before this browser is paired.
+// values, dated. No tunnel needed, so it works before this browser is paired;
+// only the Transcoding line comes from the gateway API over the tunnel.
 function StatusDetails({ g }: { g: Gateway }) {
+  const [open, setOpen] = useState(false)
   const s: GatewayStatus | null = g.status
   const at = (iso: string) => new Date(iso).toLocaleString()
   if (!s)
@@ -164,7 +168,7 @@ function StatusDetails({ g }: { g: Gateway }) {
     )
   const jf = s.jellyfin
   return (
-    <details>
+    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>Status</summary>
       {!g.online && g.lastSeenAt && <p>Offline. As of {at(g.lastSeenAt)}:</p>}
       <ul>
@@ -208,7 +212,51 @@ function StatusDetails({ g }: { g: Gateway }) {
           Paired browsers: {(s.pairedClients ?? '?').toLocaleString()} · open
           sessions: {(s.activeSessions ?? '?').toLocaleString()}
         </li>
+        {open && <Transcoding g={g} />}
       </ul>
     </details>
+  )
+}
+
+const transcodingText: Record<string, string> = {
+  nvenc: 'GPU (nvenc)',
+  none: 'CPU',
+  unmanaged: 'not managed by StreamIQ',
+}
+
+// From the gateway API over the tunnel (#146), so it needs this browser paired
+// and the gateway online. One short session per opening of the details.
+function Transcoding({ g }: { g: Gateway }) {
+  const [text, setText] = useState('checking…')
+  useEffect(() => {
+    if (!g.online) return
+    let live = true
+    let sess: Session | undefined
+    connect(g.id)
+      .then((x) => {
+        sess = x
+        return tunnelJson<{ transcoding: string }>(x.pc, '/streamiq/status')
+      })
+      .then(
+        (r) => live && setText(transcodingText[r.transcoding] ?? r.transcoding),
+      )
+      .catch(
+        (e: Error) =>
+          live &&
+          setText(
+            e instanceof NotPaired
+              ? 'pair this browser to see it'
+              : e.message.includes('HTTP 404')
+                ? 'gateway too old to report it: update it'
+                : `unavailable (${e.message})`,
+          ),
+      )
+      .finally(() => sess?.close())
+    return () => {
+      live = false
+    }
+  }, [g.id, g.online])
+  return (
+    <li>Transcoding: {g.online ? text : 'gateway offline, not available'}</li>
   )
 }

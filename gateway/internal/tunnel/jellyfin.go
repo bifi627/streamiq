@@ -24,6 +24,9 @@ import (
 type Jellyfin struct {
 	Client *http.Client
 	URL    string // e.g. http://localhost:8096
+	// Status is the body of the gateway API's GET /streamiq/status, built on each
+	// request. ponytail: lives here because the tunnel has one config struct.
+	Status func() any
 
 	cred atomic.Pointer[cred] // SetKey; may arrive after start (internal/jellyfin)
 }

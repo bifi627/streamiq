@@ -199,6 +199,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await tunnelOk(a)
     })
 
+    await test.step('web gateway page: transcoding from the gateway API (#146)', async () => {
+      // e2e's Jellyfin was set up by the test (wizard), not the gateway.
+      await a.getByText('Status', { exact: true }).click()
+      await expect(
+        a.getByText('Transcoding: not managed by StreamIQ'),
+      ).toBeVisible({ timeout: 15_000 })
+    })
+
     await test.step('browser B (same account, never paired) is refused', async () => {
       // Signed out on a deep link: sign-in, then that same route loads.
       const id = (await a.locator('li code').first().textContent())!
@@ -225,6 +233,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         b.getByText(/Paired browsers: 1 · open sessions/),
       ).toBeVisible()
+      await expect(
+        b.getByText('Transcoding: pair this browser to see it'),
+      ).toBeVisible({ timeout: 15_000 })
 
       // The diagnostics page says so too, and names the failed step.
       await b.goto(process.env.E2E_APP_URL! + '/diagnostics')

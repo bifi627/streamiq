@@ -410,13 +410,15 @@ func TestHWAccelFollowsEnv(t *testing.T) {
 	s.poll(context.Background())
 	enc, _ := f.encoding()
 	if enc["HardwareAccelerationType"] != "nvenc" || enc["EncoderPreset"] != "fast" || enc["EnableHardwareEncoding"] != true ||
-		enc["AllowHevcEncoding"] != false || len(enc["HardwareDecodingCodecs"].([]any)) != 7 || s.View().HWAccel != "nvenc" {
+		enc["AllowHevcEncoding"] != false || len(enc["HardwareDecodingCodecs"].([]any)) != 7 || s.View().HWAccel != "nvenc" ||
+		s.View().Transcoding() != "nvenc" {
 		t.Fatalf("nvenc: %v", enc)
 	}
 	s.HWAccel = "" // e.g. no GPU in the container after all
 	s.poll(context.Background())
 	enc, n := f.encoding()
-	if n != 2 || enc["HardwareAccelerationType"] != "none" || enc["EncoderPreset"] != "fast" || s.View().HWAccel != "" {
+	if n != 2 || enc["HardwareAccelerationType"] != "none" || enc["EncoderPreset"] != "fast" || s.View().HWAccel != "" ||
+		s.View().Transcoding() != "none" {
 		t.Fatalf("off: %d posts, %v", n, enc)
 	}
 }
@@ -432,7 +434,7 @@ func TestUserJellyfinUntouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.poll(context.Background())
-	if _, n := f.encoding(); n != 0 || s.View().Managed || s.View().Err != "" {
+	if _, n := f.encoding(); n != 0 || s.View().Managed || s.View().Err != "" || s.View().Transcoding() != "unmanaged" {
 		t.Fatalf("configured a user's Jellyfin: %d posts, view %+v", n, s.View())
 	}
 }

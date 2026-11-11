@@ -233,6 +233,9 @@ func run(ctx context.Context) {
 		log.Fatalf("gateway: %v", err)
 	}
 	go setup.Run(ctx)
+	jf.Status = func() any { // gateway API GET /streamiq/status (docs/protocol.md)
+		return map[string]any{"transcoding": setup.View().Transcoding()}
+	}
 
 	// Enroll once, then heartbeat over the authenticated control socket and
 	// serve the local page.

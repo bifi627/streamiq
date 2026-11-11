@@ -224,16 +224,35 @@ content compression for the browser. Go's default transport would inject
 drops `Content-Length`. Compression stays end-to-end. The one rewrite is
 key redaction in text responses (below).
 
-### Burst endpoint (throughput test, #90)
+### Gateway API (`/streamiq/*`, #138)
 
-`GET /streamiq/burst[?size=N]` on a tunnel channel is answered by the **gateway
-itself**, never proxied to Jellyfin (and needs no Jellyfin token): `200`,
+Every tunnel request whose path starts with `/streamiq/` (the prefix matched
+case-insensitively, like Jellyfin's routing) is answered by the **gateway
+itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only a
+`GET` with an exact, unencoded path matches an endpoint; anything else under
+the prefix (unknown path, other method, percent-encoded) is `404`. Like every
+tunnel request it exists only after connection auth: an unpaired browser gets
+no tunnel channels. The session's user (`offer.user`) is known to handlers;
+nothing is enforced per user yet (#92). Code: `gateway/internal/tunnel/tunnel.go`.
+
+**`GET /streamiq/status`** (#146): `200`, JSON, built on each request. Fields
+are added over time (#140); a client ignores ones it doesn't know.
+
+| Field | Values |
+|---|---|
+| `transcoding` | `"nvenc"` / `"none"`: the `STREAMIQ_JELLYFIN_HWACCEL` the gateway applied to a Jellyfin it set up; `"unmanaged"`: a Jellyfin the user brought (the gateway doesn't own its settings) |
+
+The setting, not a live transcode, is the answer on purpose: Jellyfin doesn't
+fall back to the CPU silently (a broken GPU setup fails playback), and
+Jellyfin's `/Sessions` can't tell more to the viewer token (spike on #86). A
+gateway older than this endpoint answers `404`; the web gateway page then says
+to update it.
+
+**`GET /streamiq/burst[?size=N]`** (throughput test, #90): `200`,
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
 bytes through the normal chunking and backpressure above. `size` defaults to
 4 MiB and is capped at 16 MiB; anything else (over the cap, negative, not a
-number) is `400`. Only a `GET` with that exact, unencoded path matches. Like
-every tunnel request it exists only after connection auth: an unpaired browser
-gets no tunnel channels. The browser's `/diagnostics` page times it for a
+number) is `400`. The browser's `/diagnostics` page times it for a
 throughput figure; nothing is stored.
 
 ### Jellyfin policy (gateway, `gateway/internal/tunnel/jellyfin.go`)

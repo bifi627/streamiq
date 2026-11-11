@@ -503,6 +503,20 @@ func (s *Setup) View() View {
 	return v
 }
 
+// Transcoding is the gateway API's transcoding setting (#146): the applied
+// STREAMIQ_JELLYFIN_HWACCEL ("nvenc", or "none") on a Jellyfin the gateway set
+// up, else "unmanaged". The setting is the honest answer: Jellyfin doesn't fall
+// back to the CPU silently (a broken GPU setup fails the transcode; #86).
+func (v View) Transcoding() string {
+	switch {
+	case !v.Managed:
+		return "unmanaged"
+	case v.HWAccel == "":
+		return "none"
+	}
+	return v.HWAccel
+}
+
 // Token is the credential state for the heartbeat: "ok", "legacy" (pre-#50
 // admin API key) or "missing".
 func (v View) Token() string {

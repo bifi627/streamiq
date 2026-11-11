@@ -92,7 +92,43 @@
 .player .bar button:focus {
   background: rgba(255, 255, 255, 0.3);
 }
-/* The current quality in the quality menu (#108). */
-.player .bar button[aria-pressed='true'] {
-  text-decoration: underline;
+/* Quality popover (#108): floats above the quality button, over the picture. */
+.player .popover {
+  position: absolute;
+  right: 60px;
+  bottom: calc(100% - 16px); /* above the seek row */
+  min-width: 200px;
+  padding: 6px 0;
+  background: rgba(28, 28, 28, 0.92);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.player .popover .heading {
+  padding: 4px 16px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #aaa;
+}
+.player .bar .popover button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border-radius: 0;
+  padding: 0 16px;
+  text-align: left;
+  font-weight: 500;
+}
+.player .popover .check {
+  width: 24px;
+  color: #8ab4f8;
+}
+.player .popover small {
+  margin-left: auto;
+  padding-left: 16px;
+  color: #999;
+}
+.player .bar .popover button:focus {
+  outline-offset: -4px;
 }

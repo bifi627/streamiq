@@ -153,7 +153,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       // the 360p clip is within 480p, so it still remuxes. Remembered.
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
       await a.getByRole('button', { name: 'Quality: Auto' }).click()
-      await a.getByRole('button', { name: '480p' }).click()
+      await a.getByRole('menuitemradio', { name: /^480p/ }).click()
       await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
@@ -164,7 +164,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.reload()
       await a.getByRole('button', { name: 'Quality: 480p' }).click()
-      await a.getByRole('button', { name: 'Auto' }).click()
+      await a.getByRole('menuitemradio', { name: /^Auto/ }).click()
       // Opened in a new tab (no in-app history): Back goes to the item's folder.
       const tab = await a.context().newPage()
       await tab.goto(a.url())

@@ -9,8 +9,9 @@
 //   after HIDE_MS (playing or paused; it stays only while autoplay is blocked).
 // - Mouse (and Magic Remote pointer) on the picture: click play-pause, double
 //   click fullscreen. Touch: tap toggles the bar.
-// - Quality (#108): the button opens a row of options above the buttons (plain
-//   buttons, so the D-pad model above covers it); picking one closes it.
+// - Quality (#108): the button opens a popover over the picture, focused on the
+//   current option. In it: ↑/↓ move, Enter picks and closes, Back closes it.
+//   A click outside closes it too.
 import {
   useEffect,
   useRef,
@@ -19,7 +20,7 @@ import {
   type RefObject,
 } from 'react'
 import { clock } from './items'
-import { QUALITIES, type Quality } from './profile'
+import { QUALITIES, QUALITY, type Quality } from './profile'
 import './Player.css'
 
 const HIDE_MS = 4000
@@ -34,6 +35,7 @@ const ICON = {
   muted:
     'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z',
   full: 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z',
+  gear: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
   unfull:
     'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z',
 }
@@ -94,6 +96,7 @@ export function Controls({
   const [full, setFull] = useState(false)
   const [menu, setMenu] = useState(false)
   const menuRow = useRef<HTMLDivElement>(null)
+  const qBtn = useRef<HTMLButtonElement>(null)
   const timer = useRef(0)
   // Handlers live in refs (stable for the key listener); these keep them current.
   const back = useRef(onBack)
@@ -168,9 +171,13 @@ export function Controls({
       const t = e.target as Element
       if (t !== document.body && !root.current?.contains(t)) return // other UI
       const inBar = !!bar.current?.contains(document.activeElement)
+      const pop = menuRow.current
       if (isBack(e)) {
         e.preventDefault() // the browser's own Back would leave the player too
-        if (inBar || bar.current?.dataset.shown === 'true') ui.hide()
+        if (pop) {
+          setMenu(false)
+          qBtn.current?.focus({ preventScroll: true })
+        } else if (inBar || bar.current?.dataset.shown === 'true') ui.hide()
         else back.current()
         return
       }
@@ -186,6 +193,21 @@ export function Controls({
       if (k === 'f') return act(ui.fullscreen)
       if (k === 'm') return act(ui.mute)
       if (k === 'k') return act(ui.toggle)
+      if (pop?.contains(document.activeElement)) {
+        // The popover: ↑/↓ through its options, ←/→ do nothing.
+        if (!horizontal && !vertical) return
+        e.preventDefault()
+        const its = Array.from(pop.querySelectorAll<HTMLElement>('button'))
+        const i = its.indexOf(document.activeElement as HTMLElement)
+        if (vertical)
+          its[
+            Math.max(
+              0,
+              Math.min(its.length - 1, i + (k === 'arrowup' ? -1 : 1)),
+            )
+          ].focus()
+        return
+      }
       if (!inBar) {
         if (horizontal) act(() => ui.seek(left ? -SKIP : SKIP))
         else if (k === 'enter' || k === ' ') act(ui.toggle)
@@ -232,7 +254,7 @@ export function Controls({
   useEffect(() => {
     if (menu)
       menuRow.current
-        ?.querySelector<HTMLElement>('[aria-pressed="true"]')
+        ?.querySelector<HTMLElement>('[aria-checked="true"]')
         ?.focus({ preventScroll: true })
   }, [menu])
 
@@ -248,6 +270,9 @@ export function Controls({
       onPointerMove={(e) => e.pointerType === 'mouse' && ui.poke()}
       onPointerDown={(e) => {
         pointer.current = e.pointerType
+        const t = e.target as Element
+        if (!menuRow.current?.contains(t) && !qBtn.current?.contains(t))
+          setMenu(false) // a click outside closes the popover
         // Touch: a tap on the picture toggles the bar (a hidden bar ignores
         // touches, see Player.css); mouse/pointer just shows it.
         if (e.pointerType === 'mouse' || !onPicture(e)) ui.poke()
@@ -289,26 +314,36 @@ export function Controls({
         </div>
         {menu && (
           <div
-            data-row
             ref={menuRow}
-            className="row"
-            role="group"
+            className="popover"
+            role="menu"
             aria-label="Quality"
           >
-            {QUALITIES.map((o) => (
-              <button
-                key={o}
-                type="button"
-                aria-pressed={o === quality}
-                onClick={() => {
-                  setMenu(false)
-                  play.current?.focus({ preventScroll: true })
-                  if (o !== quality) onQuality(o)
-                }}
-              >
-                {o}
-              </button>
-            ))}
+            <div className="heading">Quality</div>
+            {QUALITIES.map((o) => {
+              const max = QUALITY[o]
+              return (
+                <button
+                  key={o}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={o === quality}
+                  onClick={() => {
+                    setMenu(false)
+                    qBtn.current?.focus({ preventScroll: true })
+                    if (o !== quality) onQuality(o)
+                  }}
+                >
+                  <span className="check">{o === quality ? '✓' : ''}</span>
+                  {o}
+                  <small>
+                    {max
+                      ? `${(max.bitrate / 1e6).toLocaleString()} Mbps`
+                      : 'no limit'}
+                  </small>
+                </button>
+              )
+            })}
           </div>
         )}
         <div data-row className="row">
@@ -354,12 +389,14 @@ export function Controls({
           />
           <span className="spacer" />
           <button
+            ref={qBtn}
             type="button"
             aria-label={`Quality: ${quality}`}
+            aria-haspopup="menu"
             aria-expanded={menu}
             onClick={() => setMenu(!menu)}
           >
-            {quality}
+            <Icon d={ICON.gear} /> {quality}
           </button>
           <button
             type="button"

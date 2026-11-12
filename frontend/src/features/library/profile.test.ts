@@ -11,6 +11,7 @@ import {
   nowPlaying,
   probe,
   qualities,
+  rawStatus,
   sizeName,
   sourceHint,
   toQuality,
@@ -125,6 +126,7 @@ test('stored quality: invalid or missing = Auto', () => {
   assert.equal(toQuality('4K'), 'Auto')
   assert.equal(toQuality('toString'), 'Auto')
   assert.equal(toQuality('Source'), 'Source')
+  assert.equal(toQuality('Raw'), 'Raw')
 })
 
 test('picker: only rungs that scale the source down', () => {
@@ -135,6 +137,11 @@ test('picker: only rungs that scale the source down', () => {
   assert.equal(at(1920, 800), 'Auto,Source,720p,480p') // scope 1080p
   assert.equal(at(426, 240), 'Auto,Source')
   assert.equal(at(0, 0), 'Auto,Source,1080p,720p,480p') // unknown: all
+  // Raw only with its setting on, next to Source
+  assert.equal(
+    qualities({ width: 3840, height: 2160 }, 'Auto', true).join(','),
+    'Auto,Source,Raw,1080p,720p,480p',
+  )
   // a stored rung stays visible (and selected) even when it changes nothing
   assert.equal(
     qualities({ width: 426, height: 240 }, '720p').join(','),
@@ -301,4 +308,29 @@ test('Auto from the measured link: 70 % cap, source fits = no limit', () => {
   assert.equal(max(1), 0.7e6) // 480p's 1.5 > 0.7
   assert.equal(max(20, autoQuality(20, 10e6)), 14e6) // fits: cap only
   assert.equal(deviceProfile(webos).MaxStreamingBitrate, 120e6) // no cap
+})
+
+test('Raw: every codec in fMP4, no probe, no caps (#164)', () => {
+  const p = deviceProfile(webos, true, false, 'Raw', 4e6) // stereo + cap ignored
+  assert.equal(tp(p).Container, 'mp4')
+  assert.equal(tp(p).VideoCodec, 'h264,hevc,av1,vp9')
+  assert.equal(tp(p).AudioCodec, 'aac,ac3,eac3,dts,truehd,flac,opus,mp3')
+  assert.ok(tp(p).AudioCodec.length <= 40) // Jellyfin's master.m3u8 limit
+  assert.equal(tp(p).MaxAudioChannels, '8')
+  assert.deepEqual(p.CodecProfiles, []) // no level/depth/size/HDR conditions
+  assert.equal(p.MaxStreamingBitrate, 2_147_483_647)
+  // compatible mode never plays Raw
+  assert.equal(tp(deviceProfile(webos, false, true, 'Raw')).Container, 'ts')
+})
+
+test('Raw status: the source codecs, unchecked', () => {
+  const d = decision(
+    '/x?VideoCodec=h264,hevc&AudioCodec=dts&AudioStreamIndex=1',
+    [
+      { Index: 0, Type: 'Video', Codec: 'hevc' },
+      { Index: 1, Type: 'Audio', Codec: 'dts', Channels: 6 },
+    ],
+  )
+  assert.ok(d.videoCopy && d.audioCopy)
+  assert.equal(rawStatus(d.codecs), 'Original · HEVC + DTS (unchecked)')
 })

@@ -67,7 +67,7 @@ const setVol = (v: HTMLVideoElement, x: number) => {
 export type Setting = {
   name: string
   value: string
-  options: { value: string; label: string; hint?: string }[]
+  options: { value: string; label: string; hint?: string; disabled?: boolean }[]
   /** What is in effect, shown next to the value (e.g. "Original 4K"). */
   status?: string
   pick: (value: string) => void
@@ -213,7 +213,9 @@ export function Controls({
         // The popover: ↑/↓ through its options, ←/→ do nothing.
         if (!horizontal && !vertical) return
         e.preventDefault()
-        const its = Array.from(pop.querySelectorAll<HTMLElement>('button'))
+        const its = Array.from(
+          pop.querySelectorAll<HTMLElement>('button:not(:disabled)'),
+        )
         const i = its.indexOf(document.activeElement as HTMLElement)
         if (vertical)
           its[
@@ -381,6 +383,7 @@ export function Controls({
                   role="menuitemradio"
                   aria-checked={on}
                   data-focus={on}
+                  disabled={o.disabled}
                   onClick={() => {
                     setPage(null)
                     qBtn.current?.focus({ preventScroll: true })

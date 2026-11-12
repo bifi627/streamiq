@@ -9,7 +9,9 @@ import {
   useNavigate,
   useRouter,
 } from '@tanstack/react-router'
-import { PinMismatch, share, type Session } from '../pairing/connect'
+import { share, type Session } from '../pairing/connect'
+import { AppError, toAppError } from '../../errors'
+import { ErrorView } from '../../ErrorView'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { Player } from './Player'
 import { clock, TICKS_PER_SECOND, type Item } from './items'
@@ -36,7 +38,7 @@ const Tunnel = createContext<{
 // it; leaving releases it (closed 30 s later unless reused).
 export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [err, setErr] = useState<AppError | null>(null)
 
   useEffect(() => {
     const { session, release } = share(gatewayId)
@@ -47,12 +49,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         x.speed() // measure on first use, once per session (#162)
         setSession(x)
       },
-      (e: Error) =>
-        setErr(
-          e instanceof PinMismatch
-            ? `Refused: this is not the gateway you paired with. ${e.message}`
-            : e.message,
-        ),
+      (e) => setErr(toAppError(e)),
     )
     return () => {
       gone = true
@@ -65,7 +62,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
       <p>
         <Link to="/">← Gateways</Link>
       </p>
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
+      {err && <ErrorView error={err} />}
       {!session && !err && <p>Connecting…</p>}
       {session && (
         <Tunnel.Provider
@@ -86,10 +83,10 @@ const HOME: View = { kind: 'home' }
 export function ItemPage({ itemId }: { itemId: string }) {
   const { pc } = useContext(Tunnel)
   const [item, setItem] = useState<Item | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [err, setErr] = useState<AppError | null>(null)
   useEffect(() => {
-    tunnelJson<Item>(pc, `/Items/${itemId}`).then(setItem, (e: Error) =>
-      setErr(e.message),
+    tunnelJson<Item>(pc, `/Items/${itemId}`).then(setItem, (e) =>
+      setErr(toAppError(e)),
     )
   }, [pc, itemId])
   const view = useMemo<View | null>(
@@ -105,7 +102,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
       },
     [item],
   )
-  if (err) return <p style={{ color: 'crimson' }}>{err}</p>
+  if (err) return <ErrorView error={err} />
   if (!view) return <p>Loading…</p>
   return <Browse view={view} />
 }
@@ -181,7 +178,7 @@ function Listing({
   onOpen: (i: Item) => void
 }) {
   const [rows, setRows] = useState<[string, Item[]][] | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [err, setErr] = useState<AppError | null>(null)
 
   useEffect(() => {
     const get = (url: string) => tunnelJson<Page>(pc, url).then((p) => p.Items)
@@ -203,10 +200,10 @@ function Listing({
             : get(`/Items?parentId=${view.item.Id}&sortBy=SortName`).then(
                 (i) => [['', i]],
               )
-    load.then(setRows, (e: Error) => setErr(e.message))
+    load.then(setRows, (e) => setErr(toAppError(e)))
   }, [pc, view])
 
-  if (err) return <p style={{ color: 'crimson' }}>{err}</p>
+  if (err) return <ErrorView error={err} />
   if (!rows) return <p>Loading…</p>
   return (
     <>

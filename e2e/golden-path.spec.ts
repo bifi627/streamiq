@@ -398,8 +398,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       const id = (await a.locator('li code').first().textContent())!
       const b = await signIn(browser, false, `/g/${id}`)
       await expect(
-        b.getByText('this browser is not paired with the gateway'),
-      ).toBeVisible()
+        b.locator('[role=alert][data-kind="not-paired"]'),
+      ).toContainText('this browser is not paired with the gateway')
       expect(new URL(b.url()).pathname).toBe(`/g/${id}`)
       await b.goto(process.env.E2E_APP_URL! + '/no-such-page')
       await b.getByRole('link', { name: 'Go to your gateways' }).click()
@@ -432,8 +432,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       gateway = await startGateway(stateDir, env)
       await a.getByRole('button', { name: 'Test connection' }).click()
       await expect(
-        a.getByText('Refused: this is not the gateway you paired with.'),
-      ).toBeVisible()
+        a.locator('[role=alert][data-kind="pin-mismatch"]'),
+      ).toContainText('Refused: this is not the gateway you paired with.')
       await pair(a, gatewayCtx, gateway.pageUrl)
     })
 
@@ -448,7 +448,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(paired).toHaveCount(0)
       // The gateway closed the PeerConnection: the next request on it fails.
       await movies.click()
-      await expect(a.locator('p[style*="crimson"]')).toBeVisible()
+      await expect(
+        a.locator('[role=alert][data-kind="tunnel-lost"]'),
+      ).toBeVisible()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Test connection' }).click()
       await expect(

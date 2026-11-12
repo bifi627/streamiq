@@ -27,6 +27,8 @@
 // (the first text subtitle until one is picked); another track reloads with
 // it, Off and that track just switch hls.subtitleTrack. Starts Off.
 import { useEffect, useRef, useState } from 'react'
+import { AppError, toAppError } from '../../errors'
+import { ErrorView } from '../../ErrorView'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
@@ -117,7 +119,7 @@ export function Player({
   const [item, setItem] = useState<Item | null>(null)
   const [blocked, setBlocked] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [err, setErr] = useState<AppError | null>(null)
   const [q, setQ] = useState(quality)
   const [compat] = useState(compatibleOn) // as the effect reads it: once
   const [file, setFile] = useState<{ size: Size; bitrate?: number }>({
@@ -210,7 +212,8 @@ export function Player({
       if (gone || load !== loads) return
       const src = info.MediaSources[0]
       if (!src?.TranscodingUrl)
-        throw new Error(
+        throw new AppError(
+          'playback',
           `Jellyfin offers no stream (${info.ErrorCode ?? 'no TranscodingUrl'})`,
         )
       const [path, query] = src.TranscodingUrl.split('?')
@@ -223,7 +226,10 @@ export function Player({
       // Raw: no fallback; say what the device could not play.
       const rawErr = () =>
         setErr(
-          `This device can't play the original streams (${d.codecs}). Pick another quality.`,
+          new AppError(
+            'playback',
+            `This device can't play the original streams (${d.codecs}). Pick another quality.`,
+          ),
         )
       const sv = src.MediaStreams.find((s) => s.Type === 'Video')
       const size = { width: sv?.Width ?? 0, height: sv?.Height ?? 0 }
@@ -279,7 +285,8 @@ export function Player({
           return rawErr()
         if (copy.audio && audio && e.type === Hls.ErrorTypes.MEDIA_ERROR)
           return reload('fallback: stereo AAC', { audio: false })
-        if (e.fatal) setErr(`playback error: ${e.details}`)
+        if (e.fatal)
+          setErr(new AppError('playback', `playback error: ${e.details}`))
       })
       // What the device is asked to decode, and whether it says it can.
       h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
@@ -347,7 +354,7 @@ export function Player({
       const old = h
       h = null // no position reports while the media detaches
       old?.destroy()
-      start(t).catch((e: Error) => setErr(e.message))
+      start(t).catch((e) => setErr(toAppError(e)))
     }
     pick.current = (next) => {
       q = next
@@ -370,7 +377,8 @@ export function Player({
 
     ;(async () => {
       if (!Hls.isSupported())
-        throw new Error(
+        throw new AppError(
+          'playback',
           'this browser has no MSE (iOS Safari is not supported yet)',
         )
       if (compatible) event('compatible mode: on')
@@ -390,7 +398,7 @@ export function Player({
       await start(
         (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
       )
-    })().catch((e: Error) => setErr(e.message))
+    })().catch((e) => setErr(toAppError(e)))
 
     const unwatch = watchVideo(v)
     const tick = setInterval(report, 10_000)
@@ -495,7 +503,7 @@ export function Player({
         <video ref={video} />
       </Controls>
       {blocked && <p>Press play to start.</p>}
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
+      {err && <ErrorView error={err} />}
     </div>
   )
 }

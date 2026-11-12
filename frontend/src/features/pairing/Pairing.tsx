@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { connect, PinMismatch } from './connect'
+import { connect } from './connect'
+import { AppError, toAppError } from '../../errors'
+import { ErrorView } from '../../ErrorView'
 import { tunnelFetch } from '../../tunnel'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
@@ -13,11 +15,11 @@ export function Pairing({
 }) {
   const [code, setCode] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
-  const [alarm, setAlarm] = useState<string | null>(null)
+  const [err, setErr] = useState<AppError | null>(null)
 
   async function run(pair: boolean) {
     setCode(null)
-    setAlarm(null)
+    setErr(null)
     setStatus(pair ? 'Connecting…' : 'Connecting (pinned)…')
     try {
       const s = await connect(gatewayId, pair ? setCode : undefined)
@@ -30,10 +32,8 @@ export function Pairing({
       s.close()
     } catch (e) {
       setCode(null)
-      if (e instanceof PinMismatch) {
-        setStatus(null)
-        setAlarm(e.message)
-      } else setStatus(e instanceof Error ? e.message : String(e))
+      setStatus(null)
+      setErr(toAppError(e))
     }
   }
 
@@ -61,13 +61,7 @@ export function Pairing({
         </p>
       )}
       {status && <p style={{ color: '#666' }}>{status}</p>}
-      {alarm && (
-        <p style={{ color: 'white', background: 'crimson', padding: '0.5rem' }}>
-          <b>Refused: this is not the gateway you paired with.</b> {alarm}.
-          Don't continue unless you re-installed the gateway yourself; then pair
-          again.
-        </p>
-      )}
+      {err && <ErrorView error={err} onRetry={() => run(false)} />}
     </div>
   )
 }

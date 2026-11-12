@@ -18,9 +18,13 @@ import {
 } from './crypto'
 import { clientKey, getPin, setPin } from './store'
 import { sharer } from './shared'
-
-export class PinMismatch extends Error {}
-export class NotPaired extends Error {}
+import {
+  AppError,
+  brokerClosed,
+  brokerError,
+  toAppError,
+  type Kind,
+} from '../../errors'
 
 export type Session = {
   pc: RTCPeerConnection
@@ -112,14 +116,17 @@ export async function connect(
   const send = (m: object) => ws.send(JSON.stringify(m))
 
   return new Promise<Session>((resolve, reject) => {
-    const fail = (e: Error) => {
+    const err = (kind: Kind, detail: string) =>
+      new AppError(kind, detail, { gatewayId })
+    const fail = (x: unknown) => {
+      const e = toAppError(x)
       if (!settled) {
         settled = true
         void authed('/connections', {
           method: 'POST',
           body: JSON.stringify({
             gatewayId,
-            failure: e instanceof PinMismatch ? 'pin mismatch' : e.message,
+            failure: e.kind === 'pin-mismatch' ? 'pin mismatch' : e.message,
           }),
         }).catch(() => {})
       }
@@ -130,8 +137,12 @@ export async function connect(
     let verdict: ReturnType<typeof pinCheck> = 'refuse'
     let nB = ''
 
-    ws.onopen = () => send({ type: 'auth', token })
-    ws.onclose = () => fail(new Error('broker connection closed'))
+    let opened = false
+    ws.onopen = () => {
+      opened = true
+      send({ type: 'auth', token })
+    }
+    ws.onclose = () => fail(brokerClosed(opened, { gatewayId }))
     // Handle broker messages strictly in order. The gateway can still trickle a
     // candidate before its answer (Pion gathers during SetLocalDescription), so
     // candidates that beat the answer wait in `early`.
@@ -156,7 +167,8 @@ export async function connect(
         verdict = pinCheck(pin, gatewayFp, !!onCode)
         if (verdict === 'refuse')
           return fail(
-            new PinMismatch(
+            err(
+              'pin-mismatch',
               `gateway certificate changed: pinned ${pin}, got ${gatewayFp}`,
             ),
           )
@@ -166,18 +178,24 @@ export async function connect(
         if (pc.remoteDescription) await pc.addIceCandidate(m.candidate)
         else early.push(m.candidate)
       } else if (m.type === 'error') {
-        fail(new Error(m.error))
+        fail(brokerError(m.error, { gatewayId }))
       }
     }
     pc.onconnectionstatechange = () =>
       pc.connectionState === 'failed' &&
-      fail(new Error('ICE failed: no direct or relayed route to the gateway'))
+      fail(
+        err(
+          'ice-failed',
+          'ICE failed: no direct or relayed route to the gateway',
+        ),
+      )
     pc.onicecandidate = (e) =>
       e.candidate && send({ type: 'ice', candidate: e.candidate.toJSON() })
 
     const ch = pc.createDataChannel('auth')
     const say = (m: object) => ch.send(JSON.stringify(m))
-    ch.onclose = () => fail(new Error('gateway closed the connection'))
+    ch.onclose = () =>
+      fail(err('gateway-refused', 'gateway closed the connection'))
     ch.onmessage = (e) => onGateway(JSON.parse(e.data)).catch(fail)
     const onGateway = async (m: Msg) => {
       switch (m.type) {
@@ -201,7 +219,8 @@ export async function connect(
         case 'ok':
           if (verdict !== 'pinned')
             return fail(
-              new PinMismatch(
+              err(
+                'pin-mismatch',
                 'gateway skipped pairing for an unpinned certificate',
               ),
             )
@@ -210,7 +229,7 @@ export async function connect(
         case 'unpaired':
           if (!onCode)
             return fail(
-              new NotPaired('this browser is not paired with the gateway'),
+              err('not-paired', 'this browser is not paired with the gateway'),
             )
           nB = nonce()
           return say({
@@ -227,7 +246,12 @@ export async function connect(
           ch.onclose = null
           return resolve(up())
         case 'rejected':
-          return fail(new Error(`gateway refused: ${m.reason ?? 'rejected'}`))
+          return fail(
+            err(
+              'gateway-refused',
+              `gateway refused: ${m.reason ?? 'rejected'}`,
+            ),
+          )
       }
     }
   })

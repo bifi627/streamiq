@@ -8,7 +8,9 @@ import {
   type Install,
 } from './api'
 import { Pairing } from '../pairing/Pairing'
-import { NotPaired, share } from '../pairing/connect'
+import { share } from '../pairing/connect'
+import { AppError, isKind, toAppError } from '../../errors'
+import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
 
@@ -18,7 +20,7 @@ import { useNavigate } from '@tanstack/react-router'
 export function Gateways() {
   const [gateways, setGateways] = useState<Gateway[]>([])
   const [install, setInstall] = useState<Install | null>(null)
-  const [err, setErr] = useState<string | null>(null)
+  const [err, setErr] = useState<AppError | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export function Gateways() {
           setGateways(d)
           setErr(null)
         })
-        .catch((e: Error) => setErr(e.message))
+        .catch((e) => setErr(toAppError(e)))
     load()
     const t = setInterval(load, 5000)
     return () => clearInterval(t)
@@ -45,7 +47,7 @@ export function Gateways() {
       await removeGateway(d.id)
       setGateways((gs) => gs.filter((g) => g.id !== d.id))
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
+      setErr(toAppError(e))
     }
   }
 
@@ -53,14 +55,14 @@ export function Gateways() {
     try {
       setInstall(await createEnrollmentToken())
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
+      setErr(toAppError(e))
     }
   }
 
   return (
     <section>
       <h2>Gateways</h2>
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
+      {err && <ErrorView error={err} />}
       {gateways.length === 0 ? (
         !err && <p>No gateways yet.</p>
       ) : (
@@ -225,17 +227,17 @@ function Details({ g }: { g: Gateway }) {
         writeCache(g.id, r)
         if (live) setS(r)
       })
-      .catch(
-        (e: Error) =>
-          live &&
+      .catch((x) => {
+        const e = toAppError(x)
+        if (live)
           setMsg(
-            e instanceof NotPaired
+            isKind(e, 'not-paired')
               ? 'pair this browser to see them'
-              : e.message.includes('HTTP 404')
+              : e.context.status === 404
                 ? 'gateway too old to report them: update it'
                 : `unavailable (${e.message})`,
-          ),
-      )
+          )
+      })
       .finally(release)
     return () => {
       live = false

@@ -24,8 +24,10 @@ import (
 
 // LoadOrCreate returns the gateway's persistent DTLS certificate and its
 // fingerprint. Generated once: an ephemeral cert would silently break every
-// browser's pin on restart. Pion's GenerateCertificate expires in a month, so
-// build our own 10-year cert.
+// browser's pin on restart. Browsers trust it by pin and ignore its dates, but
+// Pion refuses an expired local cert (its GenerateCertificate expires in a
+// month), so ours never expires: 9999-12-31 is RFC 5280's "no well-defined
+// expiration". Replacing it is a deliberate act: Reset.
 func LoadOrCreate(dir string) (*webrtc.Certificate, string, error) {
 	path := filepath.Join(dir, "cert.pem")
 	pems, err := os.ReadFile(path)
@@ -39,7 +41,7 @@ func LoadOrCreate(dir string) (*webrtc.Certificate, string, error) {
 			SerialNumber: serial,
 			Subject:      pkix.Name{CommonName: "streamiq-gateway"},
 			NotBefore:    time.Now().Add(-time.Hour),
-			NotAfter:     time.Now().AddDate(10, 0, 0),
+			NotAfter:     time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC),
 		})
 		if err != nil {
 			return nil, "", err
@@ -64,6 +66,20 @@ func LoadOrCreate(dir string) (*webrtc.Certificate, string, error) {
 	}
 	block, _ := pem.Decode(pems) // Pion writes the CERTIFICATE block first
 	return cert, Fingerprint(block.Bytes), nil
+}
+
+// Reset replaces the gateway identity (state dir or a backup of it may have
+// leaked): a new cert, and an empty allowlist (allowlist.json, see pairing) so
+// every browser pairs again against the new fingerprint. The gateway must not
+// be running: it holds both in memory.
+func Reset(dir string) (string, error) {
+	for _, f := range []string{"cert.pem", "allowlist.json"} {
+		if err := os.Remove(filepath.Join(dir, f)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+	}
+	_, fp, err := LoadOrCreate(dir)
+	return fp, err
 }
 
 // Fingerprint is the contract form `sha-256 AA:BB:…` (docs/protocol.md).

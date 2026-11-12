@@ -156,6 +156,18 @@ again, stop the gateway, delete `gateway.json` in its state directory, and run a
 new install command (**Add gateway**). The certificate in the state directory
 is kept, so paired browsers don't need to pair again.
 
+### If the gateway or a backup of its state may have leaked
+
+Whoever has a copy of `state/` can pose as your gateway. Replace its identity:
+
+1. **Gateways → Remove** in the web app (revokes the leaked credential).
+2. Stop the gateway (Windows: `gateway service uninstall`), delete `gateway.json`
+   in its state directory, and run a new install command (**Add gateway**).
+3. Stop it again and run `gateway reset-identity`: a new certificate, and every
+   paired browser is removed. Start the gateway (`gateway service install`).
+4. Open StreamIQ on each browser: it shows a pairing code, approve it on the
+   local gateway page.
+
 ## Where things live
 
 | | Windows | Linux / macOS |

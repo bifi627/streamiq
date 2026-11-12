@@ -44,7 +44,7 @@ Firebase sign-in + empty authed shell.
 
 **Items 2+3 — pairing + broker.** **PR A
 (onboarding):** migration #2, enrollment token → `/api/gateways/enroll` → credential,
-authenticated `/api/gateways/ws` heartbeat, persistent 10-year gateway DTLS cert + state dir,
+authenticated `/api/gateways/ws` heartbeat, persistent non-expiring gateway DTLS cert (`gateway reset-identity` replaces it) + state dir,
 local gateway page (Host/Origin guard), Gateways list. **PR B (broker + pairing):**
 tenant-scoped broker (`/api/broker/ws`, session routing), browser WebCrypto client key,
 session-bound connection auth, commit/reveal comparison code approved on the gateway

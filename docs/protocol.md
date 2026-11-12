@@ -34,6 +34,13 @@ frame on connect and every 30 s:
 ```json
 { "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 1 }
 ```
+Liveness only (#140). The API sets `last_seen_at = now`, `lan_url` (http/https only,
+else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
+`update` (newer release version, absent = up to date; ≤ 40 chars, else null) and
+`protocol` (below), and ignores any other field. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
+`version`, `update` and `upgradeRequired`; everything richer comes from the gateway itself over the
+tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
+
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
 protocol (currently **1**; Go `onboarding.Protocol`). A breaking change bumps it. The API
 has one minimum (`GatewaySocket.MinGatewayProtocol`); raising it is a deliberate step,
@@ -42,12 +49,10 @@ below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the AP
 records the version, `GET /api/gateways` reports `upgradeRequired: true`, and the
 broker never routes a session to that socket. The gateway logs "rerun the install
 command" and retries every 10 minutes. No negotiation: one version at a time.
-Liveness only (#140). The API sets `last_seen_at = now`, `lan_url` (http/https only,
-else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
-`update` (newer release version, absent = up to date; ≤ 40 chars, else null), and
-ignores any other field. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
-`version`, `update` and `upgradeRequired`; everything richer comes from the gateway itself over the
-tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
+**Release order** when raising the minimum: tag the `gateway-v*` release that sends the new
+version first (the installers fetch the latest release; the old API ignores the
+new value), deploy the API after. API first = every gateway refused, and rerunning the
+installer reinstalls the old release.
 
 **`DELETE /api/gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's
 credential (row kept, hidden from `GET /api/gateways`; its telemetry stays). The

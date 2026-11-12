@@ -55,6 +55,6 @@ Feature: Gateway onboarding
   Scenario: A gateway at the current protocol is accepted
     Given "alice@home.test" has an enrolled gateway "nas"
     When gateway "nas" heartbeats with protocol "current"
-    Then the gateway socket stays open
+    Then "alice@home.test" has gateway "nas" registered with the broker
     And "alice@home.test" sees "nas" with update required "false"
 

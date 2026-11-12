@@ -10,19 +10,20 @@ using Reqnroll;
 using StreamIq.Api.Data;
 using StreamIq.Api.Features.Broker;
 using StreamIq.Api.Tests.Infrastructure;
+using Hub = StreamIq.Api.Features.Broker.Broker;
 
 namespace StreamIq.Api.Tests.Features.Onboarding;
 
 [Binding]
-public class OnboardingSteps(IntegrationFixture fx)
+public class OnboardingSteps(IntegrationFixture fx) : IDisposable
 {
     const string Fp = "sha-256 AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89";
 
     private string _token = "";
     private HttpStatusCode _enrollStatus;
     private bool _refused;
-    private string? _closeReason;
-    private WebSocketCloseStatus? _closeStatus;
+    private WebSocket? _ws;   // #176 protocol scenarios
+    private WebSocket Ws => _ws ?? throw new InvalidOperationException("no heartbeat sent");
     private readonly Dictionary<string, string> _credentials = new();
 
     private async Task<HttpClient> SignIn(string email)
@@ -204,30 +205,42 @@ public class OnboardingSteps(IntegrationFixture fx)
     [When("gateway \"(.*)\" heartbeats with protocol \"(.*)\"")]
     public async Task WhenHeartbeatProtocol(string name, string protocol)
     {
-        using var ws = await Connect(_credentials[name]);
+        _ws = await Connect(_credentials[name]);
         var hb = new Dictionary<string, object> { ["type"] = "heartbeat", ["version"] = "1.0.0" };
         if (protocol != "none")
         {
             hb["protocol"] = protocol == "current" ? GatewaySocket.MinGatewayProtocol : int.Parse(protocol);
         }
-        await ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(hb), WebSocketMessageType.Text, true, CancellationToken.None);
-        var r = await ws.ReceiveAsync(new byte[1024], new CancellationTokenSource(TimeSpan.FromSeconds(2)).Token)
-            .ContinueWith(t => t.IsCompletedSuccessfully ? t.Result : null);
-        _closeReason = r?.MessageType == WebSocketMessageType.Close ? ws.CloseStatusDescription : null;
-        _closeStatus = ws.CloseStatus;
+        await _ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(hb), WebSocketMessageType.Text, true, CancellationToken.None);
     }
 
     [Then("the gateway socket is closed with 1008 \"(.*)\"")]
-    public void ThenClosedWith(string reason)
+    public async Task ThenClosedWith(string reason)
     {
-        Assert.Equal(WebSocketCloseStatus.PolicyViolation, _closeStatus);
-        Assert.Equal(reason, _closeReason);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var r = await Ws.ReceiveAsync(new byte[1024], cts.Token);
+        Assert.Equal(WebSocketMessageType.Close, r.MessageType);
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, Ws.CloseStatus);
+        Assert.Equal(reason, Ws.CloseStatusDescription);
     }
 
-    [Then("the gateway socket stays open")]
-    public void ThenStaysOpen()
+    // Accepted = the broker registered it (it would route sessions to it), socket still open.
+    [Then("\"(.*)\" has gateway \"(.*)\" registered with the broker")]
+    public async Task ThenRegistered(string email, string name)
     {
-        Assert.Null(_closeReason);
+        var id = (await Gateway(email, name)).GetProperty("id").GetGuid();
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!Hub.Gateways.ContainsKey(id) && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+        Assert.True(Hub.Gateways.ContainsKey(id), "gateway not registered with the broker");
+        Assert.Equal(WebSocketState.Open, Ws.State);
+    }
+
+    public void Dispose()
+    {
+        _ws?.Dispose();
     }
 
     [Then("\"(.*)\" sees \"(.*)\" with update required \"(.*)\"")]

@@ -12,14 +12,17 @@ const label: Record<Action, string> = {
 }
 
 /** The one way an error is shown (#45). data-kind lets tests assert the kind.
- * Retry defaults to a reload: it reopens the gateway's session too. */
+ * Takes anything thrown (a query's `error`, a caught value): non-AppErrors
+ * show as `unknown`. Retry defaults to a reload: it reopens the gateway's
+ * session too. */
 export function ErrorView({
-  error,
+  error: thrown,
   onRetry = () => location.reload(),
 }: {
-  error: AppError
+  error: unknown
   onRetry?: () => void
 }) {
+  const error = toAppError(thrown)
   const { message, actions, loud } = describe(error)
   return (
     <div

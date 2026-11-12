@@ -12,7 +12,7 @@
 //	update      "newer release available" notice; `gateway update` swaps the binary
 //	service     Windows logon task (`gateway service install|uninstall`)
 //
-// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade.
+// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade | reset-identity.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
 // env wins): STREAMIQ_API_URL (required), STREAMIQ_ENROLL_TOKEN, STREAMIQ_NAME, STREAMIQ_STATE_DIR,
@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -95,6 +96,8 @@ func main() {
 		} else if err == nil {
 			fmt.Println("Already on", jellyfin.Image)
 		}
+	case cmd == "reset-identity":
+		err = resetIdentity()
 	case cmd == "status":
 		link, _ := os.ReadFile(filepath.Join(stateDir(), "page-link"))
 		err = localpage.PrintStatus(ctx, os.Stdout, pagePort(), strings.TrimSpace(string(link)))
@@ -115,6 +118,8 @@ const usage = `usage: gateway [command] [-h]
   status                     show the running gateway's status
   jellyfin up                start Jellyfin in Docker (downloads jellyfin-compose.yml once)
   jellyfin upgrade           pin jellyfin-compose.yml to the tested Jellyfin and restart it
+  reset-identity             new certificate + empty paired-browser list: every browser pairs
+                             again (after a leak; docs/install.md). Refuses while the gateway runs.
 
 Config: gateway.env next to the binary (see docs/install.md).`
 
@@ -141,6 +146,24 @@ func serviceInstall(ctx context.Context, exe string) error {
 		return err
 	}
 	fmt.Printf("Gateway %q runs now and at every logon, in its own console window (task %s).\n", st.Name, service.Task)
+	return nil
+}
+
+// resetIdentity replaces the DTLS cert and clears the allowlist. A running
+// gateway holds both in memory (and would rewrite allowlist.json), so refuse
+// while its local page answers.
+func resetIdentity() error {
+	if c, err := net.DialTimeout("tcp", "127.0.0.1:"+pagePort(), time.Second); err == nil {
+		c.Close()
+		return fmt.Errorf("the gateway is running (port %s answers): stop it first (Windows: gateway service uninstall, or close its window)", pagePort())
+	}
+	fp, err := identity.Reset(stateDir())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("New gateway identity %s.\n", fp)
+	fmt.Println("Paired browsers were removed: each one shows a pairing code on its next connect; approve it on the local gateway page.")
+	fmt.Println("Start the gateway again (gateway service install, or gateway run).")
 	return nil
 }
 

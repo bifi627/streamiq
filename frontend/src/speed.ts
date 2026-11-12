@@ -1,6 +1,6 @@
 // Gateway → client throughput (#162): 3 × 1 MiB bursts (/streamiq/burst, #90)
-// over the tunnel in the background, median in Mbps. Runs when a session comes
-// up and again on a navigator.connection `change` (where supported). The last
+// over the tunnel in the background, median in Mbps. Runs when a session first
+// asks for it (#152) and again on a navigator.connection `change` (where supported). The last
 // value is kept in localStorage as the next session's starting hint, per
 // gateway + direct/relay + connection type.
 import { event } from './diag'

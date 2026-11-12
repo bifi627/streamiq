@@ -17,6 +17,7 @@ import {
   sha256,
 } from './crypto'
 import { clientKey, getPin, setPin } from './store'
+import { sharer } from './shared'
 
 export class PinMismatch extends Error {}
 export class NotPaired extends Error {}
@@ -24,8 +25,9 @@ export class NotPaired extends Error {}
 export type Session = {
   pc: RTCPeerConnection
   close: () => void
-  /** gateway → client throughput, when connected with `speedTest` (#162) */
-  speed?: Speed
+  /** gateway → client throughput (#162): starts the measurement on the first
+   * call, once per session, so sessions that never stream cost no bursts. */
+  speed: () => Speed
 }
 
 type Msg = Record<string, string | undefined> & { type: string }
@@ -33,12 +35,10 @@ type Msg = Record<string, string | undefined> & { type: string }
 /**
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
  * unpaired browser starts pairing and onCode receives the code to compare.
- * speedTest: measure throughput in the background once up (sessions that stream).
  */
 export async function connect(
   gatewayId: string,
   onCode?: (code: string) => void,
-  speedTest = false,
 ): Promise<Session> {
   const [key, pin, token] = await Promise.all([
     clientKey(),
@@ -107,8 +107,7 @@ export async function connect(
         }).then((r) => r.id)
       })
       .catch(() => null)
-    if (speedTest) speed = measure(pc, gatewayId)
-    return { pc, close, speed }
+    return { pc, close, speed: () => (speed ??= measure(pc, gatewayId)) }
   }
   const send = (m: object) => ws.send(JSON.stringify(m))
 
@@ -224,6 +223,7 @@ export async function connect(
           return onCode?.(await comparisonCode(gatewayFp, key.fp, m.n!, nB))
         case 'approved':
           await setPin(gatewayId, gatewayFp)
+          shared.drop(gatewayId) // its session belongs to the old certificate
           ch.onclose = null
           return resolve(up())
         case 'rejected':
@@ -232,6 +232,11 @@ export async function connect(
     }
   })
 }
+
+/** The library and the gateway details share one session per gateway (#152);
+ * Diagnostics and Pairing call connect() for a fresh one. */
+const shared = sharer((id) => connect(id), relayOn)
+export const share = shared.share
 
 const kbps = (mbps?: number) => (mbps ? Math.round(mbps * 1000) : null)
 

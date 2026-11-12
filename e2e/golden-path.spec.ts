@@ -10,6 +10,7 @@ import {
   type Browser,
   type BrowserContext,
   type Page,
+  type Request,
 } from '@playwright/test'
 import { startGateway } from './stack.ts'
 
@@ -116,8 +117,21 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await test.step('browser A pairs; codes match on both sides', () =>
       pair(a, gatewayCtx, gateway.pageUrl))
 
-    await test.step('browse → play through the tunnel → resume', async () => {
+    await test.step('library → back → library within 30 s: one shared session (#152)', async () => {
+      let rows = 0 // connection telemetry: one POST per session attempt
+      const count = (r: Request) =>
+        r.method() === 'POST' && r.url().endsWith('/connections') && rows++
+      a.on('request', count)
       await a.getByRole('button', { name: 'Open' }).click()
+      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
+      await a.getByRole('link', { name: '← Gateways' }).click()
+      await a.getByRole('button', { name: 'Open' }).click()
+      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
+      a.off('request', count)
+      expect(rows).toBe(1)
+    })
+
+    await test.step('browse → play through the tunnel → resume', async () => {
       await a.getByRole('button', { name: /Movies/ }).click()
       await expect(a).toHaveURL(/\/g\/[^/]+\/i\/[^/]+$/) // folder deep link
       await a.reload() // restores the folder: item loaded by ID over a new tunnel
@@ -272,7 +286,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await test.step('Auto on a slow link (#162): a capped rung, Source warns', async () => {
       // A slow home upload, simulated: the bursts fail, so Auto falls back to
       // the stored hint, set to 0.1 Mbps (the clip is ~0.2). A reload at the
-      // end undoes both.
+      // end undoes both. Reload first: the library's tunnel is shared and kept
+      // 30 s after leaving (#152), and this step needs a fresh session.
+      await a.reload()
       await a.evaluate(() => {
         const create = RTCPeerConnection.prototype.createDataChannel
         RTCPeerConnection.prototype.createDataChannel = function (label, o) {

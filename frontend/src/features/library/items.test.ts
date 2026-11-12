@@ -1,7 +1,13 @@
 // Run: node --test src/features/library/items.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { audioTracks, clock, covers, rangeHeader } from './items.ts'
+import {
+  audioTracks,
+  clock,
+  covers,
+  rangeHeader,
+  subtitleTracks,
+} from './items.ts'
 
 test('hls.js exclusive range end → inclusive HTTP Range', () => {
   assert.equal(rangeHeader(), undefined)
@@ -53,4 +59,28 @@ test('audioTracks: audio streams only, language + title, codec + layout', () => 
     ],
   )
   assert.deepEqual(audioTracks(), [])
+})
+
+test('subtitleTracks: Off + text subtitles only', () => {
+  const en = new Intl.DisplayNames(undefined, { type: 'language' }).of('eng')
+  assert.deepEqual(
+    subtitleTracks([
+      { Index: 1, Type: 'Audio', Codec: 'aac' },
+      { Index: 2, Type: 'Subtitle', Codec: 'pgssub' }, // image: burn-in only
+      {
+        Index: 3,
+        Type: 'Subtitle',
+        Codec: 'subrip',
+        Language: 'eng',
+        IsTextSubtitleStream: true,
+      },
+      { Index: 4, Type: 'Subtitle', IsTextSubtitleStream: true },
+    ]),
+    [
+      { value: '-1', label: 'Off' },
+      { value: '3', label: en, hint: 'SRT' },
+      { value: '4', label: 'Track 2', hint: '' },
+    ],
+  )
+  assert.deepEqual(subtitleTracks(), [{ value: '-1', label: 'Off' }])
 })

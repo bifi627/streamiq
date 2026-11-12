@@ -228,6 +228,29 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         ),
       ).toBeVisible()
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
+      // Subtitles (#136): off at first; the sidecar .srt's cue shows once
+      // picked, and goes away with Off.
+      const cue = () =>
+        a.evaluate(() =>
+          [...document.querySelector('video')!.textTracks]
+            .filter((t) => t.mode === 'showing')
+            .flatMap((t) => [...(t.activeCues ?? [])])
+            .map((c) => (c as VTTCue).text)
+            .join(),
+        )
+      expect(await cue()).toBe('')
+      await a.getByRole('button', { name: 'Playback options' }).click()
+      await a.getByRole('menuitem', { name: /^Subtitles.*Off/ }).click()
+      await a
+        .getByRole('menuitemradio', { name: new RegExp(`^${en}.*SRT`) })
+        .click()
+      await expect.poll(cue, { timeout: 15_000 }).toBe('streamiq e2e subtitle')
+      await a.getByRole('button', { name: 'Playback options' }).click()
+      await a
+        .getByRole('menuitem', { name: new RegExp(`^Subtitles.*${en}`) })
+        .click()
+      await a.getByRole('menuitemradio', { name: /^Off/ }).click()
+      await expect.poll(cue).toBe('')
       // Opened in a new tab (no in-app history): Back goes to the item's folder.
       const tab = await a.context().newPage()
       await tab.goto(a.url())

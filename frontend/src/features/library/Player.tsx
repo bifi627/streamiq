@@ -23,6 +23,9 @@
 // Raw (#164, behind a setting): a profile with every codec, no probe; no
 // fallbacks, a decode failure is an error naming the source codecs. Compatible
 // mode disables Source and Raw (settings.quality() plays them as Auto).
+// Subtitles (#136): Jellyfin offers one HLS rendition, for SubtitleStreamIndex
+// (the first text subtitle until one is picked); another track reloads with
+// it, Off and that track just switch hls.subtitleTrack. Starts Off.
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
@@ -51,6 +54,7 @@ import {
 import {
   audioTracks,
   covers,
+  subtitleTracks,
   STUCK_APPENDS,
   TICKS_PER_SECOND,
   type Item,
@@ -129,6 +133,10 @@ export function Player({
   const [tracks, setTracks] = useState<ReturnType<typeof audioTracks>>([])
   const [audio, setAudio] = useState('')
   const pickAudio = useRef<(index: number) => void>(() => {})
+  // The subtitle menu: Off + the item's text subtitles, and the one shown.
+  const [subs, setSubs] = useState<ReturnType<typeof subtitleTracks>>([])
+  const [subtitle, setSubtitle] = useState('-1')
+  const pickSub = useRef<(index: number) => void>(() => {})
 
   useEffect(() => {
     const v = video.current!
@@ -148,9 +156,8 @@ export function Player({
     let caps: Probe
     const compatible = compatibleOn() // read once: applies from the next playback
     let q = quality()
-    // First text subtitle: offered via HLS, off (no picker yet: #136).
-    let text: number | undefined
-    let sub = -1 // the hls.js subtitle track, kept across reloads
+    let text: number | undefined // the subtitle stream Jellyfin offers via HLS
+    let sub = -1 // the hls.js subtitle track: -1 off, 0 that one rendition
     let track: number | undefined // audio stream; unset = Jellyfin's default
     let source: string | undefined // Jellyfin ignores AudioStreamIndex without it
     let copy: Copy = { video: true, audio: true }
@@ -250,11 +257,13 @@ export function Player({
         // MSE quota fills long before that (bufferFullError on webOS).
         maxMaxBufferLength: 60,
       })
-      h.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_e, d) =>
+      h.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_e, d) => {
         event(
           `hls subtitles: ${d.subtitleTracks.map((t) => t.name || t.lang || t.id).join(', ') || 'none'}`,
-        ),
-      )
+        )
+        // Set once the tracks exist: before that hls.js drops the id.
+        if (h && d.subtitleTracks.length) h.subtitleTrack = sub
+      })
       h.on(Hls.Events.ERROR, (_e, e) => {
         event(
           `hls ${e.fatal ? 'FATAL' : 'error'}: ${e.details}${e.error ? ` (${e.error.message})` : ''}`,
@@ -318,7 +327,6 @@ export function Player({
       })
       h.attachMedia(v)
       h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
-      h.subtitleTrack = sub
       // Autoplay is blocked without a user gesture (deep link / reload): the
       // control bar stays up with Play focused, one Enter/tap starts it.
       v.play().catch((e: Error) => {
@@ -337,7 +345,6 @@ export function Player({
       copy = { ...copy, ...less }
       freeze(v)
       const old = h
-      if (old) sub = old.subtitleTrack
       h = null // no position reports while the media detaches
       old?.destroy()
       start(t).catch((e: Error) => setErr(e.message))
@@ -349,6 +356,16 @@ export function Player({
     pickAudio.current = (index) => {
       track = index
       reload(`audio: switch to stream ${index}`)
+    }
+    pickSub.current = (index) => {
+      sub = index < 0 ? -1 : 0
+      if (index < 0 || index === text) {
+        event(`subtitles: ${index < 0 ? 'off' : `stream ${index}`}`)
+        if (h) h.subtitleTrack = sub // no tracks yet: the update above sets it
+        return
+      }
+      text = index
+      reload(`subtitles: switch to stream ${index}`)
     }
 
     ;(async () => {
@@ -367,9 +384,9 @@ export function Player({
       bitrate =
         fresh.MediaSources?.[0]?.Bitrate ??
         fresh.MediaStreams?.find((s) => s.Type === 'Video')?.BitRate
-      text = fresh.MediaStreams?.find(
-        (s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream,
-      )?.Index
+      const st = subtitleTracks(fresh.MediaStreams)
+      setSubs(st)
+      text = st[1] && Number(st[1].value)
       await start(
         (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
       )
@@ -454,6 +471,20 @@ export function Player({
                   pick: (v: string) => {
                     setAudio(v)
                     pickAudio.current(Number(v))
+                  },
+                },
+              ]
+            : []),
+          // Only with a text subtitle: Off alone = no entry.
+          ...(subs.length > 1
+            ? [
+                {
+                  name: 'Subtitles',
+                  value: subtitle,
+                  options: subs,
+                  pick: (v: string) => {
+                    setSubtitle(v)
+                    pickSub.current(Number(v))
                   },
                 },
               ]

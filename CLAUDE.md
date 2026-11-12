@@ -90,6 +90,12 @@ tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 LAN (code: `localpage`); **web gateway page** = the web app's view of a gateway;
 **gateway API** = endpoints the gateway serves under `/streamiq/*` over the tunnel
 (#138; a session carries device = client key and user = `users.id` from the broker). "Media server" means Jellyfin only; "relay" means TURN only.
+Player qualities (`profile.ts`): **Auto** = the default, capped from the measured
+gateway → client throughput (#162); **Source** = no cap, remuxes what the capability
+probe says this device decodes, transcodes the rest; **Raw** = opt-in setting, no probe:
+every codec copied as-is, unchecked, no fallbacks (#164); the rungs (1080p/720p/480p)
+cap size + bitrate. **Compatible mode** = per-device setting for old TVs: H.264 +
+stereo AAC in .ts, at most 1080p; Source and Raw are off while it's on (#113).
 Docs under `docs/superpowers/` keep the old words.
 **Project name:** StreamIQ (was "r8er" until 2026-11-06). Code forms: `streamiq` (paths,
 module, DB, binaries), `StreamIq` (.NET namespaces/types), `STREAMIQ_` (env vars); "StreamIQ"

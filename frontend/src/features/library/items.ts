@@ -31,17 +31,18 @@ export type Item = {
 
 type Stream = NonNullable<Item['MediaStreams']>[number]
 
+const lang = (code?: string) => {
+  if (!code || code === 'und') return undefined
+  try {
+    return new Intl.DisplayNames(undefined, { type: 'language' }).of(code)
+  } catch {
+    return code // not a language code Intl knows
+  }
+}
+
 /** The audio menu's options (#109): language (browser locale) + title, the
  * codec and channels as the hint. */
 export function audioTracks(streams: Stream[] = []) {
-  const lang = (code?: string) => {
-    if (!code || code === 'und') return undefined
-    try {
-      return new Intl.DisplayNames(undefined, { type: 'language' }).of(code)
-    } catch {
-      return code // not a language code Intl knows
-    }
-  }
   const layout = (n?: number) =>
     n === 1 ? 'mono' : n === 2 ? 'stereo' : n ? `${n - 1}.1` : ''
   return streams
@@ -55,6 +56,23 @@ export function audioTracks(streams: Stream[] = []) {
         .filter(Boolean)
         .join(' '),
     }))
+}
+
+/** The subtitle menu's options (#136): Off, then each text subtitle (image
+ * subtitles need burn-in: out of scope), labelled like the audio menu. */
+export function subtitleTracks(streams: Stream[] = []) {
+  return [
+    { value: '-1', label: 'Off' },
+    ...streams
+      .filter((s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream)
+      .map((s, i) => ({
+        value: String(s.Index),
+        label:
+          [lang(s.Language), s.Title].filter(Boolean).join(' · ') ||
+          `Track ${i + 1}`,
+        hint: s.Codec?.toUpperCase() ?? '',
+      })),
+  ]
 }
 
 export const clock = (s: number) =>

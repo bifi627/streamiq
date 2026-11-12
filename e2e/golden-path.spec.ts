@@ -248,7 +248,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
 
     await test.step('Auto on a slow link (#162): a capped rung, Source warns', async () => {
       // A slow home upload, simulated: the bursts fail, so Auto falls back to
-      // the stored hint, set to 0.2 Mbps. A reload at the end undoes both.
+      // the stored hint, set to 0.1 Mbps (the clip is ~0.2). A reload at the
+      // end undoes both.
       await a.evaluate(() => {
         const create = RTCPeerConnection.prototype.createDataChannel
         RTCPeerConnection.prototype.createDataChannel = function (label, o) {
@@ -256,7 +257,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
           return create.call(this, label, o)
         }
         for (const k of Object.keys(localStorage))
-          if (k.startsWith('streamiq.speed:')) localStorage.setItem(k, '0.2')
+          if (k.startsWith('streamiq.speed:')) localStorage.setItem(k, '0.1')
       })
       await a.getByRole('button', { name: 'Open' }).click()
       await a.getByRole('button', { name: /Movies/ }).click()
@@ -268,14 +269,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         a.getByText(
           // newest first: Jellyfin's decision, the limit, Auto's pick
-          /jellyfin: video transcode[\s\S]*quality: Auto \(≤480p, 0\.14 Mbps\)[\s\S]*auto: link ~0\.2 Mbps \(stored hint\) → cap 0\.1 Mbps, source [\d.]+ Mbps → 480p/,
+          /jellyfin: video transcode[\s\S]*quality: Auto \(≤480p, 0\.07 Mbps\)[\s\S]*auto: link ~0\.1 Mbps \(stored hint\) → cap 0\.1 Mbps, source [\d.]+ Mbps → 480p/,
         ),
       ).toBeVisible()
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a
         .getByRole('menuitem', {
-          name: /^Quality.*Auto · 480p \(your connection ~0\.2 Mbps\) · Transcoded to 360p/,
+          name: /^Quality.*Auto · 480p \(your connection ~0\.1 Mbps\) · Transcoded to 360p/,
         })
         .click()
       await expect(

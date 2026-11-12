@@ -67,7 +67,13 @@ test('subtitleTracks: Off + text subtitles only', () => {
     subtitleTracks([
       { Index: 1, Type: 'Audio', Codec: 'aac' },
       { Index: 2, Type: 'Subtitle', Codec: 'pgssub' }, // image: burn-in only
-      { Index: 3, Type: 'Subtitle', Codec: 'srt', Language: 'eng', IsTextSubtitleStream: true },
+      {
+        Index: 3,
+        Type: 'Subtitle',
+        Codec: 'subrip',
+        Language: 'eng',
+        IsTextSubtitleStream: true,
+      },
       { Index: 4, Type: 'Subtitle', IsTextSubtitleStream: true },
     ]),
     [

@@ -70,7 +70,7 @@ export function subtitleTracks(streams: Stream[] = []) {
         label:
           [lang(s.Language), s.Title].filter(Boolean).join(' · ') ||
           `Track ${i + 1}`,
-        hint: s.Codec?.toUpperCase() ?? '',
+        hint: (s.Codec === 'subrip' ? 'srt' : (s.Codec ?? '')).toUpperCase(),
       })),
   ]
 }

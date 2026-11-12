@@ -22,6 +22,14 @@ import (
 
 const heartbeatEvery = 30 * time.Second
 
+// Protocol is the gateway ↔ API protocol version (docs/protocol.md). Bump it on a
+// breaking change; the API refuses a gateway below its minimum ("upgrade required").
+const Protocol = 1
+
+// ErrUpgradeRequired: the API no longer speaks this gateway's protocol.
+var ErrUpgradeRequired = errors.New("the StreamIQ service no longer supports this gateway version: " +
+	"update it by rerunning the install command (docs/install.md)")
+
 // State is gateway.json in the state dir. Delete the dir = brand-new gateway.
 type State struct {
 	GatewayID  string `json:"gatewayId"`
@@ -72,10 +80,11 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 }
 
 type heartbeat struct {
-	Type    string `json:"type"`
-	LanURL  string `json:"lanUrl"`
-	Version string `json:"version"`
-	Update  string `json:"update,omitempty"` // newer release version, "" = up to date
+	Type     string `json:"type"`
+	LanURL   string `json:"lanUrl"`
+	Version  string `json:"version"`
+	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
+	Protocol int    `json:"protocol"`
 }
 
 // RunControl holds the authenticated control socket until it drops: heartbeats
@@ -112,7 +121,7 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 		t := time.NewTicker(heartbeatEvery)
 		defer t.Stop()
 		for {
-			send(heartbeat{Type: "heartbeat", LanURL: lanURL, Version: version, Update: update()})
+			send(heartbeat{Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol})
 			lastBeat.Store(time.Now().Unix())
 			select {
 			case <-ctx.Done():
@@ -123,6 +132,10 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 	}()
 	for {
 		_, raw, err := conn.Read(ctx)
+		var ce websocket.CloseError
+		if errors.As(err, &ce) && ce.Code == websocket.StatusPolicyViolation && ce.Reason == "upgrade required" {
+			return ErrUpgradeRequired
+		}
 		if err != nil {
 			return fmt.Errorf("control closed: %w", err)
 		}

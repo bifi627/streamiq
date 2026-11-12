@@ -32,13 +32,21 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0" }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 1 }
 ```
+**Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
+protocol (currently **1**; Go `onboarding.Protocol`). A breaking change bumps it. The API
+has one minimum (`GatewaySocket.MinGatewayProtocol`); raising it is a deliberate step,
+since every gateway below it stops working until its owner updates. A first heartbeat
+below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the API
+records the version, `GET /api/gateways` reports `upgradeRequired: true`, and the
+broker never routes a session to that socket. The gateway logs "rerun the install
+command" and retries every 10 minutes. No negotiation: one version at a time.
 Liveness only (#140). The API sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null), and
 ignores any other field. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
-`version` and `update`; everything richer comes from the gateway itself over the
+`version`, `update` and `upgradeRequired`; everything richer comes from the gateway itself over the
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **`DELETE /api/gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's

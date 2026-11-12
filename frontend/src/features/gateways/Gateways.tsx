@@ -72,7 +72,13 @@ export function Gateways() {
               <span style={{ color: d.online ? 'green' : '#888' }}>●</span>{' '}
               {d.name ?? 'gateway'}{' '}
               <code style={{ fontSize: '0.8em', color: '#888' }}>{d.id}</code> —{' '}
-              {d.online ? 'online' : 'offline'}
+              {d.upgradeRequired ? (
+                <b>update required: rerun the install command on the gateway</b>
+              ) : d.online ? (
+                'online'
+              ) : (
+                'offline'
+              )}
               {d.version && ` · ${d.version}`}
               {d.online && d.lanUrl && (
                 <>

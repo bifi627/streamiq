@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
 using StreamIq.Api.Data;
+using StreamIq.Api.Features.Broker;
 using StreamIq.Api.Tests.Infrastructure;
 
 namespace StreamIq.Api.Tests.Features.Onboarding;
@@ -20,6 +21,8 @@ public class OnboardingSteps(IntegrationFixture fx)
     private string _token = "";
     private HttpStatusCode _enrollStatus;
     private bool _refused;
+    private string? _closeReason;
+    private WebSocketCloseStatus? _closeStatus;
     private readonly Dictionary<string, string> _credentials = new();
 
     private async Task<HttpClient> SignIn(string email)
@@ -134,7 +137,7 @@ public class OnboardingSteps(IntegrationFixture fx)
     public async Task WhenHeartbeat(string name, string lanUrl, string version)
     {
         using var ws = await Connect(_credentials[name]);
-        var msg = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "heartbeat", lanUrl, version }));
+        var msg = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "heartbeat", lanUrl, version, protocol = GatewaySocket.MinGatewayProtocol }));
         await ws.SendAsync(msg, WebSocketMessageType.Text, true, CancellationToken.None);
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);   // server finishes the frame first
     }
@@ -148,6 +151,7 @@ public class OnboardingSteps(IntegrationFixture fx)
             ["type"] = "heartbeat",
             ["version"] = "1.5.0",
             ["update"] = update,
+            ["protocol"] = GatewaySocket.MinGatewayProtocol,
             [f1] = new { reachable = true },   // pre-#140 gateway: the API ignores these
             [f2] = 2,
         };
@@ -194,5 +198,41 @@ public class OnboardingSteps(IntegrationFixture fx)
     public async Task ThenOffline(string email, string name)
     {
         Assert.False((await Gateway(email, name)).GetProperty("online").GetBoolean());
+    }
+
+    // #176: a heartbeat below the minimum protocol, or without one ("none"), is refused.
+    [When("gateway \"(.*)\" heartbeats with protocol \"(.*)\"")]
+    public async Task WhenHeartbeatProtocol(string name, string protocol)
+    {
+        using var ws = await Connect(_credentials[name]);
+        var hb = new Dictionary<string, object> { ["type"] = "heartbeat", ["version"] = "1.0.0" };
+        if (protocol != "none")
+        {
+            hb["protocol"] = protocol == "current" ? GatewaySocket.MinGatewayProtocol : int.Parse(protocol);
+        }
+        await ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(hb), WebSocketMessageType.Text, true, CancellationToken.None);
+        var r = await ws.ReceiveAsync(new byte[1024], new CancellationTokenSource(TimeSpan.FromSeconds(2)).Token)
+            .ContinueWith(t => t.IsCompletedSuccessfully ? t.Result : null);
+        _closeReason = r?.MessageType == WebSocketMessageType.Close ? ws.CloseStatusDescription : null;
+        _closeStatus = ws.CloseStatus;
+    }
+
+    [Then("the gateway socket is closed with 1008 \"(.*)\"")]
+    public void ThenClosedWith(string reason)
+    {
+        Assert.Equal(WebSocketCloseStatus.PolicyViolation, _closeStatus);
+        Assert.Equal(reason, _closeReason);
+    }
+
+    [Then("the gateway socket stays open")]
+    public void ThenStaysOpen()
+    {
+        Assert.Null(_closeReason);
+    }
+
+    [Then("\"(.*)\" sees \"(.*)\" with update required \"(.*)\"")]
+    public async Task ThenUpgradeRequired(string email, string name, bool required)
+    {
+        Assert.Equal(required, (await Gateway(email, name)).GetProperty("upgradeRequired").GetBoolean());
     }
 }

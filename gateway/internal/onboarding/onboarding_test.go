@@ -3,6 +3,7 @@ package onboarding
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -92,10 +93,10 @@ func TestRunControlHeartbeats(t *testing.T) {
 		func() string { return "" }, func([]byte, func(any)) {})
 	select {
 	case hb := <-got:
-		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" {
+		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" || hb["protocol"] != float64(Protocol) {
 			t.Fatalf("heartbeat = %v", hb)
 		}
-		if len(hb) != 3 { // liveness only (#140): details are GET /streamiq/status
+		if len(hb) != 4 { // liveness only (#140): details are GET /streamiq/status
 			t.Fatalf("heartbeat has extra fields: %v", hb)
 		}
 		if _, ok := hb["update"]; ok {
@@ -103,5 +104,25 @@ func TestRunControlHeartbeats(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("no heartbeat received")
+	}
+}
+
+// The API refusing this gateway's protocol (#176) surfaces as ErrUpgradeRequired.
+func TestRunControlUpgradeRequired(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		c.Read(r.Context())
+		c.Close(websocket.StatusPolicyViolation, "upgrade required")
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := RunControl(ctx, srv.URL, &State{Credential: "c"}, "", "1.0.0", new(atomic.Int64),
+		func() string { return "" }, func([]byte, func(any)) {})
+	if !errors.Is(err, ErrUpgradeRequired) {
+		t.Fatalf("want ErrUpgradeRequired, got %v", err)
 	}
 }

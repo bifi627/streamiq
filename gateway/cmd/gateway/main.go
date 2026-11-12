@@ -328,12 +328,14 @@ func run(ctx context.Context) {
 // mostly idle, and Railway's edge reaps idle sockets — so they WILL drop. A
 // home gateway must survive that unattended, so reconnect with backoff instead
 // of exiting. A session that stayed up a while resets the backoff; a
-// fast-failing dial keeps backing off up to 30s.
+// fast-failing dial keeps backing off up to 30s. A refused protocol (#176) only
+// changes with an update, so that retries every 10 minutes.
 func forever(ctx context.Context, fn func(context.Context) error) {
 	backoff := time.Second
 	for ctx.Err() == nil {
 		start := time.Now()
-		if err := fn(ctx); err != nil {
+		err := fn(ctx)
+		if err != nil {
 			log.Printf("gateway: %v", err)
 		}
 		if ctx.Err() != nil {
@@ -342,11 +344,15 @@ func forever(ctx context.Context, fn func(context.Context) error) {
 		if time.Since(start) > 30*time.Second {
 			backoff = time.Second // the connection was healthy; treat this as a fresh drop
 		}
-		log.Printf("gateway: reconnecting in %s", backoff)
+		wait := backoff
+		if errors.Is(err, onboarding.ErrUpgradeRequired) {
+			wait = 10 * time.Minute
+		}
+		log.Printf("gateway: reconnecting in %s", wait)
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(backoff):
+		case <-time.After(wait):
 		}
 		backoff = min(backoff*2, 30*time.Second)
 	}

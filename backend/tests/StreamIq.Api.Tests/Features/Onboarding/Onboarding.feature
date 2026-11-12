@@ -39,3 +39,22 @@ Feature: Gateway onboarding
     When gateway "nas" heartbeats update "1.6.0" plus old status fields "jellyfin" and "pairedClients"
     Then "alice@home.test" sees "nas" with update "1.6.0"
     And "alice@home.test" sees no "jellyfin" or "pairedClients" or "status" on "nas"
+
+  Scenario Outline: A gateway below the minimum protocol is refused and listed as update required
+    Given "alice@home.test" has an enrolled gateway "nas"
+    When gateway "nas" heartbeats with protocol "<protocol>"
+    Then the gateway socket is closed with 1008 "upgrade required"
+    And "alice@home.test" sees "nas" with update required "true"
+    And "alice@home.test" sees "nas" offline
+
+    Examples:
+      | protocol |
+      | 0        |
+      | none     |
+
+  Scenario: A gateway at the current protocol is accepted
+    Given "alice@home.test" has an enrolled gateway "nas"
+    When gateway "nas" heartbeats with protocol "current"
+    Then the gateway socket stays open
+    And "alice@home.test" sees "nas" with update required "false"
+

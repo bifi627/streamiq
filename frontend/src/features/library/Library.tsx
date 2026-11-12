@@ -14,6 +14,7 @@ import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { Player } from './Player'
 import { clock, TICKS_PER_SECOND, type Item } from './items'
 import { pairInfo, type PairInfo } from '../../stats'
+import type { Speed } from '../../speed'
 
 type Page = { Items: Item[] }
 type View =
@@ -25,9 +26,11 @@ type View =
 const playable = (i: Item) =>
   !i.IsFolder && i.Type !== 'Series' && i.Type !== 'Season'
 
-const Tunnel = createContext<{ gatewayId: string; pc: RTCPeerConnection }>(
-  null!,
-)
+const Tunnel = createContext<{
+  gatewayId: string
+  pc: RTCPeerConnection
+  speed?: Speed
+}>(null!)
 
 // Layout route: one tunnel per gateway, open while navigating inside it.
 export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
@@ -37,7 +40,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   useEffect(() => {
     let s: Session | null = null
     let gone = false
-    connect(gatewayId).then(
+    connect(gatewayId, undefined, true).then(
       (x) => (gone ? x.close() : setSession((s = x))),
       (e: Error) =>
         setErr(
@@ -60,7 +63,9 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
       {err && <p style={{ color: 'crimson' }}>{err}</p>}
       {!session && !err && <p>Connecting…</p>}
       {session && (
-        <Tunnel.Provider value={{ gatewayId, pc: session.pc }}>
+        <Tunnel.Provider
+          value={{ gatewayId, pc: session.pc, speed: session.speed }}
+        >
           <Privacy pc={session.pc} />
           <Outlet />
         </Tunnel.Provider>
@@ -104,7 +109,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
 // position. Back goes back in history; after a deep link (no in-app history)
 // it goes to the item's listing instead of leaving the app.
 export function PlayerPage({ itemId }: { itemId: string }) {
-  const { gatewayId, pc } = useContext(Tunnel)
+  const { gatewayId, pc, speed } = useContext(Tunnel)
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const navigate = useNavigate()
@@ -121,7 +126,7 @@ export function PlayerPage({ itemId }: { itemId: string }) {
         : { to: '/g/$gatewayId', params: { gatewayId }, replace: true },
     )
   }
-  return <Player pc={pc} itemId={itemId} onExit={back} />
+  return <Player pc={pc} speed={speed} itemId={itemId} onExit={back} />
 }
 
 // Breadcrumbs from the item itself + the listing.

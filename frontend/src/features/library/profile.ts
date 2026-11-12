@@ -102,8 +102,8 @@ const TS_AUDIO = ['aac', 'ac3', 'eac3', 'mp3']
 const MAX_BITRATE = 120_000_000
 
 /** Quality picker (#108, #161). Source = no limit: the original file plays
- * unless the device can't take it. Auto = Source for now (#162 caps it from
- * the measured link). The others cap MaxStreamingBitrate and the size:
+ * unless the device can't take it. Auto = Source, or a rung picked from the
+ * measured link (autoQuality, #162). The others cap MaxStreamingBitrate and the size:
  * Jellyfin remuxes a source within them and transcodes a larger one down (it
  * only scales down). Ordered from least to most restrictive. */
 export const QUALITY = {
@@ -115,6 +115,28 @@ export const QUALITY = {
 }
 export type Quality = keyof typeof QUALITY
 export const QUALITIES = Object.keys(QUALITY) as Quality[]
+
+/** The middle value (the first burst reads low: the data channel ramps up). */
+export const median = (xs: number[]) =>
+  [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
+
+/** Auto's MaxStreamingBitrate cap (#162): 70 % of the measured gateway →
+ * client Mbps, in bps. No measurement = no cap. */
+export const autoCap = (mbps?: number) =>
+  mbps ? Math.round(mbps * 7e5) : undefined
+
+/** Auto's pick from the measurement: no limit without one, or for a source
+ * (bps) under the cap (it remuxes unchanged); else the highest rung under the
+ * cap, at least 480p (deviceProfile still caps that at autoCap). An unknown
+ * source bitrate gets the rung (Jellyfin knows it, we may not). */
+export function autoQuality(mbps?: number, bitrate?: number): Quality {
+  const cap = autoCap(mbps)
+  if (!cap || (bitrate && bitrate <= cap)) return 'Auto'
+  return (
+    (['1080p', '720p'] as const).find((r) => QUALITY[r].bitrate <= cap) ??
+    '480p'
+  )
+}
 
 /** A stored value as a Quality; invalid or missing = Auto. */
 export const toQuality = (v: unknown): Quality =>
@@ -193,12 +215,14 @@ export function nowPlaying(
 /** The DeviceProfile for PlaybackInfo. stereo = the audio fallback: AAC 2.0
  * only. compatible = the most restrictive profile (#113): H.264 only, stereo
  * AAC, .ts, at most 1080p / 8 Mbps. quality = the picker's limit (#108).
- * Throws when there is no H.264 (the one transcode target). */
+ * cap = Auto's bitrate cap (bps, #162). Throws when there is no H.264 (the one
+ * transcode target). */
 export function deviceProfile(
   probed: Probe,
   stereo = false,
   compatible = false,
   quality: Quality = 'Auto',
+  cap = Infinity,
 ) {
   const max = limit(quality, compatible)
   const p: Probe = compatible
@@ -233,7 +257,7 @@ export function deviceProfile(
       ]
     : []
   return {
-    MaxStreamingBitrate: max?.bitrate ?? MAX_BITRATE,
+    MaxStreamingBitrate: Math.min(max?.bitrate ?? MAX_BITRATE, cap),
     DirectPlayProfiles: [], // always HLS over the tunnel
     TranscodingProfiles: [
       {

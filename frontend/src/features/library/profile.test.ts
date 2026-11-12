@@ -2,8 +2,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  autoCap,
+  autoQuality,
   decision,
   deviceProfile,
+  limit,
+  median,
   nowPlaying,
   probe,
   qualities,
@@ -277,4 +281,24 @@ test('probe: audio muxed for fMP4 clients, alone for .ts clients', async () => {
   assert.ok(!(await probe()).audio.includes('ac3'))
   hevcOn = false
   assert.ok((await probe()).audio.includes('ac3'))
+})
+
+test('Auto from the measured link: 70 % cap, source fits = no limit', () => {
+  assert.equal(median([2, 30, 20]), 20) // the low first burst drops out
+  assert.equal(autoQuality(undefined, 40e6), 'Auto') // no measurement: no cap
+  assert.equal(autoQuality(20, 10e6), 'Auto') // 10 ≤ 14 Mbps: remux unchanged
+  assert.equal(autoQuality(20, 40e6), '1080p') // 4K 40 Mbps: 8 ≤ 14
+  assert.equal(autoQuality(10, 40e6), '720p') // cap 7: 4 ≤ 7 < 8
+  assert.equal(autoQuality(10), '720p') // unknown source bitrate: the rung
+  assert.equal(autoQuality(1, 40e6), '480p') // nothing fits: the lowest
+  // compatible mode still caps at 1080p; a lower Auto rung still applies
+  assert.equal(limit(autoQuality(20, 10e6), true)?.height, 1080)
+  assert.equal(limit(autoQuality(10, 40e6), true)?.height, 720)
+  // MaxStreamingBitrate never above the cap, also under a rung's own bitrate
+  const max = (mbps: number, q = autoQuality(mbps, 40e6)) =>
+    deviceProfile(webos, false, false, q, autoCap(mbps)).MaxStreamingBitrate
+  assert.equal(max(20), 8e6) // 1080p's 8 < 14
+  assert.equal(max(1), 0.7e6) // 480p's 1.5 > 0.7
+  assert.equal(max(20, autoQuality(20, 10e6)), 14e6) // fits: cap only
+  assert.equal(deviceProfile(webos).MaxStreamingBitrate, 120e6) // no cap
 })

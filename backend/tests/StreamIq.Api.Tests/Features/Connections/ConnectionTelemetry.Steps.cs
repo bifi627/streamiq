@@ -92,6 +92,13 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
         _last = await client.PatchAsJsonAsync($"/api/connections/{_session}", new { bytesReceived = bytes, bytesSent = 10 });
     }
 
+    [When("\"(.*)\" ends that session with ([0-9]+) bytes received and ([0-9]+) kbps measured")]
+    public async Task WhenEndsMeasured(string email, long bytes, int kbps)
+    {
+        using var client = await SignIn(email);
+        _last = await client.PatchAsJsonAsync($"/api/connections/{_session}", new { bytesReceived = bytes, bytesSent = 10, throughputKbps = kbps });
+    }
+
     [Then("the request is refused with 404")]
     public void ThenNotFound()
     {
@@ -114,8 +121,19 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
         Assert.Null(row.BytesReceived);
     }
 
-    [Then("the session is stored as relayed with ([0-9]+) bytes received and an end time")]
-    public async Task ThenStored(long bytes)
+    [Then("the session is stored as relayed with ([0-9]+) bytes received, ([0-9]+) kbps and an end time")]
+    public async Task ThenStoredMeasured(long bytes, int kbps)
+    {
+        Assert.Equal(kbps, (await ThenStored(bytes)).ThroughputKbps);
+    }
+
+    [Then("the session is stored as relayed with ([0-9]+) bytes received, no throughput and an end time")]
+    public async Task ThenStoredUnmeasured(long bytes)
+    {
+        Assert.Null((await ThenStored(bytes)).ThroughputKbps);
+    }
+
+    private async Task<ConnectionSession> ThenStored(long bytes)
     {
         Assert.Equal(HttpStatusCode.NoContent, _last?.StatusCode);
         using var scope = fx.Factory.Services.CreateScope();
@@ -124,5 +142,6 @@ public class ConnectionTelemetrySteps(IntegrationFixture fx)
         Assert.Equal(bytes, row.BytesReceived);
         Assert.NotNull(row.EndedAt);
         Assert.Equal(_gateways["alice-nas"], row.GatewayId);
+        return row;
     }
 }

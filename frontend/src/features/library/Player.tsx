@@ -17,14 +17,20 @@
 // renditions in Jellyfin's HLS) + MediaSourceId (without it Jellyfin ignores
 // the index); the first load plays Jellyfin's default track. Remux keeps
 // stream copy of the chosen track.
+// Auto (#162): the session's measured throughput (speed.ts) picks the rung
+// (autoQuality); a load waits at most ~3 s for a running measurement. Source
+// and the rungs ignore it, apart from Source's "may stutter" hint.
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { compatibleOn, quality, setQuality } from '../../settings'
+import type { Speed } from '../../speed'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { Controls } from './Controls'
 import {
+  autoCap,
+  autoQuality,
   decision,
   describe,
   deviceProfile,
@@ -86,12 +92,17 @@ function freeze(v: HTMLVideoElement) {
 /** What the current load may stream-copy; the fallbacks turn these off. */
 type Copy = { video: boolean; audio: boolean }
 
+const mbpsText = (mbps: number) =>
+  mbps.toLocaleString(undefined, { maximumSignificantDigits: 2 })
+
 export function Player({
   pc,
+  speed,
   itemId,
   onExit,
 }: {
   pc: RTCPeerConnection
+  speed?: Speed
   itemId: string
   onExit: (item: Item | null) => void
 }) {
@@ -104,6 +115,10 @@ export function Player({
     size: { width: 0, height: 0 },
   })
   const [now, setNow] = useState<string>()
+  // The measured link (Mbps) and Auto's pick from it, as of the last load.
+  const [link, setLink] = useState<{ mbps?: number; auto: Quality }>({
+    auto: 'Auto',
+  })
   const pick = useRef<(q: Quality) => void>(() => {})
   // The audio menu: the item's tracks and the one playing (from the URL).
   const [tracks, setTracks] = useState<ReturnType<typeof audioTracks>>([])
@@ -134,20 +149,31 @@ export function Player({
     let track: number | undefined // audio stream; unset = Jellyfin's default
     let source: string | undefined // Jellyfin ignores AudioStreamIndex without it
     let copy: Copy = { video: true, audio: true }
+    let bitrate: number | undefined // the source's, bps (Auto's input)
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
     const start = async (at: number) => {
       const load = ++loads
-      const max = limit(q, compatible)
+      const mbps = await speed?.get(q === 'Auto' ? 3000 : 0)
+      if (gone || load !== loads) return
+      const eff = q === 'Auto' ? autoQuality(mbps, bitrate) : q
+      const cap = q === 'Auto' ? autoCap(mbps) : undefined
+      setLink({ mbps, auto: eff })
+      if (q === 'Auto' && mbps)
+        event(
+          `auto: link ~${mbps.toFixed(1)} Mbps${speed?.fresh() ? '' : ' (stored hint)'} → cap ${(cap! / 1e6).toFixed(1)} Mbps, source ${bitrate ? `${(bitrate / 1e6).toFixed(1)} Mbps` : '?'} → ${eff === 'Auto' ? 'no limit (fits)' : eff}`,
+        )
+      const max = limit(eff, compatible)
+      const rate = Math.min(max?.bitrate ?? Infinity, cap ?? Infinity) / 1e6
       event(
-        `quality: ${q}${max ? ` (≤${max.height}p, ${max.bitrate / 1e6} Mbps)` : ' (no limit)'}`,
+        `quality: ${q}${max ? ` (≤${max.height}p, ${rate} Mbps)` : cap ? ` (≤${rate} Mbps)` : ' (no limit)'}`,
       )
       // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
       const info = await tunnelJson<PlaybackInfo>(
         pc,
         `/Items/${itemId}/PlaybackInfo`,
         {
-          DeviceProfile: deviceProfile(caps, !copy.audio, compatible, q),
+          DeviceProfile: deviceProfile(caps, !copy.audio, compatible, eff, cap),
           EnableDirectPlay: false,
           EnableDirectStream: false,
           AllowVideoStreamCopy: copy.video,
@@ -170,14 +196,21 @@ export function Player({
       event(`jellyfin: ${d.text}`)
       const sv = src.MediaStreams.find((s) => s.Type === 'Video')
       const size = { width: sv?.Width ?? 0, height: sv?.Height ?? 0 }
-      setFile({ size, bitrate: src.Bitrate ?? sv?.BitRate })
+      bitrate = src.Bitrate ?? sv?.BitRate
+      setFile({ size, bitrate })
       const [path, query] = src.TranscodingUrl.split('?')
       const params = new URLSearchParams(query)
       source = src.Id
       setTracks(audioTracks(src.MediaStreams))
       setAudio(params.get('AudioStreamIndex') ?? '')
-      if (!d.videoCopy && !max)
+      if (!d.videoCopy && !max) {
         Object.entries(AUTO_TRANSCODE).forEach(([k, val]) => params.set(k, val))
+        if (cap)
+          params.set(
+            'VideoBitrate',
+            String(Math.min(cap, QUALITY['1080p'].bitrate)),
+          )
+      }
       if (!d.videoCopy)
         event(
           `transcode to ≤${params.get('MaxHeight') ?? '?'}p, ${params.get('VideoBitrate')} bps`,
@@ -301,6 +334,9 @@ export function Player({
       const fresh = await tunnelJson<Item>(pc, `/Items/${itemId}`)
       if (gone) return
       setItem(fresh)
+      bitrate =
+        fresh.MediaSources?.[0]?.Bitrate ??
+        fresh.MediaStreams?.find((s) => s.Type === 'Video')?.BitRate
       text = fresh.MediaStreams?.find(
         (s) => s.Type === 'Subtitle' && s.IsTextSubtitleStream,
       )?.Index
@@ -330,7 +366,7 @@ export function Player({
       window.removeEventListener('pagehide', report)
       h?.destroy()
     }
-  }, [pc, itemId])
+  }, [pc, speed, itemId])
 
   return (
     <div>
@@ -346,11 +382,22 @@ export function Player({
             status: now,
             options: qualities(file.size, q).map((o) => ({
               value: o,
-              label: o,
+              label:
+                o === 'Auto' && link.mbps
+                  ? `Auto${link.auto === 'Auto' ? '' : ` · ${link.auto}`} (your connection ~${mbpsText(link.mbps)} Mbps)`
+                  : o,
               hint: QUALITY[o]
                 ? `${(QUALITY[o].bitrate / 1e6).toLocaleString()} Mbps`
-                : (o === 'Source' && sourceHint(file.size, file.bitrate)) ||
-                  'no limit',
+                : o === 'Source'
+                  ? [
+                      sourceHint(file.size, file.bitrate) || 'no limit',
+                      link.mbps &&
+                        (file.bitrate ?? 0) > link.mbps * 1e6 &&
+                        'faster than your connection, may stutter',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                  : 'no limit',
             })),
             pick: (v) => {
               const next = v as Quality

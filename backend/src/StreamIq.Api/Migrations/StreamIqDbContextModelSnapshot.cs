@@ -94,6 +94,9 @@ namespace StreamIq.Api.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("ThroughputKbps")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("GatewayId");

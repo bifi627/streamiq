@@ -114,8 +114,9 @@ relay candidate is enough, as the e2e's forced-relay step shows.
 **Telemetry**: once the tunnel is up the browser reads the selected candidate
 pair from `getStats()` and calls `POST /api/connections`
 `{gatewayId, relay, ipv6, localCandidateType, remoteCandidateType, protocol}` →
-`{id}`; on close, `PATCH /api/connections/{id}` `{bytesReceived, bytesSent}` (stamps
-`EndedAt`). Rows live in `connection_sessions` (tenant-owned, global filter;
+`{id}`; on close, `PATCH /api/connections/{id}` `{bytesReceived, bytesSent,
+throughputKbps}` (stamps `EndedAt`; `throughputKbps` = the session's last burst
+measurement, below, or null). Rows live in `connection_sessions` (tenant-owned, global filter;
 another tenant's gateway or row → `404`). A closed tab skips the PATCH.
 A failed attempt (ICE `failed`, pin mismatch, unpaired, broker or gateway
 closed, refused) posts `{gatewayId, failure}` instead: candidate fields null,
@@ -254,8 +255,12 @@ to update it.
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
 bytes through the normal chunking and backpressure above. `size` defaults to
 4 MiB and is capped at 16 MiB; anything else (over the cap, negative, not a
-number) is `400`. The browser's `/diagnostics` page times it for a
-throughput figure; nothing is stored.
+number) is `400`. Streaming sessions (library, `/diagnostics`) time 3 ×
+`size=1048576` bursts in the background once up, and again on a
+`navigator.connection` `change`, and keep the median (Mbps): the player's Auto
+quality caps `MaxStreamingBitrate` at 70 % of it (#162). The last value is a
+localStorage hint per gateway + direct/relay + connection type; the session's
+own measurement goes to telemetry (`throughputKbps`).
 
 ### Jellyfin policy (gateway, `gateway/internal/tunnel/jellyfin.go`)
 

@@ -167,11 +167,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Back' }).click()
       // Quality (#108, #161): the picker says what plays and hides rungs that
       // would not scale the 360p clip down (480p too); a switch reloads at the
-      // playhead. Remembered.
+      // playhead. Remembered. Auto (#162): localhost is fast, so the clip fits
+      // under the measured link and remuxes.
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a
-        .getByRole('menuitem', { name: /^Quality.*Auto · Original 360p/ })
+        .getByRole('menuitem', {
+          name: /^Quality.*Auto \(your connection ~[\d.,]+ Mbps\) · Original 360p/,
+        })
         .click()
       await expect(a.getByRole('menuitemradio')).toHaveText([
         /Auto/, // ✓ Auto
@@ -243,6 +246,45 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
+    await test.step('Auto on a slow link (#162): a capped rung, Source warns', async () => {
+      // A slow home upload, simulated: the bursts fail, so Auto falls back to
+      // the stored hint, set to 0.2 Mbps. A reload at the end undoes both.
+      await a.evaluate(() => {
+        const create = RTCPeerConnection.prototype.createDataChannel
+        RTCPeerConnection.prototype.createDataChannel = function (label, o) {
+          if (label.startsWith('req:/streamiq/burst')) throw new Error('slow')
+          return create.call(this, label, o)
+        }
+        for (const k of Object.keys(localStorage))
+          if (k.startsWith('streamiq.speed:')) localStorage.setItem(k, '0.2')
+      })
+      await a.getByRole('button', { name: 'Open' }).click()
+      await a.getByRole('button', { name: /Movies/ }).click()
+      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      await expect
+        .poll(() => videoTime(a), { timeout: 30_000 })
+        .toBeGreaterThan(1)
+      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      await expect(
+        a.getByText(
+          // newest first: Jellyfin's decision, the limit, Auto's pick
+          /jellyfin: video transcode[\s\S]*quality: Auto \(≤480p, 0\.14 Mbps\)[\s\S]*auto: link ~0\.2 Mbps \(stored hint\) → cap 0\.1 Mbps, source [\d.]+ Mbps → 480p/,
+        ),
+      ).toBeVisible()
+      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
+      await a.getByRole('button', { name: 'Playback options' }).click()
+      await a
+        .getByRole('menuitem', {
+          name: /^Quality.*Auto · 480p \(your connection ~0\.2 Mbps\) · Transcoded to 360p/,
+        })
+        .click()
+      await expect(
+        a.getByRole('menuitemradio', { name: /^Source/ }),
+      ).toContainText('faster than your connection, may stutter')
+      await a.reload() // drops the patch; the next session measures again
+      await a.goto(process.env.E2E_APP_URL!)
+    })
+
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
     await test.step('diagnostics panel: force relay → tunnel works, panel logs it', async () => {
       await a.getByRole('button', { name: 'Diagnostics' }).click()
@@ -269,11 +311,16 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       const report = a.locator('pre', { hasText: 'StreamIQ diagnostics' })
       await expect(report).toContainText(/codecs: h264 .* L\d/) // the #115 probe
       const run = async (path: RegExp) => {
+        // Closing the test's session sends its measurement to telemetry (#162).
+        const end = a.waitForRequest(
+          (r) => r.method() === 'PATCH' && r.url().includes('/connections/'),
+        )
         await a.getByRole('button', { name: 'Test connection' }).click()
         await expect(report).toContainText(
-          /throughput: [\d.]+ Mbps \(4\.0 MB in \d+ ms\)/,
+          /throughput: [\d.]+ Mbps \(median of 3 × 1 MiB bursts; Auto caps at [\d.]+ Mbps\)/,
           { timeout: 30_000 },
         )
+        expect((await end).postDataJSON().throughputKbps).toBeGreaterThan(0)
         await expect(report).toContainText('paired: yes')
         await expect(report).toContainText(path)
       }

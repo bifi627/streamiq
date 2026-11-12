@@ -43,7 +43,7 @@ export function DiagnosticsPage() {
     let step = 'connect (broker → ICE → gateway auth)'
     let close = () => {}
     try {
-      const s = await connect(gatewayId, undefined, true).catch((e) => {
+      const s = await connect(gatewayId).catch((e) => {
         if (e instanceof NotPaired) lines.push('paired: no')
         throw e
       })
@@ -59,9 +59,10 @@ export function DiagnosticsPage() {
       )
       show()
       step = 'throughput (gateway bursts)'
-      await s.speed!.get(60_000) // the session's own measurement (speed.ts)
-      const mbps = s.speed!.fresh()
-      if (!mbps) throw new Error(s.speed!.error() ?? 'timed out')
+      const speed = s.speed() // the session's own measurement (speed.ts)
+      await speed.get(60_000)
+      const mbps = speed.fresh()
+      if (!mbps) throw new Error(speed.error() ?? 'timed out')
       lines.push(
         `throughput: ${mbps.toFixed(1)} Mbps (median of 3 × 1 MiB bursts; Auto caps at ${(mbps * 0.7).toFixed(1)} Mbps)`,
       )

@@ -9,7 +9,7 @@ import {
   useNavigate,
   useRouter,
 } from '@tanstack/react-router'
-import { connect, PinMismatch, type Session } from '../pairing/connect'
+import { PinMismatch, share, type Session } from '../pairing/connect'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { Player } from './Player'
 import { clock, TICKS_PER_SECOND, type Item } from './items'
@@ -32,16 +32,21 @@ const Tunnel = createContext<{
   speed?: Speed
 }>(null!)
 
-// Layout route: one tunnel per gateway, open while navigating inside it.
+// Layout route: the gateway's shared tunnel (#152), held while navigating inside
+// it; leaving releases it (closed 30 s later unless reused).
 export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [session, setSession] = useState<Session | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
-    let s: Session | null = null
+    const { session, release } = share(gatewayId)
     let gone = false
-    connect(gatewayId, undefined, true).then(
-      (x) => (gone ? x.close() : setSession((s = x))),
+    session.then(
+      (x) => {
+        if (gone) return
+        x.speed() // measure on first use, once per session (#162)
+        setSession(x)
+      },
       (e: Error) =>
         setErr(
           e instanceof PinMismatch
@@ -51,7 +56,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
     )
     return () => {
       gone = true
-      s?.close()
+      release()
     }
   }, [gatewayId])
 
@@ -64,7 +69,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
       {!session && !err && <p>Connecting…</p>}
       {session && (
         <Tunnel.Provider
-          value={{ gatewayId, pc: session.pc, speed: session.speed }}
+          value={{ gatewayId, pc: session.pc, speed: session.speed() }}
         >
           <Privacy pc={session.pc} />
           <Outlet />

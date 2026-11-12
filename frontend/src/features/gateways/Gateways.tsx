@@ -8,7 +8,7 @@ import {
   type Install,
 } from './api'
 import { Pairing } from '../pairing/Pairing'
-import { connect, NotPaired, type Session } from '../pairing/connect'
+import { NotPaired, share } from '../pairing/connect'
 import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
 
@@ -210,20 +210,17 @@ function writeCache(id: string, s: GatewayStatus) {
   }
 }
 
-// One short tunnel session per opening of the details while online; offline,
-// the cached last response, dated.
+// The gateway's shared tunnel session (#152) while online, released once the
+// status is in; offline, the cached last response, dated.
 function Details({ g }: { g: Gateway }) {
   const [s, setS] = useState<GatewayStatus | null>(null)
   const [msg, setMsg] = useState('checking…')
   useEffect(() => {
     if (!g.online) return
     let live = true
-    let sess: Session | undefined
-    connect(g.id)
-      .then((x) => {
-        sess = x
-        return tunnelJson<GatewayStatus>(x.pc, '/streamiq/status')
-      })
+    const { session, release } = share(g.id)
+    session
+      .then((x) => tunnelJson<GatewayStatus>(x.pc, '/streamiq/status'))
       .then((r) => {
         writeCache(g.id, r)
         if (live) setS(r)
@@ -239,7 +236,7 @@ function Details({ g }: { g: Gateway }) {
                 : `unavailable (${e.message})`,
           ),
       )
-      .finally(() => sess?.close())
+      .finally(release)
     return () => {
       live = false
     }

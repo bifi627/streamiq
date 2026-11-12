@@ -102,13 +102,15 @@ const TS_AUDIO = ['aac', 'ac3', 'eac3', 'mp3']
 const MAX_BITRATE = 120_000_000
 
 /** Quality picker (#108, #161). Source = no limit: the original file plays
- * unless the device can't take it. Auto = Source, or a rung picked from the
+ * unless the device can't take it. Raw (#164, behind a setting) = no limit and
+ * no probe: every codec Jellyfin can put in fMP4 is copied, unchecked. Auto = Source, or a rung picked from the
  * measured link (autoQuality, #162). The others cap MaxStreamingBitrate and the size:
  * Jellyfin remuxes a source within them and transcodes a larger one down (it
  * only scales down). Ordered from least to most restrictive. */
 export const QUALITY = {
   Auto: null,
   Source: null,
+  Raw: null,
   '1080p': { bitrate: 8_000_000, width: 1920, height: 1080 },
   '720p': { bitrate: 4_000_000, width: 1280, height: 720 },
   '480p': { bitrate: 1_500_000, width: 854, height: 480 },
@@ -152,10 +154,11 @@ export type Size = { width: number; height: number }
 
 /** The picker's options for a source: a rung that would not scale it down is
  * hidden (Jellyfin never upscales), unless it is the current choice. Unknown
- * size = all. */
-export const qualities = (src: Size, current: Quality) =>
+ * size = all. Raw only with its setting on (#164). */
+export const qualities = (src: Size, current: Quality, raw = false) =>
   QUALITIES.filter((o) => {
     const r = QUALITY[o]
+    if (o === 'Raw') return raw
     return (
       !r ||
       o === current ||
@@ -212,10 +215,21 @@ export function nowPlaying(
     : 'Transcoded'
 }
 
+// Raw (#164): every codec Jellyfin copies into fMP4 HLS (spike on #164: it
+// drops vp8/mpeg2/vc1 itself). AudioCodec ends up in the master.m3u8 URL, which
+// Jellyfin rejects above 40 chars, so this is not "everything". Int32 max:
+// anything larger is a 400.
+const RAW_VIDEO = 'h264,hevc,av1,vp9'
+const RAW_AUDIO = 'aac,ac3,eac3,dts,truehd,flac,opus,mp3'
+
+/** The status for Raw: the original streams, unchecked. */
+export const rawStatus = (codecs: string) => `Original · ${codecs} (unchecked)`
+
 /** The DeviceProfile for PlaybackInfo. stereo = the audio fallback: AAC 2.0
  * only. compatible = the most restrictive profile (#113): H.264 only, stereo
- * AAC, .ts, at most 1080p / 8 Mbps. quality = the picker's limit (#108).
- * cap = Auto's bitrate cap (bps, #162). Throws when there is no H.264 (the one
+ * AAC, .ts, at most 1080p / 8 Mbps. quality = the picker's limit (#108); Raw
+ * ignores the probe and every other argument (#164). cap = Auto's bitrate cap
+ * (bps, #162). Throws when there is no H.264 (the one
  * transcode target). */
 export function deviceProfile(
   probed: Probe,
@@ -224,6 +238,25 @@ export function deviceProfile(
   quality: Quality = 'Auto',
   cap = Infinity,
 ) {
+  if (quality === 'Raw' && !compatible)
+    return {
+      MaxStreamingBitrate: 2_147_483_647,
+      DirectPlayProfiles: [],
+      TranscodingProfiles: [
+        {
+          Type: 'Video',
+          Context: 'Streaming',
+          Protocol: 'hls',
+          Container: 'mp4',
+          VideoCodec: RAW_VIDEO,
+          AudioCodec: RAW_AUDIO,
+          MaxAudioChannels: '8',
+          BreakOnNonKeyFrames: false,
+        },
+      ],
+      CodecProfiles: [],
+      SubtitleProfiles: [{ Format: 'vtt', Method: 'Hls' }],
+    }
   const max = limit(quality, compatible)
   const p: Probe = compatible
     ? { ...probed, hevc: null, av1: null, audio: ['aac'], surround: false }
@@ -350,10 +383,13 @@ export function decision(url: string, streams: Stream[]) {
     q.get('allowAudioStreamCopy') !== 'false' &&
     has(q.get('AudioCodec'), a?.Codec) &&
     (a?.Channels ?? 0) <= Number(q.get('TranscodingMaxAudioChannels') ?? 99)
+  const up = (c?: string) => c?.toUpperCase() ?? '?'
   return {
     videoCopy,
     audioCopy,
     reasons,
+    /** "HEVC + DTS": the source codecs that play */
+    codecs: `${up(v?.Codec)} + ${up(a?.Codec)}`,
     text: `video ${videoCopy ? 'remux' : 'transcode'} (${v?.Codec ?? '?'}) · audio ${audioCopy ? 'copy' : 'transcode'} (${a?.Codec ?? '?'} ${a?.Channels ?? '?'}ch, stream ${a?.Index ?? '?'}) · reasons ${reasons || 'none'}${over.length ? ` · over limit: ${over.join(',')} (${v?.Width}x${v?.Height}, ${v?.BitRate ?? '?'} bps)` : ''}`,
   }
 }

@@ -5,33 +5,47 @@
 import { toQuality, type Quality } from './features/library/profile'
 
 const KEY = 'streamiq.settings.compatible'
+const RAW_KEY = 'streamiq.settings.raw'
 const QUALITY_KEY = 'streamiq.settings.quality'
 
-/** Compatible mode: the most restrictive device profile (profile.ts). */
-export function compatibleOn() {
+function flag(key: string) {
   try {
-    return localStorage.getItem(KEY) === '1'
+    return localStorage.getItem(key) === '1'
   } catch {
     return false
   }
 }
 
-export function setCompatible(on: boolean) {
+function setFlag(key: string, on: boolean) {
   try {
-    if (on) localStorage.setItem(KEY, '1')
-    else localStorage.removeItem(KEY)
+    if (on) localStorage.setItem(key, '1')
+    else localStorage.removeItem(key)
   } catch {
     /* not saved: stays the default */
   }
 }
 
-/** The player's quality picker (#108); applies at once (the player reloads). */
+/** Compatible mode: the most restrictive device profile (profile.ts). */
+export const compatibleOn = () => flag(KEY)
+export const setCompatible = (on: boolean) => setFlag(KEY, on)
+
+/** The Raw quality option (#164): original streams, no capability probe. */
+export const rawOn = () => flag(RAW_KEY)
+export const setRaw = (on: boolean) => setFlag(RAW_KEY, on)
+
+/** The player's quality picker (#108); applies at once (the player reloads).
+ * A stored Raw without its setting, or Source/Raw in compatible mode, plays
+ * as Auto (#164); the stored choice is kept for when that changes. */
 export function quality(): Quality {
+  let q: Quality = 'Auto'
   try {
-    return toQuality(localStorage.getItem(QUALITY_KEY))
+    q = toQuality(localStorage.getItem(QUALITY_KEY))
   } catch {
-    return 'Auto'
+    /* unreadable: Auto */
   }
+  if (q === 'Raw' && !rawOn()) return 'Auto'
+  if ((q === 'Source' || q === 'Raw') && compatibleOn()) return 'Auto'
+  return q
 }
 
 export function setQuality(q: Quality) {

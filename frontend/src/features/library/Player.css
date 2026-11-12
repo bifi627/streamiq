@@ -131,6 +131,10 @@
 .player .bar .popover button:focus {
   outline-offset: -4px;
 }
+.player .bar .popover button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 /* Portrait phones: one button row (no volume slider: phones have hardware
    keys; mute stays), and the settings popover sits over the controls,
    compact, so it fits the short player. */

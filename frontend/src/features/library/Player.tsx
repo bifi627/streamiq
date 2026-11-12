@@ -20,11 +20,14 @@
 // Auto (#162): the session's measured throughput (speed.ts) picks the rung
 // (autoQuality); a load waits at most ~3 s for a running measurement. Source
 // and the rungs ignore it, apart from Source's "may stutter" hint.
+// Raw (#164, behind a setting): a profile with every codec, no probe; no
+// fallbacks, a decode failure is an error naming the source codecs. Compatible
+// mode disables Source and Raw (settings.quality() plays them as Auto).
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
-import { compatibleOn, quality, setQuality } from '../../settings'
+import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
 import type { Speed } from '../../speed'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { Controls } from './Controls'
@@ -39,6 +42,7 @@ import {
   probe,
   qualities,
   QUALITY,
+  rawStatus,
   sourceHint,
   type Probe,
   type Quality,
@@ -111,6 +115,7 @@ export function Player({
   const video = useRef<HTMLVideoElement>(null)
   const [err, setErr] = useState<string | null>(null)
   const [q, setQ] = useState(quality)
+  const [compat] = useState(compatibleOn) // as the effect reads it: once
   const [file, setFile] = useState<{ size: Size; bitrate?: number }>({
     size: { width: 0, height: 0 },
   })
@@ -168,17 +173,26 @@ export function Player({
       event(
         `quality: ${q}${max ? ` (≤${max.height}p, ${rate} Mbps)` : cap ? ` (≤${rate} Mbps)` : ' (no limit)'}`,
       )
+      // Raw: always full copy, even after an earlier fallback (#164).
+      const raw = eff === 'Raw'
+      const allow: Copy = raw ? { video: true, audio: true } : copy
       // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
       const info = await tunnelJson<PlaybackInfo>(
         pc,
         `/Items/${itemId}/PlaybackInfo`,
         {
-          DeviceProfile: deviceProfile(caps, !copy.audio, compatible, eff, cap),
+          DeviceProfile: deviceProfile(
+            caps,
+            !allow.audio,
+            compatible,
+            eff,
+            cap,
+          ),
           EnableDirectPlay: false,
           EnableDirectStream: false,
-          AllowVideoStreamCopy: copy.video,
-          AllowAudioStreamCopy: copy.audio,
-          ...(!copy.audio && { MaxAudioChannels: 2 }),
+          AllowVideoStreamCopy: allow.video,
+          AllowAudioStreamCopy: allow.audio,
+          ...(!allow.audio && { MaxAudioChannels: 2 }),
           ...(text !== undefined && { SubtitleStreamIndex: text }),
           ...(track !== undefined && {
             AudioStreamIndex: track,
@@ -192,14 +206,22 @@ export function Player({
         throw new Error(
           `Jellyfin offers no stream (${info.ErrorCode ?? 'no TranscodingUrl'})`,
         )
-      const d = decision(src.TranscodingUrl, src.MediaStreams)
+      const [path, query] = src.TranscodingUrl.split('?')
+      const params = new URLSearchParams(query)
+      // Raw: no bitrate cap at all. Jellyfin transcodes a source of unknown
+      // bitrate whenever VideoBitrate is set (spike on #164).
+      if (raw) params.delete('VideoBitrate')
+      const d = decision(`?${params}`, src.MediaStreams)
       event(`jellyfin: ${d.text}`)
+      // Raw: no fallback; say what the device could not play.
+      const rawErr = () =>
+        setErr(
+          `This device can't play the original streams (${d.codecs}). Pick another quality.`,
+        )
       const sv = src.MediaStreams.find((s) => s.Type === 'Video')
       const size = { width: sv?.Width ?? 0, height: sv?.Height ?? 0 }
       bitrate = src.Bitrate ?? sv?.BitRate
       setFile({ size, bitrate })
-      const [path, query] = src.TranscodingUrl.split('?')
-      const params = new URLSearchParams(query)
       source = src.Id
       setTracks(audioTracks(src.MediaStreams))
       setAudio(params.get('AudioStreamIndex') ?? '')
@@ -215,7 +237,11 @@ export function Player({
         event(
           `transcode to ≤${params.get('MaxHeight') ?? '?'}p, ${params.get('VideoBitrate')} bps`,
         )
-      setNow(nowPlaying(d.videoCopy, params, size))
+      setNow(
+        raw && d.videoCopy
+          ? rawStatus(d.codecs)
+          : nowPlaying(d.videoCopy, params, size),
+      )
       h = new Hls({
         loader: tunnelLoader(pc),
         startPosition: at,
@@ -240,6 +266,8 @@ export function Player({
           /audio/i.test(
             `${e.mimeType ?? ''} ${e.error?.message ?? ''} ${v.error?.message ?? ''}`,
           )
+        if (raw && e.type === Hls.ErrorTypes.MEDIA_ERROR && (e.fatal || audio))
+          return rawErr()
         if (copy.audio && audio && e.type === Hls.ErrorTypes.MEDIA_ERROR)
           return reload('fallback: stereo AAC', { audio: false })
         if (e.fatal) setErr(`playback error: ${e.details}`)
@@ -285,7 +313,8 @@ export function Player({
           return
         if (covers(a.timeRanges[a.type], v.currentTime)) stuck = 0
         else if (++stuck >= STUCK_APPENDS)
-          reload('fallback: video transcode', { video: false })
+          if (raw) rawErr()
+          else reload('fallback: video transcode', { video: false })
       })
       h.attachMedia(v)
       h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
@@ -304,6 +333,7 @@ export function Player({
       if (!caps) return // still starting: the first load picks it up
       const t = v.currentTime
       event(`${why} @${t.toFixed(1)}`)
+      setErr(null) // a new load: e.g. Raw failed, another quality picked
       copy = { ...copy, ...less }
       freeze(v)
       const old = h
@@ -380,7 +410,7 @@ export function Player({
             name: 'Quality',
             value: q,
             status: now,
-            options: qualities(file.size, q).map((o) => ({
+            options: qualities(file.size, q, rawOn()).map((o) => ({
               value: o,
               label:
                 o === 'Auto' && link.mbps
@@ -397,7 +427,14 @@ export function Player({
                     ]
                       .filter(Boolean)
                       .join(' · ')
-                  : 'no limit',
+                  : o === 'Raw'
+                    ? 'original streams, unchecked'
+                    : 'no limit',
+              ...(compat &&
+                (o === 'Source' || o === 'Raw') && {
+                  disabled: true,
+                  hint: 'Off in compatible mode — turn it off in Settings',
+                }),
             })),
             pick: (v) => {
               const next = v as Quality

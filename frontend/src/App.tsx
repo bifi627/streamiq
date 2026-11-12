@@ -29,7 +29,7 @@ import {
   PlayerPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
-import { compatibleOn, setCompatible } from './settings'
+import { compatibleOn, rawOn, setCompatible, setRaw } from './settings'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 
 // Readable text for the popup failures a user can cause; anything else keeps
@@ -113,6 +113,7 @@ function Settings() {
   const canGoBack = useCanGoBack()
   const navigate = useNavigate()
   const [compatible, setOn] = useState(compatibleOn)
+  const [raw, setRawOn] = useState(rawOn)
   return (
     <section>
       <button
@@ -142,6 +143,21 @@ function Settings() {
       <p style={{ color: '#888', margin: '4px 0 0 24px' }}>
         For old TVs: plays everything in the safest format, costs more work on
         your home PC.
+      </p>
+      <label style={{ display: 'block', marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={raw}
+          onChange={(e) => {
+            setRaw(e.target.checked)
+            setRawOn(e.target.checked)
+          }}
+        />{' '}
+        Raw quality option (plays original streams, may not play on this device)
+      </label>
+      <p style={{ color: '#888', margin: '4px 0 0 24px' }}>
+        Adds Raw to the player's quality menu: no check of what this device can
+        decode.
       </p>
     </section>
   )

@@ -6,7 +6,10 @@ const AUTH =
 
 export const JELLYFIN_ADMIN = { user: 'streamiq', pw: 'streamiq-e2e' }
 
-export async function setupJellyfin(base: string): Promise<void> {
+export async function setupJellyfin(
+  base: string,
+  nvenc = false,
+): Promise<void> {
   const call = async (path: string, init: RequestInit = {}, token?: string) => {
     const res = await fetch(base + path, {
       ...init,
@@ -50,6 +53,37 @@ export async function setupJellyfin(base: string): Promise<void> {
     Pw: JELLYFIN_ADMIN.pw,
   })
   const token: string = login.AccessToken
+  if (nvenc) {
+    // The preview's GPU (stack.ts): the core of the gateway's hwAccel("nvenc")
+    // (gateway/internal/jellyfin), set as the admin since the gateway doesn't
+    // manage a Jellyfin it didn't set up.
+    const enc = await call('/System/Configuration/encoding', {}, token)
+    await post(
+      '/System/Configuration/encoding',
+      {
+        ...enc,
+        HardwareAccelerationType: 'nvenc',
+        HardwareDecodingCodecs: [
+          'h264',
+          'hevc',
+          'mpeg2video',
+          'vc1',
+          'vp8',
+          'vp9',
+          'av1',
+        ],
+        EnableDecodingColorDepth10Hevc: true,
+        EnableDecodingColorDepth10Vp9: true,
+        EnableEnhancedNvdecDecoder: true,
+        EnableHardwareEncoding: true,
+        EnableTonemapping: true,
+        EncoderPreset: 'fast', // "auto" is NVENC's lowest quality (p1)
+        EnableThrottling: true, // the gateway's configSteps (#82)
+        EnableSegmentDeletion: true,
+      },
+      token,
+    )
+  }
   await post(
     '/Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fmedia&refreshLibrary=true',
     { LibraryOptions: { EnableInternetProviders: false } },

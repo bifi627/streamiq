@@ -5,6 +5,7 @@ import { auth } from '../../firebase'
 import { API, authed } from '../../api'
 import { pairInfo } from '../../stats'
 import { pcState, relayOn } from '../../diag'
+import { measure, type Speed } from '../../speed'
 import {
   authMessage,
   b64,
@@ -20,17 +21,24 @@ import { clientKey, getPin, setPin } from './store'
 export class PinMismatch extends Error {}
 export class NotPaired extends Error {}
 
-export type Session = { pc: RTCPeerConnection; close: () => void }
+export type Session = {
+  pc: RTCPeerConnection
+  close: () => void
+  /** gateway → client throughput, when connected with `speedTest` (#162) */
+  speed?: Speed
+}
 
 type Msg = Record<string, string | undefined> & { type: string }
 
 /**
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
  * unpaired browser starts pairing and onCode receives the code to compare.
+ * speedTest: measure throughput in the background once up (sessions that stream).
  */
 export async function connect(
   gatewayId: string,
   onCode?: (code: string) => void,
+  speedTest = false,
 ): Promise<Session> {
   const [key, pin, token] = await Promise.all([
     clientKey(),
@@ -53,11 +61,13 @@ export async function connect(
   // closed mid-connect (no row at all).
   let logged: Promise<string | null> | null = null
   let settled = false
+  let speed: Speed | undefined
   const teardown = () => {
     pc.close()
     ws.close() // the broker tells the gateway `bye`
   }
   const close = () => {
+    speed?.stop()
     const row = logged
     logged = null
     if (!row) return teardown()
@@ -70,6 +80,7 @@ export async function connect(
             body: JSON.stringify({
               bytesReceived: p.bytesReceived,
               bytesSent: p.bytesSent,
+              throughputKbps: kbps(speed?.fresh()),
             }),
           })
       })
@@ -96,7 +107,8 @@ export async function connect(
         }).then((r) => r.id)
       })
       .catch(() => null)
-    return { pc, close }
+    if (speedTest) speed = measure(pc, gatewayId)
+    return { pc, close, speed }
   }
   const send = (m: object) => ws.send(JSON.stringify(m))
 
@@ -220,6 +232,8 @@ export async function connect(
     }
   })
 }
+
+const kbps = (mbps?: number) => (mbps ? Math.round(mbps * 1000) : null)
 
 function browserName() {
   const ua = navigator.userAgent

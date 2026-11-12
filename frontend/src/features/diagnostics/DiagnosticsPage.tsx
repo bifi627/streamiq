@@ -3,7 +3,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { diag, relayOn, setFlag, snapshot, subscribe } from '../../diag'
 import { pairInfo } from '../../stats'
-import { tunnelFetch } from '../../tunnel'
 import { connect, NotPaired } from '../pairing/connect'
 import { getGateways, type Gateway } from '../gateways/api'
 import { describe, probe } from '../library/profile'
@@ -44,7 +43,7 @@ export function DiagnosticsPage() {
     let step = 'connect (broker → ICE → gateway auth)'
     let close = () => {}
     try {
-      const s = await connect(gatewayId).catch((e) => {
+      const s = await connect(gatewayId, undefined, true).catch((e) => {
         if (e instanceof NotPaired) lines.push('paired: no')
         throw e
       })
@@ -59,13 +58,12 @@ export function DiagnosticsPage() {
           : 'path: no selected candidate pair',
       )
       show()
-      step = 'throughput (gateway burst)'
-      const t0 = performance.now()
-      const r = await tunnelFetch(s.pc, '/streamiq/burst')
-      const ms = performance.now() - t0
-      if (r.status !== 200) throw new Error(`HTTP ${r.status}`)
+      step = 'throughput (gateway bursts)'
+      await s.speed!.get(60_000) // the session's own measurement (speed.ts)
+      const mbps = s.speed!.fresh()
+      if (!mbps) throw new Error(s.speed!.error() ?? 'timed out')
       lines.push(
-        `throughput: ${((r.body.length * 8) / ms / 1000).toFixed(1)} Mbps (${(r.body.length / 1048576).toFixed(1)} MB in ${Math.round(ms)} ms)`,
+        `throughput: ${mbps.toFixed(1)} Mbps (median of 3 × 1 MiB bursts; Auto caps at ${(mbps * 0.7).toFixed(1)} Mbps)`,
       )
       show()
     } catch (e) {

@@ -56,6 +56,7 @@ public class ConnectionSession : ITenantOwned
     public string? Protocol { get; set; }               // udp / tcp
     public long? BytesReceived { get; set; }
     public long? BytesSent { get; set; }
+    public int? ThroughputKbps { get; set; }            // the client's gateway → client measurement (#162); null = none finished
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? EndedAt { get; set; }
     public string? Failure { get; set; }                // null = tunnel came up; else why the attempt failed (no pair: Relay/types unset)

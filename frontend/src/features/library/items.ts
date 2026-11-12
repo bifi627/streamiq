@@ -14,6 +14,7 @@ export type Item = {
   IndexNumber?: number
   ImageTags?: { Primary?: string }
   UserData?: { PlaybackPositionTicks?: number; Played?: boolean }
+  MediaSources?: { Bitrate?: number }[]
   MediaStreams?: {
     Index: number
     Type: string

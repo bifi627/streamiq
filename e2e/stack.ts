@@ -228,6 +228,8 @@ export type StackOptions = {
   media?: boolean
   /** Docker label on every container (the preview's `down` removes by it). */
   label?: string
+  /** Give Jellyfin all NVIDIA GPUs (`--gpus all`) and turn on NVENC. */
+  nvenc?: boolean
 }
 
 /**
@@ -256,6 +258,19 @@ export async function startStack(o: StackOptions) {
       )
       .withStartupTimeout(180_000),
   )
+  if (o.nvenc) {
+    // ponytail: testcontainers has no GPU option, so set Docker's DeviceRequests
+    // on its protected hostConfig. If testcontainers renames it, this is a silent
+    // no-op (NVENC on, no GPU: every transcode fails); the nvidia-smi check
+    // below fails the start instead.
+    const c = jellyfinContainer as unknown as { hostConfig: object }
+    c.hostConfig = {
+      ...c.hostConfig,
+      DeviceRequests: [
+        { Driver: 'nvidia', Count: -1, Capabilities: [['gpu']] },
+      ],
+    }
+  }
   if (o.media) {
     const media = path.join(root, 'dev-media')
     if (!fs.existsSync(media))
@@ -344,7 +359,8 @@ export async function startStack(o: StackOptions) {
       '-metadata title="streamiq e2e clip" "$D/streamiq e2e clip.mp4" && ' +
       `printf '1\n00:00:00,000 --> 00:00:30,000\nstreamiq e2e subtitle\n' > "$D/streamiq e2e clip.en.srt"`,
   )
-  await setupJellyfin(process.env.E2E_JELLYFIN_URL)
+  if (o.nvenc) await sh('nvidia-smi -L') // the GPU really is in the container
+  await setupJellyfin(process.env.E2E_JELLYFIN_URL, o.nvenc)
 
   const apiPort = await freePort()
   const api = `http://127.0.0.1:${apiPort}`

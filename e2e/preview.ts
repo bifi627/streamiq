@@ -19,6 +19,9 @@
 // page itself, so devices pair without anyone at this PC. The whole pairing
 // flow still runs; only the human code comparison is skipped. With --tunnel,
 // anyone with the URL + preview login gets paired (owner accepted).
+//
+// GPU: with an NVIDIA GPU (nvidia-smi works), Jellyfin gets it and NVENC is on,
+// as an installed gateway with STREAMIQ_JELLYFIN_HWACCEL=nvenc. Else CPU.
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -51,6 +54,7 @@ type State = {
   gatewayPage?: string
   tunnel?: string
   jellyfin?: string
+  nvenc?: boolean
   pids?: number[] // backend, vite, gateway: down kills them even if serve died
   ports?: number[]
 }
@@ -162,6 +166,7 @@ ${
 }${
     s.jellyfin
       ? `  jellyfin:     ${s.jellyfin} (streamiq / streamiq-e2e; new files in ${path.join(root, 'dev-media')}: Scan All Libraries)
+  transcoding:  ${s.nvenc ? 'NVIDIA GPU (NVENC)' : 'CPU (no nvidia-smi)'}
 `
       : ''
   }  pairing:      auto-approved (gateway page: ${s.gatewayPage})
@@ -325,11 +330,13 @@ async function serve() {
     const port = Number(process.env.PREVIEW_PORT)
     // Always mounted (gitignored): gen-test-media.sh output or your own files.
     fs.mkdirSync(path.join(root, 'dev-media'), { recursive: true })
+    const nvenc = spawnSync('nvidia-smi', ['-L']).status === 0
     const stack = await startStack({
       dir: path.join(dir, 'bin'),
       lan: { port, cert, key },
       media: true,
       label: id,
+      nvenc, // NVIDIA GPU on this machine → Jellyfin transcodes on it
     })
 
     // Seed: account (the API provisions its tenant on first sign-in), then a
@@ -421,6 +428,7 @@ async function serve() {
       ready: true,
       tunnel,
       jellyfin: process.env.E2E_JELLYFIN_URL,
+      nvenc,
       lan: lanIps().map((ip) => `https://${ip}:${port}`),
       local: stack.app,
       gatewayPage: gateway.pageUrl,

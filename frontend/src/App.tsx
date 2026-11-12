@@ -21,6 +21,8 @@ import {
 } from '@tanstack/react-router'
 import { auth } from './firebase'
 import { getMe } from './api'
+import { AppError, toAppError } from './errors'
+import { ErrorView, UncaughtErrors } from './ErrorView'
 import { Gateways } from './features/gateways/Gateways'
 import {
   GatewayLibrary,
@@ -167,11 +169,11 @@ function Settings() {
 function Shell() {
   const navigate = useNavigate()
   const [tenantId, setTenantId] = useState('')
-  const [err, setErr] = useState<string | null>(null)
+  const [err, setErr] = useState<AppError | null>(null)
   useEffect(() => {
     getMe()
       .then((m) => setTenantId(m.tenantId))
-      .catch((e: Error) => setErr(e.message))
+      .catch((e) => setErr(toAppError(e)))
   }, [])
 
   return (
@@ -189,7 +191,8 @@ function Shell() {
         </span>
       </header>
       <Diagnostics />
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
+      <UncaughtErrors />
+      {err && <ErrorView error={err} />}
       <p style={{ color: '#888', fontSize: 12 }}>tenant {tenantId}</p>
       <Outlet />
     </main>
@@ -256,7 +259,14 @@ const routeTree = rootRoute.addChildren([
     playRoute,
   ]),
 ])
-const router = createRouter({ routeTree })
+// Render errors in any route: the router's error boundary, shown like every
+// other error (#45). reset re-renders the route.
+const router = createRouter({
+  routeTree,
+  defaultErrorComponent: ({ error, reset }) => (
+    <ErrorView error={error} onRetry={reset} />
+  ),
+})
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router

@@ -3,7 +3,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { diag, relayOn, setFlag, snapshot, subscribe } from '../../diag'
 import { pairInfo } from '../../stats'
-import { connect, NotPaired } from '../pairing/connect'
+import { connect } from '../pairing/connect'
+import { isKind } from '../../errors'
 import { getGateways, type Gateway } from '../gateways/api'
 import { describe, probe } from '../library/profile'
 
@@ -44,7 +45,7 @@ export function DiagnosticsPage() {
     let close = () => {}
     try {
       const s = await connect(gatewayId).catch((e) => {
-        if (e instanceof NotPaired) lines.push('paired: no')
+        if (isKind(e, 'not-paired')) lines.push('paired: no')
         throw e
       })
       close = s.close

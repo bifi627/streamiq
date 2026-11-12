@@ -3,6 +3,7 @@
 // then an `{"eof":true}` text frame, after which the browser closes the channel.
 // Not the gateway: old Chromium (webOS TVs) loses frames on a remote close (#72).
 import { request } from './diag'
+import { AppError, httpError } from './errors'
 
 export type TunnelResponse = {
   status: number
@@ -25,8 +26,9 @@ export function tunnelFetch(
     try {
       dc = pc.createDataChannel(`req:${url.slice(0, 200)}`)
     } catch (e) {
-      d.done(`createDataChannel: ${e instanceof Error ? e.message : e}`)
-      throw e
+      const msg = `createDataChannel: ${e instanceof Error ? e.message : e}`
+      d.done(msg)
+      throw new AppError('tunnel-lost', msg)
     }
     dc.binaryType = 'arraybuffer'
     let head: { status: number; headers?: Record<string, string> } | null = null
@@ -57,7 +59,9 @@ export function tunnelFetch(
       dc.close()
       if (!head) {
         d.done('EOF without response head')
-        return reject(new Error(`tunnel: no response head for ${url}`))
+        return reject(
+          new AppError('tunnel-lost', `tunnel: no response head for ${url}`),
+        )
       }
       d.done(`HTTP ${head.status}`)
       const body = new Uint8Array(size)
@@ -71,7 +75,8 @@ export function tunnelFetch(
     dc.onclose = () => {
       d.done(head ? 'closed before EOF' : 'closed before response')
       reject(
-        new Error(
+        new AppError(
+          'tunnel-lost',
           `tunnel: ${head ? 'truncated response' : 'no response'} for ${url}`,
         ),
       )
@@ -91,7 +96,7 @@ export async function tunnelJson<T>(
     body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) },
   )
   if (r.status < 200 || r.status > 299)
-    throw new Error(`${url.split('?')[0]} → HTTP ${r.status}`)
+    throw httpError('tunnel', r.status, url.split('?')[0])
   const text = new TextDecoder().decode(r.body)
   return (text ? JSON.parse(text) : null) as T
 }

@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -313,3 +314,93 @@ func (b *browser) fetch() string {
 }
 
 func spki(k *ecdsa.PrivateKey) []byte { b, _ := x509.MarshalPKIXPublicKey(&k.PublicKey); return b }
+
+// The screen relay over real data channels (#179): a TV session opens a screen
+// under its pairing name, a phone session lists it and sends a command, the TV
+// gets it on its held response; closing the TV's PeerConnection removes it.
+func TestScreenOverTunnel(t *testing.T) {
+	dir := t.TempDir()
+	cert, fp, _ := identity.LoadOrCreate(dir)
+	store, _ := pairing.Open(dir)
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}}
+	pair := func(id, name string) *browser {
+		key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		b := connect(t, gateway, id, key, false)
+		b.say(nil) // unpaired
+		nB := pairing.Nonce()
+		h := sha256.Sum256([]byte(nB))
+		b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": name})
+		b.send(map[string]any{"type": "reveal", "n": nB})
+		for len(store.Pending()) == 0 {
+			time.Sleep(10 * time.Millisecond)
+		}
+		store.Decide(store.Pending()[0].ID, true)
+		if b.say(nil)["type"] != "approved" {
+			t.Fatal("want approved")
+		}
+		return b
+	}
+	tv, phone := pair("tv", "Living room TV"), pair("phone", "Phone")
+
+	frames := tv.open(`{"method":"GET","url":"/streamiq/screen"}`)
+	if head := <-frames; !strings.Contains(head, `"status":200`) {
+		t.Fatalf("screen head = %s", head)
+	}
+	var screens []struct{ ID, Name string }
+	for start := time.Now(); len(screens) == 0; { // the screen registers when the TV's request arrives
+		if time.Since(start) > 10*time.Second {
+			t.Fatal("screen never listed")
+		}
+		json.Unmarshal([]byte(phone.body(`{"method":"GET","url":"/streamiq/screens"}`)), &screens)
+	}
+	if len(screens) != 1 || screens[0].Name != "Living room TV" {
+		t.Fatalf("screens = %+v", screens)
+	}
+	phone.body(`{"method":"POST","url":"/streamiq/screens/` + screens[0].ID + `","body":"{\"type\":\"pause\"}"}`)
+	select {
+	case got := <-frames:
+		if got != `{"type":"pause"}`+"\n" {
+			t.Fatalf("TV got %q", got)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("command never reached the TV")
+	}
+
+	tv.pc.Close()
+	for start := time.Now(); phone.body(`{"method":"GET","url":"/streamiq/screens"}`) != "[]"; {
+		if time.Since(start) > 30*time.Second {
+			t.Fatal("screen outlived the TV's session")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// open sends one tunnel request and returns its frames as they arrive (head
+// first, then each body chunk as text).
+func (b *browser) open(req string) chan string {
+	d, _ := b.pc.CreateDataChannel("req", nil)
+	frames := make(chan string, 16)
+	d.OnOpen(func() { d.SendText(req) })
+	d.OnMessage(func(m webrtc.DataChannelMessage) { frames <- string(m.Data) })
+	return frames
+}
+
+// body sends one tunnel request and returns its whole body.
+func (b *browser) body(req string) string {
+	b.t.Helper()
+	frames := b.open(req)
+	var got []byte
+	<-frames // head
+	for {
+		select {
+		case f := <-frames:
+			if f == `{"eof":true}` {
+				return string(got)
+			}
+			got = append(got, f...)
+		case <-time.After(10 * time.Second):
+			b.t.Fatal("no EOF")
+			return ""
+		}
+	}
+}

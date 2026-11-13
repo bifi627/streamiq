@@ -173,12 +173,25 @@ func (s *Sessions) newPeer(id, user string, send func(any)) (*webrtc.PeerConnect
 		case d.Label() == "auth":
 			s.serveAuth(id, pc, d, &authed)
 		case authed.Load():
-			tunnel.Serve(d, s.Jellyfin)
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Name: s.name(id)})
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`
 		}
 	})
 	return pc, nil
+}
+
+// name is the session's client pairing name (allowlist entry for its key).
+func (s *Sessions) name(session string) string {
+	s.mu.Lock()
+	fp := s.keys[session]
+	s.mu.Unlock()
+	for _, p := range s.Store.Paired() {
+		if p.KeyFp == fp {
+			return p.Name
+		}
+	}
+	return "browser"
 }
 
 // authMsg is every message on the `auth` channel (docs/protocol.md, "Pairing").

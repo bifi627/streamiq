@@ -105,7 +105,11 @@ export function describe(e: AppError): {
         actions: ['retry'],
       }
     case 'not-paired':
-      return { message: "This browser isn't paired yet.", actions: ['pair'] }
+      return {
+        message:
+          "This browser isn't paired with this gateway (anymore). Pair it again.",
+        actions: ['pair'],
+      }
     case 'pin-mismatch':
       return {
         message:

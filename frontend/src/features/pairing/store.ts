@@ -1,6 +1,7 @@
 // IndexedDB: this browser's client key (non-extractable CryptoKey — script on
 // the page can use it but never read it out) and the gateway pins, per gateway id.
 import { fingerprint } from './crypto'
+import { event } from '../../diag'
 
 const db = new Promise<IDBDatabase>((resolve, reject) => {
   const r = indexedDB.open('streamiq', 1)
@@ -45,3 +46,14 @@ export const getPin = (gatewayId: string) =>
 
 export const setPin = (gatewayId: string, gatewayFp: string) =>
   kv('readwrite', (s) => s.put(gatewayFp, `pin:${gatewayId}`))
+
+/** Asks the browser not to evict our storage (#174): best-effort storage can go
+ * under disk pressure, and Safari drops it after 7 days without a visit; either
+ * way the client key is gone and the browser must pair again. Called after a
+ * pairing, not at key creation: Firefox prompts, and pairing is a deliberate act. */
+export async function persistStorage() {
+  const s = navigator.storage
+  if (!s?.persist) return event('storage: persist() unsupported')
+  if (await s.persisted()) return event('storage: already persistent')
+  event(`storage: persist() ${(await s.persist()) ? 'granted' : 'denied'}`)
+}

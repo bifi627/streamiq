@@ -10,6 +10,7 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { share, type Session } from '../pairing/connect'
+import { Pairing } from '../pairing/Pairing'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
@@ -39,6 +40,7 @@ const Tunnel = createContext<{
 export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [session, setSession] = useState<Session | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
+  const [attempt, setAttempt] = useState(0) // bumped after an inline re-pair
 
   useEffect(() => {
     const { session, release } = share(gatewayId)
@@ -55,14 +57,30 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
       gone = true
       release()
     }
-  }, [gatewayId])
+  }, [gatewayId, attempt])
 
   return (
     <section>
       <p>
         <Link to="/">← Gateways</Link>
       </p>
-      {err && <ErrorView error={err} />}
+      {err && (
+        <ErrorView
+          error={err}
+          // Evicted client key (#174) or a new gateway cert: pair right here,
+          // then reconnect (no reload: it would wipe the diagnostics log).
+          pair={
+            <Pairing
+              gatewayId={gatewayId}
+              lanUrl={null}
+              onPaired={() => {
+                setErr(null)
+                setAttempt((n) => n + 1)
+              }}
+            />
+          }
+        />
+      )}
       {!session && !err && <p>Connecting…</p>}
       {session && (
         <Tunnel.Provider

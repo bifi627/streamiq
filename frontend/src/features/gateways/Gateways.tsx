@@ -9,7 +9,7 @@ import {
 } from './api'
 import { Pairing } from '../pairing/Pairing'
 import { share } from '../pairing/connect'
-import { AppError, isKind, toAppError } from '../../errors'
+import { ADMIN_ONLY, AppError, isKind, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
@@ -20,10 +20,12 @@ import { useHousehold } from '../households/household'
 // Gateways list + "Add gateway" (onboarding flow 1). Polls so a freshly installed
 // gateway shows up, and online/offline stays current. ponytail: 5s poll, push
 // updates over a socket if the list ever gets big. Add/Remove are admin-only
-// (#190): hidden for a member (the API answers 403 anyway) and until /me is in.
+// (#190): hidden for a member (the API answers 403 anyway) and until /me is in;
+// a member gets told an admin does them instead (#211).
 export function Gateways() {
   const [gateways, setGateways] = useState<Gateway[]>([])
-  const admin = useHousehold().current?.role === 'admin'
+  const role = useHousehold().current?.role
+  const admin = role === 'admin'
   const [install, setInstall] = useState<Install | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   const navigate = useNavigate()
@@ -69,7 +71,12 @@ export function Gateways() {
       <h2>Gateways</h2>
       {err && <ErrorView error={err} />}
       {gateways.length === 0 ? (
-        !err && <p>No gateways yet.</p>
+        !err && (
+          <p>
+            No gateways yet.
+            {role === 'member' && ' Ask a household admin to add one.'}
+          </p>
+        )
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {gateways.map((d) => (
@@ -158,6 +165,12 @@ export function Gateways() {
       )}
       <Members />
       {admin && <Invites />}
+      {role === 'member' && (
+        <section>
+          <h2>Invites</h2>
+          <p>{ADMIN_ONLY}</p>
+        </section>
+      )}
     </section>
   )
 }

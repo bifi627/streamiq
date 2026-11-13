@@ -230,7 +230,9 @@ Copy `.env.example` only to override.
 
 - **`tenant_id` on every tenant-owned table**, enforced via one EF global
   query filter. Tenant isolation is the product's crown-jewel invariant;
-  the signaling isolation tests matter more than any feature.
+  the signaling isolation tests matter more than any feature. Bypasses
+  (`IgnoreQueryFilters`, raw SQL) only in files on `scripts/tenant-filter-allowlist.txt`
+  (enforced by `check.sh`).
 - **No dev-mode auth bypass, ever.** Same token-verification code path in
   dev and prod; only the issuer differs (Firebase emulator).
 - **Never `latest`** for the Jellyfin image; update the pin deliberately.

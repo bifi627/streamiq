@@ -1,0 +1,5 @@
+# Files in backend/src allowed to bypass the tenant query filter (IgnoreQueryFilters / raw SQL).
+# Checked by scripts/check-tenant-filter.sh. One file per line: <path>  # <reason>
+# Adding a line is a review trigger: tenant isolation is the crown-jewel invariant.
+backend/src/StreamIq.Api/Features/Onboarding/Enroll.cs  # enrollment token lookup by hash; the token establishes the tenant
+backend/src/StreamIq.Api/Features/Broker/GatewaySocket.cs  # gateway credential lookup by hash; the credential establishes the tenant

@@ -16,6 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6 # reads global.json
+      - run: bash scripts/check-tenant-filter.sh # #175: IgnoreQueryFilters / raw SQL only in allowlisted files
       - run: dotnet format backend/StreamIq.slnx --verify-no-changes
       - run: dotnet test backend/StreamIq.slnx --nologo
       - run: docker compose config --quiet && docker compose --profile relay config --quiet

@@ -23,10 +23,23 @@ export async function fingerprint(bytes: ArrayBuffer) {
   )
 }
 
-/** The `a=fingerprint:sha-256 …` of an SDP, normalized to the contract form. */
+/**
+ * The one `a=fingerprint:sha-256 …` of an SDP, normalized to the contract form.
+ * Throws unless every fingerprint line (session and media level, any hash) is
+ * the same sha-256 one: with several, the value compared with the pin need not
+ * be the one the browser's DTLS stack verifies.
+ */
 export function sdpFingerprint(sdp: string) {
-  const m = /a=fingerprint:sha-256 ([0-9A-Fa-f:]+)/.exec(sdp)
-  if (!m) throw new Error('SDP without a sha-256 fingerprint')
+  const lines = new Set(
+    sdp
+      .split(/[\r\n]+/)
+      .filter((l) => /a=fingerprint/i.test(l))
+      .map((l) => l.trim().toLowerCase()),
+  )
+  if (lines.size !== 1)
+    throw new Error(`SDP with ${lines.size} distinct fingerprints, expected 1`)
+  const m = /^a=fingerprint:sha-256 ([0-9a-f:]+)$/.exec([...lines][0])
+  if (!m) throw new Error('SDP fingerprint is not a sha-256 one')
   return 'sha-256 ' + m[1].toUpperCase()
 }
 

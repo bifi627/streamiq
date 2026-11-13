@@ -23,6 +23,9 @@ import (
 // from the page's own origin (blocks drive-by approval from a malicious site).
 func Guard(lanHost string, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Never in a frame: Approve must not be clickable through another site.
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
 		host := r.Host
 		if hh, _, err := net.SplitHostPort(r.Host); err == nil {
 			host = hh

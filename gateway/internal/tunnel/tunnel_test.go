@@ -8,9 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pion/webrtc/v4"
 )
 
 const (
@@ -105,6 +108,8 @@ func TestAllowlist(t *testing.T) {
 		{"GET", "/Videos/" + vid + "/%2e%2e/%2e%2e/Auth/Keys", false},
 		{"GET", "/Videos/" + vid + "//x", false},
 		{"GET", "http://evil.example/UserViews", false},
+		{"GET", "//evil.example/UserViews", false}, // scheme-relative: a host, no scheme
+		{"GET", "//user@evil.example/UserViews", false},
 		{"GET", "/Items/not-an-id", false},
 	} {
 		j, _ := fakeJellyfin(t)
@@ -196,6 +201,19 @@ func TestBurst(t *testing.T) {
 			t.Errorf("%s: status %d, want 400", rq.URL, status)
 		}
 	}
+	// The largest burst is generated chunk by chunk, never allocated whole.
+	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: fmt.Sprintf("%s?size=%d", BurstPath, BurstMax)})
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, _, big, err := proxy(j, raw, Session{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, _ := io.Copy(io.Discard, big)
+	runtime.ReadMemStats(&after)
+	if alloc := after.TotalAlloc - before.TotalAlloc; n != BurstMax || alloc > BurstMax/4 {
+		t.Fatalf("size=%d burst = %d bytes, %d bytes allocated", BurstMax, n, alloc)
+	}
 	for _, rq := range []tunnelReq{{Method: "POST", URL: BurstPath}, {Method: "GET", URL: "/streamiq/%62urst"}} {
 		raw, _ := json.Marshal(rq)
 		if status, _, _, _ := proxy(j, raw, Session{}); status == 200 {
@@ -275,6 +293,93 @@ func TestAdminOnly(t *testing.T) {
 		if got := call(c.role, c.path); got != c.want {
 			t.Errorf("%q GET %s: status %d, want %d", c.role, c.path, got, c.want)
 		}
+	}
+}
+
+// A response blocked on a full send buffer (the browser stopped reading) ends
+// when its channel or connection does: the send loop returns, the upstream
+// response is closed and the channel's slot is free again.
+func TestBlockedStreamEndsOnClose(t *testing.T) {
+	for name, end := range map[string]func(browser, gateway *webrtc.PeerConnection, d *webrtc.DataChannel){
+		"browser closes the channel":    func(_, _ *webrtc.PeerConnection, d *webrtc.DataChannel) { d.Close() },
+		"browser closes the connection": func(b, _ *webrtc.PeerConnection, _ *webrtc.DataChannel) { b.Close() },
+		"gateway closes the connection": func(_, g *webrtc.PeerConnection, _ *webrtc.DataChannel) { g.Close() }, // sessions.Drop
+	} {
+		t.Run(name, func(t *testing.T) {
+			upstreamDone := make(chan struct{})
+			origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer close(upstreamDone)
+				w.Header().Set("Content-Type", "video/mp2t")
+				for buf := make([]byte, ChunkSize); r.Context().Err() == nil; {
+					if _, err := w.Write(buf); err != nil { // endless: only a closed response body ends it
+						return
+					}
+				}
+			}))
+			t.Cleanup(origin.Close)
+			j := &Jellyfin{Client: http.DefaultClient, URL: origin.URL}
+			j.SetKey(key, uid)
+
+			browser, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
+			gateway, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
+			hold := make(chan struct{})
+			t.Cleanup(func() { close(hold); browser.Close(); gateway.Close() })
+			slots := make(chan struct{}, MaxChannels)
+			served := make(chan *webrtc.DataChannel, 1)
+			gateway.OnDataChannel(func(d *webrtc.DataChannel) {
+				Serve(d, j, Session{}, slots)
+				served <- d
+			})
+			d, _ := browser.CreateDataChannel("req", nil)
+			d.OnOpen(func() { d.SendText(`{"method":"GET","url":"/Videos/` + vid + `/hls1/main/0.ts"}`) })
+			d.OnMessage(func(webrtc.DataChannelMessage) { <-hold }) // never reads on: the gateway's send buffer fills
+
+			offer, _ := browser.CreateOffer(nil)
+			gathered := webrtc.GatheringCompletePromise(browser)
+			browser.SetLocalDescription(offer)
+			<-gathered
+			gateway.SetRemoteDescription(*browser.LocalDescription())
+			answer, _ := gateway.CreateAnswer(nil)
+			gathered = webrtc.GatheringCompletePromise(gateway)
+			gateway.SetLocalDescription(answer)
+			<-gathered
+			browser.SetRemoteDescription(*gateway.LocalDescription())
+
+			var gd *webrtc.DataChannel
+			select {
+			case gd = <-served:
+			case <-time.After(30 * time.Second):
+				t.Fatal("no data channel on the gateway")
+			}
+			// Waiting on backpressure: the buffer went over MaxBuffered and now sits,
+			// unchanged, above the low-water mark that would wake the sender.
+			for start, was := time.Now(), uint64(0); ; was = gd.BufferedAmount() {
+				if was > MaxBuffered/2 && was == gd.BufferedAmount() {
+					break
+				}
+				if time.Since(start) > 30*time.Second {
+					t.Fatalf("sender never blocked (%d bytes buffered)", gd.BufferedAmount())
+				}
+				time.Sleep(300 * time.Millisecond)
+			}
+			select {
+			case <-upstreamDone:
+				t.Fatal("upstream ended before the channel closed")
+			default:
+			}
+
+			go end(browser, gateway, d)
+			select {
+			case <-upstreamDone:
+			case <-time.After(30 * time.Second):
+				t.Fatal("sender still blocked after the close: upstream response never closed")
+			}
+			for start := time.Now(); len(slots) != 0; time.Sleep(10 * time.Millisecond) {
+				if time.Since(start) > 10*time.Second {
+					t.Fatal("slot not given back")
+				}
+			}
+		})
 	}
 }
 

@@ -41,6 +41,9 @@ func TestGuard(t *testing.T) {
 		if w.Code != c.want {
 			t.Errorf("%s: status %d, want %d", c.name, w.Code, c.want)
 		}
+		if w.Header().Get("X-Frame-Options") != "DENY" {
+			t.Errorf("%s: frameable", c.name)
+		}
 	}
 }
 

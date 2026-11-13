@@ -103,7 +103,7 @@ func (j *Jellyfin) prepare(rq tunnelReq, c cred) (*http.Request, int, error) {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("no Jellyfin token yet (see the gateway's local page)")
 	}
 	u, err := url.Parse(rq.URL)
-	if err != nil || u.IsAbs() || u.RawPath != "" || u.Path != path.Clean(u.Path) ||
+	if err != nil || u.IsAbs() || u.Host != "" || u.User != nil || u.RawPath != "" || u.Path != path.Clean(u.Path) ||
 		!allow(rq.Method, u.Path) {
 		return nil, http.StatusForbidden, fmt.Errorf("refused %s %s", rq.Method, rq.URL)
 	}

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 
@@ -173,15 +174,16 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		}
 	})
 
-	var authed atomic.Bool
+	var authed, authSeen atomic.Bool
+	slots := make(chan struct{}, tunnel.MaxChannels) // tunnel channels being served on this connection
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
 		switch {
-		case d.Label() == "auth":
+		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
 			s.serveAuth(id, user, pc, d, &authed)
-		case authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Name: func() string { return s.name(id) }})
+		case d.Label() != "auth" && authed.Load():
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Name: func() string { return s.name(id) }}, slots)
 		default:
-			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`
+			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`; a second `auth`: never
 		}
 	})
 	return pc, nil
@@ -222,19 +224,32 @@ type authMsg struct {
 }
 
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
-// approved/rejected). Messages on one channel arrive in order, one at a time.
+// approved/rejected), once per connection (newPeer). Messages on one channel
+// arrive in order, one at a time; after a refusal none is handled.
 func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool) {
 	say := func(m authMsg) { b, _ := json.Marshal(m); d.SendText(string(b)) }
+	done := make(chan struct{}) // closed when the channel closes or we refuse
+	var once sync.Once
+	end := func() { once.Do(func() { close(done) }) }
 	fail := func(why string) {
 		log.Printf("gateway: auth: %s", why)
 		say(authMsg{Type: "rejected", Why: why})
 		d.Close()
+		end()
 	}
 	challenge := pairing.Nonce()
-	var keyFp, commit, name, nA string
+	var keyFp string
+	var reveal chan string // non-nil once the one commit is accepted
+	var revealed bool
 
 	d.OnOpen(func() { say(authMsg{Type: "challenge", N: challenge}) })
+	d.OnClose(end)
 	d.OnMessage(func(raw webrtc.DataChannelMessage) {
+		select {
+		case <-done:
+			return
+		default:
+		}
 		var m authMsg
 		if json.Unmarshal(raw.Data, &m) != nil {
 			fail("bad message")
@@ -261,34 +276,56 @@ func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webr
 			} else {
 				say(authMsg{Type: "unpaired"})
 			}
-		case m.Type == "commit" && keyFp != "" && !authed.Load() && commit == "":
-			commit, name = m.H, trim(m.Name)
-			nA = pairing.Nonce() // only now: the browser is committed to nB
-			say(authMsg{Type: "nonce", N: nA})
-		case m.Type == "reveal" && commit != "" && nA != "":
-			h := sha256.Sum256([]byte(m.N))
-			if hex.EncodeToString(h[:]) != commit {
-				fail("reveal does not match commit")
+		case m.Type == "commit" && keyFp != "" && !authed.Load() && reveal == nil:
+			// The slot is taken before the nonce goes out, so the nonces handed
+			// out are capped like the requests on the local page.
+			if err := s.Store.Reserve(); err != nil {
+				fail(err.Error())
 				return
 			}
-			code := pairing.Code(s.Fp, keyFp, nA, m.N)
-			nA = "" // one reveal per channel
-			go func() {
-				ok, err := s.Store.Ask(name, keyFp, code)
-				switch {
-				case err != nil:
-					fail(err.Error())
-				case !ok:
-					fail("not approved")
-				default:
-					s.authorize(user, authed)
-					say(authMsg{Type: "approved"})
-				}
-			}()
+			reveal = make(chan string, 1)
+			nA := pairing.Nonce() // only now: the browser is committed to nB
+			go s.pair(id, keyFp, m.H, trim(m.Name), nA, reveal, done, fail, func() {
+				s.authorize(user, authed)
+				say(authMsg{Type: "approved"})
+			})
+			say(authMsg{Type: "nonce", N: nA})
+		case m.Type == "reveal" && reveal != nil && !revealed:
+			revealed = true // one reveal per channel
+			reveal <- m.N
 		default:
 			fail("unexpected " + m.Type)
 		}
 	})
+}
+
+// pair is the exchange after an accepted commit. It owns the pairing slot and
+// gives it back however the exchange ends.
+func (s *Sessions) pair(id, keyFp, commit, name, nA string, reveal <-chan string, done <-chan struct{}, fail func(string), approved func()) {
+	defer s.Store.Release()
+	var nB string
+	select {
+	case nB = <-reveal:
+	case <-done:
+		log.Printf("gateway: session %s: pairing abandoned after commit", id)
+		return
+	case <-time.After(pairing.PendingFor):
+		fail("no reveal")
+		return
+	}
+	if h := sha256.Sum256([]byte(nB)); hex.EncodeToString(h[:]) != commit {
+		fail("reveal does not match commit")
+		return
+	}
+	ok, err := s.Store.Ask(name, keyFp, pairing.Code(s.Fp, keyFp, nA, nB), done)
+	switch {
+	case err != nil:
+		fail(err.Error())
+	case !ok:
+		fail("not approved")
+	default:
+		approved()
+	}
 }
 
 // Drop closes every session authed with keyFp (pairing.Store.OnRemove). Closing

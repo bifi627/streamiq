@@ -48,9 +48,14 @@ builder.Services.AddDbContext<StreamIqDbContext>(o => o.UseNpgsql(connString));
 // No default: a wrong project ID rejects every real login, so refuse to start instead.
 // demo-* projects only exist in the emulator (Firebase convention).
 var firebaseProjectId = builder.Configuration["FIREBASE_PROJECT_ID"];
+var usingEmulator = !string.IsNullOrEmpty(builder.Configuration["FIREBASE_AUTH_EMULATOR_HOST"]);
+if (usingEmulator && builder.Environment.IsProduction())
+{
+    // The emulator accepts unsigned tokens: never in production.
+    throw new InvalidOperationException("FIREBASE_AUTH_EMULATOR_HOST is set in Production.");
+}
 if (FirebaseApp.DefaultInstance is null)
 {
-    var usingEmulator = !string.IsNullOrEmpty(builder.Configuration["FIREBASE_AUTH_EMULATOR_HOST"]);
     if (string.IsNullOrWhiteSpace(firebaseProjectId))
     {
         throw new InvalidOperationException("FIREBASE_PROJECT_ID is not set.");
@@ -123,6 +128,18 @@ using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<StreamIqDbContext>().Database.MigrateAsync();
 }
+
+// On every response, the SPA's files included. ponytail: no script/connect CSP yet
+// (Firebase sign-in, hls.js workers and blob URLs need a tested allowlist).
+app.Use((ctx, next) =>
+{
+    ctx.Response.Headers.XContentTypeOptions = "nosniff";
+    ctx.Response.Headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+    // Origin only, never the path. Not no-referrer: the Firebase web API key is
+    // restricted by HTTP referrer, and sign-in fails without one.
+    ctx.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    return next(ctx);
+});
 
 // SPA: the prod image copies the Vite build into wwwroot (dev: vite serves it).
 // Client routes fall back to index.html (end of file); the API lives under /api.

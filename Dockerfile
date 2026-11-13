@@ -39,4 +39,6 @@ COPY --from=web /web/dist ./wwwroot
 # signaling rate limit reads Railway's X-Real-IP instead.
 ENV ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
 ENV STREAMIQ_CLIENT_IP_HEADER=X-Real-IP
+# Not root: the image's own unprivileged user (it only reads /app and binds $PORT).
+USER $APP_UID
 ENTRYPOINT ["dotnet", "StreamIq.Api.dll"]

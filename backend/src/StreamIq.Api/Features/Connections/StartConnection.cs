@@ -33,7 +33,7 @@ public static class StartConnection
             db.ConnectionSessions.Add(row);
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { row.Id });
-        }).RequireAuthorization();
+        }).RequireAuthorization().RequireRateLimiting("signaling");
     }
 
     // Client-supplied strings: keep them short.

@@ -94,6 +94,7 @@ type Store struct {
 	OnRemove func(keyFp string)
 	paired   []Paired
 	pending  []*Request
+	reserved int // slots taken by Reserve, at most MaxPending
 }
 
 func Open(dir string) (*Store, error) {
@@ -143,16 +144,33 @@ func (s *Store) Remove(keyFp string) error {
 	return err
 }
 
-// Ask queues a request and blocks until the local page decides or it expires.
-// Approve persists the key before returning true.
-func (s *Store) Ask(name, keyFp, code string) (bool, error) {
+// Reserve takes one of the MaxPending pairing slots. A pairing exchange holds
+// its slot from the accepted `commit` until it ends, whatever the outcome, and
+// then gives it back with Release.
+func (s *Store) Reserve() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.reserved >= MaxPending {
+		return errors.New("too many pending pairing requests")
+	}
+	s.reserved++
+	return nil
+}
+
+// Release gives back a slot taken with Reserve.
+func (s *Store) Release() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reserved--
+}
+
+// Ask queues a request and blocks until the local page decides, it expires, or
+// gone closes (the asking connection ended). Approve persists the key before
+// returning true. The caller holds a slot from Reserve: that is the cap.
+func (s *Store) Ask(name, keyFp, code string, gone <-chan struct{}) (bool, error) {
 	r := &Request{ID: Nonce()[:16], Name: name, KeyFp: keyFp, Code: code,
 		Expires: time.Now().Add(PendingFor), decide: make(chan bool, 1)}
 	s.mu.Lock()
-	if len(s.pending) >= MaxPending {
-		s.mu.Unlock()
-		return false, errors.New("too many pending pairing requests")
-	}
 	s.pending = append(s.pending, r)
 	s.mu.Unlock()
 	defer s.drop(r)
@@ -160,6 +178,8 @@ func (s *Store) Ask(name, keyFp, code string) (bool, error) {
 	select {
 	case ok := <-r.decide:
 		return ok, nil
+	case <-gone:
+		return false, errors.New("connection closed")
 	case <-time.After(PendingFor):
 		return false, nil
 	}

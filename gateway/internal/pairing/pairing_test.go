@@ -41,7 +41,7 @@ func TestApprovePersistsAndPendingCaps(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := Open(dir)
 	got := make(chan bool)
-	go func() { ok, _ := s.Ask("phone", "fp-1", "123456"); got <- ok }()
+	go func() { ok, _ := s.Ask("phone", "fp-1", "123456", nil); got <- ok }()
 	for len(s.Pending()) == 0 {
 		time.Sleep(time.Millisecond)
 	}
@@ -53,13 +53,26 @@ func TestApprovePersistsAndPendingCaps(t *testing.T) {
 	}
 
 	for range MaxPending {
-		go s.Ask("x", "fp-x", "000000")
+		if err := s.Reserve(); err != nil {
+			t.Fatal(err)
+		}
 	}
-	for len(s.Pending()) < MaxPending {
-		time.Sleep(time.Millisecond)
-	}
-	if _, err := s.Ask("one too many", "fp-y", "000000"); err == nil {
+	if s.Reserve() == nil {
 		t.Fatal("want an error past MaxPending")
+	}
+	s.Release()
+	if err := s.Reserve(); err != nil {
+		t.Fatalf("a released slot must be free again: %v", err)
+	}
+}
+
+// A request whose connection ended leaves the local page at once.
+func TestAskEndsWhenConnectionCloses(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	gone := make(chan struct{})
+	close(gone)
+	if ok, err := s.Ask("phone", "fp-1", "123456", gone); ok || err == nil || len(s.Pending()) != 0 {
+		t.Fatalf("Ask = %v, %v with %d pending", ok, err, len(s.Pending()))
 	}
 }
 
@@ -67,7 +80,7 @@ func TestApprovePersistsAndPendingCaps(t *testing.T) {
 func TestRemovePersists(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := Open(dir)
-	go s.Ask("phone", "fp-1", "123456")
+	go s.Ask("phone", "fp-1", "123456", nil)
 	for len(s.Pending()) == 0 {
 		time.Sleep(time.Millisecond)
 	}

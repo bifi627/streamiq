@@ -71,6 +71,26 @@ test('sdp fingerprint is normalized', () => {
   )
 })
 
+test('sdp fingerprint: exactly one distinct sha-256 fingerprint, else throws', () => {
+  const s = (fp: string) => `a=fingerprint:${fp}\r\n`
+  const m = 'm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n'
+  const a = 'sha-256 AB:CD'
+  const b = 'sha-256 AB:CE'
+  // the same one repeated (session + media level, any case) is one fingerprint
+  assert.equal(
+    sdpFingerprint('v=0\r\n' + s(a) + m + s('SHA-256 ab:cd') + m + s(a)),
+    a,
+  )
+  assert.throws(() => sdpFingerprint('v=0\r\n' + s(a) + s(b) + m)) // session level
+  assert.throws(() => sdpFingerprint('v=0\r\n' + m + s(a) + m + s(b))) // media level
+  assert.throws(() => sdpFingerprint('v=0\r\n' + m + s(a) + s(b))) // one section
+  assert.throws(() => sdpFingerprint('v=0\r\n' + s(a) + m + s(b))) // mixed
+  assert.throws(() => sdpFingerprint('v=0\r\n' + s(a) + m + s('sha-1 AB:CD'))) // other hash beside it
+  assert.throws(() => sdpFingerprint('v=0\r\n' + m)) // none
+  assert.throws(() => sdpFingerprint('v=0\r\n' + s('sha-1 AB:CD') + m)) // not sha-256
+  assert.throws(() => sdpFingerprint('v=0\r\n' + s('sha-512 AB:CD') + m))
+})
+
 test('pin check: pinned cert passes, changed cert refused unless pairing', () => {
   assert.equal(pinCheck(v.gatewayFp, v.gatewayFp, false), 'pinned')
   assert.equal(pinCheck(v.gatewayFp, v.browserFp, false), 'refuse') // MITM / cert swapped

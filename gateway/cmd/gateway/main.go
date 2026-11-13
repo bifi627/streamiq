@@ -242,8 +242,11 @@ func run(ctx context.Context) {
 	// which rewrites the body and drops Content-Length. Forward exactly what the
 	// browser asked for and hand back exactly what the origin sent.
 	jf := &tunnel.Jellyfin{
-		Client: &http.Client{Transport: &http.Transport{DisableCompression: true}},
-		URL:    env("STREAMIQ_ORIGIN", "http://localhost:8096"), // local Jellyfin
+		// CheckRedirect: a redirect goes back to the browser as it is; the gateway
+		// never follows one to a URL the allowlist did not see.
+		Client: &http.Client{Transport: &http.Transport{DisableCompression: true},
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+		URL: env("STREAMIQ_ORIGIN", "http://localhost:8096"), // local Jellyfin
 	}
 	// Token: the stored one, else the setup loop gets one (fresh Jellyfin) or
 	// the local page asks for an admin login.

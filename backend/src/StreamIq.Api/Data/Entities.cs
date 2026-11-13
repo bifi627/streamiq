@@ -54,6 +54,19 @@ public class EnrollmentToken : ITenantOwned
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// A one-time link that adds its holder to the household as a member (#191).
+/// Only the SHA-256 hash is stored; the plaintext lives in the link for 7 days.
+public class Invite : ITenantOwned
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public required string TokenHash { get; set; }
+    public Guid? CreatedBy { get; set; }                // users.id of the inviting admin (named in the preview, looked up in Firebase)
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? UsedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 /// One WebRTC session from a client to a gateway (connection telemetry, a
 /// deliverable: checkpoints query direct-vs-relay and IPv4/v6 rates here).
 /// Written by the client: POST on connect, PATCH with totals on close.

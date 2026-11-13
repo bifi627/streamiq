@@ -7,13 +7,35 @@ export const API =
   (import.meta.env.VITE_API_URL ??
     (import.meta.env.DEV ? 'http://localhost:5028' : location.origin)) + '/api'
 
+// The household (code: tenant) requests act in, per device: set when the user
+// joins one (#191), else unset and the API uses the user's oldest. ponytail: no
+// switcher yet (#193); a household the user left answers 404 (Shell clears it).
+const HOUSEHOLD_KEY = 'streamiq.household'
+export function household() {
+  try {
+    return localStorage.getItem(HOUSEHOLD_KEY)
+  } catch {
+    return null
+  }
+}
+export function setHousehold(id: string | null) {
+  try {
+    if (id) localStorage.setItem(HOUSEHOLD_KEY, id)
+    else localStorage.removeItem(HOUSEHOLD_KEY)
+  } catch {
+    /* not saved: the API uses the oldest household */
+  }
+}
+
 export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await auth.currentUser?.getIdToken()
+  const h = household()
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: {
       ...(init?.body !== undefined && { 'Content-Type': 'application/json' }),
       ...(token && { Authorization: `Bearer ${token}` }),
+      ...(h && { 'X-StreamIQ-Household': h }),
     },
   }).catch((e: Error) => {
     throw new AppError('network', `${path}: ${e.message}`)
@@ -22,8 +44,7 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   return (res.status === 204 ? null : res.json()) as Promise<T>
 }
 
-// A household (code: tenant) the user belongs to. No X-StreamIQ-Household header
-// is sent yet, so the API acts in the oldest one (switcher: #193).
+// A household (code: tenant) the user belongs to.
 export type Membership = {
   id: string
   name: string | null

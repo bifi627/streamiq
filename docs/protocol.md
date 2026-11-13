@@ -62,6 +62,21 @@ the user's own membership in it; a household the user isn't a member of, one tha
 doesn't exist, or a malformed id → `404` before the endpoint runs. `GET /api/me`
 returns `{userId, tenantId, memberships:[{id, name, role}]}` (oldest first; `tenantId`
 = the household this request acts in; `role` = `admin` | `member`).
+The web app stores the household it acts in per device (`localStorage`
+`streamiq.household`, set on joining one) and sends it on every request; a `404` on
+`/me` clears it.
+
+**Invites (#191).** Household admin (a member gets `403`): `POST /api/invites` →
+`{id, token, expiresAt}` (single use, 7 days; only the SHA-256 hash is stored, the
+token is shown once); `GET /api/invites` → pending ones `[{id, createdAt, expiresAt}]`;
+`DELETE /api/invites/{id}` → `204` (revoke = row deleted; another household's → `404`).
+Any signed-in user, token in the body (the link is `/join#<token>`: the fragment
+never reaches a server log): `POST /api/invites/preview {token}` →
+`{householdId, name, member}` (`name` = the household's, else "<inviter>'s household"
+from Firebase, nothing stored); `POST /api/invites/accept {token}` → `{householdId}`,
+the caller becomes a `member` of the invite's household and nothing else changes.
+Already a member: both answer `200` without spending the invite. Unknown, expired,
+used or revoked: `404`, all alike.
 
 **`DELETE /api/gateways/{id}`** (Firebase Bearer, household admin; a member gets
 `403`) → `204`: revokes the gateway's

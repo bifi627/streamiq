@@ -20,7 +20,7 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { auth } from './firebase'
-import { getMe } from './api'
+import { getMe, household, setHousehold } from './api'
 import { AppError, toAppError } from './errors'
 import { ErrorView, UncaughtErrors } from './ErrorView'
 import { Gateways } from './features/gateways/Gateways'
@@ -33,6 +33,7 @@ import {
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 import { compatibleOn, rawOn, setCompatible, setRaw } from './settings'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
+import { Join } from './features/households/Invites'
 
 // Readable text for the popup failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
@@ -173,7 +174,15 @@ function Shell() {
   useEffect(() => {
     getMe()
       .then((m) => setTenantId(m.tenantId))
-      .catch((e) => setErr(toAppError(e)))
+      .catch((e) => {
+        const x = toAppError(e)
+        // The household this device acts in is gone (left or removed): fall
+        // back to the user's oldest one.
+        if (x.context.status === 404 && household()) {
+          setHousehold(null)
+          location.reload()
+        } else setErr(x)
+      })
   }, [])
 
   return (
@@ -243,6 +252,11 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: 'settings',
     component: Settings,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'join',
+    component: Join,
   }),
   createRoute({
     getParentRoute: () => rootRoute,

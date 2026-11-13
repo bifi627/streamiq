@@ -183,6 +183,45 @@ namespace StreamIq.Api.Migrations
                     b.ToTable("gateways", (string)null);
                 });
 
+            modelBuilder.Entity("StreamIq.Api.Data.Invite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("invites", (string)null);
+                });
+
             modelBuilder.Entity("StreamIq.Api.Data.Membership", b =>
                 {
                     b.Property<Guid>("TenantId")
@@ -255,6 +294,20 @@ namespace StreamIq.Api.Migrations
 
             modelBuilder.Entity("StreamIq.Api.Data.Gateway", b =>
                 {
+                    b.HasOne("StreamIq.Api.Data.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("StreamIq.Api.Data.Invite", b =>
+                {
+                    b.HasOne("StreamIq.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("StreamIq.Api.Data.Tenant", null)
                         .WithMany()
                         .HasForeignKey("TenantId")

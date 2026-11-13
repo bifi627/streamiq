@@ -10,6 +10,7 @@ using StreamIq.Api.Data;
 using StreamIq.Api.Features.Broker;
 using StreamIq.Api.Features.Connections;
 using StreamIq.Api.Features.Gateways;
+using StreamIq.Api.Features.Invites;
 using StreamIq.Api.Features.Me;
 using StreamIq.Api.Features.Onboarding;
 
@@ -159,6 +160,10 @@ GatewaySocket.Map(api);
 BrowserSocket.Map(api);
 StartConnection.Map(api);
 EndConnection.Map(api);
+CreateInvite.Map(api);
+ListInvites.Map(api);
+RevokeInvite.Map(api);
+AcceptInvite.Map(api);
 
 // Unknown /api/* paths are a 404, never the SPA; any other path without a file
 // extension is a client route and gets index.html (404 if no SPA is built, e.g. dev).

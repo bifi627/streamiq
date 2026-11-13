@@ -271,7 +271,8 @@ export const share = shared.share
 
 const kbps = (mbps?: number) => (mbps ? Math.round(mbps * 1000) : null)
 
-function browserName() {
+/** The pairing name this browser sends (also its screen name, #180). */
+export function browserName() {
   const ua = navigator.userAgent
   const b = /Edg\//.test(ua)
     ? 'Edge'

@@ -21,7 +21,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
-import { clock } from './items'
+import { clock, isBack } from './items'
 import './Player.css'
 
 const HIDE_MS = 4000
@@ -75,12 +75,6 @@ export type Setting = {
 
 /** The settings popover's page: closed, main, or that setting's options. */
 type Page = null | 'main' | number
-
-const isBack = (e: KeyboardEvent) =>
-  e.key === 'Escape' ||
-  e.key === 'GoBack' ||
-  e.key === 'BrowserBack' ||
-  e.keyCode === 461 // webOS remote
 
 export function Controls({
   video,

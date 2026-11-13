@@ -105,3 +105,10 @@ export const covers = (r: Ranges | undefined, t: number) =>
   Array.from({ length: r.length }).some(
     (_, i) => r.start(i) - 1 <= t && t <= r.end(i) + 1,
   )
+
+/** The remote's Back: Escape, GoBack/BrowserBack, webOS 461. */
+export const isBack = (e: KeyboardEvent) =>
+  e.key === 'Escape' ||
+  e.key === 'GoBack' ||
+  e.key === 'BrowserBack' ||
+  e.keyCode === 461 // webOS remote

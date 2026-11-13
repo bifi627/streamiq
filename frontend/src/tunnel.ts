@@ -100,3 +100,53 @@ export async function tunnelJson<T>(
   const text = new TextDecoder().decode(r.body)
   return (text ? JSON.parse(text) : null) as T
 }
+
+/**
+ * A held response read line by line (GET /streamiq/screen, NDJSON). onLine per
+ * line; onEnd once when it ends without us closing it (refused, or the channel
+ * or session closed). Returns close(): closing the channel ends it on the
+ * gateway too. A session that's gone ends it at once.
+ */
+export function tunnelLines(
+  pc: RTCPeerConnection,
+  url: string,
+  onLine: (line: string) => void,
+  onEnd: (why: string) => void,
+) {
+  let dc: RTCDataChannel
+  try {
+    dc = pc.createDataChannel(`req:${url}`)
+  } catch (e) {
+    queueMicrotask(() =>
+      onEnd(`createDataChannel: ${e instanceof Error ? e.message : e}`),
+    )
+    return () => {}
+  }
+  dc.binaryType = 'arraybuffer'
+  const text = new TextDecoder()
+  let buf = ''
+  const close = () => {
+    dc.onclose = null
+    dc.onmessage = null
+    dc.close()
+  }
+  const end = (why: string) => {
+    close()
+    onEnd(why)
+  }
+  dc.onopen = () => dc.send(JSON.stringify({ method: 'GET', url, headers: {} }))
+  dc.onmessage = (e) => {
+    if (typeof e.data === 'string') {
+      const m = JSON.parse(e.data)
+      if (m.eof) end('ended by the gateway')
+      else if (m.status !== 200) end(`HTTP ${m.status}`)
+      return
+    }
+    buf += text.decode(e.data, { stream: true })
+    const lines = buf.split('\n')
+    buf = lines.pop()!
+    for (const l of lines) if (l) onLine(l)
+  }
+  dc.onclose = () => end('connection closed')
+  return close
+}

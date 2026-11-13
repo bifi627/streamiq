@@ -92,10 +92,9 @@ export function Invites() {
   )
 }
 
-// /join#<token>: show which household the invite is for, join on confirm. A full
-// reload afterwards opens the joined household with fresh state everywhere.
-// Opening the joined household: per-device choice, then a full reload.
-function open(household: string) {
+// Opening the joined household: per-device choice, then a full reload (fresh
+// state everywhere).
+function openHousehold(household: string) {
   setHousehold(household)
   location.replace('/')
 }
@@ -108,6 +107,7 @@ const asInvite = (e: unknown) => {
     : x
 }
 
+// /join#<token>: show which household the invite is for, join on confirm.
 export function Join() {
   const navigate = useNavigate()
   const token = location.hash.slice(1)
@@ -125,7 +125,7 @@ export function Join() {
       method: 'POST',
       body: JSON.stringify({ token }),
     })
-      .then((p) => (p.member ? open(p.householdId) : setPreview(p)))
+      .then((p) => (p.member ? openHousehold(p.householdId) : setPreview(p)))
       .catch((e) => setErr(asInvite(e)))
   }, [token])
 
@@ -136,7 +136,7 @@ export function Join() {
         method: 'POST',
         body: JSON.stringify({ token }),
       })
-      open(r.householdId)
+      openHousehold(r.householdId)
     } catch (e) {
       setErr(asInvite(e))
       setBusy(false)

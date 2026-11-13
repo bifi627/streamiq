@@ -7,21 +7,21 @@ export const API =
   (import.meta.env.VITE_API_URL ??
     (import.meta.env.DEV ? 'http://localhost:5028' : location.origin)) + '/api'
 
-// The household (code: tenant) requests act in, per device: set when the user
-// joins one (#191), else unset and the API uses the user's oldest. ponytail: no
+// The household (code: tenant) requests act in, per device and user: set when the
+// user joins one (#191), else unset and the API uses the user's oldest. ponytail: no
 // switcher yet (#193); a household the user left answers 404 (Shell clears it).
-const HOUSEHOLD_KEY = 'streamiq.household'
+const householdKey = () => `streamiq.household.${auth.currentUser?.uid}`
 export function household() {
   try {
-    return localStorage.getItem(HOUSEHOLD_KEY)
+    return localStorage.getItem(householdKey())
   } catch {
     return null
   }
 }
 export function setHousehold(id: string | null) {
   try {
-    if (id) localStorage.setItem(HOUSEHOLD_KEY, id)
-    else localStorage.removeItem(HOUSEHOLD_KEY)
+    if (id) localStorage.setItem(householdKey(), id)
+    else localStorage.removeItem(householdKey())
   } catch {
     /* not saved: the API uses the oldest household */
   }

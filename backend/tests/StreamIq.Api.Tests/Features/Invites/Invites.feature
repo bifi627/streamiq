@@ -28,6 +28,14 @@ Feature: Invites
     When "bob@home.test" previews the invite
     Then the preview says already a member
 
+  Scenario: An admin opening their own invite is a no-op that leaves it pending
+    Given "alice@home.test" created an invite
+    When "alice@home.test" previews the invite
+    Then the preview says already a member
+    When "alice@home.test" accepts the invite
+    Then the answer is the household of "alice@home.test"
+    And "alice@home.test" lists 1 pending invite
+
   Scenario: A used invite doesn't let a second person in
     Given "alice@home.test" created an invite
     When "bob@home.test" accepts the invite
@@ -52,9 +60,17 @@ Feature: Invites
     And "alice@home.test" lists 1 pending invite
     When "alice@home.test" revokes the invite
     Then "alice@home.test" has no pending invites
+    When "bob@home.test" previews the invite
+    Then the invite is refused as not found
     When "bob@home.test" accepts the invite
     Then the invite is refused as not found
     And "bob@home.test" is only in their own household
+
+  Scenario: A used invite can't be revoked
+    Given "alice@home.test" created an invite
+    And "bob@home.test" accepted it
+    When "alice@home.test" revokes the invite
+    Then the invite is refused as not found
 
   Scenario: An unknown token is refused
     When "bob@home.test" accepts the invite token "not-a-real-token"

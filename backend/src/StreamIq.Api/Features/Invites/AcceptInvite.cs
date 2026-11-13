@@ -58,7 +58,14 @@ public static class AcceptInvite
                 return Results.NotFound();
             }
             db.Memberships.Add(new Membership { TenantId = invite.TenantId, UserId = userId, Role = Membership.Member });
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)   // joined concurrently (another invite or tab): the PK fired, this invite stays unspent
+            {
+                return Results.Ok(new { householdId = invite.TenantId });
+            }
             await tx.CommitAsync(ct);
             return Results.Ok(new { householdId = invite.TenantId });
         }).RequireAuthorization();
@@ -100,9 +107,9 @@ public static class AcceptInvite
             var inviter = await FirebaseAuth.DefaultInstance.GetUserAsync(uid, ct);
             return (inviter.DisplayName ?? inviter.Email) is { Length: > 0 } who ? $"{who}'s household" : null;
         }
-        catch (FirebaseAuthException)
+        catch (Exception e) when (e is FirebaseAuthException or HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            return null;   // inviter gone from Firebase: the preview still works, unnamed
+            return null;   // inviter gone or Firebase unreachable: the preview still works, unnamed
         }
     }
 }

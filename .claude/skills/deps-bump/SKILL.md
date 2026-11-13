@@ -26,7 +26,7 @@ dotnet list backend/StreamIq.slnx package --outdated
 npm outdated --prefix frontend            # and any other package dirs (e2e/)
 cd gateway && go list -m -u all             # Go modules
 # plus: image pins in docker-compose.yml, .devcontainer/devcontainer.json
-#       features, and action versions in .github/workflows/*.yml (once CI exists)
+#       features, and action versions in .github/workflows/*.yml
 ```
 
 Then:
@@ -41,7 +41,7 @@ Then:
 
 | Group | Members |
 |---|---|
-| EF Core | all `Microsoft.EntityFrameworkCore*` packages (once adopted) |
+| EF Core | all `Microsoft.EntityFrameworkCore*` packages |
 | Vite | `vite` + `@vitejs/plugin-react` (check peers first: `npm view <pkg> peerDependencies`) |
 | TypeScript | `typescript` + any ts-coupled lint tooling (its peer range caps the TS version) |
 | React | `react` + `react-dom` + `@types/react` + `@types/react-dom` |
@@ -54,17 +54,11 @@ manual play/seek check — treat it as a major, always its own wave.
 ## Per-wave verify (default, don't skip)
 
 ```bash
-dotnet test backend/StreamIq.slnx             # needs Docker (Testcontainers)
-npm run build --prefix frontend           # tsc -b + vite build
-npm run lint --prefix frontend
-cd gateway && go build ./... && go test ./...
-docker compose config --quiet             # after any compose pin change
+bash scripts/check.sh                     # mirrors CI: format, lint, tests, build, e2e, compose config
 ```
 
 Integration tests are NOT "expensive" — include by default. Docker daemon
-down → prompt the user to start Desktop, don't skip. (Backend and frontend
-verifies don't share state here and may run in parallel; a second
-`dotnet test` alongside the first collides on Testcontainers resources.)
+down → prompt the user to start Desktop, don't skip.
 
 ## NuGet specifics
 
@@ -118,7 +112,7 @@ verifies don't share state here and may run in parallel; a second
 
 - Everything is pinned deliberately — never `latest`. A pin bump is a real
   change: re-run the verify wave, and for Jellyfin see the rule above.
-- Node base images (once a Dockerfile/CI exists): track **active LTS**, not
+- Node (`Dockerfile` base image, `.nvmrc` for CI): track **active LTS**, not
   the newest major — check the Node release schedule at bump time.
 
 ## Commit format (per wave)
@@ -131,7 +125,7 @@ chore(deps): <scope summary>
 
 <bullet list of bumps with from→to>
 
-Verified: dotnet test (XX/XX), frontend build+lint, go test, compose config.
+Verified: scripts/check.sh (ALL CHECKS PASSED).
 ```
 
 Use a HEREDOC for the message so multi-line formatting survives.

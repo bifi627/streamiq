@@ -57,7 +57,7 @@ User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (loca
 so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin credential without manual
 steps (`gateway/internal/jellyfin`: wizard bootstrap on a fresh Jellyfin, else one admin login
 on the local gateway page; since #50 a non-admin viewer token, not an API key, in `state/jellyfin.json`),
-`install/jellyfin-compose.yml` release asset (pin = `jellyfin.Image`, test-enforced; `gateway jellyfin up|upgrade`), local
+`gateway/install/jellyfin-compose.yml` release asset (pin = `jellyfin.Image`, test-enforced; `gateway jellyfin up|upgrade`), local
 page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapped admin creds).
 
 **Item 5 — streaming client** (consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /
@@ -65,8 +65,7 @@ series / episodes → hls.js player over the tunnel (custom loader), subtitles, 
 via Jellyfin UserData. The gateway owns the Jellyfin credentials (since #195 one hidden
 non-admin viewer `streamiq-<users.id>` per user, made on their first session, `streamiq-viewer` as the fallback; dev: `scripts/setup-jellyfin.sh`, then Connect
 Jellyfin on the dev page): it injects the session user's token, pins that viewer, lets only an
-endpoint allowlist through, and redacts the token from playlists. All POC
-paths are deleted. **PR B (trust it):** TURN (Cloudflare creds in prod,
+endpoint allowlist through, and redacts the token from playlists. **PR B (trust it):** TURN (Cloudflare creds in prod,
 coturn in dev; per-session since item 6), `connection_sessions` telemetry (migration #4, drops
 the POC's `poc_connectivity`), privacy indicator (direct vs relayed); `?relay`
 forces the relay path. **Hosting:** the root `Dockerfile` builds the SPA into the
@@ -74,11 +73,11 @@ API image (`wwwroot`, same origin, no CORS in prod); Railway Root Directory = re
 **Item 6 — hardening** (protocol in `docs/protocol.md`). **PR A:** signaling
 rate limits (per client IP via `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`, plus
 per-socket message buckets, 10 s auth deadline), TURN creds minted per broker session
-in `ready` and revoked at its end (`GET /turn` is gone; dev coturn uses TURN REST
+in `ready` and revoked at its end (no standalone TURN endpoint; dev coturn uses TURN REST
 `STREAMIQ_TURN_SECRET`), gateway revocation (`DELETE /api/gateways/{id}`: hash nulled, row
 kept for telemetry, sockets + sessions closed). Removing a client on the local gateway page
 closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).
-**Local gateway page secret:** the page no longer shows the Jellyfin admin password, only the path
+**Local gateway page secret:** the page never shows the Jellyfin admin password, only the path
 of `state/jellyfin.json` (0600) holding it. LAN access to the page needs a token
 (`state/page-token`; login link `state/page-link`, printed by the installer; loopback exempt).
 Postgres backups: daily `pg_dump` → GCS (`db-backup.yml`), restore runbook `docs/db-recovery.md`.
@@ -133,7 +132,7 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
 | `e2e/` | The one E2E golden path: browser → broker → gateway → Jellyfin | Playwright + testcontainers-node |
-| `scripts/` | `gen-test-media.sh` (ffmpeg fixtures) | bash |
+| `scripts/` | Dev + CI scripts (`check.sh`, `dev.ps1`, `gen-test-media.sh`, …) | bash / PowerShell |
 | `dev/firebase/` | Auth emulator config for compose | — |
 
 **Vertical slices** (code organized by feature, not by layer):
@@ -232,7 +231,7 @@ Copy `.env.example` only to override.
     duplicate, then **propose** the issue (title, labels, body) in chat; create it only
     after the owner approves.
   - Security-sensitive findings never go in a public issue (public repo): tell the owner.
-- **Current state below is not a status log.** Don't append per-PR progress there (it
+- **Current state above is not a status log.** Don't append per-PR progress there (it
   was the merge-conflict hotspot); open work lives in `gh issue list`. Edit it only when
   a lasting fact changes (new item complete, new architecture piece).
 - **Done means:** `scripts/check.sh` ran and its output was read; the changed flow was
@@ -251,8 +250,7 @@ Copy `.env.example` only to override.
 - **Rule graduation:** correction → line here → check/codegen. When a rule becomes
   tooling, delete its prose from this file.
 - **Deferred on purpose** (rule of two): templates, canonical example files, per-feature
-  docs, fine-grained boundary rules. Feature #1 (POC) is built by hand and becomes the
-  exemplar at feature #2 — do not scaffold these early.
+  docs, fine-grained boundary rules. Add one only when a second real case needs it.
 
 ## Non-negotiable conventions
 

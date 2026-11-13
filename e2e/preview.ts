@@ -51,6 +51,8 @@ type State = {
   ready?: boolean
   lan?: string[]
   local?: string
+  api?: string // seeding: the agent calls the API / auth emulator directly
+  emulator?: string
   gatewayPage?: string
   tunnel?: string
   jellyfin?: string
@@ -157,6 +159,7 @@ function print(s: State) {
   LAN:          ${s.lan!.join('  ') || '(no LAN address found)'}
                 (phone/TV on the same network; accept the certificate warning once)
   local:        ${s.local}
+  api:          ${s.api} (auth emulator: ${s.emulator}; for extra seeding)
   login:        ${login.email} / ${login.password} (account exists)
 ${
   s.tunnel
@@ -431,6 +434,8 @@ async function serve() {
       nvenc,
       lan: lanIps().map((ip) => `https://${ip}:${port}`),
       local: stack.app,
+      api: stack.api,
+      emulator: stack.emulator,
       gatewayPage: gateway.pageUrl,
       pids: started.map((p) => p.proc.pid!),
       ports: [

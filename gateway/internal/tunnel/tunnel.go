@@ -109,10 +109,10 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 	if err := json.Unmarshal(raw, &rq); err != nil {
 		return http.StatusBadRequest, nil, nil, fmt.Errorf("bad request frame: %w", err)
 	}
+	if len(rq.Body) > MaxBody {
+		return http.StatusRequestEntityTooLarge, nil, nil, fmt.Errorf("body %d bytes", len(rq.Body))
+	}
 	if u, err := url.Parse(rq.URL); err == nil && isGatewayAPI(u.Path) {
-		if len(rq.Body) > MaxBody {
-			return http.StatusRequestEntityTooLarge, nil, nil, fmt.Errorf("body %d bytes", len(rq.Body))
-		}
 		return gatewayAPI(j, rq, u, who)
 	}
 	req, status, err := j.prepare(rq)

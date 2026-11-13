@@ -173,7 +173,7 @@ func (s *Sessions) newPeer(id, user string, send func(any)) (*webrtc.PeerConnect
 		case d.Label() == "auth":
 			s.serveAuth(id, pc, d, &authed)
 		case authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Name: s.name(id)})
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Name: func() string { return s.name(id) }})
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`
 		}

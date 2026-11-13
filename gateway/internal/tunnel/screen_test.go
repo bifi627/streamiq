@@ -53,11 +53,12 @@ func next(r *bufio.Reader) string {
 // its state; the screen is gone the moment its channel closes.
 func TestScreenRelay(t *testing.T) {
 	closed := make(chan struct{})
-	tv := Session{ID: "tv", Name: "Living room TV", Closed: closed}
+	tv := Session{ID: "tv", Name: func() string { return "Living room TV" }, Closed: closed}
 	status, body := call(t, "GET", ScreenPath, "", tv)
 	if status != 200 {
 		t.Fatalf("open screen: %d", status)
 	}
+	t.Cleanup(func() { body.Close() })
 	stream := bufio.NewReader(body)
 
 	l := list(t)
@@ -80,33 +81,46 @@ func TestScreenRelay(t *testing.T) {
 	if got := next(stream); got != `{"type":"play","itemId":"`+vid+`","startTicks":0}` {
 		t.Fatalf("play line = %q", got)
 	}
-	// Two phones, nothing read in between: the newer command replaces the older.
+	// Two phones, nothing read in between: both arrive in order, so the last one wins.
 	call(t, "POST", ScreensPath+"/"+sid, `{"type":"pause"}`, phone)
 	call(t, "POST", ScreensPath+"/"+sid, `{"type":"seek","ticks":42}`, Session{ID: "phone2"})
-	if got := next(stream); got != `{"type":"seek","ticks":42}` {
-		t.Fatalf("last command = %q", got)
+	if a, b := next(stream), next(stream); a != `{"type":"pause"}` || b != `{"type":"seek","ticks":42}` {
+		t.Fatalf("commands = %q, %q", a, b)
 	}
 
-	close(closed) // the TV's channel closes
-	if _, err := body.Read(make([]byte, 1)); err != io.EOF {
-		t.Fatalf("stream after close: %v", err)
-	}
-	body.Close() // handleReq's defer
+	close(closed) // the TV's channel closes: gone at once, before handleReq gets to Close
 	if l := list(t); len(l) != 0 {
 		t.Fatalf("screen outlived its channel: %+v", l)
 	}
 	if s, _ := call(t, "POST", ScreensPath+"/"+sid, `{"type":"stop"}`, phone); s != 404 {
 		t.Fatalf("command to closed screen: %d", s)
 	}
+	tv.Closed = make(chan struct{}) // same session reopens on a new channel: no 409
+	if s, rc := call(t, "GET", ScreenPath, "", tv); s != 200 {
+		t.Fatalf("reopen: %d", s)
+	} else {
+		defer rc.Close()
+	}
+	if _, err := body.Read(make([]byte, 1)); err != io.EOF {
+		t.Fatalf("stream after close: %v", err)
+	}
+	body.Close() // handleReq's defer
+	if l := list(t); len(l) != 1 || l[0].ID == sid {
+		t.Fatalf("screens after reopen = %+v", l)
+	}
 }
 
 func TestScreenRefusals(t *testing.T) {
 	closed := make(chan struct{})
-	tv := Session{ID: "tv", Name: "TV", Closed: closed}
-	_, body := call(t, "GET", ScreenPath, "", tv)
+	defer close(closed)
+	tv := Session{ID: "tv", Name: func() string { return "TV" }, Closed: closed}
+	status, body := call(t, "GET", ScreenPath, "", tv)
+	if status != 200 {
+		t.Fatalf("open screen: %d", status)
+	}
 	defer body.Close()
 	sid := list(t)[0].ID
-	laptop := Session{ID: "laptop", Name: "Laptop", Closed: make(chan struct{})} // watching, never opened a screen
+	laptop := Session{ID: "laptop", Closed: make(chan struct{})} // watching, never opened a screen
 
 	for _, c := range []struct {
 		method, url, body string
@@ -127,6 +141,9 @@ func TestScreenRefusals(t *testing.T) {
 		{"POST", ScreensPath + "/" + sid, `{"type":"seek"}`, laptop, 400},
 		{"POST", ScreensPath + "/" + sid, `{"type":"seek","ticks":-1}`, laptop, 400},
 		{"POST", ScreensPath + "/" + sid, `{"type":"tracks"}`, laptop, 400},
+		{"POST", ScreensPath + "/" + sid, `{"type":"tracks","audio":-1}`, laptop, 400},
+		{"POST", ScreensPath + "/" + sid, `{"type":"tracks","subtitle":-2}`, laptop, 400},
+		{"POST", ScreensPath + "/" + sid, `{"type":"seek","ticks":1.5}`, laptop, 400},
 		{"POST", ScreensPath + "/" + sid, `{"type":"pause","ticks":1}`, laptop, 400},
 		{"POST", ScreenPath + "/state", `{"positionTicks":-1}`, tv, 400},
 		{"POST", ScreensPath + "/" + sid, `{"type":"pause","x":"` + strings.Repeat("x", MaxBody) + `"}`, laptop, http.StatusRequestEntityTooLarge},
@@ -138,5 +155,10 @@ func TestScreenRefusals(t *testing.T) {
 	if s, _ := call(t, "POST", ScreensPath+"/"+sid, `{"type":"tracks","subtitle":-1}`, laptop); s != 204 {
 		t.Errorf("tracks: %d", s)
 	}
-	close(closed)
+	for range maxQueued - 1 { // the TV isn't reading: the queue fills, then 503
+		call(t, "POST", ScreensPath+"/"+sid, `{"type":"pause"}`, laptop)
+	}
+	if s, _ := call(t, "POST", ScreensPath+"/"+sid, `{"type":"pause"}`, laptop); s != http.StatusServiceUnavailable {
+		t.Errorf("full queue: %d", s)
+	}
 }

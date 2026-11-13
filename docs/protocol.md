@@ -307,10 +307,11 @@ Code: `gateway/internal/tunnel/screen.go`; TS types: `frontend/src/features/gate
 **`GET /streamiq/screen`** (TV): opens this session's screen, named by the
 client's pairing `name`. `200`, `Content-Type: application/x-ndjson`, no
 `Content-Length`; the body stays open and carries one command per line (below),
-as the phone sent it, re-encoded by the gateway (unknown fields dropped). If
-commands arrive faster than the TV reads them, only the newest undelivered one
-is kept (last command wins). The body ends (EOF frame) only when the channel
-closes. A session that already holds a screen gets `409`.
+as the phone sent it, re-encoded by the gateway (unknown fields dropped), in
+arrival order: with two phones, the last command wins. The body never ends with
+an EOF frame: the TV closing the channel (or its session ending) is the end of
+the screen, and the gateway never closes it first. A session that already holds
+an open screen gets `409`.
 
 **`POST /streamiq/screen/state`** (TV): the screen's playback state, about once a
 second and on every change. `204`. `404` from a session without a screen; `400`
@@ -319,8 +320,9 @@ if malformed (negative ticks, `itemId` not a Jellyfin id).
 { "itemId": "aad7…", "positionTicks": 1200000000, "durationTicks": 26000000000,
   "paused": false, "audio": 1, "subtitle": null }
 ```
-`audio` / `subtitle` are Jellyfin stream indexes, `null` = none; `itemId` is `""`
-while nothing plays.
+Ticks are integers (Jellyfin ticks, 10⁷ per second; a fractional number is
+`400`). `audio` / `subtitle` are Jellyfin stream indexes, `subtitle: -1` = off,
+`null` = not known; `itemId` is `""` while nothing plays.
 
 **`GET /streamiq/screens`** (phone): the open screens on this gateway, `200`, JSON;
 `state` is `null` until the TV first posts one.
@@ -330,14 +332,15 @@ while nothing plays.
 
 **`POST /streamiq/screens/{id}`** (phone): one command to that screen. `204` once
 queued for the TV; `404` for an unknown id (or a screen that closed); `400` for a
-malformed command or a field that doesn't belong to its type; `413` over 64 KB.
+malformed command or a field that doesn't belong to its type; `413` over 64 KB;
+`503` while 16 commands wait on a TV that isn't reading.
 
 | Command | Fields |
 |---|---|
-| `{"type":"play","itemId":"…","startTicks":0}` | `itemId` required (Jellyfin id); `startTicks` optional, ≥ 0 |
+| `{"type":"play","itemId":"…","startTicks":0}` | `itemId` required (Jellyfin id); `startTicks` optional, integer ≥ 0 |
 | `{"type":"pause"}` / `{"type":"resume"}` / `{"type":"stop"}` | none |
-| `{"type":"seek","ticks":1200000000}` | `ticks` required, ≥ 0 (absolute position) |
-| `{"type":"tracks","audio":1,"subtitle":-1}` | at least one; Jellyfin stream index, `subtitle: -1` = off |
+| `{"type":"seek","ticks":1200000000}` | `ticks` required, integer ≥ 0 (absolute position) |
+| `{"type":"tracks","audio":1,"subtitle":-1}` | at least one; Jellyfin stream index (`audio` ≥ 0, `subtitle` ≥ -1; -1 = off) |
 
 ### Jellyfin policy (gateway, `gateway/internal/tunnel/jellyfin.go`)
 

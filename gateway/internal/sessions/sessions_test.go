@@ -342,8 +342,8 @@ func TestScreenOverTunnel(t *testing.T) {
 	}
 	tv, phone := pair("tv", "Living room TV"), pair("phone", "Phone")
 
-	frames := tv.open(`{"method":"GET","url":"/streamiq/screen"}`)
-	if head := <-frames; !strings.Contains(head, `"status":200`) {
+	frames, _ := tv.open(`{"method":"GET","url":"/streamiq/screen"}`)
+	if head := tv.frame(frames); !strings.Contains(head, `"status":200`) {
 		t.Fatalf("screen head = %s", head)
 	}
 	var screens []struct{ ID, Name string }
@@ -352,18 +352,14 @@ func TestScreenOverTunnel(t *testing.T) {
 			t.Fatal("screen never listed")
 		}
 		json.Unmarshal([]byte(phone.body(`{"method":"GET","url":"/streamiq/screens"}`)), &screens)
+		time.Sleep(10 * time.Millisecond)
 	}
 	if len(screens) != 1 || screens[0].Name != "Living room TV" {
 		t.Fatalf("screens = %+v", screens)
 	}
 	phone.body(`{"method":"POST","url":"/streamiq/screens/` + screens[0].ID + `","body":"{\"type\":\"pause\"}"}`)
-	select {
-	case got := <-frames:
-		if got != `{"type":"pause"}`+"\n" {
-			t.Fatalf("TV got %q", got)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("command never reached the TV")
+	if got := tv.frame(frames); got != `{"type":"pause"}`+"\n" {
+		t.Fatalf("TV got %q", got)
 	}
 
 	tv.pc.Close()
@@ -377,30 +373,38 @@ func TestScreenOverTunnel(t *testing.T) {
 
 // open sends one tunnel request and returns its frames as they arrive (head
 // first, then each body chunk as text).
-func (b *browser) open(req string) chan string {
+func (b *browser) open(req string) (chan string, *webrtc.DataChannel) {
 	d, _ := b.pc.CreateDataChannel("req", nil)
 	frames := make(chan string, 16)
 	d.OnOpen(func() { d.SendText(req) })
 	d.OnMessage(func(m webrtc.DataChannelMessage) { frames <- string(m.Data) })
-	return frames
+	return frames, d
 }
 
-// body sends one tunnel request and returns its whole body.
+// frame waits for the next frame, failing after 10 s.
+func (b *browser) frame(frames chan string) string {
+	b.t.Helper()
+	select {
+	case f := <-frames:
+		return f
+	case <-time.After(10 * time.Second):
+		b.t.Fatal("no frame from the gateway")
+		return ""
+	}
+}
+
+// body sends one tunnel request and returns its whole body; closes after EOF like the client.
 func (b *browser) body(req string) string {
 	b.t.Helper()
-	frames := b.open(req)
+	frames, d := b.open(req)
+	defer d.Close()
 	var got []byte
-	<-frames // head
+	b.frame(frames) // head
 	for {
-		select {
-		case f := <-frames:
-			if f == `{"eof":true}` {
-				return string(got)
-			}
+		if f := b.frame(frames); f == `{"eof":true}` {
+			return string(got)
+		} else {
 			got = append(got, f...)
-		case <-time.After(10 * time.Second):
-			b.t.Fatal("no EOF")
-			return ""
 		}
 	}
 }

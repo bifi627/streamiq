@@ -7,12 +7,15 @@ package tunnel
 // nothing else can be reached. What's watched never leaves the gateway.
 
 import (
+	"bytes"
+	"cmp"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -23,10 +26,12 @@ const (
 )
 
 // Session is who sent a tunnel request: the broker session id, the client's
-// pairing name, and a channel closed when the request's data channel closes.
+// pairing name (looked up only when a screen opens), and a channel closed when
+// the request's data channel closes.
 type Session struct {
-	ID, Name string
-	Closed   <-chan struct{}
+	ID     string
+	Name   func() string
+	Closed <-chan struct{}
 }
 
 // ScreenState is the TV's playback state (POST /streamiq/screen/state). Audio /
@@ -63,7 +68,8 @@ func (c ScreenCommand) valid() bool {
 	case "seek":
 		return c.Ticks != nil && *c.Ticks >= 0 && c.ItemID == "" && c.StartTicks == nil && c.Audio == nil && c.Subtitle == nil
 	case "tracks":
-		return (c.Audio != nil || c.Subtitle != nil) && c.ItemID == "" && c.StartTicks == nil && c.Ticks == nil
+		return (c.Audio != nil || c.Subtitle != nil) && (c.Audio == nil || *c.Audio >= 0) &&
+			(c.Subtitle == nil || *c.Subtitle >= -1) && c.ItemID == "" && c.StartTicks == nil && c.Ticks == nil
 	}
 	return false
 }
@@ -72,14 +78,16 @@ func (c ScreenCommand) valid() bool {
 type screen struct {
 	id, name, session string
 	closed            <-chan struct{}
-	wake              chan struct{} // cap 1: a command is waiting in next
+	cmds              chan []byte // NDJSON lines, in arrival order (last command wins)
 
 	mu    sync.Mutex
 	state *ScreenState
-	next  []byte // the undelivered command; a newer one replaces it (last command wins)
 
 	out []byte // rest of the line being read (Read side only)
 }
+
+// maxQueued: commands a stalled TV may fall behind by before POSTs get 503.
+const maxQueued = 16
 
 var screens = struct {
 	sync.Mutex
@@ -89,15 +97,9 @@ var screens = struct {
 // Read blocks until a command arrives or the data channel closes (io.EOF, then
 // Close removes the screen).
 func (s *screen) Read(p []byte) (int, error) {
-	for len(s.out) == 0 {
-		s.mu.Lock()
-		s.out, s.next = s.next, nil
-		s.mu.Unlock()
-		if len(s.out) > 0 {
-			break
-		}
+	if len(s.out) == 0 {
 		select {
-		case <-s.wake:
+		case s.out = <-s.cmds:
 		case <-s.closed:
 			return 0, io.EOF
 		}
@@ -114,22 +116,20 @@ func (s *screen) Close() error {
 	return nil
 }
 
-func (s *screen) send(line []byte) {
-	s.mu.Lock()
-	s.next = line
-	s.mu.Unlock()
+// gone: the channel closed; the screen is dead even before Close removes it.
+func (s *screen) gone() bool {
 	select {
-	case s.wake <- struct{}{}:
+	case <-s.closed:
+		return true
 	default:
+		return false
 	}
 }
 
-// screenOf finds the session's own screen.
+// screenOf finds the session's open screen; caller holds screens.
 func screenOf(session string) *screen {
-	screens.Lock()
-	defer screens.Unlock()
 	for _, s := range screens.m {
-		if s.session == session {
+		if s.session == session && !s.gone() {
 			return s
 		}
 	}
@@ -149,7 +149,7 @@ func screenAPI(method, p, body string, who Session) (int, map[string]string, io.
 		}
 		b, _ := json.Marshal(v)
 		h := map[string]string{"Content-Type": "application/json", "Content-Length": fmt.Sprint(len(b)), "Cache-Control": "no-store"}
-		return st, h, io.NopCloser(strings.NewReader(string(b))), nil
+		return st, h, io.NopCloser(bytes.NewReader(b)), nil
 	}
 	refuse := func(st int, f string, a ...any) (int, map[string]string, io.ReadCloser, error) {
 		return st, nil, nil, fmt.Errorf("screen: "+f, a...)
@@ -159,17 +159,19 @@ func screenAPI(method, p, body string, who Session) (int, map[string]string, io.
 		if who.ID == "" || who.Closed == nil {
 			return refuse(http.StatusNotFound, "no session")
 		}
+		screens.Lock()
+		defer screens.Unlock()
 		if screenOf(who.ID) != nil {
 			return refuse(http.StatusConflict, "session %s already holds a screen", who.ID)
 		}
-		s := &screen{id: rand.Text(), name: who.Name, session: who.ID, closed: who.Closed, wake: make(chan struct{}, 1)}
-		screens.Lock()
+		s := &screen{id: rand.Text(), name: who.Name(), session: who.ID, closed: who.Closed, cmds: make(chan []byte, maxQueued)}
 		screens.m[s.id] = s
-		screens.Unlock()
 		return http.StatusOK, map[string]string{"Content-Type": "application/x-ndjson", "Cache-Control": "no-store"}, s, nil
 
 	case method == "POST" && p == ScreenPath+"/state":
+		screens.Lock()
 		s := screenOf(who.ID)
+		screens.Unlock()
 		if who.ID == "" || s == nil {
 			return refuse(http.StatusNotFound, "state from a session without a screen")
 		}
@@ -192,18 +194,21 @@ func screenAPI(method, p, body string, who Session) (int, map[string]string, io.
 		list := []item{}
 		screens.Lock()
 		for _, s := range screens.m {
-			s.mu.Lock()
-			list = append(list, item{s.id, s.name, s.state})
-			s.mu.Unlock()
+			if !s.gone() {
+				s.mu.Lock()
+				list = append(list, item{s.id, s.name, s.state})
+				s.mu.Unlock()
+			}
 		}
 		screens.Unlock()
+		slices.SortFunc(list, func(a, b item) int { return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID)) })
 		return reply(http.StatusOK, list)
 
 	case method == "POST" && strings.HasPrefix(p, ScreensPath+"/"):
 		screens.Lock()
 		s := screens.m[strings.TrimPrefix(p, ScreensPath+"/")]
 		screens.Unlock()
-		if s == nil {
+		if s == nil || s.gone() {
 			return refuse(http.StatusNotFound, "no screen %s", p)
 		}
 		var c ScreenCommand
@@ -211,7 +216,11 @@ func screenAPI(method, p, body string, who Session) (int, map[string]string, io.
 			return refuse(http.StatusBadRequest, "bad command")
 		}
 		line, _ := json.Marshal(c)
-		s.send(append(line, '\n'))
+		select {
+		case s.cmds <- append(line, '\n'):
+		default:
+			return refuse(http.StatusServiceUnavailable, "screen %s is not reading", s.id)
+		}
 		return reply(http.StatusNoContent, nil)
 	}
 	return refuse(http.StatusNotFound, "no %s %s", method, p)

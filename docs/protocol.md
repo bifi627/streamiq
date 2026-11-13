@@ -199,6 +199,9 @@ fingerprint = `sha-256 AA:…` over the SPKI bytes. The **gateway pin** = the
 gateway's DTLS fingerprint (`a=fingerprint` of the answer SDP). The browser
 checks the pin **before** `setRemoteDescription` and refuses on mismatch
 (pairing again is allowed: the comparison code authenticates the new cert).
+The answer must carry exactly one distinct fingerprint, a `sha-256` one (the same
+line repeated at session and media level counts as one); anything else is refused
+like a mismatch.
 
 The browser opens a data channel labelled **`auth`** (JSON text frames). Until
 it is authorized, the gateway closes every other channel immediately.

@@ -166,7 +166,17 @@ export async function connect(
         await pc.setLocalDescription(await pc.createOffer())
         send({ type: 'offer', gatewayId, sdp: pc.localDescription })
       } else if (m.type === 'answer') {
-        gatewayFp = sdpFingerprint(m.sdp.sdp)
+        try {
+          gatewayFp = sdpFingerprint(m.sdp.sdp)
+        } catch (e) {
+          // No single certificate to compare with the pin: refuse like a mismatch.
+          return fail(
+            err(
+              'pin-mismatch',
+              `gateway answer refused: ${toAppError(e).message}`,
+            ),
+          )
+        }
         // Before a single byte goes to the gateway: an unexpected certificate means
         // someone (possibly StreamIQ's own server) is in the middle. Pairing again is
         // allowed: the comparison code authenticates the new certificate.

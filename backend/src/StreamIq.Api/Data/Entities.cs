@@ -26,6 +26,7 @@ public class Gateway : ITenantOwned
     public string? Version { get; set; }                // gateway release version, from heartbeat
     public DateTimeOffset? LastSeenAt { get; set; }      // heartbeat → online/offline
     public string? Update { get; set; }                 // newer gateway release, from heartbeat; null = up to date
+    public int? Protocol { get; set; }                  // gateway protocol from its last heartbeat (also a refused one, #176)
     public DateTimeOffset CreatedAt { get; set; }
 }
 

@@ -8,6 +8,7 @@ export type Gateway = {
   version: string | null
   online: boolean
   update: string | null // newer gateway release, null = up to date
+  upgradeRequired: boolean // refused: its protocol is below the API's minimum (#176)
 }
 
 // Gateway API GET /streamiq/status over the tunnel (docs/protocol.md). All

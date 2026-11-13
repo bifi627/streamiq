@@ -46,9 +46,12 @@ public class BrokerSteps(IntegrationFixture fx)
 
         var credential = enrolled.GetProperty("credential").GetString() ?? throw new InvalidOperationException("no credential");
         var ws = await GatewayConnect(credential);
-        while (!Hub.Gateways.ContainsKey(id))
+        await Send(ws, new { type = "heartbeat", protocol = StreamIq.Api.Features.Broker.GatewaySocket.MinGatewayProtocol });
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!Hub.Gateways.ContainsKey(id))   // server registers on the first supported heartbeat
         {
-            await Task.Delay(10);   // server registers right after the upgrade
+            Assert.True(DateTime.UtcNow < deadline, "gateway not registered with the broker (heartbeat refused?)");
+            await Task.Delay(10);
         }
 
         _gateways[name] = (id, ws, credential);

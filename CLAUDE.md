@@ -82,6 +82,14 @@ closes its open sessions (gateway-side `pc.Close()`; the API never knows client 
 of `state/jellyfin.json` (0600) holding it. LAN access to the page needs a token
 (`state/page-token`; login link `state/page-link`, printed by the installer; loopback exempt).
 Postgres backups: daily `pg_dump` → GCS (`db-backup.yml`), restore runbook `docs/db-recovery.md`.
+**Households (#189, parent #92):** tenant = **household**, and a user can belong to
+several: `memberships` (tenant, user, role `admin`/`member`) replaced `users.tenant_id`;
+first sign-in makes your own household with you as admin. Each HTTP request acts in one,
+named by the `X-StreamIQ-Household` header (default: the oldest membership);
+`CurrentTenantId` is set only from the signed-in user's own membership (`Auth/Households.cs`,
+the one cross-tenant membership lookup), a non-member gets `404`. The broker checks
+membership for the offered gateway's household, never one the browser names. Roles are
+stored, not enforced yet (#190).
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,
@@ -242,7 +250,8 @@ Copy `.env.example` only to override.
   `firebase_uid` column.
 - **No PII in our DB** (email, name, photo, IPs): Firebase owns profile data, we keep only
   the pseudonymous `firebase_uid`. Account deletion must stay "Firebase delete + `DELETE`
-  the tenant row" (every tenant-owned FK cascades). Rationale: #65.
+  the users row (cascades its memberships) + every household left without members"
+  (every tenant-owned FK cascades from the tenant row). Rationale: #65, #92.
 - **CRUD stays boring** (plain EF Core, no repository ceremony). The
   cleverness budget goes to tunnel/signaling/gateway only. The owner works
   ponytail-style: laziest solution that works, stdlib first, shortest diff.

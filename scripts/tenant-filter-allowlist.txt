@@ -3,3 +3,4 @@
 # Adding a line is a review trigger: tenant isolation is the crown-jewel invariant.
 backend/src/StreamIq.Api/Features/Onboarding/Enroll.cs  # enrollment token lookup by hash; the token establishes the tenant
 backend/src/StreamIq.Api/Features/Broker/GatewaySocket.cs  # gateway credential lookup by hash; the credential establishes the tenant
+backend/src/StreamIq.Api/Auth/Households.cs  # a user's memberships across households, always by user id; picks the tenant before the filter can apply

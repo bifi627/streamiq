@@ -3,7 +3,7 @@ namespace StreamIq.Api.Data;
 public class Tenant
 {
     public Guid Id { get; set; }
-    public string? Name { get; set; }               // cosmetic; owner is implicit (the one user)
+    public string? Name { get; set; }               // cosmetic
     public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -11,7 +11,19 @@ public class AppUser
 {
     public Guid Id { get; set; }                    // our PK — never the Firebase UID
     public required string FirebaseUid { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+/// A user's place in a household (tenant). A user can belong to several; the
+/// request picks one (Auth/Households). Tenant-owned, so the global filter scopes
+/// it like any other table; only Households looks a user's memberships up across
+/// tenants.
+public class Membership : ITenantOwned
+{
+    public const string Admin = "admin", Member = "member";
     public Guid TenantId { get; set; }
+    public Guid UserId { get; set; }
+    public required string Role { get; set; }          // Admin / Member (CHECK constraint)
     public DateTimeOffset CreatedAt { get; set; }
 }
 

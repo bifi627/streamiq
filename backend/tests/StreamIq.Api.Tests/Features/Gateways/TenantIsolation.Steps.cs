@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
 using StreamIq.Api.Data;
@@ -33,7 +34,7 @@ public class TenantIsolationSteps(IntegrationFixture fx)
     {
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
-        var tenantId = db.Users.OrderBy(u => u.CreatedAt).Last().TenantId;
+        var tenantId = db.Memberships.IgnoreQueryFilters().OrderBy(m => m.CreatedAt).Last().TenantId;
         db.Gateways.Add(new Gateway { TenantId = tenantId, Name = name, CredentialHash = "seeded" });
         await db.SaveChangesAsync();
     }

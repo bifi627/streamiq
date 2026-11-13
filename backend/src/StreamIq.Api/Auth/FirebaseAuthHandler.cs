@@ -9,7 +9,10 @@ namespace StreamIq.Api.Auth;
 
 /// Scheme "Firebase": verify the Bearer ID token (same VerifyIdTokenAsync call in
 /// dev and prod — emulator vs real issuer is env-only, no bypass), resolve-or-
-/// provision the user, and set CurrentTenantId so the global filter is live.
+/// provision the user, pick the request's household from the user's memberships
+/// (Households) and set CurrentTenantId so the global filter is live. A household
+/// the user can't use flags the request for a 404 (Program.cs), same as one that
+/// doesn't exist.
 public class FirebaseAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
@@ -40,12 +43,23 @@ public class FirebaseAuthHandler(
 
         var user = await provisioner.ResolveOrProvisionAsync(decoded.Uid, Context.RequestAborted);
 
-        db.CurrentTenantId = user.TenantId;
+        // A malformed id is Guid.Empty: no tenant has it, so it's a non-member 404 too.
+        Guid? wanted = Request.Headers[Households.Header] is { Count: > 0 } h
+            ? Guid.TryParse(h.ToString(), out var id) ? id : Guid.Empty
+            : null;
+        var membership = await Households.PickAsync(db, user.Id, wanted, Context.RequestAborted);
+        // ponytail: no household at all (only once leaving exists, #192) is a 404 too.
+        if (membership is null)
+        {
+            Context.Items[Households.Denied] = true;
+            return AuthenticateResult.Fail("not a member of that household");
+        }
+        db.CurrentTenantId = membership.TenantId;
 
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim("tenant_id", user.TenantId.ToString()),
+            new Claim("tenant_id", membership.TenantId.ToString()),
             new Claim("firebase_uid", user.FirebaseUid),
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));

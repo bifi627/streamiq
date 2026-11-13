@@ -54,6 +54,14 @@ version first (the installers fetch the latest release; the old API ignores the
 new value), deploy the API after. API first = every gateway refused, and rerunning the
 installer reinstalls the old release.
 
+**Households (#189).** A user can belong to several households (tenants). Every
+Firebase-authenticated HTTP request acts in one: `X-StreamIQ-Household: <tenant id>`
+names it, else the user's oldest membership. The API uses it only after finding
+the user's own membership in it; a household the user isn't a member of, one that
+doesn't exist, or a malformed id → `404` before the endpoint runs. `GET /api/me`
+returns `{userId, tenantId, memberships:[{id, name, role}]}` (oldest first; `tenantId`
+= the household this request acts in; `role` = `admin` | `member`).
+
 **`DELETE /api/gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's
 credential (row kept, hidden from `GET /api/gateways`; its telemetry stays). The
 broker closes its control socket (`1008 "revoked"`) and every browser session
@@ -73,7 +81,10 @@ carries the gateway's half of the broker (below).
 
 ## Broker (MVP item 3)
 
-Tenant-scoped signaling. One JSON object per WebSocket text frame. The broker
+Tenant-scoped signaling. One JSON object per WebSocket text frame. The browser
+socket picks no household: the `offer`'s gateway decides it, and the broker checks
+the signed-in user's membership in *that gateway's* household (any household the
+browser names, as a header or a field, is ignored). The broker
 relays SDP/ICE; it can't make either side trust the other (pins + pairing do).
 
 **`GET /api/broker/ws`** — browser socket, **one socket = one session to one gateway**.
@@ -84,7 +95,7 @@ Closing it ends the session (broker sends the gateway `bye`).
 | browser → broker | `{type:"auth", token:"<Firebase ID token>"}` — first frame (not a query param: keeps it out of logs). Bad token → close `1008`. |
 | broker → browser | `{type:"ready", iceServers}` — this session's ICE servers (below) |
 | browser → broker | `{type:"offer", gatewayId, sdp}` — browser is the offerer |
-| broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for another tenant's gateway (no existence oracle) |
+| broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |
 | browser → broker | `{type:"ice", candidate}` |
 | broker → browser | `{type:"answer", sdp}` · `{type:"ice", candidate}` |
 
@@ -104,7 +115,7 @@ per session (several browsers at once).
   for gateway API handlers. The gateway never contacts Firebase.
 - Not tied together: a stolen key alone gets nothing without a household sign-in; a
   compromised API alone gets nothing without a paired device. Nothing is enforced per
-  user yet (one member per household); roles in the offer come with #92.
+  user yet (a household can have several members since #189); roles in the offer come with #194.
 
 ## ICE servers + connection telemetry (MVP item 5)
 

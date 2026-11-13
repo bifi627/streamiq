@@ -1,5 +1,6 @@
 Feature: Signaling broker
-  A browser reaches gateways of its own tenant only, and a gateway can only answer
+  A browser reaches gateways of households it is a member of only (checked for the
+  gateway's household, never one the browser names), and a gateway can only answer
   sessions opened for it. The broker relays signaling; it never decides trust.
 
   Scenario: An offer reaches the tenant's own gateway and the answer comes back
@@ -12,6 +13,26 @@ Feature: Signaling broker
   Scenario: A browser cannot reach another tenant's gateway
     Given "alice@home.test" has an online gateway "nas"
     When "bob@home.test" offers to gateway "nas"
+    Then the browser is told the gateway is offline or unknown
+    And gateway "nas" receives nothing
+
+  Scenario: A member of a second household reaches that household's gateway
+    Given "alice@home.test" has an online gateway "nas"
+    And "bob@home.test" is a member of the household of "alice@home.test"
+    When "bob@home.test" offers to gateway "nas"
+    Then gateway "nas" receives the offer
+
+  Scenario: Naming another household does not let a browser reach its gateway
+    Given "alice@home.test" has an online gateway "nas"
+    When "bob@home.test" offers to gateway "nas" naming the household of "alice@home.test"
+    Then the browser is told the gateway is offline or unknown
+    And gateway "nas" receives nothing
+
+  Scenario: A removed membership loses broker access right away
+    Given "alice@home.test" has an online gateway "nas"
+    And "bob@home.test" is a member of the household of "alice@home.test"
+    When the membership of "bob@home.test" in the household of "alice@home.test" is removed
+    And "bob@home.test" offers to gateway "nas"
     Then the browser is told the gateway is offline or unknown
     And gateway "nas" receives nothing
 

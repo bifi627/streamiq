@@ -22,4 +22,12 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   return (res.status === 204 ? null : res.json()) as Promise<T>
 }
 
-export const getMe = () => authed<{ userId: string; tenantId: string }>('/me')
+// A household (code: tenant) the user belongs to. No X-StreamIQ-Household header
+// is sent yet, so the API acts in the oldest one (switcher: #193).
+export type Membership = {
+  id: string
+  name: string | null
+  role: 'admin' | 'member'
+}
+export const getMe = () =>
+  authed<{ userId: string; tenantId: string; memberships: Membership[] }>('/me')

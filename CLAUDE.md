@@ -94,6 +94,10 @@ a member gets `403`, #190); members list and open them. **Invites (#191):** an a
 single-use 7-day link (`/join#<token>`, hash stored only); accepting adds the signed-in user as
 `member` (`Features/Invites/AcceptInvite.cs`, the token picks the household); the web app then
 sends that household in `X-StreamIQ-Household` (per device, `localStorage`).
+**Switcher (#193):** Shell loads `/me` once per page load and shares it (`HouseholdContext`,
+`useHousehold()` in `features/households/household.ts`); a picker shows with more than one
+membership. `switchHousehold()` stores the choice and fully reloads `/` (closes tunnels, drops
+the old household's state); a stale choice (404 on `/me`) switches to the default.
 **Members (#192):** `Features/Members/`: anyone lists (names/emails from Firebase per call) and
 leaves, an admin removes and promotes/demotes; a household always keeps an admin (`409`; the
 check runs under a lock on the tenant row). A user left with no household gets a fresh one

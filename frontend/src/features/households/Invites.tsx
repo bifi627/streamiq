@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { authed, setHousehold } from '../../api'
+import { authed } from '../../api'
+import { switchHousehold } from './household'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 
@@ -92,13 +93,6 @@ export function Invites() {
   )
 }
 
-// Opening the joined household: per-device choice, then a full reload (fresh
-// state everywhere).
-function openHousehold(household: string) {
-  setHousehold(household)
-  location.replace('/')
-}
-
 // The API answers 404 for an unknown, expired, used or revoked invite alike.
 const asInvite = (e: unknown) => {
   const x = toAppError(e)
@@ -125,7 +119,7 @@ export function Join() {
       method: 'POST',
       body: JSON.stringify({ token }),
     })
-      .then((p) => (p.member ? openHousehold(p.householdId) : setPreview(p)))
+      .then((p) => (p.member ? switchHousehold(p.householdId) : setPreview(p)))
       .catch((e) => setErr(asInvite(e)))
   }, [token])
 
@@ -136,7 +130,7 @@ export function Join() {
         method: 'POST',
         body: JSON.stringify({ token }),
       })
-      openHousehold(r.householdId)
+      switchHousehold(r.householdId)
     } catch (e) {
       setErr(asInvite(e))
       setBusy(false)

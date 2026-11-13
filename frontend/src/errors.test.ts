@@ -26,7 +26,9 @@ test('broker error text', () => {
 test('HTTP status → kind, by who answered', () => {
   const k = (via: 'api' | 'tunnel', s: number) => httpError(via, s, '/x').kind
   assert.equal(k('api', 401), 'unauthorized')
+  assert.equal(k('api', 403), 'admin-only')
   assert.equal(k('api', 500), 'http')
+  assert.equal(k('tunnel', 403), 'http') // a refused Jellyfin path, not a role
   assert.equal(k('tunnel', 401), 'http')
   assert.equal(k('tunnel', 502), 'media-server-down')
   assert.equal(k('tunnel', 503), 'media-server-down')
@@ -55,6 +57,7 @@ test('every kind has a message', () => {
     'tunnel-lost',
     'invite-invalid',
     'last-admin',
+    'admin-only',
     'media-server-down',
     'unauthorized',
     'http',
@@ -63,4 +66,6 @@ test('every kind has a message', () => {
     'unknown',
   ]
   for (const k of kinds) assert.ok(describe(new AppError(k, 'd')).message, k)
+  // Retry can't help a 403 (#211).
+  assert.deepEqual(describe(new AppError('admin-only', 'd')).actions, [])
 })

@@ -15,6 +15,7 @@ export type Kind =
   | 'media-server-down' // gateway answered 502/503: Jellyfin down or no token
   | 'invite-invalid' // invite link unknown, expired, used or revoked (API 404)
   | 'last-admin' // the change would leave the household without an admin (API 409)
+  | 'admin-only' // API 403: every 403 the API sends is a member refused an admin-only action
   | 'unauthorized' // API 401
   | 'http' // any other non-2xx
   | 'network' // fetch itself failed
@@ -54,9 +55,11 @@ export function httpError(
   const kind: Kind =
     via === 'api' && status === 401
       ? 'unauthorized'
-      : via === 'tunnel' && (status === 502 || status === 503)
-        ? 'media-server-down'
-        : 'http'
+      : via === 'api' && status === 403
+        ? 'admin-only'
+        : via === 'tunnel' && (status === 502 || status === 503)
+          ? 'media-server-down'
+          : 'http'
   return new AppError(kind, detail, { ...context, status })
 }
 
@@ -74,6 +77,9 @@ export const brokerError = (text: string, context: Context = {}) =>
     text,
     context,
   )
+
+/** Also the hint where an admin-only action is hidden from a member (#211). */
+export const ADMIN_ONLY = 'Only a household admin can do this.'
 
 export type Action = 'retry' | 'pair' | 'gateways' | 'sign-in'
 
@@ -146,6 +152,9 @@ export function describe(e: AppError): {
           'A household needs at least one admin. Make someone else admin first.',
         actions: [],
       }
+    case 'admin-only':
+      // Retry can't help: the role only changes when an admin changes it.
+      return { message: ADMIN_ONLY, actions: [] }
     case 'unauthorized':
       return { message: 'Your session expired.', actions: ['sign-in'] }
     case 'http':

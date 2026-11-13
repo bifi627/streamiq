@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import { setHousehold, type Me } from '../../api'
+export { householdLabel } from '../../api'
 
 // The one /me of this page load (Shell fetches it) and the household it acts in.
 // null until /me is in.
@@ -21,8 +22,3 @@ export function switchHousehold(id: string | null) {
   setHousehold(id)
   location.replace('/')
 }
-
-// Unnamed households (no rename yet) are told apart by the end of their id (the
-// start is a UUIDv7 timestamp, alike for households made close together).
-export const householdLabel = (m: { id: string; name: string | null }) =>
-  m.name ?? `Household …${m.id.slice(-6)}`

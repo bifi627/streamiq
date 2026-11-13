@@ -1,8 +1,10 @@
 Feature: Households
   A user can belong to several households (tenants). Each request acts in one: the
   X-StreamIQ-Household header names it, else the user's oldest. The API only ever
-  uses a household from the user's own memberships; any other id is a 404, the
-  same as a household that doesn't exist. (Tenant isolation, crown jewel.)
+  uses a household from the user's own memberships; any other id is a 404 marked
+  "not a member", byte for byte the same as for a household that doesn't exist, so
+  the app can drop a lost household (#210) without learning anything about others.
+  (Tenant isolation, crown jewel.)
 
   Background:
     Given "alice@home.test" has a gateway named "alice-nas"
@@ -10,17 +12,26 @@ Feature: Households
 
   Scenario: A member of one household naming another household sees nothing of it
     When "bob@home.test" lists gateways in the household of "alice@home.test"
-    Then the request is refused as not found
+    Then the request is refused as not a member
     When "bob@home.test" creates an enrollment token in the household of "alice@home.test"
-    Then the request is refused as not found
+    Then the request is refused as not a member
     When "bob@home.test" removes gateway "alice-nas" in the household of "alice@home.test"
-    Then the request is refused as not found
+    Then the request is refused as not a member
     And "alice@home.test" still lists only gateway "alice-nas"
 
   Scenario: A household that doesn't exist or a malformed id gets the same 404
     When "bob@home.test" lists gateways in household "00000000-0000-0000-0000-000000000042"
-    Then the request is refused as not found
+    Then the request is refused as not a member
     When "bob@home.test" lists gateways in household "not-a-guid"
+    Then the request is refused as not a member
+
+  Scenario: A foreign household and a missing one answer exactly alike
+    When "bob@home.test" lists gateways in the household of "alice@home.test"
+    And "bob@home.test" lists gateways in household "00000000-0000-0000-0000-000000000042"
+    Then both answers are identical
+
+  Scenario: An ordinary 404 in your own household is not a lost membership
+    When "bob@home.test" removes a gateway that doesn't exist in the household of "bob@home.test"
     Then the request is refused as not found
 
   Scenario: Without the header a user acts in their oldest household
@@ -43,7 +54,7 @@ Feature: Households
     Then the list holds exactly "alice-nas"
     When the membership of "bob@home.test" in the household of "alice@home.test" is removed
     And "bob@home.test" lists gateways in the household of "alice@home.test"
-    Then the request is refused as not found
+    Then the request is refused as not a member
     When "bob@home.test" lists gateways without naming a household
     Then the list holds exactly "bob-nas"
 

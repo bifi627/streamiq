@@ -59,12 +59,15 @@ installer reinstalls the old release.
 Firebase-authenticated HTTP request acts in one: `X-StreamIQ-Household: <tenant id>`
 names it, else the user's oldest membership. The API uses it only after finding
 the user's own membership in it; a household the user isn't a member of, one that
-doesn't exist, or a malformed id → `404` before the endpoint runs. `GET /api/me`
+doesn't exist, or a malformed id → `404` with header `X-StreamIQ-Not-Member: 1` (exposed
+to CORS) before the endpoint runs, the same answer in all three cases (an endpoint's own
+`404` never carries that header). `GET /api/me`
 returns `{userId, tenantId, memberships:[{id, name, role}]}` (oldest first; `tenantId`
 = the household this request acts in; `role` = `admin` | `member`).
 The web app stores the household it acts in per device (`localStorage`
-`streamiq.household`, set on joining one) and sends it on every request; a `404` on
-`/me` clears it.
+`streamiq.household`, set on joining one) and sends it on every request; once `/me`
+is in, it sends that household even when it's the default. A `404` with
+`X-StreamIQ-Not-Member` on any request clears the choice and reloads into the default household with a notice (#210).
 
 **Invites (#191).** Household admin (a member gets `403`): `POST /api/invites` →
 `{id, token, expiresAt}` (single use, 7 days; only the SHA-256 hash is stored, the

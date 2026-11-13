@@ -23,7 +23,8 @@ var builder = WebApplication.CreateBuilder(args);
 var corsOrigins = (builder.Configuration["CORS_ORIGINS"] ?? "http://localhost:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.WithOrigins(corsOrigins).WithHeaders("Authorization", "Content-Type", Households.Header).AllowAnyMethod()));
+    p.WithOrigins(corsOrigins).WithHeaders("Authorization", "Content-Type", Households.Header)
+        .WithExposedHeaders(Households.NotMemberHeader).AllowAnyMethod()));
 
 // EF Core control-plane store. Key mirrors .env.example (ConnectionStrings__Default);
 // falls back to the local compose Postgres.
@@ -130,13 +131,15 @@ app.UseStaticFiles();
 
 app.UseCors(); // before auth, so preflights are answered without hitting it
 app.UseAuthentication();
-// A household the signed-in user isn't a member of (FirebaseAuthHandler): 404,
-// the same answer as a household that doesn't exist.
+// A household the signed-in user isn't a member of (FirebaseAuthHandler): 404 with
+// the not-a-member header, the same answer as for a household that doesn't exist. The
+// header tells the app "drop your household choice" apart from an ordinary 404 (#210).
 app.Use((ctx, next) =>
 {
     if (ctx.Items.ContainsKey(Households.Denied))
     {
         ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+        ctx.Response.Headers[Households.NotMemberHeader] = "1";
         return Task.CompletedTask;
     }
     return next(ctx);

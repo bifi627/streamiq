@@ -98,7 +98,9 @@ sends that household in `X-StreamIQ-Household` (per device, `localStorage`).
 **Switcher (#193):** Shell loads `/me` once per page load and shares it (`HouseholdContext`,
 `useHousehold()` in `features/households/household.ts`); a picker shows with more than one
 membership. `switchHousehold()` stores the choice and fully reloads `/` (closes tunnels, drops
-the old household's state); a stale choice (404 on `/me`) switches to the default.
+the old household's state). **Lost membership (#210):** after `/me` every request names its
+household; a non-member answer is a `404` with header `X-StreamIQ-Not-Member` (same for a
+foreign or missing household), on which `authed()` (`api.ts`) drops the choice and reloads `/` with a notice.
 **Members (#192):** `Features/Members/`: anyone lists (names/emails from Firebase per call) and
 leaves, an admin removes and promotes/demotes; a household always keeps an admin (`409`; the
 check runs under a lock on the tenant row). A user left with no household gets a fresh one

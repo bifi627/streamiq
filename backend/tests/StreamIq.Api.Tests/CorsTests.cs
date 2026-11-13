@@ -23,4 +23,18 @@ public class CorsTests(IntegrationFixture fx)
         response.Headers.TryGetValues("Access-Control-Allow-Origin", out var values);
         Assert.Equal(allowed ? [origin] : null, values?.ToArray());
     }
+
+    // The web app reads the not-a-member marker (#210); cross-origin (vite dev) only if exposed.
+    [Fact]
+    public async Task Not_member_header_is_exposed()
+    {
+        using var client = fx.Factory.CreateClient();
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/me");
+        req.Headers.Add("Origin", "http://localhost:5173");
+
+        using var response = await client.SendAsync(req);
+
+        Assert.True(response.Headers.TryGetValues("Access-Control-Expose-Headers", out var values));
+        Assert.Contains(StreamIq.Api.Auth.Households.NotMemberHeader, values);
+    }
 }

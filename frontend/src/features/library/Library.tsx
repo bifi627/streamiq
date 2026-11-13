@@ -29,7 +29,7 @@ type View =
 const playable = (i: Item) =>
   !i.IsFolder && i.Type !== 'Series' && i.Type !== 'Season'
 
-const Tunnel = createContext<{
+export const Tunnel = createContext<{
   gatewayId: string
   pc: RTCPeerConnection
   speed?: Speed
@@ -62,7 +62,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   return (
     <section>
       <p>
-        <Link to="/">← Gateways</Link>
+        <Link to="/">← Gateways</Link> · <a href={`/g/${gatewayId}/spike`}>Spike #178</a>
       </p>
       {err && (
         <ErrorView

@@ -30,6 +30,7 @@ import {
   LibraryHome,
   PlayerPage,
 } from './features/library/Library'
+import { SpikePage } from './features/library/Spike'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 import { compatibleOn, rawOn, setCompatible, setRaw } from './settings'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
@@ -257,6 +258,11 @@ const routeTree = rootRoute.addChildren([
     }),
     itemRoute,
     playRoute,
+    createRoute({
+      getParentRoute: () => gatewayRoute,
+      path: 'spike',
+      component: SpikePage,
+    }),
   ]),
 ])
 // Render errors in any route: the router's error boundary, shown like every

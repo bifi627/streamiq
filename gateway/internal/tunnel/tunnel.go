@@ -142,6 +142,36 @@ func proxy(j *Jellyfin, raw []byte) (int, map[string]string, io.ReadCloser, erro
 func gatewayAPI(j *Jellyfin, method string, u *url.URL) (int, map[string]string, io.ReadCloser, error) {
 	switch {
 	case method != "GET" || u.RawPath != "":
+	case u.Path == "/streamiq/spike-log": // SPIKE #178: the TV's log lands in the gateway log
+		log.Printf("gateway: spike-log: %s", u.Query().Get("m"))
+		return http.StatusNoContent, nil, io.NopCloser(bytes.NewReader(nil)), nil
+	case u.Path == "/streamiq/spike-hold": // SPIKE #178: a long-lived, idle response (the future screen stream)
+		ka, _ := strconv.Atoi(u.Query().Get("ka"))
+		r, w := io.Pipe()
+		go func() {
+			t0 := time.Now()
+			log.Printf("gateway: spike-hold open ka=%ds", ka)
+			// ponytail: ka=0 never notices the channel closing; the 3 h cap ends it.
+			stop := time.After(3 * time.Hour)
+			var tick <-chan time.Time
+			if ka > 0 {
+				tick = time.Tick(time.Duration(ka) * time.Second)
+			}
+			for {
+				select {
+				case <-stop:
+					w.Close()
+					log.Printf("gateway: spike-hold capped after %s", time.Since(t0).Round(time.Second))
+					return
+				case <-tick:
+					if _, err := w.Write([]byte("\n")); err != nil {
+						log.Printf("gateway: spike-hold closed after %s: %v", time.Since(t0).Round(time.Second), err)
+						return
+					}
+				}
+			}
+		}()
+		return http.StatusOK, map[string]string{"Content-Type": "application/x-ndjson"}, r, nil
 	case u.Path == BurstPath:
 		return burst(u.Query().Get("size"))
 	case u.Path == StatusPath && j.Status != nil:

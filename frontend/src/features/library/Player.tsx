@@ -26,6 +26,7 @@
 // Subtitles (#136): Jellyfin offers one HLS rendition, for SubtitleStreamIndex
 // (the first text subtitle until one is picked); another track reloads with
 // it, Off and that track just switch hls.subtitleTrack. Starts Off.
+import { spikeReport } from './Spike'
 import { useEffect, useRef, useState } from 'react'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
@@ -336,10 +337,27 @@ export function Player({
       h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
       // Autoplay is blocked without a user gesture (deep link / reload): the
       // control bar stays up with Play focused, one Enter/tap starts it.
-      v.play().catch((e: Error) => {
-        event(`autoplay blocked: ${e.name}`)
-        setBlocked(true)
-      })
+      // SPIKE #178: unmuted first, then muted; result to the gateway log.
+      const sp = location.search.includes('spike')
+      const rep = (m: string) => (sp ? spikeReport(pc, m) : event(m))
+      const check = () =>
+        setTimeout(
+          () =>
+            rep(`after 5s: paused=${v.paused} t=${v.currentTime.toFixed(1)} muted=${v.muted} vol=${v.volume}`),
+          5000,
+        )
+      v.play().then(
+        () => (rep('autoplay UNMUTED ok'), check()),
+        (e: Error) => {
+          rep(`autoplay blocked: ${e.name} ${e.message}`)
+          if (!sp) return setBlocked(true)
+          v.muted = true
+          v.play().then(
+            () => (rep('autoplay MUTED ok'), check()),
+            (e2: Error) => (rep(`muted autoplay blocked too: ${e2.name}`), setBlocked(true)),
+          )
+        },
+      )
     }
 
     // Restarts at the playhead: with less stream copy (the fallbacks), another

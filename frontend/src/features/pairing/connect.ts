@@ -50,6 +50,16 @@ export async function connect(
     auth.currentUser?.getIdToken(),
   ])
   const ws = new WebSocket(API.replace(/^http/, 'ws') + '/broker/ws')
+  const wsT0 = Date.now() // SPIKE #178: does an idle broker socket get reaped?
+  // SPIKE #178: `?wsping=N` sends an app-level ping every N s (broker ignores it).
+  const wsping = Number(new URLSearchParams(location.search).get('wsping') ?? 0)
+  const pinger = wsping ? setInterval(() => ws.readyState === 1 && ws.send('{"type":"ping"}'), wsping * 1000) : 0
+  ws.addEventListener('close', () => clearInterval(pinger))
+  ws.addEventListener('close', (e) =>
+    import('../library/Spike').then((m) =>
+      m.spikeLog(`broker ws closed after ${Math.round((Date.now() - wsT0) / 1000)}s code=${e.code} reason=${e.reason}`),
+    ),
+  )
   // ICE servers arrive with the broker's `ready`: this session's own TURN
   // credential, revoked when the session ends.
   const pc = new RTCPeerConnection({

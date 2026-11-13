@@ -20,6 +20,7 @@ public class BrokerSteps(IntegrationFixture fx)
     // ! assigned by the browser-connect step before any step uses it
     private WebSocket _browser = null!;
     private string _session = "";
+    private JsonElement _offer;
     private string _offerer = "";
 
     [AfterScenario]
@@ -97,6 +98,15 @@ public class BrokerSteps(IntegrationFixture fx)
         var session = m.GetProperty("session").GetString();
         Assert.NotNull(session);
         _session = session;
+        _offer = m;
+    }
+
+    // The role is the offering user's role in the gateway's household (#194).
+    [Then("gateway \"([^\"]*)\" receives the offer with role \"([^\"]*)\"")]
+    public async Task ThenGatewayGetsOfferWithRole(string name, string role)
+    {
+        await ThenGatewayGetsOffer(name);
+        Assert.Equal(role, _offer.GetProperty("role").GetString());
     }
 
     [When("gateway \"([^\"]*)\" answers that session")]

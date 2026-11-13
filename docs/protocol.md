@@ -129,7 +129,7 @@ Closing it ends the session (broker sends the gateway `bye`).
 | broker → browser | `{type:"answer", sdp}` · `{type:"ice", candidate}` |
 | browser → broker | `{type:"ping"}` — every 25 s while the socket is open, ignored by the broker: keeps an idle session's socket from being dropped by a proxy (#178, #180) |
 
-**Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, user, sdp}`,
+**Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, user, role, sdp}`,
 `{type:"ice", session, candidate}`, `{type:"bye", session}`; gateway → broker
 `{type:"answer"|"ice", session, …}`. The broker only routes a gateway's message
 into a session opened *for that gateway*. The gateway keeps one PeerConnection
@@ -143,9 +143,17 @@ per session (several browsers at once).
   browser can't set it. *Who acts*: any household member signs in on a shared device as
   themselves. The gateway refuses an offer without `user` and keeps it on the session
   for gateway API handlers. The gateway never contacts Firebase.
+- **role** = `role` in the gateway's `offer` (#194): `admin` | `member`, the user's role
+  in *the gateway's* household, from the same membership lookup that lets the offer
+  through (never anything the browser sends). The gateway refuses an offer without a
+  known `role` and keeps it on the session: admin-only gateway API endpoints answer a
+  member `403` (below). No protocol bump: a gateway from before #194 ignores `role` (it
+  has no admin-only endpoint), so the API that sends it deploys *before* the
+  `gateway-v*` release that requires it (the reverse of the order above).
 - Not tied together: a stolen key alone gets nothing without a household sign-in; a
-  compromised API alone gets nothing without a paired device. Nothing is enforced per
-  user yet (a household can have several members since #189); roles in the offer come with #194.
+  compromised API alone gets nothing without a paired device. Nothing else is enforced
+  per user yet. The role is fixed for the session: a demoted admin keeps it until the
+  session ends (like a removed membership, #192).
 
 ## ICE servers + connection telemetry (MVP item 5)
 
@@ -279,8 +287,10 @@ exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints)
 matches an endpoint; anything else under the prefix (unknown path, other method,
 percent-encoded) is `404`. A `body` over 64 KB is `413`. Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
-no tunnel channels. The session's user (`offer.user`) is known to handlers;
-nothing is enforced per user yet (#92). Code: `gateway/internal/tunnel/tunnel.go`.
+no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
+known to handlers. An endpoint can be marked **admin-only** (`tunnel.AdminOnly`, exact
+path, any method): a session whose role isn't `admin` gets `403`. None is yet; #89
+decides per endpoint. Code: `gateway/internal/tunnel/tunnel.go`.
 
 **`GET /streamiq/status`** (#146, #140): `200`, JSON, built on each request.
 Fields are added over time; a client ignores ones it doesn't know.

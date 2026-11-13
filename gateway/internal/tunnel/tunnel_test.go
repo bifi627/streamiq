@@ -246,3 +246,34 @@ func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte
 	b, _ := io.ReadAll(body)
 	return status, hdr, b
 }
+
+// An endpoint marked admin-only (#194) answers a household admin and refuses a
+// member (or a session without a role) with 403; unmarked ones answer both.
+func TestAdminOnly(t *testing.T) {
+	j, _ := fakeJellyfin(t)
+	j.Status = func() any { return map[string]any{} }
+	call := func(role, path string) int {
+		raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: path})
+		status, _, body, _ := proxy(j, raw, Session{Role: role})
+		if body != nil {
+			body.Close()
+		}
+		return status
+	}
+	AdminOnly[StatusPath] = true
+	t.Cleanup(func() { delete(AdminOnly, StatusPath) })
+	for _, c := range []struct {
+		role, path string
+		want       int
+	}{
+		{Admin, StatusPath, 200},
+		{Member, StatusPath, http.StatusForbidden},
+		{"", StatusPath, http.StatusForbidden},
+		{Member, BurstPath + "?size=1", 200},
+		{Admin, BurstPath + "?size=1", 200},
+	} {
+		if got := call(c.role, c.path); got != c.want {
+			t.Errorf("%q GET %s: status %d, want %d", c.role, c.path, got, c.want)
+		}
+	}
+}

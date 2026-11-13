@@ -84,9 +84,10 @@ public static class BrowserSocket
                             // member of it; the filter then scopes the revocation check to it.
                             // Not a member = same answer as unknown/offline (no existence oracle).
                             var ok = false;
+                            Membership? membership = null;
                             if (Guid.TryParse((string?)msg["gatewayId"], out var gatewayId)
                                 && Broker.Gateways.TryGetValue(gatewayId, out gateway)
-                                && await Households.PickAsync(db, user.Id, gateway.TenantId, ct) is not null)
+                                && (membership = await Households.PickAsync(db, user.Id, gateway.TenantId, ct)) is not null)
                             {
                                 db.CurrentTenantId = gateway.TenantId;
                                 ok = await db.Gateways.AnyAsync(d => d.Id == gatewayId && d.CredentialHash != null, ct);
@@ -105,6 +106,8 @@ public static class BrowserSocket
                                 ["session"] = session.ToString(),
                                 // Who acts (users.id, never the Firebase UID); the client key says which device.
                                 ["user"] = user.Id.ToString(),
+                                // Their role in the gateway's household, from that same membership lookup (#194).
+                                ["role"] = membership!.Role,
                                 ["sdp"] = msg["sdp"]?.DeepClone(),
                             }, ct);
                             break;

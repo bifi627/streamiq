@@ -29,6 +29,7 @@ type Msg struct {
 	Type      string                     `json:"type"` // offer | answer | ice | bye
 	Session   string                     `json:"session"`
 	User      string                     `json:"user,omitempty"` // offer only: the signed-in user's users.id, stamped by the broker
+	Role      string                     `json:"role,omitempty"` // offer only: that user's role in this gateway's household (admin | member)
 	SDP       *webrtc.SessionDescription `json:"sdp,omitempty"`
 	Candidate *webrtc.ICECandidateInit   `json:"candidate,omitempty"`
 }
@@ -98,12 +99,13 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 		if pc != nil || m.SDP == nil {
 			return
 		}
-		if m.User == "" { // every session needs a user: the broker stamps it (docs/protocol.md)
-			log.Printf("gateway: session %s: offer without user refused", m.Session)
+		// Every session needs a user and a role: the broker stamps both (docs/protocol.md).
+		if m.User == "" || (m.Role != tunnel.Admin && m.Role != tunnel.Member) {
+			log.Printf("gateway: session %s: offer without user or role refused", m.Session)
 			return
 		}
-		log.Printf("gateway: session %s: user %s", m.Session, m.User)
-		pc, err := s.newPeer(m.Session, m.User, send)
+		log.Printf("gateway: session %s: user %s (%s)", m.Session, m.User, m.Role)
+		pc, err := s.newPeer(m.Session, m.User, m.Role, send)
 		if err != nil {
 			log.Printf("gateway: session %s: %v", m.Session, err)
 			return
@@ -124,14 +126,15 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 }
 
 // User is the session's user id (from the broker's offer) for gateway API
-// handlers; "" for an unknown session. Nothing is enforced per user yet (#92).
+// handlers; "" for an unknown session. Nothing is enforced per user yet (#92);
+// the role gates admin-only endpoints (tunnel.Session.Role, tunnel.AdminOnly).
 func (s *Sessions) User(session string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.users[session]
 }
 
-func (s *Sessions) newPeer(id, user string, send func(any)) (*webrtc.PeerConnection, error) {
+func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerConnection, error) {
 	api := s.API
 	if api == nil {
 		api = webrtc.NewAPI()
@@ -173,7 +176,7 @@ func (s *Sessions) newPeer(id, user string, send func(any)) (*webrtc.PeerConnect
 		case d.Label() == "auth":
 			s.serveAuth(id, pc, d, &authed)
 		case authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Name: func() string { return s.name(id) }})
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Role: role, Name: func() string { return s.name(id) }})
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`
 		}

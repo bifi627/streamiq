@@ -91,14 +91,22 @@ func TestPairThenTunnel(t *testing.T) {
 	}
 }
 
-// An offer without the broker-stamped user gets no session and no answer.
-func TestOfferWithoutUserRefused(t *testing.T) {
-	gateway := &Sessions{}
-	sent := false
-	raw, _ := json.Marshal(Msg{Type: "offer", Session: "s", SDP: &webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: "v=0"}})
-	gateway.Handle(raw, func(any) { sent = true })
-	if sent || gateway.Active() != 0 || gateway.User("s") != "" {
-		t.Fatal("offer without user must be refused")
+// An offer without the broker-stamped user, or without a known role, gets no
+// session and no answer.
+func TestOfferWithoutUserOrRoleRefused(t *testing.T) {
+	sdp := &webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: "v=0"}
+	for _, m := range []Msg{
+		{Type: "offer", Session: "s", Role: tunnel.Admin, SDP: sdp},
+		{Type: "offer", Session: "s", User: "u", SDP: sdp},
+		{Type: "offer", Session: "s", User: "u", Role: "owner", SDP: sdp},
+	} {
+		gateway := &Sessions{}
+		sent := false
+		raw, _ := json.Marshal(m)
+		gateway.Handle(raw, func(any) { sent = true })
+		if sent || gateway.Active() != 0 || gateway.User("s") != "" {
+			t.Fatalf("offer %+v must be refused", m)
+		}
 	}
 }
 
@@ -220,7 +228,7 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 	offer, _ := pc.CreateOffer(nil)
 	inOrder.Lock() // candidates gathered from here on queue behind the offer
 	pc.SetLocalDescription(offer)
-	handle(Msg{Type: "offer", Session: id, User: "user-" + id, SDP: pc.LocalDescription()})
+	handle(Msg{Type: "offer", Session: id, User: "user-" + id, Role: tunnel.Member, SDP: pc.LocalDescription()})
 	inOrder.Unlock()
 
 	ch := b.say(nil)
@@ -341,6 +349,16 @@ func TestScreenOverTunnel(t *testing.T) {
 		return b
 	}
 	tv, phone := pair("tv", "Living room TV"), pair("phone", "Phone")
+
+	// The offer's role stays on the session (#194): a member's tunnel request to
+	// an admin-only endpoint is refused.
+	tunnel.AdminOnly[tunnel.ScreensPath] = true
+	denied, d := phone.open(`{"method":"GET","url":"/streamiq/screens"}`)
+	if head := phone.frame(denied); !strings.Contains(head, `"status":403`) {
+		t.Fatalf("member on an admin-only endpoint: head = %s", head)
+	}
+	d.Close()
+	delete(tunnel.AdminOnly, tunnel.ScreensPath)
 
 	frames, _ := tv.open(`{"method":"GET","url":"/streamiq/screen"}`)
 	if head := tv.frame(frames); !strings.Contains(head, `"status":200`) {

@@ -39,8 +39,8 @@ type Sessions struct {
 	Fp       string // our DTLS fingerprint
 	Store    *pairing.Store
 	Jellyfin *tunnel.Jellyfin // the tunnel's origin + policy
-	// Viewers makes sure a user has their own Jellyfin viewer before the gateway
-	// answers their offer (#195). nil = none.
+	// Viewers makes sure a user has their own Jellyfin viewer (#195), once the
+	// session's device is paired: an offer alone (the API) makes nothing. nil = none.
 	Viewers func(user string)
 
 	mu    sync.Mutex
@@ -108,9 +108,6 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 			return
 		}
 		log.Printf("gateway: session %s: user %s (%s)", m.Session, m.User, m.Role)
-		if s.Viewers != nil {
-			s.Viewers(m.User) // ponytail: blocks this socket's other signaling for a first session's few Jellyfin calls
-		}
 		pc, err := s.newPeer(m.Session, m.User, m.Role, send)
 		if err != nil {
 			log.Printf("gateway: session %s: %v", m.Session, err)
@@ -190,6 +187,15 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	return pc, nil
 }
 
+// authorize opens the tunnel to a paired session, after making sure its user
+// has their own Jellyfin viewer, so their first request already plays as it.
+func (s *Sessions) authorize(id string, authed *atomic.Bool) {
+	if s.Viewers != nil {
+		s.Viewers(s.User(id))
+	}
+	authed.Store(true)
+}
+
 // name is the session's client pairing name (allowlist entry for its key).
 func (s *Sessions) name(session string) string {
 	s.mu.Lock()
@@ -250,7 +256,7 @@ func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.Dat
 			s.keys[id] = fp
 			s.mu.Unlock()
 			if s.Store.Allowed(fp) && !m.Pair {
-				authed.Store(true)
+				s.authorize(id, authed)
 				say(authMsg{Type: "ok"})
 			} else {
 				say(authMsg{Type: "unpaired"})
@@ -275,7 +281,7 @@ func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.Dat
 				case !ok:
 					fail("not approved")
 				default:
-					authed.Store(true)
+					s.authorize(id, authed)
 					say(authMsg{Type: "approved"})
 				}
 			}()

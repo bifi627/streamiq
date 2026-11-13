@@ -580,8 +580,12 @@ func TestViewerPerUser(t *testing.T) {
 		if a2, _ := s2.ViewerFor(alice); a2 != a {
 			t.Fatalf("byo=%v: restart lost alice's viewer", byo)
 		}
-		if tok, _ := s.ViewerFor("../x"); tok != "" {
+		s.EnsureViewer(ctx, "../x")
+		if tok, _ := s.ViewerFor("../x"); tok != "" || f.users["streamiq-../x"] != nil {
 			t.Fatal("made a viewer for a bad user id")
+		}
+		if tok, _ := s.ViewerFor(strings.ToUpper(alice)); tok != a {
+			t.Fatal("user id case matters")
 		}
 	}
 }
@@ -606,28 +610,41 @@ func TestViewerOnce(t *testing.T) {
 	}
 }
 
-// If making a user's viewer fails, they play as the shared viewer, the page
-// says why, and their next session tries again.
+// If making a user's viewer fails, they play as the shared viewer and the page
+// says why. A refused admin isn't tried again (Jellyfin locks users out after
+// failed sign-ins) until a page login; other failures retry on the next session.
 func TestViewerFallback(t *testing.T) {
 	f, srv := newFake(t, true)
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
-	if err := s.Login(context.Background(), "me", "pw"); err != nil {
+	ctx := context.Background()
+	if err := s.Login(ctx, "me", "pw"); err != nil {
 		t.Fatal(err)
 	}
+	s.poll(ctx)
 	f.mu.Lock()
 	pw := f.users[byoAdmin].pw
 	f.users[byoAdmin].pw = "changed by someone"
 	f.mu.Unlock()
-	s.EnsureViewer(context.Background(), alice)
-	if tok, _ := s.ViewerFor(alice); tok != "" || !strings.Contains(s.View().Err, "reconnect Jellyfin") {
+	s.EnsureViewer(ctx, alice)
+	if tok, _ := s.ViewerFor(alice); tok != "" || !strings.Contains(s.View().Err, "reconnect Jellyfin") || !s.View().NeedsLogin {
 		t.Fatalf("token %q, view %+v", tok, s.View())
 	}
 	f.mu.Lock()
 	f.users[byoAdmin].pw = pw
 	f.mu.Unlock()
-	s.EnsureViewer(context.Background(), alice)
+	s.EnsureViewer(ctx, alice)
+	if tok, _ := s.ViewerFor(alice); tok != "" {
+		t.Fatal("tried the refused admin again before a login")
+	}
+	if err := s.Login(ctx, "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	s.EnsureViewer(ctx, alice)
 	mine(t, f, s, alice)
+	if v := s.View(); v.Err != "" || v.NeedsLogin {
+		t.Fatalf("after a login: view %+v", v)
+	}
 }
 
 // A user's revoked viewer token repairs itself; if Jellyfin refuses its
@@ -658,5 +675,18 @@ func TestViewerTokenRepairs(t *testing.T) {
 		t.Fatal("kept a refused viewer")
 	}
 	s.EnsureViewer(ctx, alice)
-	mine(t, f, s, alice)
+	old, _ = mine(t, f, s, alice)
+	// Still repaired once the shared viewer's token is gone for good.
+	f.mu.Lock()
+	f.users[ViewerName].pw = "changed by someone"
+	f.revoke(ViewerName)
+	f.mu.Unlock()
+	s.poll(ctx) // drops the shared token
+	f.mu.Lock()
+	f.revoke("streamiq-" + alice)
+	f.mu.Unlock()
+	s.poll(ctx)
+	if tok, _ := mine(t, f, s, alice); tok == old || s.View().HasKey {
+		t.Fatalf("view %+v", s.View())
+	}
 }

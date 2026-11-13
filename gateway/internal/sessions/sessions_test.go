@@ -44,19 +44,25 @@ func TestPairThenTunnel(t *testing.T) {
 	store, _ := pairing.Open(dir)
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
-	var viewers []string // Handle runs on the test goroutine (connect): no lock
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, Viewers: func(u string) { viewers = append(viewers, u) }}
+	var vmu sync.Mutex
+	var viewers []string // users whose viewer was ensured: only once paired (#195)
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, Viewers: func(u string) {
+		vmu.Lock()
+		defer vmu.Unlock()
+		viewers = append(viewers, u)
+	}}
+	ensured := func() string { vmu.Lock(); defer vmu.Unlock(); return strings.Join(viewers, ",") }
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
 	b := connect(t, gateway, "s1", key, false)
-	if got := gateway.User("s1"); got != "user-s1" || len(viewers) != 1 || viewers[0] != "user-s1" {
-		t.Fatalf("session user = %q, viewers ensured %v: want the offer's user", got, viewers)
+	if got := gateway.User("s1"); got != "user-s1" {
+		t.Fatalf("session user = %q, want the offer's user", got)
 	}
 	if b.say(nil)["type"] != "unpaired" {
 		t.Fatal("want unpaired for an unknown key")
 	}
-	if got := b.fetch(); got != "" {
-		t.Fatalf("unpaired browser got a tunnel response %q", got)
+	if got := b.fetch(); got != "" || ensured() != "" {
+		t.Fatalf("unpaired browser got a tunnel response %q or a Jellyfin viewer (%s)", got, ensured())
 	}
 
 	nB := pairing.Nonce()
@@ -74,12 +80,12 @@ func TestPairThenTunnel(t *testing.T) {
 	if b.say(nil)["type"] != "approved" {
 		t.Fatal("want approved")
 	}
-	if got := b.fetch(); got != "jellyfin" {
-		t.Fatalf("tunnel after approve = %q", got)
+	if got := b.fetch(); got != "jellyfin" || ensured() != "user-s1" {
+		t.Fatalf("tunnel after approve = %q, viewers ensured %q", got, ensured())
 	}
 
-	if connect(t, gateway, "s2", key, false).say(nil)["type"] != "ok" {
-		t.Fatal("paired key not recognised on a new session")
+	if connect(t, gateway, "s2", key, false).say(nil)["type"] != "ok" || ensured() != "user-s1,user-s2" {
+		t.Fatalf("paired key not recognised on a new session (viewers ensured %q)", ensured())
 	}
 	// A browser whose pin doesn't match (gateway cert changed) forces the code
 	// comparison even though its key is allowlisted.

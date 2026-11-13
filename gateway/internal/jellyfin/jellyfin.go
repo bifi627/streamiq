@@ -137,7 +137,7 @@ type Setup struct {
 	OnKey    func(token, userID string)
 	HWAccel  string // STREAMIQ_JELLYFIN_HWACCEL, one of HWAccels
 
-	vmu       sync.Mutex // held by whoever rewrites creds.Users: EnsureViewer, check, Login
+	vmu       sync.Mutex // held by whoever rewrites creds or signs in as the gateway's admin: EnsureViewer, check, configure, Login
 	mu        sync.Mutex
 	creds     Creds
 	legacyID  string // user id resolved for a pre-#50 API key
@@ -146,6 +146,9 @@ type Setup struct {
 	version   string
 	err       string
 	warned    string // version already warned about
+	// refused: Jellyfin refused the gateway's admin while making a viewer. No
+	// retry until the next page login: Jellyfin locks a user out after failed sign-ins.
+	refused bool
 }
 
 func (s *Setup) path() string { return filepath.Join(s.StateDir, "jellyfin.json") }
@@ -220,7 +223,7 @@ func (s *Setup) poll(ctx context.Context) {
 	}
 	switch {
 	case err != nil:
-	case c.Token != "":
+	case c.Token != "" || len(c.Users) > 0:
 		s.check(ctx)
 		s.configure(ctx)
 	case c.APIKey != "":
@@ -293,7 +296,9 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 	if err := s.save(c); err != nil {
 		return err
 	}
-	s.setErr("")
+	s.mu.Lock()
+	s.err, s.refused = "", false
+	s.mu.Unlock()
 	return nil
 }
 
@@ -306,13 +311,9 @@ func (s *Setup) connect(ctx context.Context, user, pw, oldKey string, ownAdmin b
 		return Creds{}, err
 	}
 	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
-	id, vpw, err := s.ensureUser(ctx, admin, ViewerName, false)
+	v, err := s.makeViewer(ctx, admin, ViewerName)
 	if err != nil {
 		return Creds{}, fmt.Errorf("create the viewer user (needs a Jellyfin administrator): %w", err)
-	}
-	tok, err := s.signIn(ctx, ViewerName, vpw)
-	if err != nil {
-		return Creds{}, err
 	}
 	if oldKey != "" {
 		// No err in the log: the request URL (in a transport error) holds the key.
@@ -320,7 +321,7 @@ func (s *Setup) connect(ctx context.Context, user, pw, oldKey string, ownAdmin b
 			slog.Warn("gateway: could not delete the old Jellyfin API key; delete streamiq-gateway in Dashboard → API Keys")
 		}
 	}
-	c := Creds{Token: tok, Viewer: ViewerName, ViewerID: id, ViewerPassword: vpw}
+	c := Creds{Token: v.Token, Viewer: v.Name, ViewerID: v.ID, ViewerPassword: v.Password}
 	if ownAdmin { // last: a failure before this leaves its stored password valid
 		_, apw, err := s.ensureUser(ctx, admin, byoAdmin, true)
 		if err != nil {
@@ -329,6 +330,19 @@ func (s *Setup) connect(ctx context.Context, user, pw, oldKey string, ownAdmin b
 		c.User, c.Password, c.BYO = byoAdmin, apw, true
 	}
 	return c, nil
+}
+
+// makeViewer creates (or adopts) the viewer user name and signs in as it.
+func (s *Setup) makeViewer(ctx context.Context, admin, name string) (Viewer, error) {
+	id, pw, err := s.ensureUser(ctx, admin, name, false)
+	if err != nil {
+		return Viewer{}, err
+	}
+	tok, err := s.signIn(ctx, name, pw)
+	if err != nil {
+		return Viewer{}, err
+	}
+	return Viewer{Name: name, ID: id, Token: tok, Password: pw}, nil
 }
 
 // ensureUser creates the hidden user name with a random password, or adopts an
@@ -390,6 +404,8 @@ func (s *Setup) ensureUser(ctx context.Context, admin, name string, isAdmin bool
 // that password) shows on the page and is retried next poll; playback runs on
 // the viewer token either way.
 func (s *Setup) configure(ctx context.Context) {
+	s.vmu.Lock()
+	defer s.vmu.Unlock()
 	s.mu.Lock()
 	c := s.creds
 	s.mu.Unlock()
@@ -454,13 +470,16 @@ func (s *Setup) check(ctx context.Context) {
 	s.mu.Lock()
 	c := s.creds
 	s.mu.Unlock()
-	tok, err := s.renew(ctx, c.Token, c.Viewer, c.ViewerPassword)
-	if err != nil {
-		s.setErr("Jellyfin: " + err.Error()) // transient: retried next poll
-		return
-	}
-	if tok == "" {
-		slog.Error("gateway: reconnect Jellyfin on the local page")
+	tok := ""
+	if c.Token != "" { // dropped: only a page login brings it back
+		var err error
+		if tok, err = s.renew(ctx, c.Token, c.Viewer, c.ViewerPassword); err != nil {
+			s.setErr("Jellyfin: " + err.Error()) // transient: retried next poll
+			return
+		}
+		if tok == "" {
+			slog.Error("gateway: reconnect Jellyfin on the local page")
+		}
 	}
 	users := map[string]Viewer{}
 	for u, v := range c.Users {
@@ -506,17 +525,25 @@ var userID = regexp.MustCompile(`^[0-9a-fA-F-]{32,36}$`)
 // (#195); later sessions find it. If that fails, the session plays as the
 // shared viewer, the log and the page say why, and the next session tries again.
 func (s *Setup) EnsureViewer(ctx context.Context, user string) {
+	user = strings.ToLower(user)
 	s.vmu.Lock() // also: two sessions of a new user at once make one viewer
 	defer s.vmu.Unlock()
 	s.mu.Lock()
-	c := s.creds
+	c, refused := s.creds, s.refused
 	s.mu.Unlock()
-	if _, ok := c.Users[user]; ok {
+	if _, ok := c.Users[user]; ok || refused {
 		return
 	}
 	v, err := s.newViewer(ctx, c, user)
 	if err != nil {
-		s.setErr("Jellyfin user for a member (they play as " + ViewerName + " meanwhile; reconnect Jellyfin): " + err.Error())
+		fix := "reconnect Jellyfin"
+		if c.managed() {
+			fix = "changed the " + c.User + " password? Put the new one in " + s.path() + " (password) and restart the gateway"
+		}
+		s.mu.Lock()
+		s.err = "Jellyfin user for a member (they play as " + ViewerName + " meanwhile; " + fix + "): " + err.Error()
+		s.refused = unauthorized(err)
+		s.mu.Unlock()
 		slog.Error("gateway: could not create a user's own Jellyfin viewer; the session plays as "+ViewerName, "user", user, "err", err)
 		return
 	}
@@ -532,6 +559,7 @@ func (s *Setup) EnsureViewer(ctx context.Context, user string) {
 		s.setErr("Jellyfin: " + err.Error())
 		return
 	}
+	s.setErr("")
 	slog.Info("gateway: created a user's own Jellyfin viewer", "user", user, "viewer", v.Name)
 }
 
@@ -547,24 +575,15 @@ func (s *Setup) newViewer(ctx context.Context, c Creds, user string) (Viewer, er
 		return Viewer{}, err
 	}
 	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
-	name := "streamiq-" + strings.ToLower(user)
-	id, pw, err := s.ensureUser(ctx, admin, name, false)
-	if err != nil {
-		return Viewer{}, err
-	}
-	tok, err := s.signIn(ctx, name, pw)
-	if err != nil {
-		return Viewer{}, err
-	}
-	return Viewer{Name: name, ID: id, Token: tok, Password: pw}, nil
+	return s.makeViewer(ctx, admin, "streamiq-"+user)
 }
 
 // ViewerFor is a user's own viewer token and Jellyfin user id; "" if they have
 // none (yet), so the tunnel uses the shared viewer.
-func (s *Setup) ViewerFor(user string) (token, userID string) {
+func (s *Setup) ViewerFor(user string) (token, id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	v := s.creds.Users[user]
+	v := s.creds.Users[strings.ToLower(user)]
 	return v.Token, v.ID
 }
 
@@ -639,7 +658,8 @@ func (s *Setup) View() View {
 		Reachable: s.reachable, Version: s.version, Tested: Tested, Err: s.err,
 		HasKey: c.Token != "" || legacy, LegacyKey: legacy, Untested: s.reachable && untested(s.version),
 		// also offered to move off a legacy key, and on BYO until the gateway has its own admin (#195)
-		NeedsLogin: s.reachable && s.wizard && (c.Token == "" || c.Password == ""),
+		// and when the gateway's own admin on BYO was refused (a login makes it again)
+		NeedsLogin: s.reachable && s.wizard && (c.Token == "" || c.Password == "" || (s.refused && !c.managed())),
 		User:       c.User, Viewer: c.Viewer,
 		Managed: c.managed(), HWAccel: c.HWAccel,
 	}

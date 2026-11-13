@@ -146,8 +146,9 @@ per session (several browsers at once).
   browser can't set it. *Who acts*: any household member signs in on a shared device as
   themselves. The gateway refuses an offer without `user` and keeps it on the session
   for gateway API handlers. It also picks the session's Jellyfin user (#195, "Jellyfin
-  policy" below): before answering a user's first offer, the gateway creates their own
-  viewer. The gateway never contacts Firebase.
+  policy" below): on a user's first session, once its device has proven a paired key
+  and before the tunnel opens, the gateway creates their own viewer (an offer alone,
+  i.e. the API, makes none). The gateway never contacts Firebase.
 - **role** = `role` in the gateway's `offer` (#194): `admin` | `member`, the user's role
   in *the gateway's* household, from the same membership lookup that lets the offer
   through (never anything the browser sends). The gateway refuses an offer without a
@@ -396,10 +397,12 @@ stays a *viewer*:
 
 - **Credential injection.** The gateway holds a Jellyfin user token per StreamIQ
   user (#195): their own hidden, non-admin viewer `streamiq-<users.id>`, created on
-  their first session (the offer's `user`; one at a time, so two sessions at once make
-  one), plus the shared viewer `streamiq-viewer` (#50) as the fallback. A session whose
+  their first paired session (the offer's `user`, lowercased; one at a time, so two
+  sessions at once make one), plus the shared viewer `streamiq-viewer` (#50) as the fallback. A session whose
   user has no viewer (creating it failed: the gateway log and local page say why, the
-  next session tries again) plays as `streamiq-viewer`. `gateway/internal/jellyfin`
+  next session tries again; after Jellyfin refused the gateway's admin, only after the
+  next admin login on the local page, since Jellyfin locks out users after failed
+  sign-ins) plays as `streamiq-viewer`. `gateway/internal/jellyfin`
   creates viewers with the gateway's own admin (`streamiq`, or hidden `streamiq-admin`
   on a Jellyfin the user brought) and logs that session out again; tokens and
   passwords are in `state/jellyfin.json` (`users`: `users.id` → viewer). No admin

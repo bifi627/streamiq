@@ -130,14 +130,15 @@ app.UseStaticFiles();
 
 app.UseCors(); // before auth, so preflights are answered without hitting it
 app.UseAuthentication();
-// A household the signed-in user isn't a member of (FirebaseAuthHandler): 404,
-// the same answer as a household that doesn't exist.
+// A household the signed-in user isn't a member of (FirebaseAuthHandler): 404 with
+// the not-a-member body, the same bytes as for a household that doesn't exist. The
+// body tells the app "drop your household choice" apart from an ordinary 404 (#210).
 app.Use((ctx, next) =>
 {
     if (ctx.Items.ContainsKey(Households.Denied))
     {
         ctx.Response.StatusCode = StatusCodes.Status404NotFound;
-        return Task.CompletedTask;
+        return ctx.Response.WriteAsJsonAsync(new { error = Households.NotMember });
     }
     return next(ctx);
 });

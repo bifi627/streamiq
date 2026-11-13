@@ -18,6 +18,7 @@ public class HouseholdsSteps(IntegrationFixture fx)
 {
     private readonly Dictionary<string, Guid> _gateways = new();
     private HttpResponseMessage? _last;
+    private string? _prevAnswer;
 
     [AfterScenario]
     public void Dispose()
@@ -87,11 +88,46 @@ public class HouseholdsSteps(IntegrationFixture fx)
         await Send(email, HttpMethod.Delete, $"/api/gateways/{_gateways[name]}", (await HouseholdOf(owner)).ToString());
     }
 
+    [When("\"(.*)\" removes a gateway that doesn't exist in the household of \"(.*)\"")]
+    public async Task WhenRemovesMissing(string email, string owner)
+    {
+        await Send(email, HttpMethod.Delete, $"/api/gateways/{Guid.NewGuid()}", (await HouseholdOf(owner)).ToString());
+    }
+
+    // An ordinary 404: never carries the not-a-member marker.
     [Then("the request is refused as not found")]
-    public void ThenNotFound()
+    public async Task ThenNotFound()
     {
         Assert.NotNull(_last);
         Assert.Equal(HttpStatusCode.NotFound, _last.StatusCode);
+        Assert.DoesNotContain(Households.NotMember, await _last.Content.ReadAsStringAsync());
+    }
+
+    [Then("the request is refused as not a member")]
+    public async Task ThenNotMember()
+    {
+        Assert.NotNull(_last);
+        Assert.Equal(HttpStatusCode.NotFound, _last.StatusCode);
+        var body = await _last.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(Households.NotMember, body.GetProperty("error").GetString());
+    }
+
+    // Status, headers (bar Date) and body of the last two answers match exactly.
+    [Then("both answers are identical")]
+    public async Task ThenIdentical()
+    {
+        Assert.NotNull(_prevAnswer);
+        Assert.NotNull(_last);
+        Assert.Equal(_prevAnswer, await Answer(_last));
+    }
+
+    private static async Task<string> Answer(HttpResponseMessage r)
+    {
+        var headers = r.Headers.Concat(r.Content.Headers)
+            .Where(h => h.Key != "Date")
+            .Select(h => $"{h.Key}: {string.Join(",", h.Value)}")
+            .Order();
+        return $"{(int)r.StatusCode}\n{string.Join("\n", headers)}\n{await r.Content.ReadAsStringAsync()}";
     }
 
     [Then("the request is refused as forbidden")]
@@ -140,6 +176,7 @@ public class HouseholdsSteps(IntegrationFixture fx)
         {
             req.Headers.TryAddWithoutValidation(Households.Header, household);
         }
+        _prevAnswer = _last is null ? null : await Answer(_last);
         _last?.Dispose();
         _last = await client.SendAsync(req);
     }

@@ -20,7 +20,7 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { auth } from './firebase'
-import { getMe, household, setHousehold, type Me } from './api'
+import { getMe, takeNotice, type Me } from './api'
 import { AppError, toAppError } from './errors'
 import { ErrorView, UncaughtErrors } from './ErrorView'
 import { Gateways } from './features/gateways/Gateways'
@@ -179,18 +179,12 @@ function Shell() {
   const navigate = useNavigate()
   const [me, setMe] = useState<Me | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
+  // "You're no longer a member of …" after authed() dropped a lost household.
+  const [notice, setNotice] = useState(takeNotice)
   useEffect(() => {
     getMe()
       .then(setMe)
-      .catch((e) => {
-        const x = toAppError(e)
-        // The household this device acts in is gone (left or removed): fall
-        // back to the user's oldest one, on the same URL (a /join link keeps its token).
-        if (x.context.status === 404 && household()) {
-          setHousehold(null)
-          location.reload()
-        } else setErr(x)
-      })
+      .catch((e) => setErr(toAppError(e))) // a lost household: authed() recovers
     // Another tab switched household: every request here now acts in it, so
     // reload home to keep this tab's views and role in step.
     const onStorage = (e: StorageEvent) =>
@@ -240,6 +234,14 @@ function Shell() {
       </header>
       <Diagnostics />
       <UncaughtErrors />
+      {notice && (
+        <p role="status">
+          {notice}{' '}
+          <button type="button" onClick={() => setNotice(null)}>
+            OK
+          </button>
+        </p>
+      )}
       {err && <ErrorView error={err} />}
       <p style={{ color: '#888', fontSize: 12 }}>tenant {me?.tenantId}</p>
       <HouseholdContext.Provider value={me}>

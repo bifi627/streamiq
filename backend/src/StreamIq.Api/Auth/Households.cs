@@ -15,6 +15,10 @@ public static class Households
     /// HttpContext.Items key: the request named a household it can't use → 404.
     public const string Denied = "streamiq.household-denied";
 
+    /// The 404 body's `error` for a household the user isn't in, whether it exists or
+    /// not: the web app drops its household choice on it, never on any other 404 (#210).
+    public const string NotMember = "not-a-member";
+
     /// All of the user's memberships, oldest first.
     public static IQueryable<Membership> Of(StreamIqDbContext db, Guid userId)
     {

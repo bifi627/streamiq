@@ -172,12 +172,13 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	})
 
 	var authed, authSeen atomic.Bool
+	slots := make(chan struct{}, tunnel.MaxChannels) // tunnel channels being served on this connection
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
 		switch {
 		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
 			s.serveAuth(id, pc, d, &authed)
 		case d.Label() != "auth" && authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Role: role, Name: func() string { return s.name(id) }})
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Role: role, Name: func() string { return s.name(id) }}, slots)
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`; a second `auth`: never
 		}

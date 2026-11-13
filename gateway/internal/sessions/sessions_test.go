@@ -598,3 +598,55 @@ func (b *browser) body(req string) string {
 		}
 	}
 }
+
+// At most tunnel.MaxChannels tunnel channels are served at once on a connection:
+// the one over the cap is closed without a response, and once a served one ends
+// the next request goes through again.
+func TestTunnelChannelCap(t *testing.T) {
+	var inFlight atomic.Int32
+	release := make(chan struct{})
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		inFlight.Add(1)
+		<-release
+		w.Write([]byte("jellyfin"))
+	}))
+	defer origin.Close()
+	gateway, store := newGateway(t)
+	gateway.Jellyfin.URL = origin.URL
+	gateway.Jellyfin.SetKey("k", "0123456789abcdef0123456789abcdef")
+	b, _ := unpaired(t, gateway, "s1")
+	_, nB := b.commit()
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	for len(store.Pending()) == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	store.Decide(store.Pending()[0].ID, true)
+	if b.say(nil)["type"] != "approved" {
+		t.Fatal("want approved")
+	}
+
+	held := make(chan string, tunnel.MaxChannels)
+	for range tunnel.MaxChannels {
+		go func() { held <- b.fetch() }()
+	}
+	for start := time.Now(); inFlight.Load() < tunnel.MaxChannels; time.Sleep(10 * time.Millisecond) {
+		if time.Since(start) > 10*time.Second {
+			t.Fatalf("only %d of %d channels served", inFlight.Load(), tunnel.MaxChannels)
+		}
+	}
+	if got := b.fetch(); got != "" || inFlight.Load() != tunnel.MaxChannels {
+		t.Fatalf("channel over the cap: body %q, %d requests reached Jellyfin", got, inFlight.Load())
+	}
+
+	close(release)
+	for range tunnel.MaxChannels {
+		if got := <-held; got != "jellyfin" {
+			t.Fatalf("held request = %q", got)
+		}
+	}
+	for start := time.Now(); b.fetch() != "jellyfin"; time.Sleep(10 * time.Millisecond) { // slots free as the closes arrive
+		if time.Since(start) > 10*time.Second {
+			t.Fatal("cap did not free up after the served channels ended")
+		}
+	}
+}

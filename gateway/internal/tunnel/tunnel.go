@@ -27,12 +27,21 @@ const (
 	// EOFGrace: how long the gateway waits for the browser to close after EOF.
 	// Backstop for a browser that never does (old client, dead tab).
 	EOFGrace = 10 * time.Second
+	// MaxChannels: tunnel channels served at once on one PeerConnection; one over
+	// it is closed unread. The web client peaks near 15 (4 posters, hls.js video +
+	// audio + subtitle + playlist loads plus ones a seek aborted, the held screen
+	// response, a burst, a few JSON calls). Worst case per connection: 32 × 16 MB
+	// (maxText) of buffered text, a few times that while it is read and redacted,
+	// plus 32 × ~1 MB (MaxBuffered) of send buffer.
+	MaxChannels = 32
 )
 
 // Gate returns a wait() to call before each Send. It blocks until the channel's
 // SCTP send buffer has drained below the low-water mark, so the producer can't
 // queue gigabytes ahead of the ~tens-of-MB/s drain (the 20GB-RAM incident).
-func Gate(d *webrtc.DataChannel) func() {
+// Once closed is closed (the channel or its connection is gone) wait returns
+// false, at once and from then on: the sender stops.
+func Gate(d *webrtc.DataChannel, closed <-chan struct{}) func() bool {
 	drained := make(chan struct{}, 1)
 	d.SetBufferedAmountLowThreshold(MaxBuffered / 2)
 	d.OnBufferedAmountLow(func() {
@@ -41,9 +50,18 @@ func Gate(d *webrtc.DataChannel) func() {
 		default:
 		}
 	})
-	return func() {
+	return func() bool {
 		if d.BufferedAmount() > MaxBuffered {
-			<-drained
+			select {
+			case <-drained:
+			case <-closed:
+			}
+		}
+		select {
+		case <-closed:
+			return false
+		default:
+			return true
 		}
 	}
 }
@@ -58,14 +76,30 @@ type tunnelReq struct {
 
 // Serve treats the channel's first message as an HTTP request, proxies it
 // to Jellyfin, and streams the response back. One channel == one request/response.
-func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session) {
+// slots (cap MaxChannels, one per PeerConnection) counts the channels being
+// served: a channel that finds it full is closed without reading a request; a
+// served one gives its slot back when its request ends or the channel closes.
+func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session, slots chan struct{}) {
+	select {
+	case slots <- struct{}{}:
+	default:
+		log.Printf("gateway: tunnel: over %d channels on session %s, closed", cap(slots), who.ID)
+		d.OnOpen(func() { d.Close() })
+		return
+	}
+	free := sync.OnceFunc(func() { <-slots })
 	var once sync.Once
 	closed := make(chan struct{})
 	var closeOnce sync.Once
-	d.OnClose(func() { closeOnce.Do(func() { close(closed) }) })
+	d.OnClose(func() { closeOnce.Do(func() { close(closed) }); free() })
 	who.Closed = closed
 	d.OnMessage(func(m webrtc.DataChannelMessage) {
-		once.Do(func() { go handleReq(d, j, m.Data, who) })
+		once.Do(func() {
+			go func() {
+				defer free()
+				handleReq(d, j, m.Data, who)
+			}()
+		})
 	})
 }
 
@@ -95,7 +129,7 @@ func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 	defer body.Close()
 
 	sendHead(d, status, hdr)
-	streamBody(d, body)
+	streamBody(d, body, who.Closed)
 	log.Printf("gateway: tunnel -> %d", status)
 }
 
@@ -210,8 +244,14 @@ func burst(size string) (int, map[string]string, io.ReadCloser, error) {
 		"Content-Length": strconv.FormatInt(n, 10),
 		"Cache-Control":  "no-store",
 	}
-	return http.StatusOK, hdr, io.NopCloser(bytes.NewReader(make([]byte, n))), nil // ponytail: zeros; the tunnel never compresses
+	return http.StatusOK, hdr, io.NopCloser(io.LimitReader(zeros{}, n)), nil // ponytail: zeros; the tunnel never compresses
 }
+
+// zeros is an endless stream of zero bytes: the burst is generated a chunk at a
+// time, never allocated whole.
+type zeros struct{}
+
+func (zeros) Read(p []byte) (int, error) { clear(p); return len(p), nil }
 
 func sendHead(d *webrtc.DataChannel, status int, headers map[string]string) {
 	b, _ := json.Marshal(map[string]any{"status": status, "headers": headers})
@@ -222,13 +262,16 @@ func sendHead(d *webrtc.DataChannel, status int, headers map[string]string) {
 
 // streamBody relays the response body as backpressured binary chunks. The head
 // frame is text; body frames are binary — the browser tells them apart by type.
-func streamBody(d *webrtc.DataChannel, body io.Reader) {
+// It stops when closed is closed, also while it waits on backpressure.
+func streamBody(d *webrtc.DataChannel, body io.Reader, closed <-chan struct{}) {
 	buf := make([]byte, ChunkSize)
-	wait := Gate(d)
+	wait := Gate(d, closed)
 	for {
 		n, err := body.Read(buf)
 		if n > 0 {
-			wait()
+			if !wait() {
+				return
+			}
 			if e := d.Send(buf[:n]); e != nil {
 				log.Printf("gateway: tunnel send body: %v", e)
 				return

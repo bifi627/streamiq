@@ -263,7 +263,9 @@ The browser tunnels HTTP to the gateway's local Jellyfin over data channels.
 **One data channel per request**: the channel *is* the request/response
 lifecycle. There are no request IDs, no length prefixes and no multiplexing, so
 there's no head-of-line blocking between requests. Any channel label other than
-`auth` is a tunnel request.
+`auth` is a tunnel request. The gateway serves at most 32 tunnel channels at
+once per connection (`tunnel.MaxChannels`); one over that is closed without a
+response head, which the browser sees as a failed request.
 
 Sequence on a request channel:
 

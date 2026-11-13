@@ -6,8 +6,9 @@ namespace StreamIq.Api.Features.Members;
 
 /// An admin removes a member; anyone removes themselves (= leave). Access ends with
 /// the membership: every request and broker offer looks it up afresh. Refused (409)
-/// when it would leave the household without an admin. Pending invites the removed
-/// user created stay: they belong to the household, and its admins see and revoke them.
+/// when it would leave the household without an admin. The removed user's pending
+/// invites go too, so a link they kept can't bring them back.
+/// (A demoted admin's stay: still a member, and the admins see and revoke them.)
 public static class RemoveMember
 {
     public const string LastAdmin = "A household needs at least one admin. Make someone else admin first.";
@@ -33,6 +34,7 @@ public static class RemoveMember
             }
             db.Memberships.Remove(m);
             await db.SaveChangesAsync(ct);
+            await db.Invites.Where(i => i.CreatedBy == userId && i.UsedAt == null).ExecuteDeleteAsync(ct);
             await tx.CommitAsync(ct);
             return Results.NoContent();
         }).RequireAuthorization();

@@ -7,8 +7,8 @@ namespace StreamIq.Api.Auth;
 /// first sign-in: a new household with the user as its admin. One SaveChanges =
 /// one transaction (tenant + user + membership atomic). The
 /// firebase_uid UNIQUE constraint settles the concurrent-first-request race.
-/// A user left without any household (left their last one, #192) gets a new one the
-/// same way on their next request.
+/// EnsureHouseholdAsync gives a user left without any household (left their last
+/// one, #192, or it was deleted) a new one the same way.
 public class UserProvisioner(StreamIqDbContext db)
 {
     public async Task<AppUser> ResolveOrProvisionAsync(string firebaseUid, CancellationToken ct)
@@ -16,10 +16,6 @@ public class UserProvisioner(StreamIqDbContext db)
         var existing = await db.Users.FirstOrDefaultAsync(u => u.FirebaseUid == firebaseUid, ct);
         if (existing is not null)
         {
-            if (!await Households.AnyAsync(db, existing.Id, ct))
-            {
-                await ReprovisionAsync(existing, ct);
-            }
             return existing;
         }
 
@@ -41,8 +37,8 @@ public class UserProvisioner(StreamIqDbContext db)
         }
     }
 
-    // Lock the user row first, so concurrent requests make one household, not one each.
-    private async Task ReprovisionAsync(AppUser user, CancellationToken ct)
+    /// Lock the user row first, so concurrent requests make one household, not one each.
+    public async Task EnsureHouseholdAsync(AppUser user, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await db.Users.Where(u => u.Id == user.Id).ExecuteUpdateAsync(s => s.SetProperty(u => u.FirebaseUid, u => u.FirebaseUid), ct);

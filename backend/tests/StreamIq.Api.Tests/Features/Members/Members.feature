@@ -19,7 +19,7 @@ Feature: Members
     Then the answer is 404
     When "alice@home.test" lists the members of the household of "alice@home.test"
     Then the members are "alice@home.test" as "admin"
-    And "bob@home.test" still has their own household
+    And "bob@home.test" still has their own household, not the one of "alice@home.test"
 
   Scenario: A member leaves, then gets 404 there
     When "bob@home.test" removes "bob@home.test" from the household of "alice@home.test"
@@ -46,6 +46,14 @@ Feature: Members
     Then the answer is 403
     When "bob@home.test" lists the members of the household of "alice@home.test"
     Then the members are "alice@home.test" as "member" and "bob@home.test" as "admin"
+
+  Scenario: Removing an admin also deletes their pending invites; demoting keeps them
+    Given "alice@home.test" made "bob@home.test" "admin" in the household of "alice@home.test"
+    And "bob@home.test" created an invite in the household of "alice@home.test"
+    When "alice@home.test" makes "bob@home.test" "member" in the household of "alice@home.test"
+    Then the household of "alice@home.test" has 1 pending invite
+    When "alice@home.test" removes "bob@home.test" from the household of "alice@home.test"
+    Then the household of "alice@home.test" has 0 pending invites
 
   Scenario: The last admin can't leave or demote themselves
     When "alice@home.test" removes "alice@home.test" from the household of "alice@home.test"

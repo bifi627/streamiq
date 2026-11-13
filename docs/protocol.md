@@ -83,7 +83,8 @@ used or revoked: `404`, all alike.
 looked up in Firebase per call, nothing stored; `null` when unknown);
 `DELETE /api/members/{own userId}` → `204` (leave). Household admin (a member gets
 `403`): `DELETE /api/members/{userId}` → `204` (remove);
-`PUT /api/members/{userId}/role {role}` → `204` (`admin` | `member`). A user outside
+`PUT /api/members/{userId}/role {role}` → `204` (`admin` | `member`). Removing a user also deletes their
+pending invites in that household. A user outside
 the household → `404`. Anything that would leave the household without an admin →
 `409 {error}`. A gone membership ends access on the next request or broker `offer`
 (open sessions run to their end). A user left without any household gets a new one

@@ -49,6 +49,11 @@ public class FirebaseAuthHandler(
             ? Guid.TryParse(h.ToString(), out var id) ? id : Guid.Empty
             : null;
         var membership = await Households.PickAsync(db, user.Id, wanted, Context.RequestAborted);
+        if (membership is null && wanted is null)   // no household at all: make a fresh one (#192)
+        {
+            await provisioner.EnsureHouseholdAsync(user, Context.RequestAborted);
+            membership = await Households.PickAsync(db, user.Id, null, Context.RequestAborted);
+        }
         if (membership is null)
         {
             Context.Items[Households.Denied] = true;

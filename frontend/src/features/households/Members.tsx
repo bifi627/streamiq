@@ -62,6 +62,10 @@ export function Members() {
         : `Remove ${who(m)} from this household?`,
     ) && act(m, { method: 'DELETE' })
   const setRole = (m: Member, role: Member['role']) =>
+    (m.userId !== me?.id ||
+      confirm(
+        'Make yourself a member? Only another admin can make you admin again.',
+      )) &&
     act(m, { method: 'PUT', body: JSON.stringify({ role }) }, '/role')
 
   return (

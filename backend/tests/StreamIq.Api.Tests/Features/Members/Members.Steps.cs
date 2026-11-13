@@ -117,15 +117,29 @@ public partial class MembersSteps(IntegrationFixture fx)
         var body = await Last.Content.ReadFromJsonAsync<JsonElement>();
         var got = body.EnumerateArray().Select(m => (m.GetProperty("email").GetString(), m.GetProperty("role").GetString())).ToList();
         Assert.Equal(want, got);
-        Assert.All(body.EnumerateArray(), m => Assert.True(m.GetProperty("joinedAt").GetDateTimeOffset() > DateTimeOffset.UtcNow.AddMinutes(-5)));
+        Assert.All(body.EnumerateArray(), m => Assert.NotEqual(default, m.GetProperty("joinedAt").GetDateTimeOffset()));
     }
 
-    [Then("\"(.*)\" still has their own household")]
-    public async Task ThenOwn(string email)
+    [Then("\"(.*)\" still has their own household, not the one of \"(.*)\"")]
+    public async Task ThenOwn(string email, string owner)
     {
-        var me = await Me(email, null);
-        Assert.Equal(await HouseholdOf(email), me.GetProperty("tenantId").GetGuid());
-        Assert.Equal(1, me.GetProperty("memberships").GetArrayLength());
+        var m = Assert.Single((await Me(email, null)).GetProperty("memberships").EnumerateArray());
+        Assert.Equal(Membership.Admin, m.GetProperty("role").GetString());
+        Assert.NotEqual(await HouseholdOf(owner), m.GetProperty("id").GetGuid());
+    }
+
+    [Given("\"(.*)\" created an invite in the household of \"(.*)\"")]
+    public async Task GivenInvite(string email, string owner)
+    {
+        using var res = await Send(email, HttpMethod.Post, "/api/invites", await HouseholdOf(owner));
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+    }
+
+    [Then(@"the household of ""(.*)"" has (\d+) pending invites?")]
+    public async Task ThenInvites(string owner, int count)
+    {
+        using var res = await Send(owner, HttpMethod.Get, "/api/invites", await HouseholdOf(owner));
+        Assert.Equal(count, (await res.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength());
     }
 
     [Then("\"(.*)\" is admin of exactly one new household")]

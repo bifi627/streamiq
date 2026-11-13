@@ -222,6 +222,9 @@ Copy `.env.example` only to override.
     labels its own PR. On a PR, `agent` (added by the owner) starts a review thread (comments only,
     never commits; same skill); its unresolved `[blocker]`/`[spec]` threads block the
     merge (ruleset on `main`). `docs/tools.md` has the wiring.
+  - In chat, every issue/PR number is a markdown link, never a bare `#N`:
+    `[#193](https://github.com/bifi627/streamiq/issues/193)` (`/issues/N` redirects to PRs too).
+    On GitHub itself `#N` autolinks.
   - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a
     duplicate, then **propose** the issue (title, labels, body) in chat; create it only
     after the owner approves.

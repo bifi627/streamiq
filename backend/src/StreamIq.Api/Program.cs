@@ -48,14 +48,14 @@ builder.Services.AddDbContext<StreamIqDbContext>(o => o.UseNpgsql(connString));
 // No default: a wrong project ID rejects every real login, so refuse to start instead.
 // demo-* projects only exist in the emulator (Firebase convention).
 var firebaseProjectId = builder.Configuration["FIREBASE_PROJECT_ID"];
+var usingEmulator = !string.IsNullOrEmpty(builder.Configuration["FIREBASE_AUTH_EMULATOR_HOST"]);
+if (usingEmulator && builder.Environment.IsProduction())
+{
+    // The emulator accepts unsigned tokens: never in production.
+    throw new InvalidOperationException("FIREBASE_AUTH_EMULATOR_HOST is set in Production.");
+}
 if (FirebaseApp.DefaultInstance is null)
 {
-    var usingEmulator = !string.IsNullOrEmpty(builder.Configuration["FIREBASE_AUTH_EMULATOR_HOST"]);
-    if (usingEmulator && builder.Environment.IsProduction())
-    {
-        // The emulator accepts unsigned tokens: never in production.
-        throw new InvalidOperationException("FIREBASE_AUTH_EMULATOR_HOST is set in Production.");
-    }
     if (string.IsNullOrWhiteSpace(firebaseProjectId))
     {
         throw new InvalidOperationException("FIREBASE_PROJECT_ID is not set.");

@@ -222,7 +222,8 @@ Sequence on a request channel:
    { "status": 206, "headers": { "Content-Range": "bytes 0-99/9723", "...": "..." } }
    ```
    A refused request gets a head (then EOF) only: `403` (not allowlisted), `413` (body too
-   large), `503` (gateway has no Jellyfin key), `502` (Jellyfin unreachable).
+   large), `503` (gateway has no Jellyfin key), `502` (Jellyfin unreachable). The
+   gateway API (below) refuses with its own statuses (`400`, `404`, `409`).
 3. **Gateway → browser** (zero or more binary frames): the body, in ~16 KB
    chunks under `bufferedAmount` backpressure. A whole segment is never sent
    as one message.
@@ -245,9 +246,10 @@ key redaction in text responses (below).
 
 Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
-itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only a
-`GET` with an exact, unencoded path matches an endpoint; anything else under
-the prefix (unknown path, other method, percent-encoded) is `404`. Like every
+itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
+exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints)
+matches an endpoint; anything else under the prefix (unknown path, other method,
+percent-encoded) is `404`. A `body` over 64 KB is `413`. Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) is known to handlers;
 nothing is enforced per user yet (#92). Code: `gateway/internal/tunnel/tunnel.go`.
@@ -287,6 +289,63 @@ number) is `400`. Streaming sessions (library, `/diagnostics`) time 3 ×
 quality caps `MaxStreamingBitrate` at 70 % of it (#162). The last value is a
 localStorage hint per gateway + direct/relay + connection type; the session's
 own measurement goes to telemetry (`throughputKbps`).
+
+### Screens: phone as remote (`/streamiq/screen*`, #95, #179)
+
+A TV in screen mode is remote-controlled by a phone on the **same gateway**: the
+gateway relays the commands, so no backend is involved and what's watched never
+reaches the API. Both devices are paired clients with their own tunnel session.
+Code: `gateway/internal/tunnel/screen.go`; TS types: `frontend/src/features/gateways/api.ts`.
+
+- **Opt-in is structural.** A screen exists only while a session holds its
+  `GET /streamiq/screen` response open, and is removed the moment that channel
+  closes (Back, tab closed, session ended). Commands go only to screen ids, so a
+  session that never opened a screen can't be reached.
+- **Screen id**: random per screen (`crypto/rand.Text()`, 26 chars, base32), not
+  the client key; a reconnect gets a new id. No keep-alive on the held response:
+  an idle tunnel session survives 60 min direct and relayed (#178).
+- No per-user rules on who may control a screen yet (#92): any paired client of
+  the gateway can.
+
+**`GET /streamiq/screen`** (TV): opens this session's screen, named by the
+client's pairing `name`. `200`, `Content-Type: application/x-ndjson`, no
+`Content-Length`; the body stays open and carries one command per line (below),
+as the phone sent it, re-encoded by the gateway (unknown fields dropped), in
+arrival order: with two phones, the last command wins. The body never ends with
+an EOF frame: the TV closing the channel (or its session ending) is the end of
+the screen, and the gateway never closes it first. A session that already holds
+an open screen gets `409`.
+
+**`POST /streamiq/screen/state`** (TV): the screen's playback state, about once a
+second and on every change. `204`. `404` from a session without a screen; `400`
+if malformed (negative ticks, `itemId` not a Jellyfin id, `audio` < 0, `subtitle` < -1).
+```json
+{ "itemId": "aad7…", "positionTicks": 1200000000, "durationTicks": 26000000000,
+  "paused": false, "audio": 1, "subtitle": null }
+```
+Ticks are integers (Jellyfin ticks, 10⁷ per second; a fractional number is
+`400`). `audio` / `subtitle` are Jellyfin stream indexes, `subtitle: -1` = off,
+`null` = not known; `itemId` is `""` while nothing plays.
+
+**`GET /streamiq/screens`** (phone): the open screens on this gateway, `200`, JSON;
+`state` is `null` until the TV first posts one.
+```json
+[ { "id": "K3Q…", "name": "Living room TV", "state": { "itemId": "aad7…", "...": "..." } } ]
+```
+
+**`POST /streamiq/screens/{id}`** (phone): one command to that screen. `204` once
+queued for the TV; `404` for an unknown id (or a screen that closed); `400` for a
+malformed command or a field that doesn't belong to its type; `413` over 64 KB.
+A TV that isn't reading keeps the newest 16 commands (the oldest are dropped).
+Each POST is its own channel, so a client that needs its own commands in order
+sends the next one after the previous `204`.
+
+| Command | Fields |
+|---|---|
+| `{"type":"play","itemId":"…","startTicks":0}` | `itemId` required (Jellyfin id); `startTicks` optional, integer ≥ 0 |
+| `{"type":"pause"}` / `{"type":"resume"}` / `{"type":"stop"}` | none |
+| `{"type":"seek","ticks":1200000000}` | `ticks` required, integer ≥ 0 (absolute position) |
+| `{"type":"tracks","audio":1,"subtitle":-1}` | at least one; Jellyfin stream index (`audio` ≥ 0, `subtitle` ≥ -1; -1 = off) |
 
 ### Jellyfin policy (gateway, `gateway/internal/tunnel/jellyfin.go`)
 

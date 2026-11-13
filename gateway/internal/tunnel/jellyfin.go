@@ -94,9 +94,6 @@ func (j *Jellyfin) prepare(rq tunnelReq) (*http.Request, int, error) {
 		!allow(rq.Method, u.Path) {
 		return nil, http.StatusForbidden, fmt.Errorf("refused %s %s", rq.Method, rq.URL)
 	}
-	if len(rq.Body) > MaxBody {
-		return nil, http.StatusRequestEntityTooLarge, fmt.Errorf("body %d bytes", len(rq.Body))
-	}
 	q := u.Query()
 	for k := range q {
 		switch strings.ToLower(k) {

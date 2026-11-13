@@ -58,31 +58,32 @@ type tunnelReq struct {
 
 // Serve treats the channel's first message as an HTTP request, proxies it
 // to Jellyfin, and streams the response back. One channel == one request/response.
-func Serve(d *webrtc.DataChannel, j *Jellyfin) {
+func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session) {
 	var once sync.Once
 	closed := make(chan struct{})
 	var closeOnce sync.Once
 	d.OnClose(func() { closeOnce.Do(func() { close(closed) }) })
+	who.Closed = closed
 	d.OnMessage(func(m webrtc.DataChannelMessage) {
-		once.Do(func() { go handleReq(d, j, m.Data, closed) })
+		once.Do(func() { go handleReq(d, j, m.Data, who) })
 	})
 }
 
 // handleReq ends with an explicit EOF frame and lets the browser close the
 // channel: closing right after the last frame loses it on old Chromium (Chrome
 // 87 on webOS drops frames still in flight on a remote close, #71/#72).
-func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, closed <-chan struct{}) {
+func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 	defer func() {
 		if err := d.SendText(`{"eof":true}`); err == nil {
 			select {
-			case <-closed:
+			case <-who.Closed:
 			case <-time.After(EOFGrace):
 			}
 		}
 		d.Close()
 	}()
 
-	status, hdr, body, err := proxy(j, raw)
+	status, hdr, body, err := proxy(j, raw, who)
 	if err != nil {
 		log.Printf("gateway: tunnel: %v", err)
 		if status == 0 {
@@ -102,14 +103,17 @@ func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, closed <-chan str
 // Jellyfin policy, call Jellyfin forwarding headers (Range included, so seek
 // survives), and hand back the response status/headers/body for the caller to
 // stream. No WebRTC here, so it is unit-tested directly (tunnel_test.go). On
-// error, a non-zero status is the refusal to send (403, 413, 503).
-func proxy(j *Jellyfin, raw []byte) (int, map[string]string, io.ReadCloser, error) {
+// error, a non-zero status is the refusal to send (e.g. 403, 413, 503).
+func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.ReadCloser, error) {
 	var rq tunnelReq
 	if err := json.Unmarshal(raw, &rq); err != nil {
 		return http.StatusBadRequest, nil, nil, fmt.Errorf("bad request frame: %w", err)
 	}
+	if len(rq.Body) > MaxBody {
+		return http.StatusRequestEntityTooLarge, nil, nil, fmt.Errorf("body %d bytes", len(rq.Body))
+	}
 	if u, err := url.Parse(rq.URL); err == nil && isGatewayAPI(u.Path) {
-		return gatewayAPI(j, rq.Method, u)
+		return gatewayAPI(j, rq, u, who)
 	}
 	req, status, err := j.prepare(rq)
 	if err != nil {
@@ -137,11 +141,16 @@ func proxy(j *Jellyfin, raw []byte) (int, map[string]string, io.ReadCloser, erro
 }
 
 // gatewayAPI answers /streamiq/* (docs/protocol.md, "Gateway API"): the gateway
-// itself, never Jellyfin, and without a Jellyfin token. Only a GET with an exact,
-// unencoded path matches; anything else under the prefix is 404.
-func gatewayAPI(j *Jellyfin, method string, u *url.URL) (int, map[string]string, io.ReadCloser, error) {
+// itself, never Jellyfin, and without a Jellyfin token. Only an exact, unencoded
+// path matches (GET, or POST on the screen endpoints); anything else under the
+// prefix is 404.
+func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[string]string, io.ReadCloser, error) {
+	method := rq.Method
 	switch {
-	case method != "GET" || u.RawPath != "":
+	case u.RawPath != "":
+	case isScreenPath(u.Path):
+		return screenAPI(method, u.Path, rq.Body, who)
+	case method != "GET":
 	case u.Path == BurstPath:
 		return burst(u.Query().Get("size"))
 	case u.Path == StatusPath && j.Status != nil:

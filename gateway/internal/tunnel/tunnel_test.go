@@ -109,7 +109,7 @@ func TestAllowlist(t *testing.T) {
 	} {
 		j, _ := fakeJellyfin(t)
 		raw, _ := json.Marshal(tunnelReq{Method: c.method, URL: c.url})
-		status, _, body, err := proxy(j, raw)
+		status, _, body, err := proxy(j, raw, Session{})
 		if body != nil {
 			body.Close()
 		}
@@ -157,7 +157,7 @@ func TestPostBody(t *testing.T) {
 		t.Fatalf("forwarded body %q, type %q", last.Header.Get("X-Test-Body"), last.Header.Get("Content-Type"))
 	}
 	raw, _ := json.Marshal(tunnelReq{Method: "POST", URL: "/Items/" + vid + "/PlaybackInfo", Body: strings.Repeat("x", MaxBody+1)})
-	if status, _, _, err := proxy(j, raw); status != http.StatusRequestEntityTooLarge || err == nil {
+	if status, _, _, err := proxy(j, raw, Session{}); status != http.StatusRequestEntityTooLarge || err == nil {
 		t.Fatalf("oversized body: status %d", status)
 	}
 }
@@ -168,7 +168,7 @@ func TestNoToken(t *testing.T) {
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: "/UserViews"})
 	for _, c := range []struct{ key, user string }{{"", ""}, {key, ""}, {"", uid}} {
 		j.SetKey(c.key, c.user)
-		if status, _, _, _ := proxy(j, raw); status != http.StatusServiceUnavailable {
+		if status, _, _, _ := proxy(j, raw, Session{}); status != http.StatusServiceUnavailable {
 			t.Errorf("SetKey(%q, %q): status %d, want 503", c.key, c.user, status)
 		}
 	}
@@ -192,13 +192,13 @@ func TestBurst(t *testing.T) {
 		{Method: "GET", URL: BurstPath + "?size=lots"},
 	} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, err := proxy(j, raw); status != http.StatusBadRequest || err == nil {
+		if status, _, _, err := proxy(j, raw, Session{}); status != http.StatusBadRequest || err == nil {
 			t.Errorf("%s: status %d, want 400", rq.URL, status)
 		}
 	}
 	for _, rq := range []tunnelReq{{Method: "POST", URL: BurstPath}, {Method: "GET", URL: "/streamiq/%62urst"}} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, _ := proxy(j, raw); status == 200 {
+		if status, _, _, _ := proxy(j, raw, Session{}); status == 200 {
 			t.Errorf("%s %s: got 200", rq.Method, rq.URL)
 		}
 	}
@@ -226,7 +226,7 @@ func TestGatewayAPI(t *testing.T) {
 		{Method: "GET", URL: "/streamiq/../streamiq/status"},
 	} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, _ := proxy(j, raw); status != http.StatusNotFound {
+		if status, _, _, _ := proxy(j, raw, Session{}); status != http.StatusNotFound {
 			t.Errorf("%s %s: status %d, want 404", rq.Method, rq.URL, status)
 		}
 	}
@@ -238,7 +238,7 @@ func TestGatewayAPI(t *testing.T) {
 func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte) {
 	t.Helper()
 	raw, _ := json.Marshal(rq)
-	status, hdr, body, err := proxy(j, raw)
+	status, hdr, body, err := proxy(j, raw, Session{})
 	if err != nil {
 		t.Fatalf("proxy %s %s: %v", rq.Method, rq.URL, err)
 	}

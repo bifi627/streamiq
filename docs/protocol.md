@@ -1,8 +1,7 @@
 # StreamIQ signaling protocol
 
-Contract-first (per CLAUDE.md): onboarding, broker, pairing, tunnel. Codegen
-(C#/Go/TS from one schema) is deferred until the protocol stabilizes; for now
-messages are hand-mirrored in Go (`gateway/internal/{onboarding,sessions,pairing,tunnel}`),
+This file is the contract: onboarding, broker, pairing, tunnel. Messages are
+hand-mirrored in Go (`gateway/internal/{onboarding,sessions,pairing,tunnel}`),
 C# (`Features/Broker`) and TS (`frontend/src/features/pairing`, `frontend/src/tunnel.ts`).
 
 **Paths.** Every API endpoint is under `/api` (#120); the rest of the path space

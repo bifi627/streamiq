@@ -12,13 +12,17 @@ import { share } from '../pairing/connect'
 import { AppError, isKind, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
+import { getMe } from '../../api'
 import { useNavigate } from '@tanstack/react-router'
 
 // Gateways list + "Add gateway" (onboarding flow 1). Polls so a freshly installed
 // gateway shows up, and online/offline stays current. ponytail: 5s poll, push
-// updates over a socket if the list ever gets big.
+// updates over a socket if the list ever gets big. Add/Remove are admin-only
+// (#190): hidden for a member (the API answers 403 anyway) and until /me is in.
 export function Gateways() {
   const [gateways, setGateways] = useState<Gateway[]>([])
+  const [admin, setAdmin] = useState(false)
+  const [meErr, setMeErr] = useState<AppError | null>(null) // own state: the poll clears err
   const [install, setInstall] = useState<Install | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   const navigate = useNavigate()
@@ -32,6 +36,13 @@ export function Gateways() {
         })
         .catch((e) => setErr(toAppError(e)))
     load()
+    getMe()
+      .then((m) =>
+        setAdmin(
+          m.memberships.find((x) => x.id === m.tenantId)?.role === 'admin',
+        ),
+      )
+      .catch((e) => setMeErr(toAppError(e)))
     const t = setInterval(load, 5000)
     return () => clearInterval(t)
   }, [])
@@ -63,6 +74,7 @@ export function Gateways() {
     <section>
       <h2>Gateways</h2>
       {err && <ErrorView error={err} />}
+      {meErr && <ErrorView error={meErr} />}
       {gateways.length === 0 ? (
         !err && <p>No gateways yet.</p>
       ) : (
@@ -105,17 +117,21 @@ export function Gateways() {
                   <Pairing gatewayId={d.id} lanUrl={d.lanUrl} />
                 </>
               )}{' '}
-              <button type="button" onClick={() => remove(d)}>
-                Remove
-              </button>
+              {admin && (
+                <button type="button" onClick={() => remove(d)}>
+                  Remove
+                </button>
+              )}
               <StatusDetails g={d} />
             </li>
           ))}
         </ul>
       )}
-      <button type="button" onClick={addGateway}>
-        Add gateway
-      </button>
+      {admin && (
+        <button type="button" onClick={addGateway}>
+          Add gateway
+        </button>
+      )}
       {install && (
         <div>
           <p>

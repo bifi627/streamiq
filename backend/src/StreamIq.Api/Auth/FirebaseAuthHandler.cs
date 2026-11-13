@@ -10,7 +10,8 @@ namespace StreamIq.Api.Auth;
 /// Scheme "Firebase": verify the Bearer ID token (same VerifyIdTokenAsync call in
 /// dev and prod — emulator vs real issuer is env-only, no bypass), resolve-or-
 /// provision the user, pick the request's household from the user's memberships
-/// (Households) and set CurrentTenantId so the global filter is live. A household
+/// (Households) and set CurrentTenantId so the global filter is live. The membership's
+/// role is the Role claim: admin-only endpoints RequireRole it, so a member gets 403. A household
 /// the user can't use flags the request for a 404 (Program.cs), same as one that
 /// doesn't exist.
 public class FirebaseAuthHandler(
@@ -61,6 +62,7 @@ public class FirebaseAuthHandler(
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim("tenant_id", membership.TenantId.ToString()),
             new Claim("firebase_uid", user.FirebaseUid),
+            new Claim(ClaimTypes.Role, membership.Role),   // admin-only endpoints: RequireRole(Membership.Admin)
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));

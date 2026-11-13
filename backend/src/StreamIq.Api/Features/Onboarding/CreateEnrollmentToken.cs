@@ -35,6 +35,6 @@ public static class CreateEnrollmentToken
                 ? ($"{vars} go run ./cmd/gateway", $"{psVars} go run ./cmd/gateway")
                 : ($"curl -fsSL {dl}/install.sh | {vars} sh", $"{psVars} irm {dl}/install.ps1 | iex");
             return Results.Ok(new { token, expiresAt, installCommand, installCommandPowershell });
-        }).RequireAuthorization();
+        }).RequireAuthorization(p => p.RequireRole(Membership.Admin));   // member: 403
     }
 }

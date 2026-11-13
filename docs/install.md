@@ -30,7 +30,7 @@ Pick one:
 
 ## 2. Install the gateway
 
-1. In the StreamIQ web app: **Gateways → Add gateway**. Copy the command for your
+1. In the StreamIQ web app: **Gateways → Add gateway** (household admins only). Copy the command for your
    shell. It contains a one-time token that is valid for 15 minutes.
 2. Run it on the media machine:
    - Linux / macOS: `curl -fsSL …/install.sh | STREAMIQ_API_URL=… STREAMIQ_ENROLL_TOKEN=… sh`

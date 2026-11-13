@@ -40,6 +40,9 @@ type Sessions struct {
 	Fp       string // our DTLS fingerprint
 	Store    *pairing.Store
 	Jellyfin *tunnel.Jellyfin // the tunnel's origin + policy
+	// Viewers makes sure a user has their own Jellyfin viewer (#195), once the
+	// session's device is paired: an offer alone (the API) makes nothing. nil = none.
+	Viewers func(user string)
 
 	mu    sync.Mutex
 	pcs   map[string]*webrtc.PeerConnection
@@ -127,8 +130,8 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 }
 
 // User is the session's user id (from the broker's offer) for gateway API
-// handlers; "" for an unknown session. Nothing is enforced per user yet (#92);
-// the role gates admin-only endpoints (tunnel.Session.Role, tunnel.AdminOnly).
+// handlers; "" for an unknown session. (The offer's user also picks the Jellyfin viewer, #195;
+// the role gates admin-only endpoints: tunnel.Session.Role, tunnel.AdminOnly.)
 func (s *Sessions) User(session string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -176,14 +179,23 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
 		switch {
 		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
-			s.serveAuth(id, pc, d, &authed)
+			s.serveAuth(id, user, pc, d, &authed)
 		case d.Label() != "auth" && authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Role: role, Name: func() string { return s.name(id) }}, slots)
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Name: func() string { return s.name(id) }}, slots)
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`; a second `auth`: never
 		}
 	})
 	return pc, nil
+}
+
+// authorize opens the tunnel to a paired session, after making sure its user
+// has their own Jellyfin viewer, so their first request already plays as it.
+func (s *Sessions) authorize(user string, authed *atomic.Bool) {
+	if s.Viewers != nil {
+		s.Viewers(user)
+	}
+	authed.Store(true)
 }
 
 // name is the session's client pairing name (allowlist entry for its key).
@@ -214,7 +226,7 @@ type authMsg struct {
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
 // approved/rejected), once per connection (newPeer). Messages on one channel
 // arrive in order, one at a time; after a refusal none is handled.
-func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool) {
+func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool) {
 	say := func(m authMsg) { b, _ := json.Marshal(m); d.SendText(string(b)) }
 	done := make(chan struct{}) // closed when the channel closes or we refuse
 	var once sync.Once
@@ -259,7 +271,7 @@ func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.Dat
 			s.keys[id] = fp
 			s.mu.Unlock()
 			if s.Store.Allowed(fp) && !m.Pair {
-				authed.Store(true)
+				s.authorize(user, authed)
 				say(authMsg{Type: "ok"})
 			} else {
 				say(authMsg{Type: "unpaired"})
@@ -274,7 +286,7 @@ func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.Dat
 			reveal = make(chan string, 1)
 			nA := pairing.Nonce() // only now: the browser is committed to nB
 			go s.pair(id, keyFp, m.H, trim(m.Name), nA, reveal, done, fail, func() {
-				authed.Store(true)
+				s.authorize(user, authed)
 				say(authMsg{Type: "approved"})
 			})
 			say(authMsg{Type: "nonce", N: nA})

@@ -31,6 +31,7 @@ type fake struct {
 	loggedOut []string       // users whose session was logged out
 	enc       map[string]any // /System/Configuration/encoding
 	encPosts  int
+	news      int // POST /Users/New
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
@@ -125,6 +126,7 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			deny(400)
 			return
 		}
+		f.news++
 		u := &fakeUser{id: "id-" + b.Name, pw: b.Password, policy: map[string]any{
 			"IsHidden": true, "EnablePublicSharing": true, "EnableSharedDeviceControl": true,
 			"AuthenticationProviderId": "Default", "PasswordResetProviderId": "Default",
@@ -512,5 +514,179 @@ func TestConfigAdminRefused(t *testing.T) {
 	s.poll(context.Background())
 	if enc, _ := f.encoding(); enc["HardwareAccelerationType"] != "nvenc" || s.View().Err != "" {
 		t.Fatalf("retry: %v, view %+v", enc, s.View())
+	}
+}
+
+const (
+	alice = "11111111-1111-1111-1111-111111111111"
+	bob   = "22222222-2222-2222-2222-222222222222"
+)
+
+// mine checks user has their own live viewer: hidden, non-admin, named after them.
+func mine(t *testing.T, f *fake, s *Setup, user string) (tok, id string) {
+	t.Helper()
+	tok, id = s.ViewerFor(user)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	name := "streamiq-" + user
+	v := f.users[name]
+	if v == nil || v.admin || v.policy["IsHidden"] != true || v.policy["EnableSharedDeviceControl"] != false ||
+		f.tokens[tok] != name || id != v.id {
+		t.Fatalf("%s: token %q id %q, Jellyfin user %+v", user, tok, id, v)
+	}
+	return tok, id
+}
+
+// Each StreamIQ user gets their own viewer on their first session (#195), on a
+// Jellyfin the user brought and on one the gateway set up; later sessions and
+// a restart reuse it.
+func TestViewerPerUser(t *testing.T) {
+	for _, byo := range []bool{true, false} {
+		f, srv := newFake(t, byo)
+		var got [2]string
+		s := newSetup(t, srv.URL, &got)
+		if byo {
+			if err := s.Login(context.Background(), "me", "pw"); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			s.poll(context.Background())
+		}
+		ctx := context.Background()
+		s.EnsureViewer(ctx, alice)
+		s.EnsureViewer(ctx, bob)
+		a, aid := mine(t, f, s, alice)
+		b, bid := mine(t, f, s, bob)
+		if aid == bid || a == b || aid == s.creds.ViewerID {
+			t.Fatalf("byo=%v: shared viewer: %s %s", byo, aid, bid)
+		}
+		news := f.news
+		s.EnsureViewer(ctx, alice)
+		if a2, _ := mine(t, f, s, alice); a2 != a || f.news != news {
+			t.Fatalf("byo=%v: second session made a new viewer or token", byo)
+		}
+		f.mu.Lock()
+		for _, u := range f.tokens {
+			if f.users[u].admin {
+				t.Fatalf("byo=%v: a %s session lingers", byo, u)
+			}
+		}
+		f.mu.Unlock()
+		s2 := newSetup(t, srv.URL, &got)
+		s2.StateDir = s.StateDir
+		if err := s2.Load(); err != nil {
+			t.Fatal(err)
+		}
+		if a2, _ := s2.ViewerFor(alice); a2 != a {
+			t.Fatalf("byo=%v: restart lost alice's viewer", byo)
+		}
+		s.EnsureViewer(ctx, "../x")
+		if tok, _ := s.ViewerFor("../x"); tok != "" || f.users["streamiq-../x"] != nil {
+			t.Fatal("made a viewer for a bad user id")
+		}
+		if tok, _ := s.ViewerFor(strings.ToUpper(alice)); tok != a {
+			t.Fatal("user id case matters")
+		}
+	}
+}
+
+// Two sessions of the same new user at the same moment make one viewer.
+func TestViewerOnce(t *testing.T) {
+	f, srv := newFake(t, true)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	news := f.news
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Go(func() { s.EnsureViewer(context.Background(), alice) })
+	}
+	wg.Wait()
+	mine(t, f, s, alice) // its stored token still works: no second adoption reset it
+	if f.news != news+1 {
+		t.Fatalf("created %d viewers", f.news-news)
+	}
+}
+
+// If making a user's viewer fails, they play as the shared viewer and the page
+// says why. A refused admin isn't tried again (Jellyfin locks users out after
+// failed sign-ins) until a page login; other failures retry on the next session.
+func TestViewerFallback(t *testing.T) {
+	f, srv := newFake(t, true)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	ctx := context.Background()
+	if err := s.Login(ctx, "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	s.poll(ctx)
+	f.mu.Lock()
+	pw := f.users[byoAdmin].pw
+	f.users[byoAdmin].pw = "changed by someone"
+	f.mu.Unlock()
+	s.EnsureViewer(ctx, alice)
+	if tok, _ := s.ViewerFor(alice); tok != "" || !strings.Contains(s.View().Err, "reconnect Jellyfin") || !s.View().NeedsLogin {
+		t.Fatalf("token %q, view %+v", tok, s.View())
+	}
+	f.mu.Lock()
+	f.users[byoAdmin].pw = pw
+	f.mu.Unlock()
+	s.EnsureViewer(ctx, alice)
+	if tok, _ := s.ViewerFor(alice); tok != "" {
+		t.Fatal("tried the refused admin again before a login")
+	}
+	if err := s.Login(ctx, "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	s.EnsureViewer(ctx, alice)
+	mine(t, f, s, alice)
+	if v := s.View(); v.Err != "" || v.NeedsLogin {
+		t.Fatalf("after a login: view %+v", v)
+	}
+}
+
+// A user's revoked viewer token repairs itself; if Jellyfin refuses its
+// password, the viewer is dropped and made again on their next session.
+func TestViewerTokenRepairs(t *testing.T) {
+	f, srv := newFake(t, true)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	s.EnsureViewer(ctx, alice)
+	old, _ := mine(t, f, s, alice)
+	f.mu.Lock()
+	f.revoke("streamiq-" + alice)
+	f.mu.Unlock()
+	s.poll(ctx)
+	if tok, _ := mine(t, f, s, alice); tok == old {
+		t.Fatal("kept the revoked token")
+	}
+	f.mu.Lock()
+	f.users["streamiq-"+alice].pw = "changed by someone"
+	f.revoke("streamiq-" + alice)
+	f.mu.Unlock()
+	s.poll(ctx)
+	if tok, _ := s.ViewerFor(alice); tok != "" {
+		t.Fatal("kept a refused viewer")
+	}
+	s.EnsureViewer(ctx, alice)
+	old, _ = mine(t, f, s, alice)
+	// Still repaired once the shared viewer's token is gone for good.
+	f.mu.Lock()
+	f.users[ViewerName].pw = "changed by someone"
+	f.revoke(ViewerName)
+	f.mu.Unlock()
+	s.poll(ctx) // drops the shared token
+	f.mu.Lock()
+	f.revoke("streamiq-" + alice)
+	f.mu.Unlock()
+	s.poll(ctx)
+	if tok, _ := mine(t, f, s, alice); tok == old || s.View().HasKey {
+		t.Fatalf("view %+v", s.View())
 	}
 }

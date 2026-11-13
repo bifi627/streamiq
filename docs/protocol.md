@@ -146,7 +146,10 @@ per session (several browsers at once).
   the Firebase UID), stamped by the broker from the authenticated browser socket; the
   browser can't set it. *Who acts*: any household member signs in on a shared device as
   themselves. The gateway refuses an offer without `user` and keeps it on the session
-  for gateway API handlers. The gateway never contacts Firebase.
+  for gateway API handlers. It also picks the session's Jellyfin user (#195, "Jellyfin
+  policy" below): on a user's first session, once its device has proven a paired key
+  and before the tunnel opens, the gateway creates their own viewer (an offer alone,
+  i.e. the API, makes none). The gateway never contacts Firebase.
 - **role** = `role` in the gateway's `offer` (#194): `admin` | `member`, the user's role
   in *the gateway's* household, from the same membership lookup that lets the offer
   through (never anything the browser sends). The gateway refuses an offer without a
@@ -155,8 +158,7 @@ per session (several browsers at once).
   has no admin-only endpoint), so the API that sends it deploys *before* the
   `gateway-v*` release that requires it (the reverse of the order above).
 - Not tied together: a stolen key alone gets nothing without a household sign-in; a
-  compromised API alone gets nothing without a paired device. Nothing else is enforced
-  per user yet. The role is fixed for the session: a demoted admin keeps it until the
+  compromised API alone gets nothing without a paired device. The role is fixed for the session: a demoted admin keeps it until the
   session ends (like a removed membership, #192).
 
 ## ICE servers + connection telemetry (MVP item 5)
@@ -415,20 +417,28 @@ sends the next one after the previous `204`.
 The browser authenticates to StreamIQ, never to Jellyfin, and a paired browser
 stays a *viewer*:
 
-- **Credential injection.** The gateway holds a Jellyfin user token for the
-  hidden, non-admin user `streamiq-viewer` (`gateway/internal/jellyfin` creates
-  it with an admin session it doesn't keep; `state/jellyfin.json`). The gateway's
-  own admin (`streamiq`, or hidden `streamiq-admin` on a Jellyfin the user brought;
-  password in the same file) never reaches the tunnel. It sets
+- **Credential injection.** The gateway holds a Jellyfin user token per StreamIQ
+  user (#195): their own hidden, non-admin viewer `streamiq-<users.id>`, created on
+  their first paired session (the offer's `user`, lowercased; one at a time, so two
+  sessions at once make one), plus the shared viewer `streamiq-viewer` (#50) as the fallback. A session whose
+  user has no viewer (creating it failed: the gateway log and local page say why, the
+  next session tries again; after Jellyfin refused the gateway's admin, not until it has
+  new admin credentials, since Jellyfin locks out users after failed sign-ins: on a
+  Jellyfin the user brought, the next admin login on the local page; on one the gateway
+  set up, the changed `streamiq` password put into `state/jellyfin.json` and a restart) plays as `streamiq-viewer`. `gateway/internal/jellyfin`
+  creates viewers with the gateway's own admin (`streamiq`, or hidden `streamiq-admin`
+  on a Jellyfin the user brought) and logs that session out again; tokens and
+  passwords are in `state/jellyfin.json` (`users`: `users.id` → viewer). No admin
+  credential ever reaches the tunnel. It sets
   `Authorization: MediaBrowser Token="…"`, and drops browser-sent `Authorization`,
   `Cookie`, `X-Emby-*` and `X-MediaBrowser-*` headers, and `api_key`/`ApiKey`
-  query parameters. Jellyfin itself refuses admin calls with this token. The
+  query parameters. Jellyfin itself refuses admin calls with this token. Every
   viewer's policy: not admin, hidden, no content deletion, no remote control of
   other users or shared devices, no public sharing, no collection, subtitle,
   lyric or Live TV management; all libraries.
-- **User pinning.** Every request gets `userId=<viewer id>`, and any
+- **User pinning.** Every request gets `userId=<id of the session's viewer>`, and any
   browser-sent `userId` is dropped (Jellyfin also answers `403` to another
-  user's id with this token). Tenant = household = one Jellyfin user. A
+  user's id with this token). Resume and played state are per StreamIQ user. A
   gateway set up before #50 still runs on an admin API key pinned to the user
   stored with it, until the next admin login on its local gateway page replaces it.
 - **Allowlist.** Defense in depth on top of the viewer token: only these pass
@@ -450,12 +460,13 @@ stays a *viewer*:
   says `/videos/`).
 - **Redaction.** Jellyfin writes `ApiKey=<token>` into the URLs inside its HLS
   playlists. Text responses (`json`, `mpegurl`, `text/*`, at most 16 MB) are
-  buffered, the token is replaced with `redacted`, and `Content-Length` is
+  buffered, the session's token is replaced with `redacted`, and `Content-Length` is
   recomputed. The follow-up request then carries `ApiKey=redacted`, which the
   gateway strips like any other browser-sent key.
-- **Token repair.** Once a minute the gateway checks the token (`GET /Users/Me`).
-  On `401` it signs in again as the viewer with the stored viewer password; if
-  Jellyfin refuses that too, the local gateway page asks for an admin login again.
+- **Token repair.** Once a minute the gateway checks every viewer's token (`GET /Users/Me`).
+  On `401` it signs in again as that viewer with its stored password. If Jellyfin
+  refuses that too: for `streamiq-viewer`, the local gateway page asks for an admin
+  login again; a user's own viewer is dropped and made again on their next session.
 
 Resume goes through `UserData` (`PlaybackPositionTicks`). `/Sessions/Playing*`
 isn't allowlisted (Jellyfin ignored it from the pre-#50 API key; not needed).

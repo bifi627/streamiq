@@ -348,14 +348,17 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
 
-  useEffect(
-    () =>
-      onAuthStateChanged(auth, (u) => {
-        setUser(u)
-        setReady(true)
-      }),
-    [],
-  )
+  useEffect(() => {
+    let was: User | null = null
+    return onAuthStateChanged(auth, (u) => {
+      // Signed out or another account: reload, so no open tunnel outlives the
+      // account (the gateway plays it as that user's Jellyfin viewer, #195).
+      if (was && was.uid !== u?.uid) return location.reload()
+      was = u
+      setUser(u)
+      setReady(true)
+    })
+  }, [])
 
   if (!ready) return null
   // Signed out on a deep link: SignIn renders at that URL, so it loads after sign-in.

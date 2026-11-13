@@ -152,7 +152,8 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 	if u, err := url.Parse(rq.URL); err == nil && isGatewayAPI(u.Path) {
 		return gatewayAPI(j, rq, u, who)
 	}
-	req, status, err := j.prepare(rq)
+	c := j.credFor(who.User)
+	req, status, err := j.prepare(rq, c)
 	if err != nil {
 		return status, nil, nil, err
 	}
@@ -169,7 +170,7 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 	if resp.ContentLength >= 0 {
 		hdr["Content-Length"] = strconv.FormatInt(resp.ContentLength, 10)
 	}
-	body, err := j.redact(hdr, resp.Body)
+	body, err := redact(hdr, resp.Body, c.key)
 	if err != nil {
 		resp.Body.Close()
 		return 0, nil, nil, err

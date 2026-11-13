@@ -11,7 +11,8 @@ namespace StreamIq.Api.Features.Broker;
 /// Firebase ID token arrives as the first message (not a query param — keeps it
 /// out of logs); the offer may only target an online gateway of a household the
 /// caller is a member of (checked for the gateway's tenant, never a household the
-/// client names), and the broker stamps the caller's `users.id` on it as `user`.
+/// client names), and the broker stamps the caller's `users.id` on it as `user` and
+/// their role in that gateway's household (from the same membership) as `role`.
 /// `ready` carries this session's ICE servers; a revocable TURN credential is
 /// revoked when the socket closes (closing it also ends the session: `bye`).
 public static class BrowserSocket
@@ -84,14 +85,15 @@ public static class BrowserSocket
                             // member of it; the filter then scopes the revocation check to it.
                             // Not a member = same answer as unknown/offline (no existence oracle).
                             var ok = false;
+                            Membership? membership = null;
                             if (Guid.TryParse((string?)msg["gatewayId"], out var gatewayId)
                                 && Broker.Gateways.TryGetValue(gatewayId, out gateway)
-                                && await Households.PickAsync(db, user.Id, gateway.TenantId, ct) is not null)
+                                && (membership = await Households.PickAsync(db, user.Id, gateway.TenantId, ct)) is not null)
                             {
                                 db.CurrentTenantId = gateway.TenantId;
                                 ok = await db.Gateways.AnyAsync(d => d.Id == gatewayId && d.CredentialHash != null, ct);
                             }
-                            if (!ok || gateway is null)
+                            if (!ok || gateway is null || membership is null)
                             {
                                 gateway = null;
                                 await me.SendAsync(new JsonObject { ["type"] = "error", ["error"] = "gateway offline or unknown" }, ct);
@@ -105,6 +107,8 @@ public static class BrowserSocket
                                 ["session"] = session.ToString(),
                                 // Who acts (users.id, never the Firebase UID); the client key says which device.
                                 ["user"] = user.Id.ToString(),
+                                // Their role in the gateway's household, from that same membership lookup (#194).
+                                ["role"] = membership.Role,
                                 ["sdp"] = msg["sdp"]?.DeepClone(),
                             }, ct);
                             break;

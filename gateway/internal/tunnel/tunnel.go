@@ -148,6 +148,8 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 	method := rq.Method
 	switch {
 	case u.RawPath != "":
+	case AdminOnly[u.Path] && who.Role != Admin:
+		return http.StatusForbidden, nil, nil, fmt.Errorf("gateway API: %s %s is admin-only", method, u.Path)
 	case isScreenPath(u.Path):
 		return screenAPI(method, u.Path, rq.Body, who)
 	case method != "GET":
@@ -163,6 +165,17 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 	}
 	return http.StatusNotFound, nil, nil, fmt.Errorf("gateway API: no %s %s", method, u.Path)
 }
+
+// Roles in the broker's offer (docs/protocol.md, "Device + user").
+const (
+	Admin  = "admin"
+	Member = "member"
+)
+
+// AdminOnly marks gateway API paths (exact, any method) that only a household
+// admin may call; a member gets 403. None yet: #89 decides per endpoint.
+// ponytail: exact paths only; a prefix/pattern match when an admin-only path takes an id.
+var AdminOnly = map[string]bool{}
 
 // isGatewayAPI: the prefix is matched case-insensitively, like Jellyfin's
 // routing, so no spelling of it reaches Jellyfin.

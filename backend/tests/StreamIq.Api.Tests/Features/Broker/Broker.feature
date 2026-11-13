@@ -6,7 +6,7 @@ Feature: Signaling broker
   Scenario: An offer reaches the tenant's own gateway and the answer comes back
     Given "alice@home.test" has an online gateway "nas"
     When "alice@home.test" offers to gateway "nas"
-    Then gateway "nas" receives the offer
+    Then gateway "nas" receives the offer with role "admin"
     When gateway "nas" answers that session
     Then the browser receives the answer
 
@@ -16,11 +16,11 @@ Feature: Signaling broker
     Then the browser is told the gateway is offline or unknown
     And gateway "nas" receives nothing
 
-  Scenario: A member of a second household reaches that household's gateway
+  Scenario: A member of a second household reaches that household's gateway, with their role there
     Given "alice@home.test" has an online gateway "nas"
     And "bob@home.test" is a member of the household of "alice@home.test"
     When "bob@home.test" offers to gateway "nas"
-    Then gateway "nas" receives the offer
+    Then gateway "nas" receives the offer with role "member"
 
   Scenario: Naming another household does not let a browser reach its gateway
     Given "alice@home.test" has an online gateway "nas"

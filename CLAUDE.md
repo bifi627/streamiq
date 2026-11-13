@@ -88,7 +88,8 @@ first sign-in makes your own household with you as admin. Each HTTP request acts
 named by the `X-StreamIQ-Household` header (default: the oldest membership);
 `CurrentTenantId` is set only from the signed-in user's own membership (`Auth/Households.cs`,
 the one cross-tenant membership lookup), a non-member gets `404`. The broker checks
-membership for the offered gateway's household, never one the browser names. The membership's
+membership for the offered gateway's household, never one the browser names, and puts the
+user's `role` there in the gateway's offer (#194: `tunnel.AdminOnly` endpoints answer a member `403`). The membership's
 role is the request's `Role` claim: adding and removing gateways is admin-only (`RequireRole`,
 a member gets `403`, #190); members list and open them. **Invites (#191):** an admin makes a
 single-use 7-day link (`/join#<token>`, hash stored only); accepting adds the signed-in user as

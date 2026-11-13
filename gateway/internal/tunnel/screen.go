@@ -30,6 +30,7 @@ const (
 // the request's data channel closes.
 type Session struct {
 	ID     string
+	Role   string // the user's role in this gateway's household, from the broker's offer: Admin | Member
 	Name   func() string
 	Closed <-chan struct{}
 }

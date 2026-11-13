@@ -71,7 +71,7 @@ libraries and keeps its own watch progress (separate from yours in Jellyfin).
   random password (in `state/jellyfin.json`, readable only on this computer), then
   signs out. It never stores your password, so changing it later doesn't break
   anything. The gateway needs its own admin to create a Jellyfin user per household
-  member (their own watch progress, #195); it doesn't touch your Jellyfin's settings.
+  member (their own watch progress); it doesn't touch your Jellyfin's settings.
   A gateway connected before this change shows **Connect Jellyfin** once more:
   sign in again, and playback keeps working until you do.
 

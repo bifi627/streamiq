@@ -287,14 +287,6 @@ func (s *Setup) connect(ctx context.Context, user, pw, oldKey string, ownAdmin b
 		return Creds{}, err
 	}
 	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
-	var c Creds
-	if ownAdmin {
-		_, apw, err := s.ensureUser(ctx, admin, byoAdmin, true)
-		if err != nil {
-			return Creds{}, fmt.Errorf("create the gateway's admin user (needs a Jellyfin administrator): %w", err)
-		}
-		c.User, c.Password, c.BYO = byoAdmin, apw, true
-	}
 	id, vpw, err := s.ensureUser(ctx, admin, ViewerName, false)
 	if err != nil {
 		return Creds{}, fmt.Errorf("create the viewer user (needs a Jellyfin administrator): %w", err)
@@ -309,7 +301,14 @@ func (s *Setup) connect(ctx context.Context, user, pw, oldKey string, ownAdmin b
 			slog.Warn("gateway: could not delete the old Jellyfin API key; delete streamiq-gateway in Dashboard → API Keys")
 		}
 	}
-	c.Token, c.Viewer, c.ViewerID, c.ViewerPassword = tok, ViewerName, id, vpw
+	c := Creds{Token: tok, Viewer: ViewerName, ViewerID: id, ViewerPassword: vpw}
+	if ownAdmin { // last: a failure before this leaves its stored password valid
+		_, apw, err := s.ensureUser(ctx, admin, byoAdmin, true)
+		if err != nil {
+			return Creds{}, fmt.Errorf("create the gateway's admin user (needs a Jellyfin administrator): %w", err)
+		}
+		c.User, c.Password, c.BYO = byoAdmin, apw, true
+	}
 	return c, nil
 }
 

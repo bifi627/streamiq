@@ -263,7 +263,9 @@ func TestLoginExistingJellyfin(t *testing.T) {
 	}
 	// The gateway's own hidden admin, so it can create viewers later (#195).
 	own := func() (Creds, *fakeUser) {
+		s.mu.Lock()
 		f.mu.Lock()
+		defer s.mu.Unlock()
 		defer f.mu.Unlock()
 		return s.creds, f.users[byoAdmin]
 	}
@@ -298,7 +300,10 @@ func TestBYOWithoutOwnAdminAsksToReconnect(t *testing.T) {
 	c := s.creds
 	c.User, c.Password, c.BYO = "", "", false // as written before #195
 	b, _ := json.Marshal(c)
-	os.WriteFile(s.path(), b, 0o600)
+	if err := os.WriteFile(s.path(), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got = [2]string{}
 	if err := s.Load(); err != nil {
 		t.Fatal(err)
 	}

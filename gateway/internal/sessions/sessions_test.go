@@ -44,12 +44,13 @@ func TestPairThenTunnel(t *testing.T) {
 	store, _ := pairing.Open(dir)
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
+	var viewers []string // Handle runs on the test goroutine (connect): no lock
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, Viewers: func(u string) { viewers = append(viewers, u) }}
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 
 	b := connect(t, gateway, "s1", key, false)
-	if got := gateway.User("s1"); got != "user-s1" {
-		t.Fatalf("session user = %q, want the offer's user", got)
+	if got := gateway.User("s1"); got != "user-s1" || len(viewers) != 1 || viewers[0] != "user-s1" {
+		t.Fatalf("session user = %q, viewers ensured %v: want the offer's user", got, viewers)
 	}
 	if b.say(nil)["type"] != "unpaired" {
 		t.Fatal("want unpaired for an unknown key")

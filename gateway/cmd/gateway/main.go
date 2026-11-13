@@ -252,6 +252,7 @@ func run(ctx context.Context) {
 		log.Fatalf("gateway: STREAMIQ_JELLYFIN_HWACCEL=%q, want one of %q", hw, jellyfin.HWAccels)
 	}
 	setup := &jellyfin.Setup{Client: &http.Client{}, URL: jf.URL, StateDir: stateDir, OnKey: jf.SetKey, HWAccel: hw}
+	jf.Viewer = setup.ViewerFor
 	if err := setup.Load(); err != nil {
 		log.Fatalf("gateway: %v", err)
 	}
@@ -283,7 +284,12 @@ func run(ctx context.Context) {
 		if err != nil {
 			log.Fatalf("gateway: ICE: %v", err)
 		}
-		sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, API: webAPI}
+		sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, API: webAPI,
+			Viewers: func(user string) {
+				ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+				defer cancel()
+				setup.EnsureViewer(ctx, user)
+			}}
 		store.OnRemove = sess.Drop // removing a browser ends its open sessions
 		var lastBeat atomic.Int64
 		var notice, newer atomic.Pointer[string]

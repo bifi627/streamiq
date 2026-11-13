@@ -20,13 +20,17 @@ import (
 //   - the token belongs to a non-admin viewer user (internal/jellyfin), and an
 //     allowlist of consumption endpoints still applies (defense in depth; a
 //     pre-#50 install runs on an admin API key until it reconnects);
-//   - every request is pinned to the token's Jellyfin user (userId).
+//   - every request is pinned to the token's Jellyfin user (userId);
+//   - the token is the session user's own viewer's (#195), else the shared one.
 type Jellyfin struct {
 	Client *http.Client
 	URL    string // e.g. http://localhost:8096
 	// Status is the body of the gateway API's GET /streamiq/status, built on each
 	// request. ponytail: lives here because the tunnel has one config struct.
 	Status func() any
+	// Viewer is a StreamIQ user's own token and Jellyfin user id; "" = none, use
+	// the shared one (SetKey). nil = everyone shares it.
+	Viewer func(user string) (key, userID string)
 
 	cred atomic.Pointer[cred] // SetKey; may arrive after start (internal/jellyfin)
 }
@@ -36,6 +40,16 @@ type cred struct{ key, userID string }
 // SetKey installs the token and the Jellyfin user id it belongs to. Safe
 // while sessions run.
 func (j *Jellyfin) SetKey(key, userID string) { j.cred.Store(&cred{key, userID}) }
+
+// credFor is the credential a request of user's session uses.
+func (j *Jellyfin) credFor(user string) cred {
+	if j.Viewer != nil && user != "" {
+		if k, id := j.Viewer(user); k != "" && id != "" {
+			return cred{k, id}
+		}
+	}
+	return j.current()
+}
 
 func (j *Jellyfin) current() cred {
 	if c := j.cred.Load(); c != nil {
@@ -84,8 +98,7 @@ func allow(method, p string) bool {
 
 // prepare turns a browser request frame into the origin request, or returns
 // the HTTP status to refuse it with.
-func (j *Jellyfin) prepare(rq tunnelReq) (*http.Request, int, error) {
-	c := j.current()
+func (j *Jellyfin) prepare(rq tunnelReq, c cred) (*http.Request, int, error) {
 	if c.key == "" || c.userID == "" {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("no Jellyfin token yet (see the gateway's local page)")
 	}
@@ -131,9 +144,9 @@ func (j *Jellyfin) prepare(rq tunnelReq) (*http.Request, int, error) {
 	return req, 0, nil
 }
 
-// redact buffers text responses (JSON, playlists) and removes the token.
+// redact buffers text responses (JSON, playlists) and removes the token key.
 // Media (video/*, image/*) streams through untouched.
-func (j *Jellyfin) redact(hdr map[string]string, body io.ReadCloser) (io.ReadCloser, error) {
+func redact(hdr map[string]string, body io.ReadCloser, key string) (io.ReadCloser, error) {
 	ct := strings.ToLower(hdr["Content-Type"])
 	if !strings.Contains(ct, "json") && !strings.Contains(ct, "mpegurl") && !strings.HasPrefix(ct, "text/") {
 		return body, nil
@@ -146,8 +159,8 @@ func (j *Jellyfin) redact(hdr map[string]string, body io.ReadCloser) (io.ReadClo
 	if len(b) > maxText {
 		return nil, fmt.Errorf("text response over %d bytes", maxText)
 	}
-	if k := j.current().key; k != "" {
-		b = bytes.ReplaceAll(b, []byte(k), []byte("redacted"))
+	if key != "" {
+		b = bytes.ReplaceAll(b, []byte(key), []byte("redacted"))
 	}
 	hdr["Content-Length"] = fmt.Sprint(len(b))
 	return io.NopCloser(bytes.NewReader(b)), nil

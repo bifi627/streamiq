@@ -39,6 +39,9 @@ type Sessions struct {
 	Fp       string // our DTLS fingerprint
 	Store    *pairing.Store
 	Jellyfin *tunnel.Jellyfin // the tunnel's origin + policy
+	// Viewers makes sure a user has their own Jellyfin viewer before the gateway
+	// answers their offer (#195). nil = none.
+	Viewers func(user string)
 
 	mu    sync.Mutex
 	pcs   map[string]*webrtc.PeerConnection
@@ -105,6 +108,9 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 			return
 		}
 		log.Printf("gateway: session %s: user %s (%s)", m.Session, m.User, m.Role)
+		if s.Viewers != nil {
+			s.Viewers(m.User) // ponytail: blocks this socket's other signaling for a first session's few Jellyfin calls
+		}
 		pc, err := s.newPeer(m.Session, m.User, m.Role, send)
 		if err != nil {
 			log.Printf("gateway: session %s: %v", m.Session, err)
@@ -126,7 +132,7 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 }
 
 // User is the session's user id (from the broker's offer) for gateway API
-// handlers; "" for an unknown session. Nothing is enforced per user yet (#92);
+// handlers; "" for an unknown session. It also picks their Jellyfin viewer (#195);
 // the role gates admin-only endpoints (tunnel.Session.Role, tunnel.AdminOnly).
 func (s *Sessions) User(session string) string {
 	s.mu.Lock()
@@ -176,7 +182,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		case d.Label() == "auth":
 			s.serveAuth(id, pc, d, &authed)
 		case authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, Role: role, Name: func() string { return s.name(id) }})
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Name: func() string { return s.name(id) }})
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`
 		}

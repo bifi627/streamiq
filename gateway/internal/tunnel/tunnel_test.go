@@ -277,3 +277,34 @@ func TestAdminOnly(t *testing.T) {
 		}
 	}
 }
+
+// Each session's requests carry its user's own viewer token and userId (#195);
+// a user without one gets the shared viewer. Each token is redacted.
+func TestPerUserViewer(t *testing.T) {
+	var auth, user string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth, user = r.Header.Get("Authorization"), r.URL.Query().Get("userId")
+		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+		_, tok, _ := strings.Cut(auth, `Token="`)
+		w.Write([]byte("sub.vtt?ApiKey=" + strings.TrimSuffix(tok, `"`)))
+	}))
+	t.Cleanup(srv.Close)
+	j := &Jellyfin{Client: http.DefaultClient, URL: srv.URL, Viewer: func(u string) (string, string) {
+		if u == "alice" {
+			return "alicetoken", "alice-jf-id"
+		}
+		return "", ""
+	}}
+	j.SetKey(key, uid)
+	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: "/Videos/" + vid + "/main.m3u8"})
+	for _, c := range []struct{ user, tok, id string }{{"alice", "alicetoken", "alice-jf-id"}, {"bob", key, uid}, {"", key, uid}} {
+		status, _, body, err := proxy(j, raw, Session{User: c.user})
+		if err != nil || status != 200 {
+			t.Fatalf("%s: %d %v", c.user, status, err)
+		}
+		b, _ := io.ReadAll(body)
+		if auth != `MediaBrowser Token="`+c.tok+`"` || user != c.id || string(b) != "sub.vtt?ApiKey=redacted" {
+			t.Fatalf("%s: forwarded %q userId %q, body %q", c.user, auth, user, b)
+		}
+	}
+}

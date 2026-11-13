@@ -1,9 +1,11 @@
 package jellyfin
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -688,5 +690,44 @@ func TestViewerTokenRepairs(t *testing.T) {
 	s.poll(ctx)
 	if tok, _ := mine(t, f, s, alice); tok == old || s.View().HasKey {
 		t.Fatalf("view %+v", s.View())
+	}
+}
+
+// The transcoding state is logged once per start, with where to change it (#250).
+func TestTranscodingLoggedOnce(t *testing.T) {
+	var buf bytes.Buffer
+	old := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(old) })
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	count := func(s string) int { return strings.Count(buf.String(), s) }
+
+	_, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.poll(context.Background())
+	s.poll(context.Background())
+	if count("transcodes on the CPU") != 1 || count("STREAMIQ_JELLYFIN_HWACCEL=nvenc") != 1 || count("hwaccel=off") != 1 {
+		t.Fatalf("managed, off:\n%s", buf.String())
+	}
+
+	s2 := newSetup(t, srv.URL, &got) // a restart with the env var set
+	s2.StateDir, s2.HWAccel = s.StateDir, "nvenc"
+	if err := s2.Load(); err != nil {
+		t.Fatal(err)
+	}
+	s2.poll(context.Background())
+	if count("transcodes on the GPU") != 1 || count("hwaccel=nvenc") != 2 { // + the "applied" line
+		t.Fatalf("managed, nvenc:\n%s", buf.String())
+	}
+
+	_, srv = newFake(t, true)
+	s3 := newSetup(t, srv.URL, &got)
+	if err := s3.Login(context.Background(), "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	s3.poll(context.Background())
+	s3.poll(context.Background())
+	if count("Dashboard → Playback → Transcoding") != 1 {
+		t.Fatalf("unmanaged:\n%s", buf.String())
 	}
 }

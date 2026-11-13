@@ -346,14 +346,8 @@ func TestScreenOverTunnel(t *testing.T) {
 	if head := tv.frame(frames); !strings.Contains(head, `"status":200`) {
 		t.Fatalf("screen head = %s", head)
 	}
-	var screens []struct{ ID, Name string }
-	for start := time.Now(); len(screens) == 0; { // the screen registers when the TV's request arrives
-		if time.Since(start) > 10*time.Second {
-			t.Fatal("screen never listed")
-		}
-		json.Unmarshal([]byte(phone.body(`{"method":"GET","url":"/streamiq/screens"}`)), &screens)
-		time.Sleep(10 * time.Millisecond)
-	}
+	var screens []struct{ ID, Name string } // the TV's head came after the screen registered
+	json.Unmarshal([]byte(phone.body(`{"method":"GET","url":"/streamiq/screens"}`)), &screens)
 	if len(screens) != 1 || screens[0].Name != "Living room TV" {
 		t.Fatalf("screens = %+v", screens)
 	}

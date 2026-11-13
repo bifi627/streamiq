@@ -220,7 +220,8 @@ Sequence on a request channel:
    { "status": 206, "headers": { "Content-Range": "bytes 0-99/9723", "...": "..." } }
    ```
    A refused request gets a head (then EOF) only: `403` (not allowlisted), `413` (body too
-   large), `503` (gateway has no Jellyfin key), `502` (Jellyfin unreachable).
+   large), `503` (gateway has no Jellyfin key), `502` (Jellyfin unreachable). The
+   gateway API (below) refuses with its own statuses (`400`, `404`, `409`).
 3. **Gateway → browser** (zero or more binary frames): the body, in ~16 KB
    chunks under `bufferedAmount` backpressure. A whole segment is never sent
    as one message.
@@ -315,7 +316,7 @@ an open screen gets `409`.
 
 **`POST /streamiq/screen/state`** (TV): the screen's playback state, about once a
 second and on every change. `204`. `404` from a session without a screen; `400`
-if malformed (negative ticks, `itemId` not a Jellyfin id).
+if malformed (negative ticks, `itemId` not a Jellyfin id, `audio` < 0, `subtitle` < -1).
 ```json
 { "itemId": "aad7…", "positionTicks": 1200000000, "durationTicks": 26000000000,
   "paused": false, "audio": 1, "subtitle": null }
@@ -332,8 +333,10 @@ Ticks are integers (Jellyfin ticks, 10⁷ per second; a fractional number is
 
 **`POST /streamiq/screens/{id}`** (phone): one command to that screen. `204` once
 queued for the TV; `404` for an unknown id (or a screen that closed); `400` for a
-malformed command or a field that doesn't belong to its type; `413` over 64 KB;
-`503` while 16 commands wait on a TV that isn't reading.
+malformed command or a field that doesn't belong to its type; `413` over 64 KB.
+A TV that isn't reading keeps the newest 16 commands (the oldest are dropped).
+Each POST is its own channel, so a client that needs its own commands in order
+sends the next one after the previous `204`.
 
 | Command | Fields |
 |---|---|

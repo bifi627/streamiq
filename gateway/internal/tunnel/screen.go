@@ -86,7 +86,8 @@ type screen struct {
 	out []byte // rest of the line being read (Read side only)
 }
 
-// maxQueued: commands a stalled TV may fall behind by before POSTs get 503.
+// maxQueued: commands a stalled TV may fall behind by; past it the oldest is
+// dropped, so the newest still arrives (last command wins).
 const maxQueued = 16
 
 var screens = struct {
@@ -156,15 +157,16 @@ func screenAPI(method, p, body string, who Session) (int, map[string]string, io.
 	}
 	switch {
 	case method == "GET" && p == ScreenPath:
-		if who.ID == "" || who.Closed == nil {
+		if who.ID == "" || who.Closed == nil || who.Name == nil {
 			return refuse(http.StatusNotFound, "no session")
 		}
+		name := who.Name() // outside the lock: it reads the pairing store
 		screens.Lock()
 		defer screens.Unlock()
 		if screenOf(who.ID) != nil {
 			return refuse(http.StatusConflict, "session %s already holds a screen", who.ID)
 		}
-		s := &screen{id: rand.Text(), name: who.Name(), session: who.ID, closed: who.Closed, cmds: make(chan []byte, maxQueued)}
+		s := &screen{id: rand.Text(), name: name, session: who.ID, closed: who.Closed, cmds: make(chan []byte, maxQueued)}
 		screens.m[s.id] = s
 		return http.StatusOK, map[string]string{"Content-Type": "application/x-ndjson", "Cache-Control": "no-store"}, s, nil
 
@@ -177,7 +179,8 @@ func screenAPI(method, p, body string, who Session) (int, map[string]string, io.
 		}
 		var st ScreenState
 		if json.Unmarshal([]byte(body), &st) != nil || st.PositionTicks < 0 || st.DurationTicks < 0 ||
-			(st.ItemID != "" && !itemID.MatchString(st.ItemID)) {
+			(st.ItemID != "" && !itemID.MatchString(st.ItemID)) ||
+			(st.Audio != nil && *st.Audio < 0) || (st.Subtitle != nil && *st.Subtitle < -1) {
 			return refuse(http.StatusBadRequest, "bad state")
 		}
 		s.mu.Lock()
@@ -216,10 +219,20 @@ func screenAPI(method, p, body string, who Session) (int, map[string]string, io.
 			return refuse(http.StatusBadRequest, "bad command")
 		}
 		line, _ := json.Marshal(c)
-		select {
-		case s.cmds <- append(line, '\n'):
-		default:
-			return refuse(http.StatusServiceUnavailable, "screen %s is not reading", s.id)
+		for line = append(line, '\n'); ; {
+			select {
+			case s.cmds <- line:
+			default:
+				select { // full: drop the oldest
+				case <-s.cmds:
+				default:
+				}
+				continue
+			}
+			break
+		}
+		if s.gone() { // closed while we queued
+			return refuse(http.StatusNotFound, "screen %s closed", s.id)
 		}
 		return reply(http.StatusNoContent, nil)
 	}

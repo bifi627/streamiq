@@ -103,7 +103,7 @@ func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 // Jellyfin policy, call Jellyfin forwarding headers (Range included, so seek
 // survives), and hand back the response status/headers/body for the caller to
 // stream. No WebRTC here, so it is unit-tested directly (tunnel_test.go). On
-// error, a non-zero status is the refusal to send (403, 413, 503).
+// error, a non-zero status is the refusal to send (e.g. 403, 413, 503).
 func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.ReadCloser, error) {
 	var rq tunnelReq
 	if err := json.Unmarshal(raw, &rq); err != nil {

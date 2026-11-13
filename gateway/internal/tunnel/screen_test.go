@@ -13,8 +13,7 @@ import (
 func call(t *testing.T, method, url, body string, who Session) (int, io.ReadCloser) {
 	t.Helper()
 	raw, _ := json.Marshal(tunnelReq{Method: method, URL: url, Body: body})
-	j, _ := fakeJellyfin(t)
-	status, _, rc, _ := proxy(j, raw, who)
+	status, _, rc, _ := proxy(&Jellyfin{}, raw, who) // screens never touch Jellyfin
 	return status, rc
 }
 
@@ -146,6 +145,7 @@ func TestScreenRefusals(t *testing.T) {
 		{"POST", ScreensPath + "/" + sid, `{"type":"seek","ticks":1.5}`, laptop, 400},
 		{"POST", ScreensPath + "/" + sid, `{"type":"pause","ticks":1}`, laptop, 400},
 		{"POST", ScreenPath + "/state", `{"positionTicks":-1}`, tv, 400},
+		{"POST", ScreenPath + "/state", `{"subtitle":-2}`, tv, 400},
 		{"POST", ScreensPath + "/" + sid, `{"type":"pause","x":"` + strings.Repeat("x", MaxBody) + `"}`, laptop, http.StatusRequestEntityTooLarge},
 	} {
 		if s, _ := call(t, c.method, c.url, c.body, c.who); s != c.want {
@@ -155,10 +155,18 @@ func TestScreenRefusals(t *testing.T) {
 	if s, _ := call(t, "POST", ScreensPath+"/"+sid, `{"type":"tracks","subtitle":-1}`, laptop); s != 204 {
 		t.Errorf("tracks: %d", s)
 	}
-	for range maxQueued - 1 { // the TV isn't reading: the queue fills, then 503
+	for range maxQueued { // the TV isn't reading: the queue fills and drops the oldest
 		call(t, "POST", ScreensPath+"/"+sid, `{"type":"pause"}`, laptop)
 	}
-	if s, _ := call(t, "POST", ScreensPath+"/"+sid, `{"type":"pause"}`, laptop); s != http.StatusServiceUnavailable {
+	if s, _ := call(t, "POST", ScreensPath+"/"+sid, `{"type":"stop"}`, laptop); s != 204 {
 		t.Errorf("full queue: %d", s)
+	}
+	stream := bufio.NewReader(body)
+	var last string
+	for range maxQueued {
+		last = next(stream)
+	}
+	if last != `{"type":"stop"}` {
+		t.Errorf("newest command after a full queue = %q", last)
 	}
 }

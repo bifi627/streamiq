@@ -184,36 +184,28 @@ export function ScreenPage() {
   } | null>(null)
   const [ended, setEnded] = useState<string | null>(null)
   const players = useRef(new Set<(c: ScreenCommand) => void>())
-  // Commands after a play, before its Player subscribes: applied on subscribe.
-  const early = useRef<ScreenCommand[] | null>(null)
+  // The commands since the last play, replayed to each Player that subscribes
+  // (one may arrive before it mounts; StrictMode and effect re-runs subscribe again).
+  const since = useRef<ScreenCommand[]>([])
   const remote = useCallback((apply: (c: ScreenCommand) => void) => {
     players.current.add(apply)
-    early.current?.forEach(apply)
-    early.current = null
+    since.current.forEach(apply)
     return () => void players.current.delete(apply)
   }, [])
   // State to the gateway (#181): one POST at a time, in order; while one is
   // out, only the newest waits.
-  const post = useMemo(() => {
-    let busy = false
-    let next: ScreenState | null = null
-    const go = (s: ScreenState) => {
-      next = s
-      if (busy) return
-      busy = true
-      next = null
-      tunnelFetch(pc, '/streamiq/screen/state', {
-        method: 'POST',
-        body: JSON.stringify(s),
-      })
-        .catch(() => {})
-        .finally(() => {
-          busy = false
-          if (next) go(next)
-        })
-    }
-    return go
-  }, [pc])
+  const post = useMemo(
+    () =>
+      serial(
+        (s: ScreenState) =>
+          tunnelFetch(pc, '/streamiq/screen/state', {
+            method: 'POST',
+            body: JSON.stringify(s),
+          }),
+        () => true,
+      ),
+    [pc],
+  )
   const router = useRouter()
   const canGoBack = useCanGoBack()
   // Pops the screen off history (or replaces it), so a later Back never
@@ -253,13 +245,13 @@ export function ScreenPage() {
         event(`screen: ${c.type} · user activation ${active()}`)
         if (c.type === 'play') {
           players.current.clear() // the old Player is on its way out
-          early.current = []
+          since.current = []
           setPlay({ itemId: c.itemId, startTicks: c.startTicks, n: ++n })
-        } else if (c.type === 'stop') {
-          early.current = null
-          setPlay(null)
-        } else if (early.current) early.current.push(c)
-        else players.current.forEach((apply) => apply(c))
+        } else if (c.type === 'stop') setPlay(null)
+        else {
+          since.current.push(c)
+          players.current.forEach((apply) => apply(c))
+        }
       },
       (why) => {
         event(`screen: ended (${why})`)
@@ -400,6 +392,29 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
   )
 }
 
+/** Runs one at a time, in order (each tunnel POST is its own channel, so only
+ * waiting keeps them ordered). A new x replaces the queued last one if
+ * replaces(last, x). */
+function serial<T>(
+  run: (x: T) => Promise<unknown>,
+  replaces: (queued: T, x: T) => boolean,
+) {
+  const q: T[] = []
+  let busy = false
+  const next = () => {
+    busy = q.length > 0
+    if (busy)
+      run(q.shift()!)
+        .catch(() => {})
+        .finally(next)
+  }
+  return (x: T) => {
+    if (q.length && replaces(q[q.length - 1], x)) q.pop()
+    q.push(x)
+    if (!busy) next()
+  }
+}
+
 const IDLE: ScreenState = {
   itemId: '',
   positionTicks: 0,
@@ -415,7 +430,7 @@ const IDLE: ScreenState = {
 export function RemotePage({ screenId }: { screenId: string }) {
   const { gatewayId, pc } = useContext(Tunnel)
   const [screen, setScreen] = useState<Screen | null>() // null: closed
-  const [item, setItem] = useState<Item | null>(null)
+  const [fetched, setFetched] = useState<Item | null>(null)
   const [drag, setDrag] = useState<number | null>(null) // seek bar, seconds
   const dragging = useRef(0)
   const [msg, setMsg] = useState('')
@@ -446,29 +461,24 @@ export function RemotePage({ screenId }: { screenId: string }) {
   const st = screen?.state
   const itemId = st?.itemId
   useEffect(() => {
-    setItem(null)
-    if (itemId) tunnelJson<Item>(pc, `/Items/${itemId}`).then(setItem, () => {})
+    if (itemId)
+      tunnelJson<Item>(pc, `/Items/${itemId}`).then(setFetched, () => {})
   }, [pc, itemId])
+  const item = fetched?.Id === itemId ? fetched : null // not a late answer for another item
   // A drag sends many seeks: a queued seek is replaced by the newer one.
-  const [send] = useState(() => {
-    const q: ScreenCommand[] = []
-    let busy = false
-    const next = () => {
-      const c = q.shift()
-      busy = !!c
-      if (c)
-        tunnelJson(pc, `/streamiq/screens/${screenId}`, c)
-          .catch((e) => setMsg(toAppError(e).message))
-          .finally(next)
-    }
-    return (c: ScreenCommand) => {
-      if (c.type === 'seek' && q.at(-1)?.type === 'seek') q.pop()
-      q.push(c)
-      if (!busy) next()
-    }
-  })
+  const send = useMemo(
+    () =>
+      serial(
+        (c: ScreenCommand) =>
+          tunnelJson(pc, `/streamiq/screens/${screenId}`, c).catch((e) =>
+            setMsg(toAppError(e).message),
+          ),
+        (queued, c) => queued.type === 'seek' && c.type === 'seek',
+      ),
+    [pc, screenId],
+  )
 
-  if (screen === undefined) return <p>Connecting to the screen…</p>
+  if (screen === undefined) return <p>{msg || 'Connecting to the screen…'}</p>
   const library = (
     <Link to="/g/$gatewayId" params={{ gatewayId }}>
       Library
@@ -510,7 +520,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
             </small>
           </p>
           <p>
-            <button type="button" onClick={() => seek(pos - 10)}>
+            <button type="button" onClick={() => seek((drag ?? pos) - 10)}>
               −10 s
             </button>{' '}
             <button
@@ -519,7 +529,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
             >
               {st.paused ? 'Play' : 'Pause'}
             </button>{' '}
-            <button type="button" onClick={() => seek(pos + 10)}>
+            <button type="button" onClick={() => seek((drag ?? pos) + 10)}>
               +10 s
             </button>{' '}
             <button type="button" onClick={() => send({ type: 'stop' })}>

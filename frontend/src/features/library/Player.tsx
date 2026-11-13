@@ -183,7 +183,8 @@ export function Player({
     let bitrate: number | undefined // the source's, bps (Auto's input)
     let playing: number | null = null // the audio stream the URL asks for
     let runTicks = 0
-    let held = false // a phone paused: start() doesn't play
+    let held = false // paused: start() doesn't play
+    let seekTo: number | undefined // a phone's seek while nothing is attached
     const emit = () =>
       stateRef.current?.({
         itemId,
@@ -290,7 +291,7 @@ export function Player({
       )
       h = new Hls({
         loader: tunnelLoader(pc),
-        startPosition: at,
+        startPosition: seekTo ?? at,
         renderTextTracksNatively: true,
         // hls.js grows the forward buffer up to 600 s for low bitrates; a TV's
         // MSE quota fills long before that (bufferFullError on webOS).
@@ -365,6 +366,7 @@ export function Player({
           if (raw) rawErr()
           else reload('fallback: video transcode', { video: false })
       })
+      seekTo = undefined
       h.attachMedia(v)
       h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
       // Autoplay is blocked without a user gesture (deep link / reload): the
@@ -381,6 +383,7 @@ export function Player({
     const reload = (why: string, less: Partial<Copy> = {}) => {
       if (!caps) return // still starting: the first load picks it up
       const t = v.currentTime
+      held = v.paused
       event(`${why} @${t.toFixed(1)}`)
       setErr(null) // a new load: e.g. Raw failed, another quality picked
       copy = { ...copy, ...less }
@@ -416,8 +419,10 @@ export function Player({
       } else if (c.type === 'resume') {
         held = false
         v.play().catch(refused)
-      } else if (c.type === 'seek') v.currentTime = c.ticks / TICKS_PER_SECOND
-      else if (c.type === 'tracks') {
+      } else if (c.type === 'seek') {
+        if (h) v.currentTime = c.ticks / TICKS_PER_SECOND
+        else seekTo = c.ticks / TICKS_PER_SECOND // start() picks it up
+      } else if (c.type === 'tracks') {
         if (c.audio !== undefined) {
           setAudio(String(c.audio))
           pickAudio.current(c.audio)

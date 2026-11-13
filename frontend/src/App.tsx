@@ -20,7 +20,7 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { auth } from './firebase'
-import { getMe, household, type Me } from './api'
+import { getMe, household, setHousehold, type Me } from './api'
 import { AppError, toAppError } from './errors'
 import { ErrorView, UncaughtErrors } from './ErrorView'
 import { Gateways } from './features/gateways/Gateways'
@@ -183,10 +183,18 @@ function Shell() {
       .catch((e) => {
         const x = toAppError(e)
         // The household this device acts in is gone (left or removed): fall
-        // back to the user's oldest one.
-        if (x.context.status === 404 && household()) switchHousehold(null)
-        else setErr(x)
+        // back to the user's oldest one, on the same URL (a /join link keeps its token).
+        if (x.context.status === 404 && household()) {
+          setHousehold(null)
+          location.reload()
+        } else setErr(x)
       })
+    // Another tab switched household: every request here now acts in it, so
+    // reload home to keep this tab's views and role in step.
+    const onStorage = (e: StorageEvent) =>
+      e.key?.startsWith('streamiq.household.') && location.replace('/')
+    addEventListener('storage', onStorage)
+    return () => removeEventListener('storage', onStorage)
   }, [])
 
   return (

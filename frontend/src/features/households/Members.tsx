@@ -41,8 +41,9 @@ export function Members() {
       await authed(`/members/${m.userId}${path}`, init)
       if (m.userId !== me?.id) return void (await load())
       // Left: the API falls back to the oldest household (or makes a new one).
-      // Role changed: reload this one, so every view picks up the new role.
-      switchHousehold(init.method === 'DELETE' ? null : current!.id)
+      // Role changed: reload, so every view picks up the new role.
+      if (init.method === 'DELETE') switchHousehold(null)
+      else location.replace('/')
     } catch (e) {
       setErr(asMember(e))
     }

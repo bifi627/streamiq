@@ -243,10 +243,6 @@ Copy `.env.example` only to override.
   are called out explicitly and get elevated scrutiny.
 - **New dependency = stated justification** in the PR/commit body. Lockfile diffs are
   review triggers.
-- **Codegen direction (decided):** the WebRTC protocol (signaling messages, tunnel
-  framing) is **contract-first** — schema in `docs/protocol.md` once designed, types
-  generated/derived for C#, Go, TS. The HTTP API is **code-first** — ASP.NET → OpenAPI →
-  generated TS client, once the frontend first consumes it.
 - **Rule graduation:** correction → line here → check/codegen. When a rule becomes
   tooling, delete its prose from this file.
 - **Deferred on purpose** (rule of two): templates, canonical example files, per-feature

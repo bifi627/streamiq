@@ -78,7 +78,8 @@ type tunnelReq struct {
 // to Jellyfin, and streams the response back. One channel == one request/response.
 // slots (cap MaxChannels, one per PeerConnection) counts the channels being
 // served: a channel that finds it full is closed without reading a request; a
-// served one gives its slot back when its request ends or the channel closes.
+// served one gives its slot back when its request ends, or when the channel
+// closes without one.
 func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session, slots chan struct{}) {
 	select {
 	case slots <- struct{}{}:
@@ -91,7 +92,9 @@ func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session, slots chan struct{})
 	var once sync.Once
 	closed := make(chan struct{})
 	var closeOnce sync.Once
-	d.OnClose(func() { closeOnce.Do(func() { close(closed) }); free() })
+	// A channel closed before its request: free here. With a request running, its
+	// goroutine frees when it returns, so work that outlives the channel still counts.
+	d.OnClose(func() { closeOnce.Do(func() { close(closed) }); once.Do(free) })
 	who.Closed = closed
 	d.OnMessage(func(m webrtc.DataChannelMessage) {
 		once.Do(func() {

@@ -46,3 +46,16 @@ Feature: Households
     Then the request is refused as not found
     When "bob@home.test" lists gateways without naming a household
     Then the list holds exactly "bob-nas"
+
+  Scenario: Only an admin enrolls or removes gateways; a member still lists them
+    Given "bob@home.test" is a member of the household of "alice@home.test"
+    When "bob@home.test" lists gateways in the household of "alice@home.test"
+    Then the list holds exactly "alice-nas"
+    When "bob@home.test" creates an enrollment token in the household of "alice@home.test"
+    Then the request is refused as forbidden
+    When "bob@home.test" removes gateway "alice-nas" in the household of "alice@home.test"
+    Then the request is refused as forbidden
+    When "alice@home.test" creates an enrollment token in the household of "alice@home.test"
+    Then the request succeeds
+    When "alice@home.test" removes gateway "alice-nas" in the household of "alice@home.test"
+    Then the request succeeds

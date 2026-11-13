@@ -16,7 +16,8 @@ Design: `superpowers/specs/2026-11-01-streamiq-agent-pairing-design.md`.
 Fingerprints everywhere use the form `sha-256 AA:BB:…` (32 upper-case hex
 pairs, SHA-256 over the DER certificate).
 
-**`POST /api/gateways/enrollment-tokens`** (Firebase Bearer) →
+**`POST /api/gateways/enrollment-tokens`** (Firebase Bearer, household admin; a
+member gets `403`) →
 `{ token, expiresAt, installCommand, installCommandPowershell }`. Token is
 random 128 bit, single-use, 15 min; the API stores only its SHA-256.
 
@@ -62,7 +63,8 @@ doesn't exist, or a malformed id → `404` before the endpoint runs. `GET /api/m
 returns `{userId, tenantId, memberships:[{id, name, role}]}` (oldest first; `tenantId`
 = the household this request acts in; `role` = `admin` | `member`).
 
-**`DELETE /api/gateways/{id}`** (Firebase Bearer) → `204`: revokes the gateway's
+**`DELETE /api/gateways/{id}`** (Firebase Bearer, household admin; a member gets
+`403`) → `204`: revokes the gateway's
 credential (row kept, hidden from `GET /api/gateways`; its telemetry stays). The
 broker closes its control socket (`1008 "revoked"`) and every browser session
 through it (`1008 "gateway revoked"`). Another tenant's or an already revoked

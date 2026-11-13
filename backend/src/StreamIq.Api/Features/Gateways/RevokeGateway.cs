@@ -29,6 +29,6 @@ public static class RevokeGateway
                 await session.KillAsync("gateway revoked");
             }
             return Results.NoContent();
-        }).RequireAuthorization();
+        }).RequireAuthorization(p => p.RequireRole(Membership.Admin));   // member: 403
     }
 }

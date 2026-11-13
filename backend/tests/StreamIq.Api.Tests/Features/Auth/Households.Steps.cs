@@ -94,6 +94,20 @@ public class HouseholdsSteps(IntegrationFixture fx)
         Assert.Equal(HttpStatusCode.NotFound, _last.StatusCode);
     }
 
+    [Then("the request is refused as forbidden")]
+    public void ThenForbidden()
+    {
+        Assert.NotNull(_last);
+        Assert.Equal(HttpStatusCode.Forbidden, _last.StatusCode);
+    }
+
+    [Then("the request succeeds")]
+    public void ThenSucceeds()
+    {
+        Assert.NotNull(_last);
+        Assert.True(_last.IsSuccessStatusCode, $"got {(int)_last.StatusCode}");
+    }
+
     [Then("the list holds exactly \"(.*)\"")]
     public async Task ThenExactly(string name)
     {

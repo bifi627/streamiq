@@ -9,8 +9,8 @@ export const API =
 
 // The household (code: tenant) requests act in, per device and user: set by the
 // switcher (#193) or when the user joins one (#191), else unset and the API uses the
-// user's oldest. A household the user isn't in (anymore) answers a not-a-member 404:
-// authed() clears it (#210).
+// user's oldest. A household the user isn't in (anymore) answers a 404 marked
+// X-StreamIQ-Not-Member: authed() clears it (#210).
 const householdKey = () => `streamiq.household.${auth.currentUser?.uid}`
 export function household() {
   try {
@@ -82,11 +82,7 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   }).catch((e: Error) => {
     throw new AppError('network', `${path}: ${e.message}`)
   })
-  if (
-    res.status === 404 &&
-    h &&
-    (await res.json().catch(() => null))?.error === 'not-a-member'
-  )
+  if (res.status === 404 && h && res.headers.has('X-StreamIQ-Not-Member'))
     return lostHousehold(h)
   if (!res.ok) throw httpError('api', res.status, path)
   return (res.status === 204 ? null : res.json()) as Promise<T>

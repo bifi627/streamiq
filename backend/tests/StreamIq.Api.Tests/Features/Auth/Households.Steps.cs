@@ -96,20 +96,19 @@ public class HouseholdsSteps(IntegrationFixture fx)
 
     // An ordinary 404: never carries the not-a-member marker.
     [Then("the request is refused as not found")]
-    public async Task ThenNotFound()
+    public void ThenNotFound()
     {
         Assert.NotNull(_last);
         Assert.Equal(HttpStatusCode.NotFound, _last.StatusCode);
-        Assert.DoesNotContain(Households.NotMember, await _last.Content.ReadAsStringAsync());
+        Assert.False(_last.Headers.Contains(Households.NotMemberHeader));
     }
 
     [Then("the request is refused as not a member")]
-    public async Task ThenNotMember()
+    public void ThenNotMember()
     {
         Assert.NotNull(_last);
         Assert.Equal(HttpStatusCode.NotFound, _last.StatusCode);
-        var body = await _last.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(Households.NotMember, body.GetProperty("error").GetString());
+        Assert.Equal(["1"], _last.Headers.GetValues(Households.NotMemberHeader));
     }
 
     // Status, headers (bar Date) and body of the last two answers match exactly.

@@ -53,6 +53,7 @@ test('every kind has a message', () => {
     'pin-mismatch',
     'gateway-refused',
     'tunnel-lost',
+    'invite-invalid',
     'media-server-down',
     'unauthorized',
     'http',

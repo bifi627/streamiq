@@ -90,7 +90,10 @@ named by the `X-StreamIQ-Household` header (default: the oldest membership);
 the one cross-tenant membership lookup), a non-member gets `404`. The broker checks
 membership for the offered gateway's household, never one the browser names. The membership's
 role is the request's `Role` claim: adding and removing gateways is admin-only (`RequireRole`,
-a member gets `403`, #190); members list and open them.
+a member gets `403`, #190); members list and open them. **Invites (#191):** an admin makes a
+single-use 7-day link (`/join#<token>`, hash stored only); accepting adds the signed-in user as
+`member` (`Features/Invites/AcceptInvite.cs`, the token picks the household); the web app then
+sends that household in `X-StreamIQ-Household` (per device, `localStorage`).
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,

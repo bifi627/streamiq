@@ -14,6 +14,7 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<Gateway> Gateways => Set<Gateway>();
     public DbSet<EnrollmentToken> EnrollmentTokens => Set<EnrollmentToken>();
+    public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<ConnectionSession> ConnectionSessions => Set<ConnectionSession>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -53,6 +54,13 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
 
+        b.Entity<Invite>(e =>
+        {
+            e.ToTable("invites");
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+
         b.Entity<ConnectionSession>(e =>
         {
             e.ToTable("connection_sessions");
@@ -65,6 +73,8 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
         b.Entity<Membership>().HasOne<AppUser>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Gateway>().HasOne<Tenant>().WithMany().HasForeignKey(d => d.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<EnrollmentToken>().HasOne<Tenant>().WithMany().HasForeignKey(t => t.TenantId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Invite>().HasOne<Tenant>().WithMany().HasForeignKey(i => i.TenantId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Invite>().HasOne<AppUser>().WithMany().HasForeignKey(i => i.CreatedBy).OnDelete(DeleteBehavior.SetNull);
         b.Entity<ConnectionSession>().HasOne<Tenant>().WithMany().HasForeignKey(c => c.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<ConnectionSession>().HasOne<Gateway>().WithMany().HasForeignKey(c => c.GatewayId).OnDelete(DeleteBehavior.Cascade);
 

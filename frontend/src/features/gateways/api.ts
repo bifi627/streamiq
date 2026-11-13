@@ -28,6 +28,29 @@ export type GatewayStatus = {
   }
 }
 
+// Screens: phone as remote (docs/protocol.md, "Screens"). Unused until #180.
+// POST /streamiq/screen/state body; GET /streamiq/screens item state.
+export type ScreenState = {
+  itemId: string // '' while nothing plays
+  positionTicks: number
+  durationTicks: number
+  paused: boolean
+  audio: number | null // Jellyfin stream index, null = none
+  subtitle: number | null
+}
+
+// GET /streamiq/screens
+export type Screen = { id: string; name: string; state: ScreenState | null }
+
+// POST /streamiq/screens/{id} body; also each NDJSON line of GET /streamiq/screen.
+export type ScreenCommand =
+  | { type: 'play'; itemId: string; startTicks?: number }
+  | { type: 'pause' }
+  | { type: 'resume' }
+  | { type: 'stop' }
+  | { type: 'seek'; ticks: number }
+  | { type: 'tracks'; audio?: number; subtitle?: number } // at least one; subtitle -1 = off
+
 export type Install = {
   token: string
   expiresAt: string

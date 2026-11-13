@@ -4,7 +4,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "== backend: format + build + test =="
+echo "== backend: tenant-filter bypasses + format + build + test =="
+bash scripts/check-tenant-filter.sh
 dotnet format backend/StreamIq.slnx --verify-no-changes
 dotnet test backend/StreamIq.slnx --nologo
 

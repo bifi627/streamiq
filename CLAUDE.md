@@ -62,9 +62,9 @@ page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapp
 
 **Item 5 — streaming client** (consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /
 series / episodes → hls.js player over the tunnel (custom loader), subtitles, resume
-via Jellyfin UserData. The gateway owns the Jellyfin credential (since #50 the hidden
-non-admin user `streamiq-viewer`'s token; dev: `scripts/setup-jellyfin.sh`, then Connect
-Jellyfin on the dev page): it injects the token, pins the viewer user, lets only an
+via Jellyfin UserData. The gateway owns the Jellyfin credentials (since #195 one hidden
+non-admin viewer `streamiq-<users.id>` per user, made on their first session, `streamiq-viewer` as the fallback; dev: `scripts/setup-jellyfin.sh`, then Connect
+Jellyfin on the dev page): it injects the session user's token, pins that viewer, lets only an
 endpoint allowlist through, and redacts the token from playlists. All POC
 paths are deleted. **PR B (trust it):** TURN (Cloudflare creds in prod,
 coturn in dev; per-session since item 6), `connection_sessions` telemetry (migration #4, drops

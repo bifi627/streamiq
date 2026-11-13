@@ -55,9 +55,11 @@ refuses a mismatch.
 ## 3. Connect Jellyfin
 
 The local gateway page's status shows **Jellyfin: reachable** and whether the gateway
-has its **token**. The gateway streams as its own hidden Jellyfin user,
-`streamiq-viewer`: not an administrator, can't delete anything, sees all
-libraries and keeps its own watch progress (separate from yours in Jellyfin).
+has its **token**. Each household member streams as their own hidden Jellyfin
+user, `streamiq-<id>`, created on their first visit: not an administrator, can't
+delete anything, sees all libraries and keeps that member's own watch progress
+(separate from yours in Jellyfin). If creating it fails, the member plays as the
+shared hidden user `streamiq-viewer` and the page says why.
 
 - **Fresh Jellyfin** (wizard not done): nothing to do. Within seconds the
   gateway completes the wizard, creates the Jellyfin admin `streamiq` with a
@@ -70,8 +72,8 @@ libraries and keeps its own watch progress (separate from yours in Jellyfin).
   `streamiq-viewer` and its own hidden admin `streamiq-admin` with a
   random password (in `state/jellyfin.json`, readable only on this computer), then
   signs out. It never stores your password, so changing it later doesn't break
-  anything. The gateway needs its own admin to create a Jellyfin user per household
-  member (their own watch progress); it doesn't touch your Jellyfin's settings.
+  anything. The gateway needs its own admin to create the members' Jellyfin
+  users; it doesn't touch your Jellyfin's settings.
   A gateway connected before this change shows **Connect Jellyfin** once more:
   sign in again, and playback keeps working until you do.
 

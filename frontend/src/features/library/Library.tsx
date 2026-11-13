@@ -1,7 +1,15 @@
 // Library browsing over the tunnel (MVP item 5, consumption only). Functional,
 // not pretty: the UI is refactored later. Routes (App.tsx): /g/$gatewayId owns the
 // tunnel; its children (home, /i/$itemId) render through <Outlet /> and share it.
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   Link,
   Outlet,
@@ -9,13 +17,15 @@ import {
   useNavigate,
   useRouter,
 } from '@tanstack/react-router'
-import { share, type Session } from '../pairing/connect'
+import { browserName, share, type Session } from '../pairing/connect'
 import { Pairing } from '../pairing/Pairing'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
-import { tunnelFetch, tunnelJson } from '../../tunnel'
+import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
+import { event } from '../../diag'
+import type { Screen, ScreenCommand } from '../gateways/api'
 import { Player } from './Player'
-import { clock, TICKS_PER_SECOND, type Item } from './items'
+import { clock, isBack, TICKS_PER_SECOND, type Item } from './items'
 import { pairInfo, type PairInfo } from '../../stats'
 import type { Speed } from '../../speed'
 
@@ -61,8 +71,11 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
 
   return (
     <section>
-      <p>
+      <p style={{ display: 'flex', justifyContent: 'space-between' }}>
         <Link to="/">← Gateways</Link>
+        <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
+          Use as screen
+        </Link>
       </p>
       {err && (
         <ErrorView
@@ -147,6 +160,189 @@ export function PlayerPage({ itemId }: { itemId: string }) {
     )
   }
   return <Player pc={pc} speed={speed} itemId={itemId} onExit={back} />
+}
+
+// Screen mode (#180, docs/protocol.md "Screens"): this device holds GET
+// /streamiq/screen and plays what a phone on the same gateway sends. The screen
+// lives as long as this view: leaving it (Back, tab closed) closes the channel,
+// which removes the screen on the gateway; leaving the gateway frees the
+// shared session. No devtools on a TV: everything goes to the diagnostics log.
+export function ScreenPage() {
+  const { gatewayId, pc, speed } = useContext(Tunnel)
+  const navigate = useNavigate()
+  const [play, setPlay] = useState<{
+    itemId: string
+    startTicks?: number
+    n: number
+  } | null>(null)
+  const [ended, setEnded] = useState<string | null>(null)
+  const players = useRef(new Set<(c: ScreenCommand) => void>())
+  const remote = useCallback((apply: (c: ScreenCommand) => void) => {
+    players.current.add(apply)
+    return () => void players.current.delete(apply)
+  }, [])
+  const router = useRouter()
+  const canGoBack = useCanGoBack()
+  // Pops the screen off history (or replaces it), so a later Back never
+  // lands on it and reopens a screen the user didn't choose.
+  const leave = useCallback(
+    () =>
+      canGoBack
+        ? router.history.back()
+        : navigate({
+            to: '/g/$gatewayId',
+            params: { gatewayId },
+            replace: true,
+          }),
+    [router, canGoBack, navigate, gatewayId],
+  )
+  useEffect(() => {
+    const active = () =>
+      (navigator as { userActivation?: { hasBeenActive: boolean } })
+        .userActivation?.hasBeenActive ?? '?'
+    event(
+      `screen: open · ${navigator.userAgent.match(/Chrome\/[\d.]+/)?.[0] ?? navigator.userAgent} · user activation ${active()}`,
+    )
+    // Screen saver / power saving may freeze the page: log for how long.
+    let last = Date.now()
+    const watchdog = setInterval(() => {
+      const gap = Date.now() - last
+      if (gap > 30_000)
+        event(`screen: page frozen ~${Math.round(gap / 1000)} s`)
+      last = Date.now()
+    }, 5_000)
+    let n = 0
+    const close = tunnelLines(
+      pc,
+      '/streamiq/screen',
+      (line) => {
+        const c = JSON.parse(line) as ScreenCommand
+        event(`screen: ${c.type} · user activation ${active()}`)
+        if (c.type === 'play')
+          setPlay({ itemId: c.itemId, startTicks: c.startTicks, n: ++n })
+        else if (c.type === 'stop') setPlay(null)
+        else players.current.forEach((apply) => apply(c))
+      },
+      (why) => {
+        event(`screen: ended (${why})`)
+        setEnded(why)
+      },
+    )
+    return () => {
+      clearInterval(watchdog)
+      close()
+    }
+  }, [pc])
+  // The remote's Back on the waiting view; the player handles its own.
+  useEffect(() => {
+    if (play) return
+    const key = (e: KeyboardEvent) => {
+      if (!isBack(e)) return
+      e.preventDefault() // else the browser's own Back runs too
+      leave()
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [play, leave])
+
+  const name = browserName()
+  return (
+    <>
+      {ended && (
+        <p role="alert">
+          Screen mode ended ({ended}). <Link to="/">Back to your gateways</Link>{' '}
+          and open it again.
+        </p>
+      )}
+      {play ? (
+        <>
+          <p>
+            <small>📱 Controlled from your phone</small>
+          </p>
+          <Player
+            key={play.n}
+            pc={pc}
+            speed={speed}
+            itemId={play.itemId}
+            startTicks={play.startTicks}
+            remote={remote}
+            onExit={() => setPlay(null)}
+          />
+        </>
+      ) : (
+        !ended && (
+          <>
+            <h2>Screen: {name}</h2>
+            <p>
+              Open StreamIQ on your phone → Play on <b>{name}</b>
+            </p>
+            <button type="button" autoFocus onClick={leave}>
+              Back
+            </button>
+          </>
+        )
+      )}
+    </>
+  )
+}
+
+// "Play on…" (#180): the gateway's open screens. Only a device in screen mode
+// is one, so nothing else can be picked.
+function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
+  const [screens, setScreens] = useState<Screen[] | null>(null)
+  const [open, setOpen] = useState(false)
+  const [msg, setMsg] = useState('')
+  const toggle = () => {
+    setOpen(!open)
+    setScreens(null)
+    setMsg('')
+    if (!open)
+      tunnelJson<Screen[]>(pc, '/streamiq/screens').then(setScreens, (e) =>
+        setMsg(toAppError(e).message),
+      )
+  }
+  const send = (s: Screen) => {
+    // No startTicks: the TV resumes from fresh UserData (this listing may be stale).
+    const play: ScreenCommand = {
+      type: 'play',
+      itemId: item.Id,
+    }
+    tunnelJson(pc, `/streamiq/screens/${s.id}`, play).then(
+      () => {
+        setOpen(false)
+        setMsg(`Playing on ${s.name}`)
+      },
+      (e) => setMsg(toAppError(e).message),
+    )
+  }
+  return (
+    <div>
+      <button type="button" onClick={toggle} aria-expanded={open}>
+        Play on…
+      </button>
+      {open &&
+        screens &&
+        (screens.length ? (
+          screens.map((s) => (
+            <button key={s.id} type="button" onClick={() => send(s)}>
+              {s.name}
+            </button>
+          ))
+        ) : (
+          <p>
+            <small>
+              No screen open. On the TV, open this gateway in StreamIQ and
+              choose “Use as screen”.
+            </small>
+          </p>
+        ))}
+      {msg && (
+        <p>
+          <small>{msg}</small>
+        </p>
+      )}
+    </div>
+  )
 }
 
 // Breadcrumbs from the item itself + the listing.
@@ -257,6 +453,7 @@ function Listing({
                       </div>
                       <small>{label(i)}</small>
                     </button>
+                    {playable(i) && <PlayOn pc={pc} item={i} />}
                   </li>
                 ))}
               </ul>

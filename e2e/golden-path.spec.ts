@@ -53,6 +53,54 @@ const pitch = (p: Page) =>
     )
   })
 
+/**
+ * A raw tunnel request from page p's open session (docs/protocol.md framing):
+ * the phone remote's commands until #181 gives them a UI. Needs keepPcs(p).
+ */
+const viaTunnel = (p: Page, url: string, body?: object) =>
+  p.evaluate(
+    ([url, body]) =>
+      new Promise<string>((resolve, reject) => {
+        const pcs = (window as { pcs?: RTCPeerConnection[] }).pcs!
+        const pc = pcs.findLast((x) => x.connectionState === 'connected')!
+        const dc = pc.createDataChannel(`req:${url}`)
+        dc.binaryType = 'arraybuffer'
+        let out = ''
+        dc.onopen = () =>
+          dc.send(
+            JSON.stringify({
+              method: body ? 'POST' : 'GET',
+              url,
+              headers: {},
+              ...(body && { body: JSON.stringify(body) }),
+            }),
+          )
+        dc.onmessage = (e) => {
+          if (typeof e.data !== 'string')
+            out += new TextDecoder().decode(e.data)
+          else if (JSON.parse(e.data).eof) {
+            dc.onclose = null
+            dc.close()
+            resolve(out)
+          }
+        }
+        dc.onclose = () => reject(new Error(`closed: ${url}`))
+      }),
+    [url, body] as const,
+  )
+const keepPcs = (p: Page) =>
+  p.addInitScript(() => {
+    const P = RTCPeerConnection
+    const w = window as { pcs?: RTCPeerConnection[] }
+    w.pcs = []
+    window.RTCPeerConnection = class extends P {
+      constructor(c?: RTCConfiguration) {
+        super(c)
+        w.pcs!.push(this)
+      }
+    } as typeof P
+  })
+
 const tunnelOk = (p: Page) =>
   expect(p.getByText('Tunnel OK · HTTP 200')).toBeVisible()
 
@@ -283,6 +331,54 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         tab.getByRole('button', { name: /streamiq e2e clip/ }),
       ).toBeVisible()
       await tab.close()
+      await a.getByRole('link', { name: '← Gateways' }).click()
+    })
+
+    await test.step('play on TV (#180): screen mode, Play on… from the phone, commands, Back', async () => {
+      // TV = tab a; phone = a second tab of the same paired browser (its own
+      // tunnel session, so its own screens view).
+      await a.getByRole('button', { name: 'Open' }).click()
+      await a.getByRole('link', { name: 'Use as screen' }).click()
+      const waiting = a.getByRole('heading', { name: /^Screen: / })
+      await expect(waiting).toBeVisible()
+      const name = (await waiting.textContent())!.replace('Screen: ', '')
+      await expect(a.getByText(`Play on ${name}`)).toBeVisible()
+      const phone = await a.context().newPage()
+      await keepPcs(phone)
+      await phone.goto(a.url().replace(/\/screen$/, ''))
+      await phone.getByRole('button', { name: /Movies/ }).click()
+      await phone.getByRole('button', { name: 'Play on…' }).first().click()
+      await phone.getByRole('button', { name, exact: true }).click()
+      await expect(phone.getByText(`Playing on ${name}`)).toBeVisible()
+      await expect(a.getByText('Controlled from your phone')).toBeVisible()
+      await expect
+        .poll(() => videoTime(a), { timeout: 30_000 })
+        .toBeGreaterThan(1)
+      // pause / seek / resume / stop: what #181's remote view will send.
+      const [screen] = JSON.parse(await viaTunnel(phone, '/streamiq/screens'))
+      const send = (c: object) =>
+        viaTunnel(phone, `/streamiq/screens/${screen.id}`, c)
+      const paused = () =>
+        a.locator('video').evaluate((v: HTMLVideoElement) => v.paused)
+      await send({ type: 'pause' })
+      await expect.poll(paused).toBe(true)
+      await send({ type: 'seek', ticks: 20 * 10_000_000 })
+      await expect.poll(() => videoTime(a)).toBeGreaterThan(19.5)
+      await send({ type: 'resume' })
+      await expect.poll(paused).toBe(false)
+      await send({ type: 'stop' })
+      await expect(waiting).toBeVisible()
+      // Back on the TV leaves screen mode at once: the phone no longer sees it.
+      await a.keyboard.press('Escape')
+      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
+      await expect
+        .poll(async () =>
+          JSON.parse(await viaTunnel(phone, '/streamiq/screens')),
+        )
+        .toEqual([])
+      await phone.getByRole('button', { name: 'Play on…' }).first().click()
+      await expect(phone.getByText(/No screen open/)).toBeVisible()
+      await phone.close()
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 

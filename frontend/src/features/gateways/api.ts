@@ -28,7 +28,7 @@ export type GatewayStatus = {
   }
 }
 
-// Screens: phone as remote (docs/protocol.md, "Screens"). Unused until #180.
+// Screens: phone as remote (docs/protocol.md, "Screens"). Used by Library.tsx.
 // POST /streamiq/screen/state body; GET /streamiq/screens item state.
 // Ticks are integers (Math.floor them).
 export type ScreenState = {

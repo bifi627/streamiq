@@ -26,6 +26,8 @@
 // Subtitles (#136): Jellyfin offers one HLS rendition, for SubtitleStreamIndex
 // (the first text subtitle until one is picked); another track reloads with
 // it, Off and that track just switch hls.subtitleTrack. Starts Off.
+// Screen mode (#180): `remote` feeds it a phone's pause/resume/seek/tracks
+// commands, applied like the TV's own controls; play/stop are the screen's.
 import { useEffect, useRef, useState } from 'react'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
@@ -34,6 +36,7 @@ import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
 import type { Speed } from '../../speed'
+import type { ScreenCommand } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { Controls } from './Controls'
 import {
@@ -109,11 +112,16 @@ export function Player({
   pc,
   speed,
   itemId,
+  startTicks,
+  remote,
   onExit,
 }: {
   pc: RTCPeerConnection
   speed?: Speed
   itemId: string
+  startTicks?: number // unset: Jellyfin's saved position
+  /** Subscribes to commands; returns the unsubscribe. Must be stable. */
+  remote?: (apply: (c: ScreenCommand) => void) => () => void
   onExit: (item: Item | null) => void
 }) {
   const [item, setItem] = useState<Item | null>(null)
@@ -336,10 +344,11 @@ export function Player({
       h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
       // Autoplay is blocked without a user gesture (deep link / reload): the
       // control bar stays up with Play focused, one Enter/tap starts it.
-      v.play().catch((e: Error) => {
-        event(`autoplay blocked: ${e.name}`)
-        setBlocked(true)
-      })
+      v.play().catch(refused)
+    }
+    const refused = (e: Error) => {
+      event(`autoplay blocked: ${e.name}`)
+      setBlocked(true)
     }
 
     // Restarts at the playhead: with less stream copy (the fallbacks), another
@@ -374,6 +383,21 @@ export function Player({
       text = index
       reload(`subtitles: switch to stream ${index}`)
     }
+    const unremote = remote?.((c) => {
+      if (c.type === 'pause') v.pause()
+      else if (c.type === 'resume') v.play().catch(refused)
+      else if (c.type === 'seek') v.currentTime = c.ticks / TICKS_PER_SECOND
+      else if (c.type === 'tracks') {
+        if (c.audio !== undefined) {
+          setAudio(String(c.audio))
+          pickAudio.current(c.audio)
+        }
+        if (c.subtitle !== undefined) {
+          setSubtitle(String(c.subtitle))
+          pickSub.current(c.subtitle)
+        }
+      }
+    })
 
     ;(async () => {
       if (!Hls.isSupported())
@@ -396,7 +420,8 @@ export function Player({
       setSubs(st)
       text = st[1] && Number(st[1].value)
       await start(
-        (fresh.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND,
+        (startTicks ?? fresh.UserData?.PlaybackPositionTicks ?? 0) /
+          TICKS_PER_SECOND,
       )
     })().catch((e) => setErr(toAppError(e)))
 
@@ -411,6 +436,7 @@ export function Player({
     window.addEventListener('pagehide', report)
     return () => {
       gone = true
+      unremote?.()
       unwatch()
       clearInterval(tick)
       report()
@@ -421,7 +447,7 @@ export function Player({
       window.removeEventListener('pagehide', report)
       h?.destroy()
     }
-  }, [pc, speed, itemId])
+  }, [pc, speed, itemId, startTicks, remote])
 
   return (
     <div>

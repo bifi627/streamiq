@@ -66,7 +66,9 @@ export async function connect(
   let logged: Promise<string | null> | null = null
   let settled = false
   let speed: Speed | undefined
+  let ping: ReturnType<typeof setInterval> | undefined
   const teardown = () => {
+    clearInterval(ping)
     pc.close()
     ws.close() // the broker tells the gateway `bye`
   }
@@ -141,6 +143,10 @@ export async function connect(
     ws.onopen = () => {
       opened = true
       send({ type: 'auth', token })
+      // The socket lives as long as the session, often idle (a screen waiting,
+      // #180); a proxy (Railway edge, Cloudflare tunnel) may drop a quiet one,
+      // and that ends the tunnel too. The broker ignores the ping.
+      ping = setInterval(() => send({ type: 'ping' }), 25_000)
     }
     ws.onclose = () => fail(brokerClosed(opened, { gatewayId }))
     // Handle broker messages strictly in order. The gateway can still trickle a
@@ -265,7 +271,8 @@ export const share = shared.share
 
 const kbps = (mbps?: number) => (mbps ? Math.round(mbps * 1000) : null)
 
-function browserName() {
+/** The pairing name this browser sends (also its screen name, #180). */
+export function browserName() {
   const ua = navigator.userAgent
   const b = /Edg\//.test(ua)
     ? 'Edge'

@@ -29,6 +29,7 @@ import {
   ItemPage,
   LibraryHome,
   PlayerPage,
+  ScreenPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 import { compatibleOn, rawOn, setCompatible, setRaw } from './settings'
@@ -271,6 +272,11 @@ const routeTree = rootRoute.addChildren([
     }),
     itemRoute,
     playRoute,
+    createRoute({
+      getParentRoute: () => gatewayRoute,
+      path: 'screen',
+      component: ScreenPage,
+    }),
   ]),
 ])
 // Render errors in any route: the router's error boundary, shown like every

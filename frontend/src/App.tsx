@@ -20,7 +20,7 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { auth } from './firebase'
-import { getMe, household, setHousehold } from './api'
+import { getMe, household, type Me } from './api'
 import { AppError, toAppError } from './errors'
 import { ErrorView, UncaughtErrors } from './ErrorView'
 import { Gateways } from './features/gateways/Gateways'
@@ -34,6 +34,11 @@ import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 import { compatibleOn, rawOn, setCompatible, setRaw } from './settings'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
+import {
+  HouseholdContext,
+  householdLabel,
+  switchHousehold,
+} from './features/households/household'
 
 // Readable text for the popup failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
@@ -166,29 +171,53 @@ function Settings() {
   )
 }
 
-// Root layout; only mounted while signed in (App gates the whole router).
+// Root layout; only mounted while signed in (App gates the whole router). Loads
+// /me once per page load and hands it to every view (HouseholdContext).
 function Shell() {
   const navigate = useNavigate()
-  const [tenantId, setTenantId] = useState('')
+  const [me, setMe] = useState<Me | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   useEffect(() => {
     getMe()
-      .then((m) => setTenantId(m.tenantId))
+      .then(setMe)
       .catch((e) => {
         const x = toAppError(e)
         // The household this device acts in is gone (left or removed): fall
         // back to the user's oldest one.
-        if (x.context.status === 404 && household()) {
-          setHousehold(null)
-          location.reload()
-        } else setErr(x)
+        if (x.context.status === 404 && household()) switchHousehold(null)
+        else setErr(x)
       })
   }, [])
 
   return (
     <main style={{ maxWidth: 960, margin: '2rem auto', padding: '0 1rem' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span>{auth.currentUser?.email}</span>
+      <header
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          justifyContent: 'space-between',
+        }}
+      >
+        <span>
+          {auth.currentUser?.email}
+          {me && me.memberships.length > 1 && (
+            <>
+              {' · '}
+              <select
+                aria-label="Household"
+                value={me.tenantId}
+                onChange={(e) => switchHousehold(e.target.value)}
+              >
+                {me.memberships.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {householdLabel(m)} ({m.role})
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+        </span>
         <span style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={() => navigate({ to: '/settings' })}>
             Settings
@@ -202,8 +231,10 @@ function Shell() {
       <Diagnostics />
       <UncaughtErrors />
       {err && <ErrorView error={err} />}
-      <p style={{ color: '#888', fontSize: 12 }}>tenant {tenantId}</p>
-      <Outlet />
+      <p style={{ color: '#888', fontSize: 12 }}>tenant {me?.tenantId}</p>
+      <HouseholdContext.Provider value={me}>
+        <Outlet />
+      </HouseholdContext.Provider>
     </main>
   )
 }

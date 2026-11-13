@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { authed, getMe, setHousehold } from '../../api'
+import { authed } from '../../api'
+import { switchHousehold, useHousehold } from './household'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 
@@ -22,7 +23,8 @@ const asMember = (e: unknown) => {
 // the app, so every view picks up the new role (or another household after leaving).
 export function Members() {
   const [members, setMembers] = useState<Member[]>([])
-  const [me, setMe] = useState<{ id: string; admin: boolean } | null>(null)
+  const { me: m0, current } = useHousehold()
+  const me = m0 && { id: m0.userId, admin: current?.role === 'admin' }
   const [err, setErr] = useState<AppError | null>(null)
 
   const load = () =>
@@ -31,15 +33,6 @@ export function Members() {
       .catch((e) => setErr(toAppError(e)))
   useEffect(() => {
     load()
-    getMe()
-      .then((m) =>
-        setMe({
-          id: m.userId,
-          admin:
-            m.memberships.find((x) => x.id === m.tenantId)?.role === 'admin',
-        }),
-      )
-      .catch((e) => setErr(toAppError(e)))
   }, [])
 
   async function act(m: Member, init: RequestInit, path = '') {
@@ -48,8 +41,8 @@ export function Members() {
       await authed(`/members/${m.userId}${path}`, init)
       if (m.userId !== me?.id) return void (await load())
       // Left: the API falls back to the oldest household (or makes a new one).
-      if (init.method === 'DELETE') setHousehold(null)
-      location.replace('/')
+      // Role changed: reload this one, so every view picks up the new role.
+      switchHousehold(init.method === 'DELETE' ? null : current!.id)
     } catch (e) {
       setErr(asMember(e))
     }

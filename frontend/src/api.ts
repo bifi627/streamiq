@@ -7,9 +7,9 @@ export const API =
   (import.meta.env.VITE_API_URL ??
     (import.meta.env.DEV ? 'http://localhost:5028' : location.origin)) + '/api'
 
-// The household (code: tenant) requests act in, per device and user: set when the
-// user joins one (#191), else unset and the API uses the user's oldest. ponytail: no
-// switcher yet (#193); a household the user left answers 404 (Shell clears it).
+// The household (code: tenant) requests act in, per device and user: set by the
+// switcher (#193) or when the user joins one (#191), else unset and the API uses the
+// user's oldest. A household the user left answers 404 (Shell clears it).
 const householdKey = () => `streamiq.household.${auth.currentUser?.uid}`
 export function household() {
   try {
@@ -50,5 +50,5 @@ export type Membership = {
   name: string | null
   role: 'admin' | 'member'
 }
-export const getMe = () =>
-  authed<{ userId: string; tenantId: string; memberships: Membership[] }>('/me')
+export type Me = { userId: string; tenantId: string; memberships: Membership[] }
+export const getMe = () => authed<Me>('/me')

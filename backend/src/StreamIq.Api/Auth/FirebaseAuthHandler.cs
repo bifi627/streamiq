@@ -49,7 +49,6 @@ public class FirebaseAuthHandler(
             ? Guid.TryParse(h.ToString(), out var id) ? id : Guid.Empty
             : null;
         var membership = await Households.PickAsync(db, user.Id, wanted, Context.RequestAborted);
-        // ponytail: no household at all (only once leaving exists, #192) is a 404 too.
         if (membership is null)
         {
             Context.Items[Households.Denied] = true;

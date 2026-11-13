@@ -94,6 +94,10 @@ a member gets `403`, #190); members list and open them. **Invites (#191):** an a
 single-use 7-day link (`/join#<token>`, hash stored only); accepting adds the signed-in user as
 `member` (`Features/Invites/AcceptInvite.cs`, the token picks the household); the web app then
 sends that household in `X-StreamIQ-Household` (per device, `localStorage`).
+**Members (#192):** `Features/Members/`: anyone lists (names/emails from Firebase per call) and
+leaves, an admin removes and promotes/demotes; a household always keeps an admin (`409`; the
+check runs under a lock on the tenant row). A user left with no household gets a fresh one
+(`UserProvisioner`).
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,

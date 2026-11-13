@@ -78,6 +78,17 @@ the caller becomes a `member` of the invite's household and nothing else changes
 Already a member: both answer `200` without spending the invite. Unknown, expired,
 used or revoked: `404`, all alike.
 
+**Members (#192).** Any member: `GET /api/members` →
+`[{userId, name, email, role, joinedAt}]` of the request's household (`name`/`email`
+looked up in Firebase per call, nothing stored; `null` when unknown);
+`DELETE /api/members/{own userId}` → `204` (leave). Household admin (a member gets
+`403`): `DELETE /api/members/{userId}` → `204` (remove);
+`PUT /api/members/{userId}/role {role}` → `204` (`admin` | `member`). A user outside
+the household → `404`. Anything that would leave the household without an admin →
+`409 {error}`. A gone membership ends access on the next request or broker `offer`
+(open sessions run to their end). A user left without any household gets a new one
+(as its admin) on their next request.
+
 **`DELETE /api/gateways/{id}`** (Firebase Bearer, household admin; a member gets
 `403`) → `204`: revokes the gateway's
 credential (row kept, hidden from `GET /api/gateways`; its telemetry stays). The

@@ -14,6 +14,7 @@ export type Kind =
   | 'tunnel-lost' // a request on an established tunnel got no (full) response
   | 'media-server-down' // gateway answered 502/503: Jellyfin down or no token
   | 'invite-invalid' // invite link unknown, expired, used or revoked (API 404)
+  | 'last-admin' // the change would leave the household without an admin (API 409)
   | 'unauthorized' // API 401
   | 'http' // any other non-2xx
   | 'network' // fetch itself failed
@@ -138,6 +139,12 @@ export function describe(e: AppError): {
         message:
           "This invite link isn't valid anymore: it expired, was already used, or was revoked. Ask for a new one.",
         actions: ['gateways'],
+      }
+    case 'last-admin':
+      return {
+        message:
+          'A household needs at least one admin. Make someone else admin first.',
+        actions: [],
       }
     case 'unauthorized':
       return { message: 'Your session expired.', actions: ['sign-in'] }

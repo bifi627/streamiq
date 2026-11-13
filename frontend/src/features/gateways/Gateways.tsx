@@ -168,7 +168,7 @@ export function Gateways() {
       {role === 'member' && (
         <section>
           <h2>Invites</h2>
-          <p>{ADMIN_ONLY}</p>
+          <p>Invite someone: {ADMIN_ONLY}</p>
         </section>
       )}
     </section>

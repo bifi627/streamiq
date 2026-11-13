@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { authed } from '../../api'
 import { switchHousehold, useHousehold } from './household'
-import { AppError, toAppError } from '../../errors'
+import { ADMIN_ONLY, AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 
 type Member = {
@@ -93,6 +93,7 @@ export function Members() {
           </li>
         ))}
       </ul>
+      {me && !me.admin && <p>Remove members, change roles: {ADMIN_ONLY}</p>}
     </section>
   )
 }

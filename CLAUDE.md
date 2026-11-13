@@ -207,8 +207,8 @@ Copy `.env.example` only to override.
   - Label `agent` (owner only) starts an agent thread via T3 webhook: no acceptance
     criteria or `needs-spec` → refinement with the owner; Ready → build to a PR. The
     owner approves a spec by removing `needs-spec`. A build self-reviews (subagent +
-    `agent-review` skill, max 2 rounds) before the PR is ready, then labels its own PR
-    `agent` once and stops. On a PR, `agent` starts a review thread (comments only,
+    `agent-review` skill, max 2 rounds) before the PR is ready, then stops; it never
+    labels its own PR. On a PR, `agent` (added by the owner) starts a review thread (comments only,
     never commits; same skill); its unresolved `[blocker]`/`[spec]` threads block the
     merge (ruleset on `main`). `docs/tools.md` has the wiring.
   - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a

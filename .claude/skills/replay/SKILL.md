@@ -26,7 +26,7 @@ Run in order. Phases 1, 3, 4, 5 are **in-session** (you, the orchestrator). Phas
 
 ### 1. SELECT (in-session)
 
-- **Locate.** The memory store is `~/.claude/projects/<project-slug>/memory/`. The transcripts are the `*.jsonl` files in that same `<project-slug>` directory (the parent of `memory/`). Scoped to this project automatically.
+- **Locate.** The memory store is `~/.claude/projects/<project-slug>/memory/`, where `<project-slug>` is the main checkout's path with every non-alphanumeric character turned into `-` (`C:\Repositories\streamiq` → `C--Repositories-streamiq`). Worktree sessions share that store, but each worktree writes its transcripts to its own project dir, named the same way from the worktree's path. The transcripts are the `*.jsonl` files in the main `<project-slug>` dir **plus** every worktree dir: the dirs whose name starts with the slug of the worktrees' parent folder (`git worktree list` shows it; T3 worktrees live in `~/.t3/worktrees/<repo>/`, slug prefix `C--Users-<user>--t3-worktrees-<repo>-`). Match by that prefix, not by the current `git worktree list`: pruned worktrees are gone from the list but their transcripts stay.
 - **Watermark.** Read `memory/.replay-state.json` (`{ "processed": [<sessionId>…], "last_run": <iso> }`). Absent → first run, everything pending.
 - **Pending** = transcripts whose `sessionId` (the filename) isn't in `processed`, **excluding the currently-active session** — in practice the most-recently-modified `.jsonl`, which is the one *this* run is writing. Never mine it.
 - **Nothing pending?** If `pending` is empty, report "no new sessions since the last replay" and **stop** — no extraction, no spend. (This is the steady-state outcome once you've replayed recently.)

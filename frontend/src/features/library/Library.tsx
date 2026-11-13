@@ -23,9 +23,16 @@ import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { event } from '../../diag'
-import type { Screen, ScreenCommand } from '../gateways/api'
+import type { Screen, ScreenCommand, ScreenState } from '../gateways/api'
 import { Player } from './Player'
-import { clock, isBack, TICKS_PER_SECOND, type Item } from './items'
+import {
+  audioTracks,
+  clock,
+  isBack,
+  subtitleTracks,
+  TICKS_PER_SECOND,
+  type Item,
+} from './items'
 import { pairInfo, type PairInfo } from '../../stats'
 import type { Speed } from '../../speed'
 
@@ -177,10 +184,32 @@ export function ScreenPage() {
   } | null>(null)
   const [ended, setEnded] = useState<string | null>(null)
   const players = useRef(new Set<(c: ScreenCommand) => void>())
+  // Commands between a play and its Player's subscribe, replayed to it
+  // (StrictMode subscribes twice in one commit); then null: live only.
+  const since = useRef<ScreenCommand[] | null>(null)
   const remote = useCallback((apply: (c: ScreenCommand) => void) => {
     players.current.add(apply)
+    const early = since.current
+    early?.forEach(apply)
+    setTimeout(() => {
+      if (since.current === early) since.current = null
+    })
     return () => void players.current.delete(apply)
   }, [])
+  // State to the gateway (#181): one POST at a time, in order; while one is
+  // out, only the newest waits.
+  const post = useMemo(
+    () =>
+      serial(
+        (s: ScreenState) =>
+          tunnelFetch(pc, '/streamiq/screen/state', {
+            method: 'POST',
+            body: JSON.stringify(s),
+          }),
+        () => true,
+      ),
+    [pc],
+  )
   const router = useRouter()
   const canGoBack = useCanGoBack()
   // Pops the screen off history (or replaces it), so a later Back never
@@ -218,10 +247,15 @@ export function ScreenPage() {
       (line) => {
         const c = JSON.parse(line) as ScreenCommand
         event(`screen: ${c.type} · user activation ${active()}`)
-        if (c.type === 'play')
+        if (c.type === 'play') {
+          players.current.clear() // the old Player is on its way out
+          since.current = []
           setPlay({ itemId: c.itemId, startTicks: c.startTicks, n: ++n })
-        else if (c.type === 'stop') setPlay(null)
-        else players.current.forEach((apply) => apply(c))
+        } else if (c.type === 'stop') setPlay(null)
+        else {
+          since.current?.push(c)
+          players.current.forEach((apply) => apply(c))
+        }
       },
       (why) => {
         event(`screen: ended (${why})`)
@@ -233,6 +267,9 @@ export function ScreenPage() {
       close()
     }
   }, [pc])
+  useEffect(() => {
+    if (!play) post(IDLE)
+  }, [play, post])
   // The remote's Back on the waiting view; the player handles its own.
   useEffect(() => {
     if (play) return
@@ -266,6 +303,7 @@ export function ScreenPage() {
             itemId={play.itemId}
             startTicks={play.startTicks}
             remote={remote}
+            onState={post}
             onExit={() => setPlay(null)}
           />
         </>
@@ -289,6 +327,8 @@ export function ScreenPage() {
 // "Play on…" (#180): the gateway's open screens. Only a device in screen mode
 // is one, so nothing else can be picked.
 function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
+  const { gatewayId } = useContext(Tunnel)
+  const navigate = useNavigate()
   const [screens, setScreens] = useState<Screen[] | null>(null)
   const [open, setOpen] = useState(false)
   const [msg, setMsg] = useState('')
@@ -308,10 +348,11 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
       itemId: item.Id,
     }
     tunnelJson(pc, `/streamiq/screens/${s.id}`, play).then(
-      () => {
-        setOpen(false)
-        setMsg(`Playing on ${s.name}`)
-      },
+      () =>
+        navigate({
+          to: '/g/$gatewayId/remote/$screenId',
+          params: { gatewayId, screenId: s.id },
+        }),
       (e) => setMsg(toAppError(e).message),
     )
   }
@@ -324,9 +365,19 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
         screens &&
         (screens.length ? (
           screens.map((s) => (
-            <button key={s.id} type="button" onClick={() => send(s)}>
-              {s.name}
-            </button>
+            <p key={s.id}>
+              <button type="button" onClick={() => send(s)}>
+                {s.name}
+              </button>{' '}
+              {s.state?.itemId && (
+                <Link
+                  to="/g/$gatewayId/remote/$screenId"
+                  params={{ gatewayId, screenId: s.id }}
+                >
+                  Remote
+                </Link>
+              )}
+            </p>
           ))
         ) : (
           <p>
@@ -342,6 +393,197 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
         </p>
       )}
     </div>
+  )
+}
+
+/** Runs one at a time, in order (each tunnel POST is its own channel, so only
+ * waiting keeps them ordered). A new x replaces the queued last one if
+ * replaces(last, x). */
+function serial<T>(
+  run: (x: T) => Promise<unknown>,
+  replaces: (queued: T, x: T) => boolean,
+) {
+  const q: T[] = []
+  let busy = false
+  const next = () => {
+    busy = q.length > 0
+    if (busy)
+      run(q.shift()!)
+        .catch(() => {})
+        .finally(next)
+  }
+  return (x: T) => {
+    if (q.length && replaces(q[q.length - 1], x)) q.pop()
+    q.push(x)
+    if (!busy) next()
+  }
+}
+
+const IDLE: ScreenState = {
+  itemId: '',
+  positionTicks: 0,
+  durationTicks: 0,
+  paused: true,
+  audio: null,
+  subtitle: null,
+}
+
+// Phone remote view (#181): follows the screen's state (GET /streamiq/screens
+// every second) and sends commands one at a time, in order (each POST is its
+// own channel). Two phones see the same state; the last command wins.
+export function RemotePage({ screenId }: { screenId: string }) {
+  const { gatewayId, pc } = useContext(Tunnel)
+  const [screen, setScreen] = useState<Screen | null>() // null: closed
+  const [fetched, setFetched] = useState<Item | null>(null)
+  const [drag, setDrag] = useState<number | null>(null) // seek bar, seconds
+  const dragging = useRef(0)
+  const [msg, setMsg] = useState('') // the last command's error
+  const [down, setDown] = useState('') // the last poll's error
+  useEffect(() => {
+    let gone = false
+    let t = 0
+    const poll = () =>
+      tunnelJson<Screen[]>(pc, '/streamiq/screens').then(
+        (l) => {
+          if (gone) return
+          const s = l.find((x) => x.id === screenId) ?? null
+          setScreen(s)
+          setDown('')
+          if (s) t = window.setTimeout(poll, 1000) // closed: ids never come back
+        },
+        (e) => {
+          if (gone) return
+          setDown(toAppError(e).message)
+          t = window.setTimeout(poll, 1000)
+        },
+      )
+    poll()
+    return () => {
+      gone = true
+      clearTimeout(t)
+    }
+  }, [pc, screenId])
+  const st = screen?.state
+  const itemId = st?.itemId
+  useEffect(() => {
+    if (itemId)
+      tunnelJson<Item>(pc, `/Items/${itemId}`).then(setFetched, () => {})
+  }, [pc, itemId])
+  const item = fetched?.Id === itemId ? fetched : null // not a late answer for another item
+  // A drag sends many seeks: a queued seek is replaced by the newer one.
+  const send = useMemo(
+    () =>
+      serial(
+        (c: ScreenCommand) =>
+          tunnelJson(pc, `/streamiq/screens/${screenId}`, c).catch((e) =>
+            setMsg(toAppError(e).message),
+          ),
+        (queued, c) => queued.type === 'seek' && c.type === 'seek',
+      ),
+    [pc, screenId],
+  )
+
+  if (screen === undefined) return <p>{down || 'Connecting to the screen…'}</p>
+  const library = (
+    <Link to="/g/$gatewayId" params={{ gatewayId }}>
+      Library
+    </Link>
+  )
+  if (!screen) return <p role="alert">Screen closed. {library}</p>
+  const pos = (st?.positionTicks ?? 0) / TICKS_PER_SECOND
+  const dur = (st?.durationTicks ?? 0) / TICKS_PER_SECOND
+  const seek = (t: number) => {
+    t = Math.max(0, dur ? Math.min(dur, t) : t)
+    setDrag(t) // until the TV's state catches up
+    clearTimeout(dragging.current)
+    dragging.current = window.setTimeout(() => setDrag(null), 2000)
+    send({ type: 'seek', ticks: Math.floor(t * TICKS_PER_SECOND) })
+  }
+  const audio = audioTracks(item?.MediaStreams)
+  const subs = subtitleTracks(item?.MediaStreams)
+  return (
+    <>
+      <h2>Remote: {screen.name}</h2>
+      {!st?.itemId ? (
+        <p>Nothing playing. {library}</p>
+      ) : (
+        <>
+          <h3>{item?.Name}</h3>
+          <p>
+            <input
+              type="range"
+              aria-label="Position"
+              min={0}
+              max={Math.max(dur, 1)}
+              step={1}
+              value={drag ?? pos}
+              onChange={(e) => seek(Number(e.target.value))}
+              style={{ width: '100%' }}
+            />
+            <small>
+              {clock(drag ?? pos)} / {clock(dur)}
+            </small>
+          </p>
+          <p>
+            <button type="button" onClick={() => seek((drag ?? pos) - 10)}>
+              −10 s
+            </button>{' '}
+            <button
+              type="button"
+              onClick={() => send({ type: st.paused ? 'resume' : 'pause' })}
+            >
+              {st.paused ? 'Play' : 'Pause'}
+            </button>{' '}
+            <button type="button" onClick={() => seek((drag ?? pos) + 10)}>
+              +10 s
+            </button>{' '}
+            <button type="button" onClick={() => send({ type: 'stop' })}>
+              Stop
+            </button>
+          </p>
+          {audio.length > 1 && (
+            <label>
+              Audio{' '}
+              <select
+                value={String(st.audio ?? '')}
+                onChange={(e) =>
+                  send({ type: 'tracks', audio: Number(e.target.value) })
+                }
+              >
+                {st.audio == null && <option value="">Default</option>}
+                {audio.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}{' '}
+          {subs.length > 1 && (
+            <label>
+              Subtitles{' '}
+              <select
+                value={String(st.subtitle ?? -1)}
+                onChange={(e) =>
+                  send({ type: 'tracks', subtitle: Number(e.target.value) })
+                }
+              >
+                {subs.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </>
+      )}
+      {(down || msg) && (
+        <p>
+          <small>{down || msg}</small>
+        </p>
+      )}
+    </>
   )
 }
 

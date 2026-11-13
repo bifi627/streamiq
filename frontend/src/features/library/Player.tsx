@@ -28,6 +28,8 @@
 // it, Off and that track just switch hls.subtitleTrack. Starts Off.
 // Screen mode (#180): `remote` feeds it a phone's pause/resume/seek/tracks
 // commands, applied like the TV's own controls; play/stop are the screen's.
+// `onState` gets the playback state about once a second and on every change
+// (#181); a phone's pause holds through startup and reloads.
 import { useEffect, useRef, useState } from 'react'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
@@ -36,7 +38,7 @@ import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
 import type { Speed } from '../../speed'
-import type { ScreenCommand } from '../gateways/api'
+import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { Controls } from './Controls'
 import {
@@ -114,6 +116,7 @@ export function Player({
   itemId,
   startTicks,
   remote,
+  onState,
   onExit,
 }: {
   pc: RTCPeerConnection
@@ -122,6 +125,8 @@ export function Player({
   startTicks?: number // unset: Jellyfin's saved position
   /** Subscribes to commands; returns the unsubscribe. Must be stable. */
   remote?: (apply: (c: ScreenCommand) => void) => () => void
+  /** Playback state for the screen (#181). Read through a ref. */
+  onState?: (s: ScreenState) => void
   onExit: (item: Item | null) => void
 }) {
   const [item, setItem] = useState<Item | null>(null)
@@ -147,6 +152,10 @@ export function Player({
   const [subs, setSubs] = useState<ReturnType<typeof subtitleTracks>>([])
   const [subtitle, setSubtitle] = useState('-1')
   const pickSub = useRef<(index: number) => void>(() => {})
+  const stateRef = useRef(onState)
+  useEffect(() => {
+    stateRef.current = onState
+  })
 
   useEffect(() => {
     const v = video.current!
@@ -172,10 +181,28 @@ export function Player({
     let source: string | undefined // Jellyfin ignores AudioStreamIndex without it
     let copy: Copy = { video: true, audio: true }
     let bitrate: number | undefined // the source's, bps (Auto's input)
+    let playing: number | null = null // the audio stream the URL asks for
+    let runTicks = 0
+    let held = false // paused: start() doesn't play
+    let seekTo: number | undefined // a phone's seek while nothing is attached
+    let at0 = 0 // where the current load starts, seconds
+    // Media loaded: else (starting, reloading) the element says 0 / paused.
+    const live = () => !!h && v.readyState > 0
+    const now = () => (live() ? v.currentTime : (seekTo ?? at0))
+    const emit = () =>
+      stateRef.current?.({
+        itemId,
+        positionTicks: Math.floor(now() * TICKS_PER_SECOND),
+        durationTicks: runTicks,
+        paused: live() ? v.paused : held,
+        audio: track ?? playing, // the requested one, like the subtitle
+        subtitle: sub < 0 ? -1 : (text ?? null),
+      })
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
     const start = async (at: number) => {
       const load = ++loads
+      at0 = at
       const mbps = await speed?.get(q === 'Auto' ? 3000 : 0)
       if (gone || load !== loads) return
       const eff = q === 'Auto' ? autoQuality(mbps, bitrate) : q
@@ -246,6 +273,10 @@ export function Player({
       source = src.Id
       setTracks(audioTracks(src.MediaStreams))
       setAudio(params.get('AudioStreamIndex') ?? '')
+      playing = params.has('AudioStreamIndex')
+        ? Number(params.get('AudioStreamIndex'))
+        : null
+      emit()
       if (!d.videoCopy && !max) {
         Object.entries(AUTO_TRANSCODE).forEach(([k, val]) => params.set(k, val))
         if (cap)
@@ -265,7 +296,7 @@ export function Player({
       )
       h = new Hls({
         loader: tunnelLoader(pc),
-        startPosition: at,
+        startPosition: seekTo ?? at,
         renderTextTracksNatively: true,
         // hls.js grows the forward buffer up to 600 s for low bitrates; a TV's
         // MSE quota fills long before that (bufferFullError on webOS).
@@ -340,11 +371,12 @@ export function Player({
           if (raw) rawErr()
           else reload('fallback: video transcode', { video: false })
       })
+      seekTo = undefined
       h.attachMedia(v)
       h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
       // Autoplay is blocked without a user gesture (deep link / reload): the
       // control bar stays up with Play focused, one Enter/tap starts it.
-      v.play().catch(refused)
+      if (!held) v.play().catch(refused)
     }
     const refused = (e: Error) => {
       event(`autoplay blocked: ${e.name}`)
@@ -355,7 +387,8 @@ export function Player({
     // quality or audio track. Keeps the other choices.
     const reload = (why: string, less: Partial<Copy> = {}) => {
       if (!caps) return // still starting: the first load picks it up
-      const t = v.currentTime
+      const t = now()
+      if (live()) held = v.paused // else keep: a reload in flight paused it
       event(`${why} @${t.toFixed(1)}`)
       setErr(null) // a new load: e.g. Raw failed, another quality picked
       copy = { ...copy, ...less }
@@ -378,16 +411,23 @@ export function Player({
       if (index < 0 || index === text) {
         event(`subtitles: ${index < 0 ? 'off' : `stream ${index}`}`)
         if (h) h.subtitleTrack = sub // no tracks yet: the update above sets it
-        return
+        return emit()
       }
       text = index
       reload(`subtitles: switch to stream ${index}`)
     }
     const unremote = remote?.((c) => {
-      if (c.type === 'pause') v.pause()
-      else if (c.type === 'resume') v.play().catch(refused)
-      else if (c.type === 'seek') v.currentTime = c.ticks / TICKS_PER_SECOND
-      else if (c.type === 'tracks') {
+      if (c.type === 'pause') {
+        held = true
+        v.pause()
+        emit()
+      } else if (c.type === 'resume') {
+        held = false
+        v.play().catch(refused)
+      } else if (c.type === 'seek') {
+        if (h) v.currentTime = c.ticks / TICKS_PER_SECOND
+        else seekTo = c.ticks / TICKS_PER_SECOND // start() picks it up
+      } else if (c.type === 'tracks') {
         if (c.audio !== undefined) {
           setAudio(String(c.audio))
           pickAudio.current(c.audio)
@@ -413,6 +453,7 @@ export function Player({
       const fresh = await tunnelJson<Item>(pc, `/Items/${itemId}`)
       if (gone) return
       setItem(fresh)
+      runTicks = fresh.RunTimeTicks ?? 0
       bitrate =
         fresh.MediaSources?.[0]?.Bitrate ??
         fresh.MediaStreams?.find((s) => s.Type === 'Video')?.BitRate
@@ -428,8 +469,14 @@ export function Player({
     const unwatch = watchVideo(v)
     const tick = setInterval(report, 10_000)
     const ended = () => save({ Played: true, PlaybackPositionTicks: 0 })
-    const playing = () => setBlocked(false)
-    v.addEventListener('play', playing)
+    const onPlay = () => {
+      held = false
+      setBlocked(false)
+    }
+    const state = setInterval(() => stateRef.current && emit(), 1000)
+    const changes = ['play', 'pause', 'seeked', 'ended']
+    changes.forEach((e) => v.addEventListener(e, emit))
+    v.addEventListener('play', onPlay)
     v.addEventListener('pause', report)
     v.addEventListener('seeked', report)
     v.addEventListener('ended', ended)
@@ -439,8 +486,10 @@ export function Player({
       unremote?.()
       unwatch()
       clearInterval(tick)
+      clearInterval(state)
+      changes.forEach((e) => v.removeEventListener(e, emit))
       report()
-      v.removeEventListener('play', playing)
+      v.removeEventListener('play', onPlay)
       v.removeEventListener('pause', report)
       v.removeEventListener('seeked', report)
       v.removeEventListener('ended', ended)

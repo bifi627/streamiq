@@ -29,6 +29,7 @@ import {
   ItemPage,
   LibraryHome,
   PlayerPage,
+  RemotePage,
   ScreenPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
@@ -282,6 +283,14 @@ const playRoute = createRoute({
     return <PlayerPage key={itemId} itemId={itemId} />
   },
 })
+const remoteRoute = createRoute({
+  getParentRoute: () => gatewayRoute,
+  path: 'remote/$screenId',
+  component: function Remote() {
+    const { screenId } = remoteRoute.useParams()
+    return <RemotePage key={screenId} screenId={screenId} />
+  },
+})
 const routeTree = rootRoute.addChildren([
   createRoute({
     getParentRoute: () => rootRoute,
@@ -316,6 +325,7 @@ const routeTree = rootRoute.addChildren([
       path: 'screen',
       component: ScreenPage,
     }),
+    remoteRoute,
   ]),
 ])
 // Render errors in any route: the router's error boundary, shown like every

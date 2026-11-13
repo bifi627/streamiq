@@ -147,7 +147,8 @@ type Setup struct {
 	err       string
 	warned    string // version already warned about
 	// refused: Jellyfin refused the gateway's admin while making a viewer. No
-	// retry until the next page login: Jellyfin locks a user out after failed sign-ins.
+	// retry until new admin creds (BYO: a page login; managed: bootstrap, or the
+	// fixed password in the file and a restart): Jellyfin locks users out after failed sign-ins.
 	refused bool
 }
 
@@ -236,7 +237,9 @@ func (s *Setup) poll(ctx context.Context) {
 			slog.Error("gateway: Jellyfin setup failed", "err", err)
 			return
 		}
-		s.setErr("")
+		s.mu.Lock()
+		s.err, s.refused = "", false
+		s.mu.Unlock()
 		slog.Info("gateway: completed the Jellyfin setup wizard", "admin", adminName, "password_in", s.path())
 		s.configure(ctx) // seed now, not a poll later
 	}
@@ -297,7 +300,8 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 		return err
 	}
 	s.mu.Lock()
-	s.err, s.refused = "", false
+	s.err = ""
+	s.refused = s.refused && !byo // managed: the login keeps the stored admin password
 	s.mu.Unlock()
 	return nil
 }
@@ -526,6 +530,9 @@ var userID = regexp.MustCompile(`^[0-9a-fA-F-]{32,36}$`)
 // shared viewer, the log and the page say why, and the next session tries again.
 func (s *Setup) EnsureViewer(ctx context.Context, user string) {
 	user = strings.ToLower(user)
+	if tok, _ := s.ViewerFor(user); tok != "" {
+		return // the common case, without waiting for vmu
+	}
 	s.vmu.Lock() // also: two sessions of a new user at once make one viewer
 	defer s.vmu.Unlock()
 	s.mu.Lock()
@@ -534,15 +541,18 @@ func (s *Setup) EnsureViewer(ctx context.Context, user string) {
 	if _, ok := c.Users[user]; ok || refused {
 		return
 	}
-	v, err := s.newViewer(ctx, c, user)
+	v, refused, err := s.newViewer(ctx, c, user)
 	if err != nil {
-		fix := "reconnect Jellyfin"
-		if c.managed() {
+		fix := "the next session tries again"
+		switch {
+		case refused && c.managed():
 			fix = "changed the " + c.User + " password? Put the new one in " + s.path() + " (password) and restart the gateway"
+		case refused:
+			fix = "reconnect Jellyfin"
 		}
 		s.mu.Lock()
 		s.err = "Jellyfin user for a member (they play as " + ViewerName + " meanwhile; " + fix + "): " + err.Error()
-		s.refused = unauthorized(err)
+		s.refused = refused
 		s.mu.Unlock()
 		slog.Error("gateway: could not create a user's own Jellyfin viewer; the session plays as "+ViewerName, "user", user, "err", err)
 		return
@@ -563,19 +573,21 @@ func (s *Setup) EnsureViewer(ctx context.Context, user string) {
 	slog.Info("gateway: created a user's own Jellyfin viewer", "user", user, "viewer", v.Name)
 }
 
-func (s *Setup) newViewer(ctx context.Context, c Creds, user string) (Viewer, error) {
+// newViewer: refused = Jellyfin refused the gateway's admin sign-in.
+func (s *Setup) newViewer(ctx context.Context, c Creds, user string) (v Viewer, refused bool, err error) {
 	if !userID.MatchString(user) {
-		return Viewer{}, fmt.Errorf("bad user id %q", user)
+		return Viewer{}, false, fmt.Errorf("bad user id %q", user)
 	}
 	if c.Password == "" {
-		return Viewer{}, errors.New("the gateway has no Jellyfin administrator of its own")
+		return Viewer{}, false, errors.New("the gateway has no Jellyfin administrator of its own")
 	}
 	admin, err := s.signIn(ctx, c.User, c.Password)
 	if err != nil {
-		return Viewer{}, err
+		return Viewer{}, unauthorized(err), err
 	}
 	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
-	return s.makeViewer(ctx, admin, "streamiq-"+user)
+	v, err = s.makeViewer(ctx, admin, "streamiq-"+user)
+	return v, false, err
 }
 
 // ViewerFor is a user's own viewer token and Jellyfin user id; "" if they have

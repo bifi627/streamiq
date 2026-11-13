@@ -129,8 +129,8 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 }
 
 // User is the session's user id (from the broker's offer) for gateway API
-// handlers; "" for an unknown session. It also picks their Jellyfin viewer (#195);
-// the role gates admin-only endpoints (tunnel.Session.Role, tunnel.AdminOnly).
+// handlers; "" for an unknown session. (The offer's user also picks the Jellyfin viewer, #195;
+// the role gates admin-only endpoints: tunnel.Session.Role, tunnel.AdminOnly.)
 func (s *Sessions) User(session string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -177,7 +177,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
 		switch {
 		case d.Label() == "auth":
-			s.serveAuth(id, pc, d, &authed)
+			s.serveAuth(id, user, pc, d, &authed)
 		case authed.Load():
 			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Name: func() string { return s.name(id) }})
 		default:
@@ -189,9 +189,9 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 
 // authorize opens the tunnel to a paired session, after making sure its user
 // has their own Jellyfin viewer, so their first request already plays as it.
-func (s *Sessions) authorize(id string, authed *atomic.Bool) {
+func (s *Sessions) authorize(user string, authed *atomic.Bool) {
 	if s.Viewers != nil {
-		s.Viewers(s.User(id))
+		s.Viewers(user)
 	}
 	authed.Store(true)
 }
@@ -223,7 +223,7 @@ type authMsg struct {
 
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
 // approved/rejected). Messages on one channel arrive in order, one at a time.
-func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool) {
+func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool) {
 	say := func(m authMsg) { b, _ := json.Marshal(m); d.SendText(string(b)) }
 	fail := func(why string) {
 		log.Printf("gateway: auth: %s", why)
@@ -256,7 +256,7 @@ func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.Dat
 			s.keys[id] = fp
 			s.mu.Unlock()
 			if s.Store.Allowed(fp) && !m.Pair {
-				s.authorize(id, authed)
+				s.authorize(user, authed)
 				say(authMsg{Type: "ok"})
 			} else {
 				say(authMsg{Type: "unpaired"})
@@ -281,7 +281,7 @@ func (s *Sessions) serveAuth(id string, pc *webrtc.PeerConnection, d *webrtc.Dat
 				case !ok:
 					fail("not approved")
 				default:
-					s.authorize(id, authed)
+					s.authorize(user, authed)
 					say(authMsg{Type: "approved"})
 				}
 			}()

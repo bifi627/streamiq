@@ -400,9 +400,10 @@ stays a *viewer*:
   their first paired session (the offer's `user`, lowercased; one at a time, so two
   sessions at once make one), plus the shared viewer `streamiq-viewer` (#50) as the fallback. A session whose
   user has no viewer (creating it failed: the gateway log and local page say why, the
-  next session tries again; after Jellyfin refused the gateway's admin, only after the
-  next admin login on the local page, since Jellyfin locks out users after failed
-  sign-ins) plays as `streamiq-viewer`. `gateway/internal/jellyfin`
+  next session tries again; after Jellyfin refused the gateway's admin, not until it has
+  new admin credentials, since Jellyfin locks out users after failed sign-ins: on a
+  Jellyfin the user brought, the next admin login on the local page; on one the gateway
+  set up, the changed `streamiq` password put into `state/jellyfin.json` and a restart) plays as `streamiq-viewer`. `gateway/internal/jellyfin`
   creates viewers with the gateway's own admin (`streamiq`, or hidden `streamiq-admin`
   on a Jellyfin the user brought) and logs that session out again; tokens and
   passwords are in `state/jellyfin.json` (`users`: `users.id` → viewer). No admin

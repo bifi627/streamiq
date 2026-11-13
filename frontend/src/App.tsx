@@ -351,9 +351,9 @@ export default function App() {
   useEffect(() => {
     let was: User | null = null
     return onAuthStateChanged(auth, (u) => {
-      // Signed out: reload, so no open tunnel outlives the account (the gateway
-      // plays it as that user's Jellyfin viewer, #195).
-      if (was && !u) return location.reload()
+      // Signed out or another account: reload, so no open tunnel outlives the
+      // account (the gateway plays it as that user's Jellyfin viewer, #195).
+      if (was && was.uid !== u?.uid) return location.reload()
       was = u
       setUser(u)
       setReady(true)

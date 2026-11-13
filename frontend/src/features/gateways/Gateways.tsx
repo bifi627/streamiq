@@ -22,6 +22,7 @@ import { useNavigate } from '@tanstack/react-router'
 export function Gateways() {
   const [gateways, setGateways] = useState<Gateway[]>([])
   const [admin, setAdmin] = useState(false)
+  const [meErr, setMeErr] = useState<AppError | null>(null) // own state: the poll clears err
   const [install, setInstall] = useState<Install | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   const navigate = useNavigate()
@@ -41,7 +42,7 @@ export function Gateways() {
           m.memberships.find((x) => x.id === m.tenantId)?.role === 'admin',
         ),
       )
-      .catch((e) => setErr(toAppError(e)))
+      .catch((e) => setMeErr(toAppError(e)))
     const t = setInterval(load, 5000)
     return () => clearInterval(t)
   }, [])
@@ -73,6 +74,7 @@ export function Gateways() {
     <section>
       <h2>Gateways</h2>
       {err && <ErrorView error={err} />}
+      {meErr && <ErrorView error={meErr} />}
       {gateways.length === 0 ? (
         !err && <p>No gateways yet.</p>
       ) : (

@@ -66,7 +66,9 @@ public sealed class IntegrationFixture : IAsyncLifetime
             var firebaseImage = new ImageFromDockerfileBuilder()
                 .WithDockerfileDirectory(new CommonDirectoryPath(Path.Combine(RepoRoot.Find(), "dev", "firebase")), string.Empty)
                 .WithDockerfile("Dockerfile")
-                .WithName("streamiq-firebase-emulator:15.34.1")
+                // No WithName: the default random tag is per run. A fixed tag is shared by every
+                // worktree, and each run's resource reaper deletes "its" image at the end, which
+                // untags it under a concurrent run ("image has not been created"). Layers stay cached.
                 .Build();
             await firebaseImage.CreateAsync();
 

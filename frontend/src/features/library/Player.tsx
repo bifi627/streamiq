@@ -28,6 +28,8 @@
 // it, Off and that track just switch hls.subtitleTrack. Starts Off.
 // Screen mode (#180): `remote` feeds it a phone's pause/resume/seek/tracks
 // commands, applied like the TV's own controls; play/stop are the screen's.
+// `onState` gets the playback state about once a second and on every change
+// (#181); a phone's pause holds through startup and reloads.
 import { useEffect, useRef, useState } from 'react'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
@@ -36,7 +38,7 @@ import { tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
 import type { Speed } from '../../speed'
-import type { ScreenCommand } from '../gateways/api'
+import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { Controls } from './Controls'
 import {
@@ -114,6 +116,7 @@ export function Player({
   itemId,
   startTicks,
   remote,
+  onState,
   onExit,
 }: {
   pc: RTCPeerConnection
@@ -122,6 +125,8 @@ export function Player({
   startTicks?: number // unset: Jellyfin's saved position
   /** Subscribes to commands; returns the unsubscribe. Must be stable. */
   remote?: (apply: (c: ScreenCommand) => void) => () => void
+  /** Playback state for the screen (#181). Read through a ref. */
+  onState?: (s: ScreenState) => void
   onExit: (item: Item | null) => void
 }) {
   const [item, setItem] = useState<Item | null>(null)
@@ -147,6 +152,10 @@ export function Player({
   const [subs, setSubs] = useState<ReturnType<typeof subtitleTracks>>([])
   const [subtitle, setSubtitle] = useState('-1')
   const pickSub = useRef<(index: number) => void>(() => {})
+  const stateRef = useRef(onState)
+  useEffect(() => {
+    stateRef.current = onState
+  })
 
   useEffect(() => {
     const v = video.current!
@@ -172,6 +181,18 @@ export function Player({
     let source: string | undefined // Jellyfin ignores AudioStreamIndex without it
     let copy: Copy = { video: true, audio: true }
     let bitrate: number | undefined // the source's, bps (Auto's input)
+    let playing: number | null = null // the audio stream the URL asks for
+    let runTicks = 0
+    let held = false // a phone paused: start() doesn't play
+    const emit = () =>
+      stateRef.current?.({
+        itemId,
+        positionTicks: Math.floor(v.currentTime * TICKS_PER_SECOND),
+        durationTicks: runTicks,
+        paused: v.paused,
+        audio: playing,
+        subtitle: sub < 0 ? -1 : (text ?? null),
+      })
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
     const start = async (at: number) => {
@@ -246,6 +267,10 @@ export function Player({
       source = src.Id
       setTracks(audioTracks(src.MediaStreams))
       setAudio(params.get('AudioStreamIndex') ?? '')
+      playing = params.has('AudioStreamIndex')
+        ? Number(params.get('AudioStreamIndex'))
+        : null
+      emit()
       if (!d.videoCopy && !max) {
         Object.entries(AUTO_TRANSCODE).forEach(([k, val]) => params.set(k, val))
         if (cap)
@@ -344,7 +369,7 @@ export function Player({
       h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
       // Autoplay is blocked without a user gesture (deep link / reload): the
       // control bar stays up with Play focused, one Enter/tap starts it.
-      v.play().catch(refused)
+      if (!held) v.play().catch(refused)
     }
     const refused = (e: Error) => {
       event(`autoplay blocked: ${e.name}`)
@@ -378,15 +403,20 @@ export function Player({
       if (index < 0 || index === text) {
         event(`subtitles: ${index < 0 ? 'off' : `stream ${index}`}`)
         if (h) h.subtitleTrack = sub // no tracks yet: the update above sets it
-        return
+        return emit()
       }
       text = index
       reload(`subtitles: switch to stream ${index}`)
     }
     const unremote = remote?.((c) => {
-      if (c.type === 'pause') v.pause()
-      else if (c.type === 'resume') v.play().catch(refused)
-      else if (c.type === 'seek') v.currentTime = c.ticks / TICKS_PER_SECOND
+      if (c.type === 'pause') {
+        held = true
+        v.pause()
+        emit()
+      } else if (c.type === 'resume') {
+        held = false
+        v.play().catch(refused)
+      } else if (c.type === 'seek') v.currentTime = c.ticks / TICKS_PER_SECOND
       else if (c.type === 'tracks') {
         if (c.audio !== undefined) {
           setAudio(String(c.audio))
@@ -413,6 +443,7 @@ export function Player({
       const fresh = await tunnelJson<Item>(pc, `/Items/${itemId}`)
       if (gone) return
       setItem(fresh)
+      runTicks = fresh.RunTimeTicks ?? 0
       bitrate =
         fresh.MediaSources?.[0]?.Bitrate ??
         fresh.MediaStreams?.find((s) => s.Type === 'Video')?.BitRate
@@ -428,8 +459,14 @@ export function Player({
     const unwatch = watchVideo(v)
     const tick = setInterval(report, 10_000)
     const ended = () => save({ Played: true, PlaybackPositionTicks: 0 })
-    const playing = () => setBlocked(false)
-    v.addEventListener('play', playing)
+    const onPlay = () => {
+      held = false
+      setBlocked(false)
+    }
+    const state = setInterval(() => stateRef.current && emit(), 1000)
+    const changes = ['play', 'pause', 'seeked', 'ended']
+    changes.forEach((e) => v.addEventListener(e, emit))
+    v.addEventListener('play', onPlay)
     v.addEventListener('pause', report)
     v.addEventListener('seeked', report)
     v.addEventListener('ended', ended)
@@ -439,8 +476,10 @@ export function Player({
       unremote?.()
       unwatch()
       clearInterval(tick)
+      clearInterval(state)
+      changes.forEach((e) => v.removeEventListener(e, emit))
       report()
-      v.removeEventListener('play', playing)
+      v.removeEventListener('play', onPlay)
       v.removeEventListener('pause', report)
       v.removeEventListener('seeked', report)
       v.removeEventListener('ended', ended)

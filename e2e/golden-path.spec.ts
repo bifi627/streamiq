@@ -54,8 +54,8 @@ const pitch = (p: Page) =>
   })
 
 /**
- * A raw tunnel request from page p's open session (docs/protocol.md framing):
- * the phone remote's commands until #181 gives them a UI. Needs keepPcs(p).
+ * A raw tunnel request from page p's open session (docs/protocol.md framing).
+ * Needs keepPcs(p).
  */
 const viaTunnel = (p: Page, url: string, body?: object) =>
   p.evaluate(
@@ -334,8 +334,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
-    await test.step('play on TV (#180): screen mode, Play on… from the phone, commands, Back', async () => {
-      // TV = tab a; phone = a second tab of the same paired browser (its own
+    await test.step('play on TV (#180) + phone remote (#181): commands, state, Back', async () => {
+      // TV = tab a; phones = more tabs of the same paired browser (each its own
       // tunnel session, so its own screens view).
       await a.getByRole('button', { name: 'Open' }).click()
       await a.getByRole('link', { name: 'Use as screen' }).click()
@@ -349,36 +349,82 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await phone.getByRole('button', { name: /Movies/ }).click()
       await phone.getByRole('button', { name: 'Play on…' }).first().click()
       await phone.getByRole('button', { name, exact: true }).click()
-      await expect(phone.getByText(`Playing on ${name}`)).toBeVisible()
+      await expect(
+        phone.getByRole('heading', { name: `Remote: ${name}` }),
+      ).toBeVisible()
       await expect(a.getByText('Controlled from your phone')).toBeVisible()
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(1)
-      // pause / seek / resume / stop: what #181's remote view will send.
-      const [screen] = JSON.parse(await viaTunnel(phone, '/streamiq/screens'))
-      const send = (c: object) =>
-        viaTunnel(phone, `/streamiq/screens/${screen.id}`, c)
+      // The TV's state reaches the phone: title, playing.
+      await expect(
+        phone.getByRole('heading', { name: 'streamiq e2e clip' }),
+      ).toBeVisible()
+      // A second phone on the same screen: Play on… → Remote.
+      const phone2 = await a.context().newPage()
+      await phone2.goto(phone.url().replace(/\/remote\/.*$/, ''))
+      await phone2.getByRole('button', { name: /Movies/ }).click()
+      await phone2.getByRole('button', { name: 'Play on…' }).first().click()
+      await phone2.getByRole('link', { name: 'Remote' }).click()
+      const both = async (f: (p: Page) => Promise<void>) => {
+        await f(phone)
+        await f(phone2)
+      }
       const paused = () =>
         a.locator('video').evaluate((v: HTMLVideoElement) => v.paused)
-      await send({ type: 'pause' })
+      await both((p) =>
+        expect(p.getByRole('button', { name: 'Pause' })).toBeVisible(),
+      )
+      await phone.getByRole('button', { name: 'Pause' }).click()
       await expect.poll(paused).toBe(true)
-      await send({ type: 'seek', ticks: 20 * 10_000_000 })
+      await both((p) =>
+        expect(p.getByRole('button', { name: 'Play' })).toBeVisible(),
+      )
+      // Subtitles from the second phone (last command wins): the TV reloads
+      // with them and stays paused; both phones show the pick.
+      await phone2.getByLabel('Subtitles').selectOption({ index: 1 })
+      const cue = () =>
+        a.evaluate(() =>
+          [...document.querySelector('video')!.textTracks]
+            .filter((t) => t.mode === 'showing')
+            .flatMap((t) => [...(t.activeCues ?? [])])
+            .map((c) => (c as VTTCue).text)
+            .join(),
+        )
+      await expect.poll(cue, { timeout: 15_000 }).toBe('streamiq e2e subtitle')
+      await both((p) => expect(p.getByLabel('Subtitles')).not.toHaveValue('-1'))
+      expect(await paused()).toBe(true)
+      // Seek bar, then −10 s.
+      await phone.getByLabel('Position').fill('20')
       await expect.poll(() => videoTime(a)).toBeGreaterThan(19.5)
-      await send({ type: 'resume' })
+      await both((p) => expect(p.getByText(/^0:2\d \/ 0:30$/)).toBeVisible())
+      await phone.getByRole('button', { name: '−10 s' }).click()
+      await expect.poll(() => videoTime(a)).toBeLessThan(11)
+      // The TV's own remote (K = play/pause) shows on the phones within ~2 s.
+      await a.keyboard.press('k')
       await expect.poll(paused).toBe(false)
-      await send({ type: 'stop' })
+      await both((p) =>
+        expect(p.getByRole('button', { name: 'Pause' })).toBeVisible({
+          timeout: 2_500,
+        }),
+      )
+      await phone.getByRole('button', { name: 'Stop' }).click()
       await expect(waiting).toBeVisible()
-      // Back on the TV leaves screen mode at once: the phone no longer sees it.
+      await both((p) => expect(p.getByText('Nothing playing.')).toBeVisible())
+      // Back on the TV leaves screen mode at once: both remotes say so, and
+      // Play on… no longer lists it.
       await a.keyboard.press('Escape')
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
-      await expect
-        .poll(async () =>
-          JSON.parse(await viaTunnel(phone, '/streamiq/screens')),
-        )
-        .toEqual([])
+      await both((p) => expect(p.getByText('Screen closed.')).toBeVisible())
+      expect(JSON.parse(await viaTunnel(phone, '/streamiq/screens'))).toEqual(
+        [],
+      )
+      await phone.getByRole('link', { name: 'Library' }).click()
+      await phone.getByRole('button', { name: /Movies/ }).click()
       await phone.getByRole('button', { name: 'Play on…' }).first().click()
       await expect(phone.getByText(/No screen open/)).toBeVisible()
       await phone.close()
+      await phone2.close()
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 

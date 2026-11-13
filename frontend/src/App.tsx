@@ -10,6 +10,7 @@ import {
 } from '@firebase/auth'
 import {
   createRootRoute,
+  useParams,
   createRoute,
   createRouter,
   Link,
@@ -29,6 +30,7 @@ import {
   ItemPage,
   LibraryHome,
   PlayerPage,
+  RemotePage,
   ScreenPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
@@ -276,6 +278,14 @@ const routeTree = rootRoute.addChildren([
       getParentRoute: () => gatewayRoute,
       path: 'screen',
       component: ScreenPage,
+    }),
+    createRoute({
+      getParentRoute: () => gatewayRoute,
+      path: 'remote/$screenId',
+      component: function Remote() {
+        const { screenId } = useParams({ strict: false })
+        return <RemotePage key={screenId} screenId={screenId!} />
+      },
     }),
   ]),
 ])

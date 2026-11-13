@@ -111,7 +111,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
   expect(env.STREAMIQ_API_URL).toMatch(/^http:\/\/127\.0\.0\.1:/)
   let gateway = await startGateway(stateDir, env)
   try {
-    await expect(a.getByRole('listitem')).toContainText('online')
+    await expect(
+      a.getByRole('listitem').filter({ hasText: '●' }),
+    ).toContainText('online')
     const gatewayCtx = await browser.newContext()
     if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
 

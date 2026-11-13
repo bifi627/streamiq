@@ -15,6 +15,7 @@ import { tunnelJson } from '../../tunnel'
 import { getMe } from '../../api'
 import { useNavigate } from '@tanstack/react-router'
 import { Invites } from '../households/Invites'
+import { Members } from '../households/Members'
 
 // Gateways list + "Add gateway" (onboarding flow 1). Polls so a freshly installed
 // gateway shows up, and online/offline stays current. ponytail: 5s poll, push
@@ -164,6 +165,7 @@ export function Gateways() {
           ))}
         </div>
       )}
+      <Members />
       {admin && <Invites />}
     </section>
   )

@@ -54,6 +54,7 @@ test('every kind has a message', () => {
     'gateway-refused',
     'tunnel-lost',
     'invite-invalid',
+    'last-admin',
     'media-server-down',
     'unauthorized',
     'http',

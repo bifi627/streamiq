@@ -23,6 +23,12 @@ public static class Households
             .OrderBy(m => m.CreatedAt).ThenBy(m => m.TenantId);
     }
 
+    /// Whether the user belongs to any household at all.
+    public static Task<bool> AnyAsync(StreamIqDbContext db, Guid userId, CancellationToken ct)
+    {
+        return Of(db, userId).AnyAsync(ct);
+    }
+
     /// The user's membership in tenantId, or their oldest one when tenantId is
     /// null. Null = not a member (or no household at all).
     public static Task<Membership?> PickAsync(StreamIqDbContext db, Guid userId, Guid? tenantId, CancellationToken ct)

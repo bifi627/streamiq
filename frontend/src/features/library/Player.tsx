@@ -185,19 +185,24 @@ export function Player({
     let runTicks = 0
     let held = false // paused: start() doesn't play
     let seekTo: number | undefined // a phone's seek while nothing is attached
+    let at0 = 0 // where the current load starts, seconds
+    // Media loaded: else (starting, reloading) the element says 0 / paused.
+    const live = () => !!h && v.readyState > 0
+    const now = () => (live() ? v.currentTime : (seekTo ?? at0))
     const emit = () =>
       stateRef.current?.({
         itemId,
-        positionTicks: Math.floor(v.currentTime * TICKS_PER_SECOND),
+        positionTicks: Math.floor(now() * TICKS_PER_SECOND),
         durationTicks: runTicks,
-        paused: v.paused,
-        audio: playing,
+        paused: live() ? v.paused : held,
+        audio: track ?? playing, // the requested one, like the subtitle
         subtitle: sub < 0 ? -1 : (text ?? null),
       })
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
     const start = async (at: number) => {
       const load = ++loads
+      at0 = at
       const mbps = await speed?.get(q === 'Auto' ? 3000 : 0)
       if (gone || load !== loads) return
       const eff = q === 'Auto' ? autoQuality(mbps, bitrate) : q
@@ -382,8 +387,8 @@ export function Player({
     // quality or audio track. Keeps the other choices.
     const reload = (why: string, less: Partial<Copy> = {}) => {
       if (!caps) return // still starting: the first load picks it up
-      const t = v.currentTime
-      held = v.paused
+      const t = now()
+      if (live()) held = v.paused // else keep: a reload in flight paused it
       event(`${why} @${t.toFixed(1)}`)
       setErr(null) // a new load: e.g. Raw failed, another quality picked
       copy = { ...copy, ...less }

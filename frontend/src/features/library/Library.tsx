@@ -184,12 +184,16 @@ export function ScreenPage() {
   } | null>(null)
   const [ended, setEnded] = useState<string | null>(null)
   const players = useRef(new Set<(c: ScreenCommand) => void>())
-  // The commands since the last play, replayed to each Player that subscribes
-  // (one may arrive before it mounts; StrictMode and effect re-runs subscribe again).
-  const since = useRef<ScreenCommand[]>([])
+  // Commands between a play and its Player's subscribe, replayed to it
+  // (StrictMode subscribes twice in one commit); then null: live only.
+  const since = useRef<ScreenCommand[] | null>(null)
   const remote = useCallback((apply: (c: ScreenCommand) => void) => {
     players.current.add(apply)
-    since.current.forEach(apply)
+    const early = since.current
+    early?.forEach(apply)
+    setTimeout(() => {
+      if (since.current === early) since.current = null
+    })
     return () => void players.current.delete(apply)
   }, [])
   // State to the gateway (#181): one POST at a time, in order; while one is
@@ -249,7 +253,7 @@ export function ScreenPage() {
           setPlay({ itemId: c.itemId, startTicks: c.startTicks, n: ++n })
         } else if (c.type === 'stop') setPlay(null)
         else {
-          since.current.push(c)
+          since.current?.push(c)
           players.current.forEach((apply) => apply(c))
         }
       },
@@ -433,7 +437,8 @@ export function RemotePage({ screenId }: { screenId: string }) {
   const [fetched, setFetched] = useState<Item | null>(null)
   const [drag, setDrag] = useState<number | null>(null) // seek bar, seconds
   const dragging = useRef(0)
-  const [msg, setMsg] = useState('')
+  const [msg, setMsg] = useState('') // the last command's error
+  const [down, setDown] = useState('') // the last poll's error
   useEffect(() => {
     let gone = false
     let t = 0
@@ -443,12 +448,12 @@ export function RemotePage({ screenId }: { screenId: string }) {
           if (gone) return
           const s = l.find((x) => x.id === screenId) ?? null
           setScreen(s)
-          setMsg('')
+          setDown('')
           if (s) t = window.setTimeout(poll, 1000) // closed: ids never come back
         },
         (e) => {
           if (gone) return
-          setMsg(toAppError(e).message)
+          setDown(toAppError(e).message)
           t = window.setTimeout(poll, 1000)
         },
       )
@@ -478,7 +483,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
     [pc, screenId],
   )
 
-  if (screen === undefined) return <p>{msg || 'Connecting to the screen…'}</p>
+  if (screen === undefined) return <p>{down || 'Connecting to the screen…'}</p>
   const library = (
     <Link to="/g/$gatewayId" params={{ gatewayId }}>
       Library
@@ -573,9 +578,9 @@ export function RemotePage({ screenId }: { screenId: string }) {
           )}
         </>
       )}
-      {msg && (
+      {(down || msg) && (
         <p>
-          <small>{msg}</small>
+          <small>{down || msg}</small>
         </p>
       )}
     </>

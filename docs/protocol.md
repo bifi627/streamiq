@@ -215,9 +215,25 @@ it is authorized, the gateway closes every other channel immediately.
 | 5 | gateway → browser | `{type:"nonce", n: nA}` — only after the commit |
 | 6 | browser → gateway | `{type:"reveal", n: nB}` — gateway checks it against h |
 | 7 | both | `code = uint32_be(SHA-256(utf8(gatewayFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; local gateway page lists the request (name + code), browser shows the code |
-| 8 | gateway → browser | `{type:"approved"}` after **Approve on the local gateway page** (key persisted to `allowlist.json`; browser stores the pin), or `{type:"rejected", reason}` (Reject, 5-min expiry, >3 pending, bad signature/reveal) |
+| 8 | gateway → browser | `{type:"approved"}` after **Approve on the local gateway page** (key persisted to `allowlist.json`; browser stores the pin), or `{type:"rejected", reason}` (Reject, 5-min expiry, no free slot, bad signature/reveal, any message out of order) |
 
-The commit makes the code ungrindable: a MITM gets one guess (10⁻⁶).
+The commit makes the code ungrindable: a MITM gets one guess (10⁻⁶). The gateway
+holds that to one guess per connection:
+
+- **One `auth` channel per connection.** The gateway serves the first; any later
+  channel labelled `auth` on the same PeerConnection is closed without reading a
+  message, whether the first handshake succeeded, failed or is still running. A
+  new attempt needs a new connection (a new broker session).
+- **One `commit` per channel**, so one `nonce`. A second `commit` (or any message
+  out of order) gets `rejected` and the channel is closed; nothing after a
+  `rejected` is handled.
+- **The pairing slot is taken at `commit`**, before the `nonce` is sent. There are
+  3 slots; with none free the `commit` gets `rejected` (`too many pending pairing
+  requests`) and no `nonce`. The slot is held until the exchange ends: Approve,
+  Reject, expiry (5 min for the `reveal`, 5 min for the decision), a bad `reveal`,
+  or the channel or connection closing. A request whose connection closed leaves
+  the local gateway page. An exchange that ends between `commit` and `reveal` is
+  logged.
 
 **Remove** (local gateway page) drops the key from `allowlist.json` and closes
 every open session authed with it: the gateway closes the PeerConnection, so all

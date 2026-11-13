@@ -185,6 +185,176 @@ func TestRemoveClosesOpenSessions(t *testing.T) {
 	}
 }
 
+// newGateway is a gateway with an empty allowlist and no media server.
+func newGateway(t *testing.T) (*Sessions, *pairing.Store) {
+	dir := t.TempDir()
+	cert, fp, _ := identity.LoadOrCreate(dir)
+	store, _ := pairing.Open(dir)
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}}
+	store.OnRemove = gateway.Drop
+	return gateway, store
+}
+
+// unpaired connects a new key and returns the browser once it may commit.
+func unpaired(t *testing.T, gateway *Sessions, id string) (*browser, *ecdsa.PrivateKey) {
+	t.Helper()
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	b := connect(t, gateway, id, key, false)
+	if b.say(nil)["type"] != "unpaired" {
+		t.Fatal("want unpaired")
+	}
+	return b, key
+}
+
+// commit sends a commit and returns the gateway's reply and the nonce behind it.
+func (b *browser) commit() (map[string]any, string) {
+	b.t.Helper()
+	nB := pairing.Nonce()
+	h := sha256.Sum256([]byte(nB))
+	return b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": "x"}), nB
+}
+
+// slotsFree waits until all MaxPending pairing slots can be taken (and gives
+// them back): nothing is holding one.
+func slotsFree(t *testing.T, store *pairing.Store) {
+	t.Helper()
+	for start := time.Now(); ; time.Sleep(10 * time.Millisecond) {
+		got := 0
+		for got < pairing.MaxPending && store.Reserve() == nil {
+			got++
+		}
+		for range got {
+			store.Release()
+		}
+		if got == pairing.MaxPending {
+			return
+		}
+		if time.Since(start) > 10*time.Second {
+			t.Fatalf("only %d of %d pairing slots free", got, pairing.MaxPending)
+		}
+	}
+}
+
+// The handshake runs once per connection: a second `auth` channel on an
+// authorised connection is closed without a message, the session keeps its
+// recorded key, and Remove for that key still closes it.
+func TestSecondAuthChannelRefused(t *testing.T) {
+	gateway, store := newGateway(t)
+	b, key := unpaired(t, gateway, "s1")
+	_, nB := b.commit()
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	for len(store.Pending()) == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	store.Decide(store.Pending()[0].ID, true)
+	if b.say(nil)["type"] != "approved" {
+		t.Fatal("want approved")
+	}
+	slotsFree(t, store) // approve gave the slot back
+
+	second, _ := b.pc.CreateDataChannel("auth", nil)
+	got, closed := make(chan string, 8), make(chan struct{})
+	second.OnMessage(func(m webrtc.DataChannelMessage) { got <- string(m.Data) })
+	second.OnClose(func() { close(closed) })
+	select {
+	case <-closed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("second auth channel stayed open")
+	}
+	if len(got) != 0 {
+		t.Fatalf("second auth channel was served: %s", <-got)
+	}
+	fp := identity.Fingerprint(spki(key))
+	gateway.mu.Lock()
+	recorded := gateway.keys["s1"]
+	gateway.mu.Unlock()
+	if recorded != fp {
+		t.Fatalf("recorded key = %q, want %q", recorded, fp)
+	}
+
+	down := make(chan struct{}, 1)
+	b.pc.OnConnectionStateChange(func(st webrtc.PeerConnectionState) {
+		if st != webrtc.PeerConnectionStateConnected && st != webrtc.PeerConnectionStateConnecting {
+			select {
+			case down <- struct{}{}:
+			default:
+			}
+		}
+	})
+	if err := store.Remove(fp); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-down:
+	case <-time.After(30 * time.Second):
+		t.Fatal("Remove did not close the session")
+	}
+}
+
+// One commit per channel: a second one is refused, gets no second nonce, and
+// the slot of the first is given back.
+func TestSecondCommitRefused(t *testing.T) {
+	gateway, store := newGateway(t)
+	b, _ := unpaired(t, gateway, "s1")
+	if m, _ := b.commit(); m["type"] != "nonce" {
+		t.Fatalf("first commit = %v", m)
+	}
+	if m, _ := b.commit(); m["type"] != "rejected" {
+		t.Fatalf("second commit = %v, want rejected", m)
+	}
+	slotsFree(t, store)
+}
+
+// The slot is taken at commit: with all of them held, a commit is refused like
+// a full queue and gets no nonce. Bad reveal, Reject and a channel or connection
+// closed before reveal each give the slot back.
+func TestPairingSlotReservedAtCommit(t *testing.T) {
+	gateway, store := newGateway(t)
+	held := make([]*browser, pairing.MaxPending)
+	for i := range held {
+		held[i], _ = unpaired(t, gateway, "held"+string(rune('a'+i)))
+		if m, _ := held[i].commit(); m["type"] != "nonce" {
+			t.Fatalf("commit %d = %v", i, m)
+		}
+	}
+	extra, _ := unpaired(t, gateway, "extra")
+	if m, _ := extra.commit(); m["type"] != "rejected" || m["reason"] != "too many pending pairing requests" {
+		t.Fatalf("commit past MaxPending = %v", m)
+	}
+
+	held[0].auth.Close() // channel closed without reveal
+	held[1].pc.Close()   // connection closed without reveal
+	if m := held[2].say(map[string]any{"type": "reveal", "n": "not the committed nonce"}); m["type"] != "rejected" {
+		t.Fatalf("bad reveal = %v", m)
+	}
+	slotsFree(t, store)
+
+	b, _ := unpaired(t, gateway, "denied")
+	_, nB := b.commit()
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	for len(store.Pending()) == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	store.Decide(store.Pending()[0].ID, false)
+	if m := b.say(nil); m["type"] != "rejected" {
+		t.Fatalf("Reject = %v", m)
+	}
+	slotsFree(t, store)
+
+	// Revealed, then gone: the request leaves the local page with the slot.
+	b, _ = unpaired(t, gateway, "gone")
+	_, nB = b.commit()
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	for len(store.Pending()) == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	b.pc.Close()
+	slotsFree(t, store)
+	if n := len(store.Pending()); n != 0 {
+		t.Fatalf("%d request(s) left on the local page after the connection closed", n)
+	}
+}
+
 type browser struct {
 	t    *testing.T
 	pc   *webrtc.PeerConnection

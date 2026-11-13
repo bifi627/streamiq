@@ -135,7 +135,9 @@ app.Use((ctx, next) =>
 {
     ctx.Response.Headers.XContentTypeOptions = "nosniff";
     ctx.Response.Headers.ContentSecurityPolicy = "frame-ancestors 'none'";
-    ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
+    // Origin only, never the path. Not no-referrer: the Firebase web API key is
+    // restricted by HTTP referrer, and sign-in fails without one.
+    ctx.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
     return next(ctx);
 });
 

@@ -12,14 +12,18 @@ description: >-
 The one home of the agent review's triage rules: the build's self-review and the
 GitHub review task both use them, so their verdicts mean the same thing.
 
-Target (`$ARGUMENTS`): a PR number, or nothing = the current branch vs `origin/main`.
+Target (`$ARGUMENTS`): a PR number, or nothing = the current branch
+(`git branch --show-current`) vs `origin/main`. The diff under review is `gh pr diff N`
+for a PR, else `git fetch -q origin && git diff origin/main...HEAD`; it must not be empty
+(empty = say so and stop: nothing was reviewed).
 Read-only: no commits, no pushes, no GitHub comments, no labels.
 
 ## 1. Spec
 
 Read CLAUDE.md and each linked issue (`gh issue view <n>`; from a PR's
 `closingIssuesReferences`, or the branch name `<type>/<n>-<slug>`). Its acceptance
-criteria and out-of-scope list are the spec. A PR body that asks reviewers to check
+criteria and out-of-scope list are the spec; no linked issue (e.g. Dependabot) → the
+PR body is the spec. A PR body that asks reviewers to check
 something (e.g. a `## For the reviewer` list): answer each point.
 
 ## 2. Level
@@ -31,10 +35,14 @@ something (e.g. a `## For the reviewer` list): answer each point.
 - `medium` if the change is docs/CI-config only or under ~50 changed lines.
 - otherwise `high`.
 
+First match wins (a CI-config-only change is `xhigh`).
+
 ## 3. Review
 
-Run the code-review skill WITHOUT posting: `/code-review <level> <target>` (no
-`--comment`, no `--fix`). Collect its findings.
+Run the code-review skill WITHOUT posting: `/code-review <level> <target>
+--max-findings default`, where `<target>` is the PR number or the branch name, never
+empty (empty = the working-tree diff, which is empty once everything is pushed). No
+`--comment`, no `--fix`. Collect its findings.
 
 ## 4. Triage
 

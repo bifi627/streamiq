@@ -10,9 +10,10 @@ description: >-
 disable-model-invocation: true
 ---
 
-User-invoked only (`/preview [tunnel] | stop | status`). Arguments: `$ARGUMENTS`
-— none = start in LAN mode; `tunnel` = `--tunnel`; `stop` /
-`status` = those sections below.
+User-invoked only (`/preview [tunnel] [seed instructions] | stop | status`).
+Arguments: `$ARGUMENTS` — none = start in LAN mode; `tunnel` = `--tunnel`;
+`stop` / `status` = those sections below; any other text = seed instructions
+(section Seed), done after the start.
 
 # Preview env: start / stop
 
@@ -48,7 +49,8 @@ the same. Background: `docs/tools.md` (Preview env + cloudflared rows).
      `e2e/.preview/logs/<service>.log` for the failing piece, report it with the
      error lines. Don't retry blindly; one retry only for a transient cause
      (network / Docker hiccup) you name.
-3. Hand back exactly this, values copied from the `up`/`status` output:
+3. Seed instructions given → section Seed, then step 4.
+4. Hand back exactly this, values copied from the `up`/`status` output:
 
    ```
    Preview of <branch> is running.
@@ -57,12 +59,36 @@ the same. Background: `docs/tools.md` (Preview env + cloudflared rows).
    - Login: preview@streamiq.test / preview-password
    - Pairing: auto-approved, just press Pair this browser
    - Public while running: anyone with the tunnel URL can reach it  ← only with --tunnel
+   - Seeded: <one line per thing seeded, with any extra logins>   ← only with seed instructions
    - Stop: tell me, or `npm run preview --prefix e2e -- down`
    ```
 
    First LAN URL = the first address on the `LAN:` line (the real adapter;
    later ones are WSL/Docker). Device can't connect at all → first-time Windows
    Firewall rule from `docs/tools.md`, which the owner runs (admin).
+
+## Seed
+
+The base seed (`serve()` in `preview.ts`) is fixed: the preview login, its
+household (admin), one gateway online, `dev-media/`. Anything more the owner
+asks for, do on the running stack with the `api:` / `auth emulator:` URLs that
+`up`/`status` print:
+
+- **Token:** `POST <emulator>/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key`
+  with `{email, password, returnSecureToken: true}` → `idToken`; then
+  `Authorization: Bearer <idToken>` on `<api>/api/...` (endpoints: `backend/src/StreamIq.Api/Features/`).
+  Another household than the user's oldest: header `X-StreamIQ-Household: <tenant id>` (from `GET /api/me`).
+- **More people:** `accounts:signUp` (same body) as `preview2@streamiq.test`,
+  `preview3@…`, password `preview-password`; their first API call provisions their own household.
+- **Media:** copy into `dev-media/` (or `bash scripts/gen-test-media.sh`), then
+  "Scan All Libraries" on the printed `jellyfin:` address.
+- **Through the API only**, as a real user would: no SQL or direct DB writes (the
+  tenant filter is the invariant). Not reachable that way → say so, don't hack it in.
+- **Per-device settings** (`localStorage`: compatible mode, quality, selected
+  household) can't be seeded: tell the owner what to set on the device.
+- A step fails → report the request + response, keep the preview running.
+
+The seed lives only as long as this run: `down`/`up` starts from the base seed again.
 
 ## Stop
 

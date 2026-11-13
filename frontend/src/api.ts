@@ -99,4 +99,9 @@ export type Membership = {
   role: 'admin' | 'member'
 }
 export type Me = { userId: string; tenantId: string; memberships: Membership[] }
-export const getMe = () => authed<Me>('/me').then((me) => (loaded = me))
+// Shell calls it once per sign-in: forget the previous user's household first (sign
+// out + in again doesn't reload the page).
+export function getMe() {
+  loaded = null
+  return authed<Me>('/me').then((me) => (loaded = me))
+}

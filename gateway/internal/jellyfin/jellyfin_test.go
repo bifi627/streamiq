@@ -37,7 +37,7 @@ func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
 	f := &fake{wizard: wizardDone, users: map[string]*fakeUser{}, tokens: map[string]string{}, keys: map[string]bool{},
 		enc: map[string]any{"HardwareAccelerationType": "none", "EnableThrottling": false, "EncoderPreset": "auto", "QsvDevice": "keep me"}}
 	if wizardDone {
-		f.users["streamiq"] = &fakeUser{id: "id-admin", pw: "pw", admin: true}
+		f.users["me"] = &fakeUser{id: "id-me", pw: "pw", admin: true} // the user's own admin
 	}
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
@@ -250,16 +250,61 @@ func TestLoginExistingJellyfin(t *testing.T) {
 	if v := s.View(); !v.NeedsLogin || v.HasKey {
 		t.Fatalf("set-up Jellyfin, no token: want NeedsLogin, got %+v", v)
 	}
-	if err := s.Login(context.Background(), "streamiq", "wrong"); err == nil {
+	if err := s.Login(context.Background(), "me", "wrong"); err == nil {
 		t.Fatal("wrong password accepted")
 	}
-	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
 		t.Fatal(err)
 	}
 	connected(t, f, s, got)
 	b, _ := os.ReadFile(s.path())
 	if strings.Contains(string(b), `"pw"`) || s.View().NeedsLogin || s.View().PasswordFile != "" {
 		t.Fatalf("stored the admin password or still needs login: %s", b)
+	}
+	// The gateway's own hidden admin, so it can create viewers later (#195).
+	own := func() (Creds, *fakeUser) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return s.creds, f.users[byoAdmin]
+	}
+	c, a := own()
+	if a == nil || !a.admin || a.policy["IsHidden"] != true || c.User != byoAdmin || c.Password != a.pw || !c.BYO {
+		t.Fatalf("gateway admin: creds %+v, user %+v", c, a)
+	}
+	if s.View().Managed {
+		t.Fatal("BYO Jellyfin shown as managed")
+	}
+	// Reconnecting adopts it with a new password; signing in as it is refused.
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	if c2, a2 := own(); c2.Password == c.Password || c2.Password != a2.pw || a2.id != a.id {
+		t.Fatalf("reconnect: creds %+v, user %+v", c2, a2)
+	}
+	if _, a := own(); s.Login(context.Background(), byoAdmin, a.pw) == nil {
+		t.Fatal("signed in as the gateway's own admin")
+	}
+}
+
+// An install from before #195 on a BYO Jellyfin has a viewer token but no admin
+// of its own: the page asks to reconnect once, playback keeps working meanwhile.
+func TestBYOWithoutOwnAdminAsksToReconnect(t *testing.T) {
+	_, srv := newFake(t, true)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	c := s.creds
+	c.User, c.Password, c.BYO = "", "", false // as written before #195
+	b, _ := json.Marshal(c)
+	os.WriteFile(s.path(), b, 0o600)
+	if err := s.Load(); err != nil {
+		t.Fatal(err)
+	}
+	s.poll(context.Background())
+	if v := s.View(); !v.NeedsLogin || got[0] == "" {
+		t.Fatalf("view %+v, onKey %v", v, got)
 	}
 }
 
@@ -271,7 +316,7 @@ func TestExistingViewerAdopted(t *testing.T) {
 		policy: map[string]any{"IsAdministrator": true, "AuthenticationProviderId": "Default", "PasswordResetProviderId": "Default"}}
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
-	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
 		t.Fatal(err)
 	}
 	if c := connected(t, f, s, got); c.ViewerID != "id-old-viewer" || f.users[ViewerName].pw == "lost" {
@@ -285,7 +330,7 @@ func TestRevokedTokenRepairs(t *testing.T) {
 	f, srv := newFake(t, true)
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
-	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
 		t.Fatal(err)
 	}
 	old := got[0]
@@ -313,6 +358,7 @@ func TestLegacyKeyMigrates(t *testing.T) {
 	f.keys["legacy-key"] = true
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
+	f.users["streamiq"] = &fakeUser{id: "id-admin", pw: "pw", admin: true} // the gateway set Jellyfin up
 	os.WriteFile(s.path(), []byte(`{"apiKey":"legacy-key","user":"streamiq","password":"pw"}`), 0o600)
 	if err := s.Load(); err != nil {
 		t.Fatal(err)
@@ -430,7 +476,7 @@ func TestUserJellyfinUntouched(t *testing.T) {
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
 	s.HWAccel = "nvenc"
-	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
 		t.Fatal(err)
 	}
 	s.poll(context.Background())

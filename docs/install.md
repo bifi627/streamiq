@@ -67,8 +67,13 @@ libraries and keeps its own watch progress (separate from yours in Jellyfin).
   Jellyfin.
 - **Jellyfin already set up:** the page shows **Connect Jellyfin**. Sign in once
   with a Jellyfin administrator. The gateway uses that session to create
-  `streamiq-viewer`, then signs out. It never stores your password, so
-  changing it later doesn't break anything.
+  `streamiq-viewer` and its own hidden admin `streamiq-admin` with a
+  random password (in `state/jellyfin.json`, readable only on this computer), then
+  signs out. It never stores your password, so changing it later doesn't break
+  anything. The gateway needs its own admin to create a Jellyfin user per household
+  member (their own watch progress, #195); it doesn't touch your Jellyfin's settings.
+  A gateway connected before this change shows **Connect Jellyfin** once more:
+  sign in again, and playback keeps working until you do.
 
 If the token stops working (for example you signed the gateway out under
 Dashboard → Devices), the gateway signs in again by itself. If you deleted

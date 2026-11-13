@@ -395,7 +395,9 @@ stays a *viewer*:
 
 - **Credential injection.** The gateway holds a Jellyfin user token for the
   hidden, non-admin user `streamiq-viewer` (`gateway/internal/jellyfin` creates
-  it with an admin session it doesn't keep; `state/jellyfin.json`). It sets
+  it with an admin session it doesn't keep; `state/jellyfin.json`). The gateway's
+  own admin (`streamiq`, or hidden `streamiq-admin` on a Jellyfin the user brought;
+  password in the same file) never reaches the tunnel. It sets
   `Authorization: MediaBrowser Token="…"`, and drops browser-sent `Authorization`,
   `Cookie`, `X-Emby-*` and `X-MediaBrowser-*` headers, and `api_key`/`ApiKey`
   query parameters. Jellyfin itself refuses admin calls with this token. The

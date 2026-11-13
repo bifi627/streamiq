@@ -101,7 +101,7 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 		}
 		// Every session needs a user and a role: the broker stamps both (docs/protocol.md).
 		if m.User == "" || (m.Role != tunnel.Admin && m.Role != tunnel.Member) {
-			log.Printf("gateway: session %s: offer without user or role refused", m.Session)
+			log.Printf("gateway: session %s: offer without user or known role (%q) refused", m.Session, m.Role)
 			return
 		}
 		log.Printf("gateway: session %s: user %s (%s)", m.Session, m.User, m.Role)

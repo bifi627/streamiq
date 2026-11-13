@@ -228,7 +228,11 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 	offer, _ := pc.CreateOffer(nil)
 	inOrder.Lock() // candidates gathered from here on queue behind the offer
 	pc.SetLocalDescription(offer)
-	handle(Msg{Type: "offer", Session: id, User: "user-" + id, Role: tunnel.Member, SDP: pc.LocalDescription()})
+	role := tunnel.Member // ids starting with "admin" offer as a household admin
+	if strings.HasPrefix(id, "admin") {
+		role = tunnel.Admin
+	}
+	handle(Msg{Type: "offer", Session: id, User: "user-" + id, Role: role, SDP: pc.LocalDescription()})
 	inOrder.Unlock()
 
 	ch := b.say(nil)
@@ -350,15 +354,19 @@ func TestScreenOverTunnel(t *testing.T) {
 	}
 	tv, phone := pair("tv", "Living room TV"), pair("phone", "Phone")
 
-	// The offer's role stays on the session (#194): a member's tunnel request to
-	// an admin-only endpoint is refused.
-	tunnel.AdminOnly[tunnel.ScreensPath] = true
-	denied, d := phone.open(`{"method":"GET","url":"/streamiq/screens"}`)
-	if head := phone.frame(denied); !strings.Contains(head, `"status":403`) {
-		t.Fatalf("member on an admin-only endpoint: head = %s", head)
+	// The offer's role stays on the session (#194): on an admin-only endpoint a
+	// member's tunnel request is refused, an admin's passes the gate (no status
+	// source in this test, so it then gets 404).
+	tunnel.AdminOnly[tunnel.StatusPath] = true
+	t.Cleanup(func() { delete(tunnel.AdminOnly, tunnel.StatusPath) })
+	for b, want := range map[*browser]string{phone: `"status":403`, pair("admin-laptop", "Laptop"): `"status":404`} {
+		got, d := b.open(`{"method":"GET","url":"/streamiq/status"}`)
+		if head := b.frame(got); !strings.Contains(head, want) {
+			t.Fatalf("admin-only endpoint: head = %s, want %s", head, want)
+		}
+		d.Close()
 	}
-	d.Close()
-	delete(tunnel.AdminOnly, tunnel.ScreensPath)
+	delete(tunnel.AdminOnly, tunnel.StatusPath)
 
 	frames, _ := tv.open(`{"method":"GET","url":"/streamiq/screen"}`)
 	if head := tv.frame(frames); !strings.Contains(head, `"status":200`) {

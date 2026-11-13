@@ -66,7 +66,8 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 <form method="post" action="/jellyfin/login" style="border:2px solid #c80;padding:.5rem 1rem">
 <p><b>Connect Jellyfin.</b> Sign in once with a Jellyfin administrator. The gateway uses it to
 create the hidden, non-admin user <code>streamiq-viewer</code> and streams as that user (its own
-watch progress). Your password is not stored.</p>
+watch progress), and to create its own hidden admin <code>streamiq-admin</code> (password stored on this
+computer) for per-member users later. Your password is not stored.</p>
 <p><input name="user" placeholder="Jellyfin user" required autocomplete="username">
 <input name="pw" type="password" placeholder="Password" autocomplete="current-password">
 <button>Connect</button></p>

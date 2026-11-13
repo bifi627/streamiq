@@ -37,15 +37,10 @@ namespace StreamIq.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("FirebaseUid")
                         .IsUnique();
-
-                    b.HasIndex("TenantId");
 
                     b.ToTable("users", (string)null);
                 });
@@ -188,6 +183,33 @@ namespace StreamIq.Api.Migrations
                     b.ToTable("gateways", (string)null);
                 });
 
+            modelBuilder.Entity("StreamIq.Api.Data.Membership", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("TenantId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("memberships", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_memberships_Role", "\"Role\" IN ('admin', 'member')");
+                        });
+                });
+
             modelBuilder.Entity("StreamIq.Api.Data.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -205,15 +227,6 @@ namespace StreamIq.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("tenants", (string)null);
-                });
-
-            modelBuilder.Entity("StreamIq.Api.Data.AppUser", b =>
-                {
-                    b.HasOne("StreamIq.Api.Data.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("StreamIq.Api.Data.ConnectionSession", b =>
@@ -245,6 +258,21 @@ namespace StreamIq.Api.Migrations
                     b.HasOne("StreamIq.Api.Data.Tenant", null)
                         .WithMany()
                         .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("StreamIq.Api.Data.Membership", b =>
+                {
+                    b.HasOne("StreamIq.Api.Data.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StreamIq.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

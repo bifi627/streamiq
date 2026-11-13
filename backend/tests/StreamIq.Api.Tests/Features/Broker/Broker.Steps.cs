@@ -33,7 +33,7 @@ public class BrokerSteps(IntegrationFixture fx)
         _browser?.Dispose();
     }
 
-    [Given("\"(.*)\" has an online gateway \"(.*)\"")]
+    [Given("\"([^\"]*)\" has an online gateway \"([^\"]*)\"")]
     public async Task GivenOnlineGateway(string email, string name)
     {
         using var client = fx.Factory.CreateClient();
@@ -57,7 +57,7 @@ public class BrokerSteps(IntegrationFixture fx)
         _gateways[name] = (id, ws, credential);
     }
 
-    [When("\"(.*)\" offers to gateway \"(.*)\"")]
+    [When("\"([^\"]*)\" offers to gateway \"([^\"]*)\"")]
     public async Task WhenOffer(string email, string name)
     {
         _offerer = email;
@@ -69,7 +69,22 @@ public class BrokerSteps(IntegrationFixture fx)
         await Send(_browser, new { type = "offer", gatewayId = _gateways[name].Id, sdp = new { type = "offer", sdp = "v=0 fake" } });
     }
 
-    [StepDefinition("gateway \"(.*)\" receives the offer")]
+    // The broker ignores any household the browser names, on the socket or in the offer.
+    [When("\"([^\"]*)\" offers to gateway \"([^\"]*)\" naming the household of \"([^\"]*)\"")]
+    public async Task WhenOfferNaming(string email, string name, string owner)
+    {
+        using var ownerClient = await SignedIn(owner);
+        var household = (await ownerClient.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("tenantId").GetString();
+        _offerer = email;
+        var wsc = fx.Factory.Server.CreateWebSocketClient();
+        wsc.ConfigureRequest = r => r.Headers[StreamIq.Api.Auth.Households.Header] = household;
+        _browser = await wsc.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
+        await Send(_browser, new { type = "auth", token = await IdToken(email), household });
+        Assert.Equal("ready", Assert.NotNull(await Receive(_browser)).GetProperty("type").GetString());
+        await Send(_browser, new { type = "offer", gatewayId = _gateways[name].Id, household, sdp = new { type = "offer", sdp = "v=0 fake" } });
+    }
+
+    [StepDefinition("gateway \"([^\"]*)\" receives the offer")]
     public async Task ThenGatewayGetsOffer(string name)
     {
         var m = Assert.NotNull(await Receive(_gateways[name].Ws));
@@ -84,7 +99,7 @@ public class BrokerSteps(IntegrationFixture fx)
         _session = session;
     }
 
-    [When("gateway \"(.*)\" answers that session")]
+    [When("gateway \"([^\"]*)\" answers that session")]
     public async Task WhenAnswer(string name)
     {
         await Send(_gateways[name].Ws, new { type = "answer", session = _session, sdp = new { type = "answer", sdp = "v=0 answer" } });
@@ -102,7 +117,7 @@ public class BrokerSteps(IntegrationFixture fx)
         Assert.Null(await Receive(_browser, quiet: true));
     }
 
-    [Then("gateway \"(.*)\" receives nothing")]
+    [Then("gateway \"([^\"]*)\" receives nothing")]
     public async Task ThenGatewayNothing(string name)
     {
         Assert.Null(await Receive(_gateways[name].Ws, quiet: true));
@@ -114,7 +129,7 @@ public class BrokerSteps(IntegrationFixture fx)
         Assert.Equal("error", Assert.NotNull(await Receive(_browser)).GetProperty("type").GetString());
     }
 
-    [When("a browser authenticates with token \"(.*)\"")]
+    [When("a browser authenticates with token \"([^\"]*)\"")]
     public Task WhenBadToken(string token)
     {
         return BrowserAuth(token);
@@ -127,7 +142,7 @@ public class BrokerSteps(IntegrationFixture fx)
         Assert.Equal(WebSocketMessageType.Close, r.MessageType);
     }
 
-    [When("\"(.*)\" removes gateway \"(.*)\"")]
+    [When("\"([^\"]*)\" removes gateway \"([^\"]*)\"")]
     public async Task WhenRemove(string email, string name)
     {
         using var client = await SignedIn(email);
@@ -146,7 +161,7 @@ public class BrokerSteps(IntegrationFixture fx)
         Assert.Equal(HttpStatusCode.NotFound, _removal);
     }
 
-    [Then("gateway \"(.*)\" is disconnected as \"(.*)\"")]
+    [Then("gateway \"([^\"]*)\" is disconnected as \"([^\"]*)\"")]
     public async Task ThenGatewayDisconnected(string name, string reason)
     {
         var ws = _gateways[name].Ws;
@@ -155,14 +170,14 @@ public class BrokerSteps(IntegrationFixture fx)
         Assert.Equal(reason, ws.CloseStatusDescription);
     }
 
-    [Then("gateway \"(.*)\" can no longer connect")]
+    [Then("gateway \"([^\"]*)\" can no longer connect")]
     public async Task ThenGatewayRejected(string name)
     {
         var ex = await Assert.ThrowsAnyAsync<Exception>(() => GatewayConnect(_gateways[name].Credential));
         Assert.Contains("401", ex.Message);
     }
 
-    [Then("\"(.*)\" no longer lists gateway \"(.*)\"")]
+    [Then("\"([^\"]*)\" no longer lists gateway \"([^\"]*)\"")]
     public async Task ThenNotListed(string email, string name)
     {
         using var client = await SignedIn(email);

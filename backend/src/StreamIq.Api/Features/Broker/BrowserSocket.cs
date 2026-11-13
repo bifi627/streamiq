@@ -9,8 +9,9 @@ namespace StreamIq.Api.Features.Broker;
 
 /// A browser's signaling socket: one WebSocket = one session to one gateway. The
 /// Firebase ID token arrives as the first message (not a query param — keeps it
-/// out of logs); the offer may only target an online gateway of the caller's tenant,
-/// and the broker stamps the caller's `users.id` on it as `user`.
+/// out of logs); the offer may only target an online gateway of a household the
+/// caller is a member of (checked for the gateway's tenant, never a household the
+/// client names), and the broker stamps the caller's `users.id` on it as `user`.
 /// `ready` carries this session's ICE servers; a revocable TURN credential is
 /// revoked when the socket closes (closing it also ends the session: `bye`).
 public static class BrowserSocket
@@ -55,8 +56,8 @@ public static class BrowserSocket
                     await Broker.CloseAsync(socket, "unauthorized", ct);
                     return;
                 }
-                db.CurrentTenantId = user.TenantId;
-                var me = new Broker.Link(socket, user.TenantId, Guid.Empty);
+                // No household yet: the offer's gateway decides which one (membership checked there).
+                var me = new Broker.Link(socket, Guid.Empty, Guid.Empty);
                 JsonArray iceServers;
                 // A slow TURN provider must not stall the session: fail fast to STUN.
                 turnHttp = http.CreateClient();
@@ -79,12 +80,17 @@ public static class BrowserSocket
                     switch ((string?)msg["type"])
                     {
                         case "offer" when gateway is null:
-                            // The tenant filter makes another tenant's gateway look absent:
-                            // same answer as unknown/offline, so no existence oracle.
-                            var ok = Guid.TryParse((string?)msg["gatewayId"], out var gatewayId)
-                                && await db.Gateways.AnyAsync(d => d.Id == gatewayId && d.CredentialHash != null, ct)
+                            // The household is the gateway's tenant, and only if the user is a
+                            // member of it; the filter then scopes the revocation check to it.
+                            // Not a member = same answer as unknown/offline (no existence oracle).
+                            var ok = false;
+                            if (Guid.TryParse((string?)msg["gatewayId"], out var gatewayId)
                                 && Broker.Gateways.TryGetValue(gatewayId, out gateway)
-                                && gateway.TenantId == user.TenantId;
+                                && await Households.PickAsync(db, user.Id, gateway.TenantId, ct) is not null)
+                            {
+                                db.CurrentTenantId = gateway.TenantId;
+                                ok = await db.Gateways.AnyAsync(d => d.Id == gatewayId && d.CredentialHash != null, ct);
+                            }
                             if (!ok || gateway is null)
                             {
                                 gateway = null;
@@ -92,7 +98,7 @@ public static class BrowserSocket
                                 continue;
                             }
                             session = Guid.NewGuid();
-                            Broker.Sessions[session] = new Broker.Link(socket, user.TenantId, gatewayId);
+                            Broker.Sessions[session] = new Broker.Link(socket, gateway.TenantId, gatewayId);
                             await gateway.SendAsync(new JsonObject
                             {
                                 ["type"] = "offer",

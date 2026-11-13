@@ -4,12 +4,14 @@ namespace StreamIq.Api.Data;
 
 public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : DbContext(options)
 {
-    /// Set per request by FirebaseAuthHandler after the user is resolved. Null in
+    /// Set per request from a membership of the signed-in user (Auth/Households),
+    /// never from client input directly. Null in
     /// unauthenticated contexts ⇒ the filter matches nothing ⇒ fails closed.
     public Guid? CurrentTenantId { get; set; }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<Gateway> Gateways => Set<Gateway>();
     public DbSet<EnrollmentToken> EnrollmentTokens => Set<EnrollmentToken>();
     public DbSet<ConnectionSession> ConnectionSessions => Set<ConnectionSession>();
@@ -26,6 +28,14 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
         {
             e.ToTable("users");
             e.HasIndex(x => x.FirebaseUid).IsUnique();
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
+        });
+
+        b.Entity<Membership>(e =>
+        {
+            e.ToTable("memberships", t => t.HasCheckConstraint("CK_memberships_Role", "\"Role\" IN ('admin', 'member')"));
+            e.HasKey(x => new { x.TenantId, x.UserId });   // unique on (tenant, user)
+            e.HasIndex(x => x.UserId);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
 
@@ -51,7 +61,8 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
 
         // DB-level FKs matching the design doc (tenant_id uuid NOT NULL REFERENCES
         // tenants(id)). No navigation properties — entities stay plain scalars.
-        b.Entity<AppUser>().HasOne<Tenant>().WithMany().HasForeignKey(u => u.TenantId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Membership>().HasOne<Tenant>().WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Membership>().HasOne<AppUser>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Gateway>().HasOne<Tenant>().WithMany().HasForeignKey(d => d.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<EnrollmentToken>().HasOne<Tenant>().WithMany().HasForeignKey(t => t.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<ConnectionSession>().HasOne<Tenant>().WithMany().HasForeignKey(c => c.TenantId).OnDelete(DeleteBehavior.Cascade);

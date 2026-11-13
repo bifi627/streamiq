@@ -9,9 +9,12 @@ import { tunnelFetch } from '../../tunnel'
 export function Pairing({
   gatewayId,
   lanUrl,
+  onPaired,
 }: {
   gatewayId: string
   lanUrl: string | null
+  /** After a successful pairing (not after Test connection). */
+  onPaired?: () => void
 }) {
   const [code, setCode] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
@@ -30,6 +33,7 @@ export function Pairing({
         `Tunnel OK · HTTP ${r.status} · ${new TextDecoder().decode(r.body).slice(0, 120)}`,
       )
       s.close()
+      if (pair) onPaired?.()
     } catch (e) {
       setCode(null)
       setStatus(null)
@@ -61,7 +65,7 @@ export function Pairing({
         </p>
       )}
       {status && <p style={{ color: '#666' }}>{status}</p>}
-      {err && <ErrorView error={err} onRetry={() => run(false)} />}
+      {err && <ErrorView error={err} onRetry={() => run(false)} pair={null} />}
     </div>
   )
 }

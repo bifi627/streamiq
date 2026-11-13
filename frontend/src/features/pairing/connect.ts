@@ -16,7 +16,7 @@ import {
   sdpFingerprint,
   sha256,
 } from './crypto'
-import { clientKey, getPin, setPin } from './store'
+import { clientKey, getPin, persistStorage, setPin } from './store'
 import { sharer } from './shared'
 import {
   AppError,
@@ -242,6 +242,7 @@ export async function connect(
           return onCode?.(await comparisonCode(gatewayFp, key.fp, m.n!, nB))
         case 'approved':
           await setPin(gatewayId, gatewayFp)
+          void persistStorage().catch(() => {}) // best effort, logged to diag
           shared.drop(gatewayId) // its session belongs to the old certificate
           ch.onclose = null
           return resolve(up())

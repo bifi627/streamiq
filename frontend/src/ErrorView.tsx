@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { signOut } from '@firebase/auth'
 import { auth } from './firebase'
@@ -14,13 +14,16 @@ const label: Record<Action, string> = {
 /** The one way an error is shown (#45). data-kind lets tests assert the kind.
  * Takes anything thrown (a query's `error`, a caught value): non-AppErrors
  * show as `unknown`. Retry defaults to a reload: it reopens the gateway's
- * session too. */
+ * session too. `pair` replaces the Pair action's link to the Gateways list
+ * (pairing right where the error shows; null: the caller already offers it). */
 export function ErrorView({
   error: thrown,
   onRetry = () => location.reload(),
+  pair,
 }: {
   error: unknown
   onRetry?: () => void
+  pair?: ReactNode
 }) {
   const error = toAppError(thrown)
   const { message, actions, loud } = describe(error)
@@ -41,7 +44,7 @@ export function ErrorView({
             <button key={a} type="button" onClick={onRetry}>
               {label[a]}
             </button>
-          ) : a === 'sign-in' ? (
+          ) : a === 'pair' && pair !== undefined ? null : a === 'sign-in' ? (
             <button key={a} type="button" onClick={() => signOut(auth)}>
               {label[a]}
             </button>
@@ -53,6 +56,7 @@ export function ErrorView({
           ),
         )}
       </p>
+      {actions.includes('pair') && pair}
       {error.message !== message && (
         <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>{error.message}</p>
       )}

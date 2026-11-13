@@ -1,6 +1,7 @@
 // THE golden path (dev-env spec: exactly one E2E; edge cases belong in the
 // integration layer). Real browser → broker → gateway → Jellyfin: onboard, pair,
-// install check, browse, play, resume, re-pair, remove (kills open sessions).
+// install check, browse, play, resume, re-pair, re-pair after an evicted key,
+// remove (kills open sessions).
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -456,6 +457,51 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         a.getByText('this browser is not paired with the gateway'),
       ).toBeVisible()
+    })
+
+    await test.step('evicted client key (#174): message → re-pair right there → stream', async () => {
+      // What Safari's 7-day cap or disk pressure does: all IndexedDB gone
+      // (client key, pins, and Firebase's sign-in with them).
+      const app = process.env.E2E_APP_URL!
+      const id = (await a.locator('li code').first().textContent())!
+      const cdp = await a.context().newCDPSession(a)
+      await cdp.send('Storage.clearDataForOrigin', {
+        origin: new URL(app).origin,
+        storageTypes: 'indexeddb',
+      })
+      await a.goto(`${app}/g/${id}`)
+      await a.getByPlaceholder('email').fill(email())
+      await a.getByPlaceholder('password').fill(password)
+      await a.getByRole('button', { name: 'Sign in' }).click()
+      const alert = a.locator('[role=alert][data-kind="not-paired"]')
+      await expect(alert).toContainText(
+        "This browser isn't paired with this gateway (anymore). Pair it again.",
+      )
+      await alert.getByRole('button', { name: 'Pair this browser' }).click()
+      const code = (await alert
+        .locator('p', { hasText: /^Code/ })
+        .locator('b')
+        .textContent())!
+      const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
+      const request = gatewayPage.locator('form[action="/decide"]')
+      await expect(request).toContainText(code)
+      await request.getByRole('button', { name: 'Approve' }).click()
+      // Paired → the library reconnects on a fresh session.
+      await a.getByRole('button', { name: /Movies/ }).click()
+      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      await expect
+        .poll(() => videoTime(a), { timeout: 30_000 })
+        .toBeGreaterThan(0)
+      // The pairing asked for persistent storage; the result is in the log.
+      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      await expect(
+        a.getByText(
+          /storage: (persist\(\) (granted|denied)|already persistent)/,
+        ),
+      ).toBeVisible()
+      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
+      await a.goto(app)
+      await expect(a.getByRole('heading', { name: 'Gateways' })).toBeVisible()
     })
 
     await test.step('Remove in the web app → gateway revoked and disconnected', async () => {

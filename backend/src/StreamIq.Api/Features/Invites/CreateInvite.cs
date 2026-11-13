@@ -26,6 +26,7 @@ public static class CreateInvite
             db.Invites.Add(invite);
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { invite.Id, token, invite.ExpiresAt });
-        }).RequireAuthorization(p => p.RequireRole(Membership.Admin));   // member: 403
+        }).RequireAuthorization(p => p.RequireRole(Membership.Admin))   // member: 403
+            .RequireRateLimiting("signaling");
     }
 }

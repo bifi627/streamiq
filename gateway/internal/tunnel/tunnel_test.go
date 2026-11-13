@@ -108,6 +108,8 @@ func TestAllowlist(t *testing.T) {
 		{"GET", "/Videos/" + vid + "/%2e%2e/%2e%2e/Auth/Keys", false},
 		{"GET", "/Videos/" + vid + "//x", false},
 		{"GET", "http://evil.example/UserViews", false},
+		{"GET", "//evil.example/UserViews", false}, // scheme-relative: a host, no scheme
+		{"GET", "//user@evil.example/UserViews", false},
 		{"GET", "/Items/not-an-id", false},
 	} {
 		j, _ := fakeJellyfin(t)

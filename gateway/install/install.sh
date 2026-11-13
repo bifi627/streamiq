@@ -5,6 +5,7 @@
 #   curl -fsSL https://github.com/bifi627/streamiq/releases/latest/download/install.sh | sh
 # The state dir (cert, credential, paired browsers) is never touched.
 set -eu
+umask 077 # state, gateway.env and the log are for this user only
 DIR="${STREAMIQ_DIR:-$HOME/.local/share/streamiq}"
 DL="${STREAMIQ_DOWNLOAD:-https://github.com/bifi627/streamiq/releases/latest/download}"
 

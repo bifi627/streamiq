@@ -25,8 +25,7 @@ import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { event } from '../../diag'
 import type { Screen, ScreenCommand } from '../gateways/api'
 import { Player } from './Player'
-import { isBack } from './items'
-import { clock, TICKS_PER_SECOND, type Item } from './items'
+import { clock, isBack, TICKS_PER_SECOND, type Item } from './items'
 import { pairInfo, type PairInfo } from '../../stats'
 import type { Speed } from '../../speed'
 
@@ -182,9 +181,20 @@ export function ScreenPage() {
     players.current.add(apply)
     return () => void players.current.delete(apply)
   }, [])
+  const router = useRouter()
+  const canGoBack = useCanGoBack()
+  // Pops the screen off history (or replaces it), so a later Back never
+  // lands on it and reopens a screen the user didn't choose.
   const leave = useCallback(
-    () => navigate({ to: '/g/$gatewayId', params: { gatewayId } }),
-    [navigate, gatewayId],
+    () =>
+      canGoBack
+        ? router.history.back()
+        : navigate({
+            to: '/g/$gatewayId',
+            params: { gatewayId },
+            replace: true,
+          }),
+    [router, canGoBack, navigate, gatewayId],
   )
   useEffect(() => {
     const active = () =>
@@ -226,7 +236,11 @@ export function ScreenPage() {
   // The remote's Back on the waiting view; the player handles its own.
   useEffect(() => {
     if (play) return
-    const key = (e: KeyboardEvent) => isBack(e) && leave()
+    const key = (e: KeyboardEvent) => {
+      if (!isBack(e)) return
+      e.preventDefault() // else the browser's own Back runs too
+      leave()
+    }
     window.addEventListener('keydown', key)
     return () => window.removeEventListener('keydown', key)
   }, [play, leave])
@@ -288,10 +302,10 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
       )
   }
   const send = (s: Screen) => {
+    // No startTicks: the TV resumes from fresh UserData (this listing may be stale).
     const play: ScreenCommand = {
       type: 'play',
       itemId: item.Id,
-      startTicks: Math.floor(item.UserData?.PlaybackPositionTicks ?? 0),
     }
     tunnelJson(pc, `/streamiq/screens/${s.id}`, play).then(
       () => {

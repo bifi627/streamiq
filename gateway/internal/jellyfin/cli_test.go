@@ -64,3 +64,17 @@ func TestLoginCLI(t *testing.T) {
 		})
 	}
 }
+
+func TestReadLine(t *testing.T) {
+	for in, want := range map[string]string{"pw\r": "pw", "pw\n": "pw", "pä\x7f\x7fw\bx\r": "x", "\x7fa\r": "a"} {
+		if got, err := readLine(strings.NewReader(in)); got != want || err != nil {
+			t.Errorf("%q: %q, %v; want %q", in, got, err, want)
+		}
+	}
+	if _, err := readLine(strings.NewReader("pw\x03")); err != ErrInterrupted {
+		t.Errorf("Ctrl+C: %v", err)
+	}
+	if _, err := readLine(strings.NewReader("pw")); err == nil {
+		t.Error("EOF before Enter: no error")
+	}
+}

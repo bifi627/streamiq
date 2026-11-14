@@ -99,15 +99,23 @@ func main() {
 			fmt.Println("Already on", jellyfin.Image)
 		}
 	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "login":
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			err = errors.New("run it in a terminal: it reads the password without showing it")
+			break
+		}
+		// The user name prompt doesn't watch ctx: Ctrl+C there (caught by
+		// NotifyContext) exits here. At the password prompt it is a byte (raw mode).
+		go func() {
+			<-ctx.Done()
+			fmt.Println()
+			os.Exit(130)
+		}()
 		setup := &jellyfin.Setup{Client: &http.Client{Timeout: time.Minute}, URL: origin(),
 			StateDir: stateDir(), OnKey: func(string, string) {}}
-		err = jellyfin.LoginCLI(ctx, setup, os.Stdin, os.Stdout, func() (string, error) {
-			if !term.IsTerminal(int(os.Stdin.Fd())) {
-				return "", errors.New("run it in a terminal: it reads the password without showing it")
-			}
-			pw, err := term.ReadPassword(int(os.Stdin.Fd()))
-			return string(pw), err
-		})
+		err = jellyfin.LoginCLI(ctx, setup, os.Stdin, os.Stdout, func() (string, error) { return jellyfin.ReadPassword(os.Stdin) })
+		if errors.Is(err, jellyfin.ErrInterrupted) {
+			os.Exit(130)
+		}
 	case cmd == "reset-identity":
 		err = resetIdentity()
 	case cmd == "status":

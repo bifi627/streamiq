@@ -82,6 +82,9 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
       await expect.poll(() => position(A)).toBeGreaterThanOrEqual(5)
       await expect.poll(() => position(B)).toBeGreaterThanOrEqual(15)
       expect(await position(A)).toBeLessThan(15)
+      // Own viewers: no guest-mode banner (#242; /streamiq/status "viewer").
+      await expect(a.getByText(/guest mode/)).toHaveCount(0)
+      await expect(b.getByText(/guest mode/)).toHaveCount(0)
     })
 
     await test.step("A signs out, B signs in on A's tab: reload, B's resume", async () => {

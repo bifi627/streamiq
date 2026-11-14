@@ -200,7 +200,7 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 	case u.Path == BurstPath:
 		return burst(u.Query().Get("size"))
 	case u.Path == StatusPath && j.Status != nil:
-		b, err := json.Marshal(j.Status())
+		b, err := json.Marshal(j.Status(who.User))
 		if err != nil {
 			return 0, nil, nil, err
 		}

@@ -26,6 +26,7 @@ export type GatewayStatus = {
     untested?: boolean
     token?: 'ok' | 'missing' | 'legacy'
   }
+  viewer?: { shared?: boolean; reason?: string } // this session's (#242)
 }
 
 // Screens: phone as remote (docs/protocol.md, "Screens"). Used by Library.tsx.

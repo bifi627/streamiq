@@ -326,7 +326,8 @@ Fields are added over time; a client ignores ones it doesn't know.
 ```json
 { "transcoding": "nvenc", "os": "windows", "arch": "amd64", "startedAt": "2026-11-10T08:00:00Z",
   "jellyfin": { "reachable": true, "version": "10.11.2", "untested": false, "token": "ok" },
-  "pairedClients": 2, "activeSessions": 1 }
+  "pairedClients": 2, "activeSessions": 1,
+  "viewer": { "shared": true, "reason": "Jellyfin refused the gateway's administrator sign-in" } }
 ```
 
 | Field | Values |
@@ -336,6 +337,7 @@ Fields are added over time; a client ignores ones it doesn't know.
 | `startedAt` | gateway process start, ISO 8601 UTC |
 | `jellyfin` | `reachable`, `untested` (version outside the tested line), `version`, `token`: `ok` / `missing` / `legacy` (pre-#50 admin API key) |
 | `pairedClients`, `activeSessions` | counts only, no client names (#65) |
+| `viewer` | the calling session's Jellyfin viewer (#242): `shared: false` = the user's own; `shared: true` = the shared `streamiq-viewer` (#195 fallback), with a short `reason`. No credentials, no Jellyfin ids. The web app shows a guest-mode banner on the library and player while `shared` is true; no field (older gateway) = no banner |
 
 The web gateway page caches the last response per gateway in `localStorage` and
 shows it as "as of <time>" while the gateway is offline.

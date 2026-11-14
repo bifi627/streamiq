@@ -300,7 +300,7 @@ func run(ctx context.Context) {
 		newer.Store(new(string))
 		go checkUpdates(ctx, &notice, &newer)
 		started := time.Now().UTC()
-		jf.Status = func() any { // gateway API GET /streamiq/status (docs/protocol.md)
+		jf.Status = func(user string) any { // gateway API GET /streamiq/status (docs/protocol.md)
 			v := setup.View()
 			return map[string]any{
 				"transcoding": v.Transcoding(),
@@ -310,6 +310,7 @@ func run(ctx context.Context) {
 				},
 				// Counts only: no client names (#65).
 				"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
+				"viewer": setup.ViewerState(user), // this session's own (#242)
 			}
 		}
 		token, err := localpage.Token(stateDir, lan)

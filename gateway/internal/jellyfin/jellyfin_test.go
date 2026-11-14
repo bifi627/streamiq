@@ -721,10 +721,18 @@ func TestViewerFallback(t *testing.T) {
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
 	ctx := context.Background()
+	state := func(want string) { // GET /streamiq/status's "viewer" (#242)
+		t.Helper()
+		if b, _ := json.Marshal(s.ViewerState(alice)); !strings.Contains(string(b), want) {
+			t.Fatalf("viewer state %s, want %s", b, want)
+		}
+	}
+	state(`{"reason":"the gateway has no Jellyfin administrator of its own","shared":true}`)
 	if err := s.Login(ctx, "me", "pw"); err != nil {
 		t.Fatal(err)
 	}
 	s.poll(ctx)
+	state(`"reason":"the gateway couldn't create your Jellyfin user yet`)
 	f.mu.Lock()
 	pw := f.users[byoAdmin].pw
 	f.users[byoAdmin].pw = "changed by someone"
@@ -733,6 +741,7 @@ func TestViewerFallback(t *testing.T) {
 	if tok, _ := s.ViewerFor(alice); tok != "" || !strings.Contains(s.View().Err, "reconnect Jellyfin") || !s.View().NeedsLogin {
 		t.Fatalf("token %q, view %+v", tok, s.View())
 	}
+	state(`{"reason":"Jellyfin refused the gateway's administrator sign-in","shared":true}`)
 	f.mu.Lock()
 	f.users[byoAdmin].pw = pw
 	f.mu.Unlock()
@@ -748,6 +757,7 @@ func TestViewerFallback(t *testing.T) {
 	if v := s.View(); v.Err != "" || v.NeedsLogin {
 		t.Fatalf("after a login: view %+v", v)
 	}
+	state(`{"shared":false}`) // and nothing else: no token, no Jellyfin id
 }
 
 // A user's revoked viewer token repairs itself; if Jellyfin refuses its

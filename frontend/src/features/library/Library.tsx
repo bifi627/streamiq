@@ -23,7 +23,14 @@ import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { event } from '../../diag'
-import type { Screen, ScreenCommand, ScreenState } from '../gateways/api'
+import type {
+  GatewayStatus,
+  Screen,
+  ScreenCommand,
+  ScreenState,
+} from '../gateways/api'
+import { useHousehold } from '../households/household'
+import { guestNotice } from './guest'
 import { Player } from './Player'
 import {
   audioTracks,
@@ -107,6 +114,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
           value={{ gatewayId, pc: session.pc, speed: session.speed() }}
         >
           <Privacy pc={session.pc} />
+          <Guest pc={session.pc} />
           <Outlet />
         </Tunnel.Provider>
       )}
@@ -735,6 +743,25 @@ function Privacy({ pc }: { pc: RTCPeerConnection }) {
       </small>
     </p>
   )
+}
+
+// Guest-mode banner (#242), on the library and the player: checked once per
+// tunnel session (the gateway picks the viewer when the session opens).
+function Guest({ pc }: { pc: RTCPeerConnection }) {
+  const admin = useHousehold().current?.role === 'admin'
+  const [s, setS] = useState<GatewayStatus | null>(null)
+  useEffect(() => {
+    let live = true
+    tunnelJson<GatewayStatus>(pc, '/streamiq/status').then(
+      (r) => live && setS(r),
+      () => {}, // ponytail: no status (older gateway, error) = no banner
+    )
+    return () => {
+      live = false
+    }
+  }, [pc])
+  const notice = guestNotice(s, admin)
+  return notice && <p role="status">{notice}</p>
 }
 
 function label(i: Item) {

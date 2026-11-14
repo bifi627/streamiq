@@ -8,7 +8,9 @@
 //     "streamiq" with a random password (kept only in state/jellyfin.json, 0600; the
 //     local page shows the file's path, never the password). If a human changes it
 //     in Jellyfin, a page login as "streamiq" stores the new one, and so does
-//     editing the file (re-read when it changes, #240);
+//     editing the file (re-read when it changes, #240). A Jellyfin found back
+//     in this state with creds stored (its data wiped, #280) is set up again
+//     the same way, replacing all stored creds, BYO ones too;
 //   - Jellyfin already set up: the local page asks once for an admin login (the
 //     password typed is never stored); with it the gateway also creates its own
 //     hidden admin "streamiq-admin" (random password, stored like above), so it can
@@ -27,6 +29,7 @@
 package jellyfin
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -258,6 +261,17 @@ func (s *Setup) poll(ctx context.Context) {
 	}
 	switch {
 	case err != nil:
+	case !info.StartupWizardCompleted && s.wiped(ctx, c): // first: set a wiped Jellyfin (#280) up again over stale creds
+		if err := s.bootstrap(ctx); err != nil {
+			s.setErr("Jellyfin setup: " + err.Error())
+			slog.Error("gateway: Jellyfin setup failed", "err", err)
+			return
+		}
+		s.mu.Lock()
+		s.err, s.refused, s.legacyID = "", false, ""
+		s.mu.Unlock()
+		slog.Info("gateway: completed the Jellyfin setup wizard", "admin", adminName, "password_in", s.path())
+		s.configure(ctx) // seed now, not a poll later
 	case c.Token != "" || len(c.Users) > 0:
 		s.check(ctx)
 		s.configure(ctx)
@@ -265,22 +279,29 @@ func (s *Setup) poll(ctx context.Context) {
 		if legacyID == "" {
 			s.legacy(ctx, c)
 		}
-	case !info.StartupWizardCompleted:
-		if err := s.bootstrap(ctx); err != nil {
-			s.setErr("Jellyfin setup: " + err.Error())
-			slog.Error("gateway: Jellyfin setup failed", "err", err)
-			return
-		}
-		s.mu.Lock()
-		s.err, s.refused = "", false
-		s.mu.Unlock()
-		slog.Info("gateway: completed the Jellyfin setup wizard", "admin", adminName, "password_in", s.path())
-		s.configure(ctx) // seed now, not a poll later
 	}
 	if v := s.View(); !s.logged && v.Reachable && v.HasKey {
 		s.logged = true
 		logTranscoding(v)
 	}
+}
+
+// wiped: Jellyfin (its wizard not done) has none of the stored creds, if any.
+// A booting Jellyfin briefly reports the wizard not done too, but answers 503,
+// not 401, so a restart never replaces working creds.
+func (s *Setup) wiped(ctx context.Context, c Creds) bool {
+	tok := cmp.Or(c.Token, c.APIKey)
+	for _, v := range c.Users {
+		tok = cmp.Or(tok, v.Token)
+	}
+	if tok == "" {
+		return true
+	}
+	if !unauthorized(s.call(ctx, "GET", "/Users/Me", tok, "", nil)) {
+		return false
+	}
+	slog.Warn("gateway: Jellyfin was reset (setup wizard not done, stored token refused); setting it up again and replacing the stored credentials", "file", s.path())
+	return true
 }
 
 // logTranscoding says once per start how Jellyfin transcodes and where to
@@ -304,7 +325,10 @@ func (s *Setup) setErr(e string) {
 
 // bootstrap completes the startup wizard (the calls Jellyfin's own web wizard
 // makes) and connects with the new admin.
+// Replaces all stored creds (a reset Jellyfin has none of those users).
 func (s *Setup) bootstrap(ctx context.Context) error {
+	s.vmu.Lock() // EnsureViewer must not save old creds over the new ones
+	defer s.vmu.Unlock()
 	pw := randPassword()
 	steps := []struct{ method, path, body string }{
 		{"POST", "/Startup/Configuration", `{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}`},

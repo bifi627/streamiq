@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type fakeUser struct {
@@ -516,6 +517,106 @@ func TestConfigAdminRefused(t *testing.T) {
 	s.poll(context.Background())
 	if enc, _ := f.encoding(); enc["HardwareAccelerationType"] != "nvenc" || s.View().Err != "" {
 		t.Fatalf("retry: %v, view %+v", enc, s.View())
+	}
+}
+
+// The human changed the bootstrapped admin's password (#240): a page login as
+// another admin doesn't store its password nor end the refusal; one as
+// streamiq stores the new password, and members' viewers and the transcoding
+// settings work again without a restart.
+func TestManagedAdminLoginStoresPassword(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	ctx := context.Background()
+	s.poll(ctx)
+	s.poll(ctx) // sees the wizard done
+	old := s.creds.Password
+	f.mu.Lock()
+	f.users["streamiq"].pw = "new"
+	f.users["me"] = &fakeUser{id: "id-me", pw: "pw", admin: true}
+	f.mu.Unlock()
+	s.HWAccel = "nvenc"
+	s.EnsureViewer(ctx, alice)
+	if v := s.View(); !v.NeedsLogin || !strings.Contains(v.Err, "Sign in as streamiq") {
+		t.Fatalf("refused: view %+v", v)
+	}
+	if err := s.Login(ctx, "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	stored := func() string {
+		var c Creds
+		b, _ := os.ReadFile(s.path())
+		json.Unmarshal(b, &c)
+		return c.Password
+	}
+	if s.creds.Password != old || stored() != old || !s.View().NeedsLogin {
+		t.Fatalf("another admin's login: stored %q, view %+v", stored(), s.View())
+	}
+	s.EnsureViewer(ctx, alice)
+	if tok, _ := s.ViewerFor(alice); tok != "" {
+		t.Fatal("tried the refused admin again")
+	}
+	if err := s.Login(ctx, "streamiq", "new"); err != nil {
+		t.Fatal(err)
+	}
+	if stored() != "new" || s.View().NeedsLogin {
+		t.Fatalf("streamiq's login: stored %q, view %+v", stored(), s.View())
+	}
+	s.EnsureViewer(ctx, alice)
+	mine(t, f, s, alice)
+	s.poll(ctx)
+	if enc, _ := f.encoding(); enc["HardwareAccelerationType"] != "nvenc" || s.View().Err != "" {
+		t.Fatalf("settings: %v, view %+v", enc, s.View())
+	}
+}
+
+// An edit of jellyfin.json takes effect on the next poll, without a restart; a
+// malformed one shows on the page and keeps the creds in memory (#240).
+func TestCredsFileReloaded(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	ctx := context.Background()
+	s.poll(ctx)
+	s.poll(ctx) // sees the wizard done
+	f.mu.Lock()
+	f.users["streamiq"].pw = "new"
+	f.mu.Unlock()
+	s.EnsureViewer(ctx, alice)
+	if !s.View().NeedsLogin {
+		t.Fatalf("not refused: view %+v", s.View())
+	}
+	at := time.Now()
+	write := func(b []byte) {
+		t.Helper()
+		at = at.Add(time.Second) // a coarse mtime still moves
+		if os.WriteFile(s.path(), b, 0o600) != nil || os.Chtimes(s.path(), at, at) != nil {
+			t.Fatal("write jellyfin.json")
+		}
+	}
+	b, _ := os.ReadFile(s.path())
+	edited := strings.Replace(string(b), s.creds.Password, "new", 1)
+	write([]byte(edited))
+	s.poll(ctx)
+	if v := s.View(); v.NeedsLogin || s.creds.Password != "new" {
+		t.Fatalf("edit ignored: view %+v", v)
+	}
+	s.EnsureViewer(ctx, alice)
+	tok, _ := mine(t, f, s, alice)
+	write([]byte("{"))
+	s.poll(ctx)
+	if v := s.View(); !strings.Contains(v.Err, "kept the credentials") || !v.HasKey || s.creds.Password != "new" {
+		t.Fatalf("malformed: view %+v", v)
+	}
+	if t2, _ := s.ViewerFor(alice); t2 != tok {
+		t.Fatal("malformed file dropped a viewer")
+	}
+	b, _ = json.Marshal(s.creds)
+	write(b)
+	s.poll(ctx)
+	if v := s.View(); v.Err != "" {
+		t.Fatalf("fixed: view %+v", v)
 	}
 }
 

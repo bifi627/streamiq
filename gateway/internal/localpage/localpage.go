@@ -67,10 +67,14 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 <b>{{.User}}</b> · password in <code>{{.PasswordFile}}</code> (open it on this computer)</p>{{end}}
 {{if .NeedsLogin}}
 <form method="post" action="/jellyfin/login" style="border:2px solid #c80;padding:.5rem 1rem">
-<p><b>Connect Jellyfin.</b> Sign in once with a Jellyfin administrator. The gateway uses it to
+{{if .Managed}}<p><b>Connect Jellyfin.</b> Sign in as the gateway's admin <code>{{.User}}</code>. Changed
+its password in Jellyfin? Use the new one: the gateway stores it (in the file above), so it can make
+members' Jellyfin users and apply its transcoding settings again. Signing in as another
+administrator works too, but doesn't store that password.</p>
+{{else}}<p><b>Connect Jellyfin.</b> Sign in once with a Jellyfin administrator. The gateway uses it to
 create its own hidden admin <code>streamiq-admin</code> (password stored on this computer), which
 makes a hidden, non-admin Jellyfin user per household member (their own watch progress), plus the
-shared fallback <code>streamiq-viewer</code>. Your password is not stored.</p>
+shared fallback <code>streamiq-viewer</code>. Your password is not stored.</p>{{end}}
 <p><input name="user" placeholder="Jellyfin user" required autocomplete="username">
 <input name="pw" type="password" placeholder="Password" autocomplete="current-password">
 <button>Connect</button></p>

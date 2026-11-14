@@ -22,7 +22,9 @@ npm run build --prefix frontend
 echo "== gateway: fmt + vet + build + test =="
 if command -v go >/dev/null 2>&1; then
   (cd gateway && test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
-   go vet ./... && go build ./... && go test ./...)
+   # -race needs cgo; Go reports CGO_ENABLED=0 with no C compiler (e.g. Windows without gcc)
+   race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race
+   go vet ./... && go build ./... && go test $race ./...)
 else
   # ponytail: Go absent on the primary Windows machine; CI still runs it
   echo "!! SKIPPED: go not installed locally — gateway is UNVERIFIED here, CI will run it" >&2

@@ -278,8 +278,8 @@ func TestAdminOnly(t *testing.T) {
 		}
 		return status
 	}
-	AdminOnly[StatusPath] = true
-	t.Cleanup(func() { delete(AdminOnly, StatusPath) })
+	AdminOnly.Store(StatusPath, true)
+	t.Cleanup(func() { AdminOnly.Delete(StatusPath) })
 	for _, c := range []struct {
 		role, path string
 		want       int

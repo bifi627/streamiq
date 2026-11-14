@@ -290,12 +290,15 @@ Sequence on a request channel:
    chunks under `bufferedAmount` backpressure. A whole segment is never sent
    as one message.
 4. **Gateway → browser** (one text frame): `{"eof":true}`, the end of the body.
+   If the body broke off part-way (upstream read or send failed), this frame is
+   `{"error":"…"}` instead, and the browser fails the request. The browser also
+   fails it when the body's size differs from `Content-Length` (#263).
 5. **Browser closes the channel.** The gateway closes only if the browser hasn't
    within 10 s (`EOFGrace`). A channel that closes before the EOF frame is a
    failed request. The gateway must not close first: Chrome 87 (webOS TVs) drops
    frames still in flight on a remote close (#71, #72).
 
-The head and EOF are **text** frames and body chunks are **binary**, so the
+The head and EOF (or error) are **text** frames and body chunks are **binary**, so the
 browser tells them apart by type.
 
 **Media bytes are untouched.** The gateway never negotiates or applies

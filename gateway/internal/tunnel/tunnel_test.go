@@ -413,3 +413,57 @@ func TestPerUserViewer(t *testing.T) {
 		}
 	}
 }
+
+// A body cut off upstream ends in an error frame, never the EOF frame that
+// would pass it off as complete (#263).
+func TestCutOffBodyEndsInError(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "video/mp2t")
+		w.Header().Set("Content-Length", "100000")
+		w.Write(make([]byte, 10000))
+		w.(http.Flusher).Flush()
+		c, _, _ := w.(http.Hijacker).Hijack() // drop the connection 90000 bytes short
+		c.Close()
+	}))
+	t.Cleanup(origin.Close)
+	j := &Jellyfin{Client: http.DefaultClient, URL: origin.URL}
+	j.SetKey(key, uid)
+
+	browser, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
+	gateway, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
+	t.Cleanup(func() { browser.Close(); gateway.Close() })
+	gateway.OnDataChannel(func(d *webrtc.DataChannel) { Serve(d, j, Session{}, make(chan struct{}, 1)) })
+	d, _ := browser.CreateDataChannel("req", nil)
+	d.OnOpen(func() { d.SendText(`{"method":"GET","url":"/Videos/` + vid + `/hls1/main/0.ts"}`) })
+	texts := make(chan string, 4)
+	d.OnMessage(func(m webrtc.DataChannelMessage) {
+		if m.IsString {
+			texts <- string(m.Data)
+		}
+	})
+
+	offer, _ := browser.CreateOffer(nil)
+	gathered := webrtc.GatheringCompletePromise(browser)
+	browser.SetLocalDescription(offer)
+	<-gathered
+	gateway.SetRemoteDescription(*browser.LocalDescription())
+	answer, _ := gateway.CreateAnswer(nil)
+	gathered = webrtc.GatheringCompletePromise(gateway)
+	gateway.SetLocalDescription(answer)
+	<-gathered
+	browser.SetRemoteDescription(*gateway.LocalDescription())
+
+	for i := 0; i < 2; i++ { // head, then the end frame
+		select {
+		case s := <-texts:
+			if i == 0 && !strings.HasSuffix(s, `"status":200}`) {
+				t.Fatalf("first frame = %s, want the 200 head", s)
+			}
+			if i == 1 && s != `{"error":"body cut off"}` {
+				t.Fatalf("end frame = %s, want an error frame", s)
+			}
+		case <-time.After(30 * time.Second):
+			t.Fatalf("frame %d never arrived", i)
+		}
+	}
+}

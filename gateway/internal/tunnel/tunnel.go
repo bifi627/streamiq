@@ -1,7 +1,7 @@
 // Package tunnel is the HTTP-over-data-channel primitive (docs/protocol.md,
 // "Tunnel framing"): one data channel per request, response head as a text
 // frame, body as ~60KB binary chunks under bufferedAmount backpressure, then an
-// `{"eof":true}` text frame; the browser closes the channel. Media bytes pass through untouched (never recompressed); the
+// `{"eof":true}` text frame (`{"error":…}` if the body broke off); the browser closes the channel. Media bytes pass through untouched (never recompressed); the
 // Jellyfin policy (jellyfin.go) decides what may pass and redacts the token.
 package tunnel
 
@@ -106,12 +106,14 @@ func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session, slots chan struct{})
 	})
 }
 
-// handleReq ends with an explicit EOF frame and lets the browser close the
-// channel: closing right after the last frame loses it on old Chromium (Chrome
-// 87 on webOS drops frames still in flight on a remote close, #71/#72).
+// handleReq ends with an explicit EOF frame (or an error frame when the body
+// broke off part-way) and lets the browser close the channel: closing right
+// after the last frame loses it on old Chromium (Chrome 87 on webOS drops
+// frames still in flight on a remote close, #71/#72).
 func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
+	end := `{"eof":true}`
 	defer func() {
-		if err := d.SendText(`{"eof":true}`); err == nil {
+		if err := d.SendText(end); err == nil {
 			select {
 			case <-who.Closed:
 			case <-time.After(EOFGrace):
@@ -132,7 +134,11 @@ func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 	defer body.Close()
 
 	sendHead(d, status, hdr)
-	streamBody(d, body, who.Closed)
+	if err := streamBody(d, body, who.Closed); err != nil {
+		log.Printf("gateway: tunnel -> %d, body cut off: %v", status, err)
+		end = `{"error":"body cut off"}` // ponytail: details stay in the log (they name LAN addresses)
+		return
+	}
 	log.Printf("gateway: tunnel -> %d", status)
 }
 
@@ -267,23 +273,27 @@ func sendHead(d *webrtc.DataChannel, status int, headers map[string]string) {
 
 // streamBody relays the response body as backpressured binary chunks. The head
 // frame is text; body frames are binary — the browser tells them apart by type.
-// It stops when closed is closed, also while it waits on backpressure.
-func streamBody(d *webrtc.DataChannel, body io.Reader, closed <-chan struct{}) {
+// It stops when closed is closed, also while it waits on backpressure. A send or
+// read error is returned: the body is incomplete. A closed channel is not an
+// error (nobody is left to tell).
+func streamBody(d *webrtc.DataChannel, body io.Reader, closed <-chan struct{}) error {
 	buf := make([]byte, ChunkSize)
 	wait := Gate(d, closed)
 	for {
 		n, err := body.Read(buf)
 		if n > 0 {
 			if !wait() {
-				return
+				return nil
 			}
 			if e := d.Send(buf[:n]); e != nil {
-				log.Printf("gateway: tunnel send body: %v", e)
-				return
+				return fmt.Errorf("send body: %w", e)
 			}
 		}
+		if err == io.EOF {
+			return nil
+		}
 		if err != nil {
-			return // io.EOF (or read error) → caller sends the EOF frame
+			return fmt.Errorf("read body: %w", err)
 		}
 	}
 }

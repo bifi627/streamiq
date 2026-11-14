@@ -1,5 +1,4 @@
 /// <reference lib="dom" /> -- probe() is DOM; node --test imports the rest
-import type { Item } from './items'
 // Client capability probe → Jellyfin DeviceProfile (#115). Jellyfin decides
 // per playback, from this profile, whether video is remuxed or transcoded and
 // whether audio is copied; it says why in TranscodeReasons. Re-probed at each
@@ -305,8 +304,6 @@ export const rawStatus = (codecs: string) => `Original · ${codecs} (unchecked)`
 export const audioCodecs = (p: Probe) =>
   p.audio.filter((c) => p.hevc || p.av1 || TS_AUDIO.includes(c))
 
-type Track = NonNullable<Item['MediaStreams']>[number]
-
 /** The audio track to ask for when the user picked none (#252): undefined =
  * Jellyfin's default (def = its stream index) plays, because this device
  * decodes it (codecs = audioCodecs) or no other track is eligible (Jellyfin
@@ -314,16 +311,16 @@ type Track = NonNullable<Item['MediaStreams']>[number]
  * channels the device outputs of it (min(default's, 6 or 2)), not commentary
  * or audio description (title only: Jellyfin has no flag). The first wins. */
 export function autoAudio(
-  streams: Track[] = [],
+  streams: Stream[] = [],
   def: number | undefined,
   codecs: string[],
   surround: boolean,
 ) {
   const audio = streams.filter((s) => s.Type === 'Audio')
   const d = audio.find((s) => s.Index === def) ?? audio[0]
-  const ok = (s: Track) => codecs.includes(s.Codec?.toLowerCase() ?? '')
+  const ok = (s: Stream) => codecs.includes(s.Codec?.toLowerCase() ?? '')
   if (!d || ok(d)) return undefined
-  const lang = (s: Track) => s.Language ?? 'und'
+  const lang = (s: Stream) => s.Language ?? 'und'
   const need = Math.min(d.Channels ?? 2, surround ? 6 : 2)
   return audio.find(
     (s) =>
@@ -463,6 +460,8 @@ type Stream = {
   Width?: number
   Height?: number
   BitRate?: number
+  Language?: string
+  Title?: string
 }
 
 /** What Jellyfin will do with a TranscodingUrl, from its params (mirrors

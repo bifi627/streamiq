@@ -443,12 +443,7 @@ test('auto audio (#252): a decodable track of the default language', () => {
   const dts = a(1, 'dts', 6)
   const codecs = audioCodecs(webos) // .ts: aac, ac3 (not opus)
   const pick = (streams: ReturnType<typeof a>[], surround = true) =>
-    autoAudio(
-      [{ Index: 0, Type: 'Video' }, ...streams],
-      1,
-      codecs,
-      surround,
-    )
+    autoAudio([{ Index: 0, Type: 'Video' }, ...streams], 1, codecs, surround)
   assert.equal(pick([a(1, 'ac3', 6), a(2, 'aac', 6)]), undefined) // default decodes
   assert.equal(pick([dts, a(2, 'ac3', 6)]), 2)
   assert.equal(pick([dts, a(2, 'opus', 6), a(3, 'aac', 6)]), 3) // opus: not in .ts

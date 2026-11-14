@@ -1,9 +1,10 @@
-# Gateway release. Two triggers (#274):
-# - a merge to main that changes gateway/** releases automatically: the version comes
-#   from scripts/next-gateway-version.sh (highest stable tag; a breaking `type!:` subject
-#   bumps the minor, anything else the patch). `[skip release]` in the commit message skips it.
-# - pushing a tag gateway-vX.Y.Z by hand releases that version: the only way to bump the
-#   major; later automatic releases build on it. Path filters don't apply to tag pushes.
+# Gateway release. Two ways in (#274):
+# - automatic: ci.yml calls this as its last job, after every check passed on a push to
+#   main that changed gateway/** (and whose subject has no `[skip release]`). The version
+#   comes from scripts/next-gateway-version.sh: highest stable tag, a breaking `type!:`
+#   subject bumps the minor, anything else the patch.
+# - by hand: pushing a tag gateway-vX.Y.Z releases that version: the only way to bump the
+#   major; later automatic releases build on it.
 # Either way it builds the native binaries and publishes them as a GitHub Release, which
 # is what install.sh / install.ps1 download and the gateway's update notice checks.
 # Tags with a suffix (gateway-v1.5.0-nightly.3) become prereleases, which "latest"
@@ -11,45 +12,45 @@
 name: release-gateway
 on:
   push:
-    branches: [main]
-    paths: ['gateway/**']
     tags: ['gateway-v*']
+  workflow_call:
 
 permissions:
   contents: read
 
-# ponytail: one release at a time so two quick merges can't pick the same version. GitHub keeps
-# only the newest pending run per group, so a merge queued behind a running release is folded
-# into the next one (its `!` minor bump lost if the next subject has none); re-tag by hand then.
-concurrency:
-  group: release-gateway
-  cancel-in-progress: false
-
 jobs:
   release:
-    if: github.ref_type == 'tag' || !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the release + its tag; nothing else
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags + history for the stale/already-released checks
       - uses: actions/setup-go@v7
         with:
           go-version-file: gateway/go.mod
       - run: go vet ./... && go test ./...
         working-directory: gateway
       - name: version
+        id: version
         env:
           MSG: ${{ github.event.head_commit.message }} # via env, never inlined into the script
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then v="${GITHUB_REF_NAME#gateway-v}"
           else
-            bash scripts/next-gateway-version.sh test
-            v=$(git ls-remote --tags --refs origin 'gateway-v*' | bash scripts/next-gateway-version.sh "$MSG")
+            # already released (a re-run, or the owner tagged this commit by hand): nothing to do
+            done=$(git tag -l 'gateway-v*' --points-at HEAD)
+            if [ -n "$done" ]; then echo "::notice::already released as $done"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+            # a release of a newer commit exists (a re-run of an older merge): never publish older code as Latest
+            newer=$(git tag -l 'gateway-v*' --no-merged HEAD | grep -E '^gateway-v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+            if [ -n "$newer" ]; then echo "::error::newer release(s) exist: $newer; not releasing this older commit"; exit 1; fi
+            v=$(git tag -l 'gateway-v*' | bash scripts/next-gateway-version.sh "$MSG")
           fi
           echo "version: $v"
           echo "V=$v" >> "$GITHUB_ENV"
       - name: build
+        if: steps.version.outputs.skip != 'true'
         working-directory: gateway
         run: |
           mkdir -p ../dist
@@ -62,6 +63,7 @@ jobs:
           cp install/install.sh install/install.ps1 install/jellyfin-compose.yml ../dist/
           (cd ../dist && sha256sum streamiq-gateway-* jellyfin-compose.yml > SHA256SUMS)
       - name: publish
+        if: steps.version.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

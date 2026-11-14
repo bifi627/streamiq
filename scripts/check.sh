@@ -20,7 +20,7 @@ npm test --prefix frontend
 npm run build --prefix frontend
 
 echo "== gateway: release version + fmt + vet + build + test =="
-bash scripts/next-gateway-version.sh test
+bash scripts/next-gateway-version.sh --test
 if command -v go >/dev/null 2>&1; then
   (cd gateway && test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
    # -race needs cgo; Go reports CGO_ENABLED=0 with no C compiler (e.g. Windows without gcc)

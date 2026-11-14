@@ -189,7 +189,9 @@ func (s *Setup) Load() error {
 	s.mu.Lock()
 	old := s.creds
 	s.creds, s.mtime = c, fi.ModTime()
-	s.refused = s.refused && c.Password == old.Password
+	if c.Password != old.Password { // new admin creds: retry, and drop the error that asked for them
+		s.refused, s.err = false, ""
+	}
 	s.mu.Unlock()
 	if c.Token != "" {
 		s.OnKey(c.Token, c.ViewerID)

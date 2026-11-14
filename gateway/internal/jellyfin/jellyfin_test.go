@@ -599,7 +599,7 @@ func TestCredsFileReloaded(t *testing.T) {
 	edited := strings.Replace(string(b), s.creds.Password, "new", 1)
 	write([]byte(edited))
 	s.poll(ctx)
-	if v := s.View(); v.NeedsLogin || s.creds.Password != "new" {
+	if v := s.View(); v.NeedsLogin || v.Err != "" || s.creds.Password != "new" {
 		t.Fatalf("edit ignored: view %+v", v)
 	}
 	s.EnsureViewer(ctx, alice)

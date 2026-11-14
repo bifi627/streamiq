@@ -655,6 +655,26 @@ func (s *Setup) ViewerFor(user string) (token, id string) {
 	return v.Token, v.ID
 }
 
+// ViewerState is GET /streamiq/status's "viewer" for a session of user (#242):
+// whether it plays as the shared viewer and, if so, why. No credentials, no
+// Jellyfin ids.
+func (s *Setup) ViewerState(user string) map[string]any {
+	if tok, id := s.ViewerFor(user); tok != "" && id != "" {
+		return map[string]any{"shared": false}
+	}
+	s.mu.Lock()
+	refused, admin := s.refused, s.creds.Password != ""
+	s.mu.Unlock()
+	reason := "the gateway couldn't create your Jellyfin user yet; it tries again on your next connection"
+	switch {
+	case refused:
+		reason = "Jellyfin refused the gateway's administrator sign-in"
+	case !admin:
+		reason = "the gateway has no Jellyfin administrator of its own"
+	}
+	return map[string]any{"shared": true, "reason": reason}
+}
+
 // legacy resolves the user a pre-#50 API key is pinned to and installs the key.
 func (s *Setup) legacy(ctx context.Context, c Creds) {
 	var users []struct{ Name, Id string }

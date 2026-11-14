@@ -26,8 +26,9 @@ type Jellyfin struct {
 	Client *http.Client
 	URL    string // e.g. http://localhost:8096
 	// Status is the body of the gateway API's GET /streamiq/status, built on each
-	// request. ponytail: lives here because the tunnel has one config struct.
-	Status func() any
+	// request for a session of user (users.id). ponytail: lives here because the
+	// tunnel has one config struct.
+	Status func(user string) any
 	// Viewer is a StreamIQ user's own token and Jellyfin user id; "" = none, use
 	// the shared one (SetKey). nil = everyone shares it.
 	Viewer func(user string) (key, userID string)

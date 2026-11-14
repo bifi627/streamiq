@@ -229,9 +229,14 @@ func TestGatewayAPI(t *testing.T) {
 	j, last := fakeJellyfin(t)
 	j.SetKey("", "")
 	n := 0
-	j.Status = func() any { n++; return map[string]any{"transcoding": "nvenc"} }
-	status, hdr, body := do(t, j, tunnelReq{Method: "GET", URL: StatusPath})
-	if status != 200 || hdr["Content-Type"] != "application/json" || string(body) != `{"transcoding":"nvenc"}` || n != 1 {
+	j.Status = func(user string) any { n++; return map[string]any{"transcoding": "nvenc", "user": user} }
+	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: StatusPath})
+	status, hdr, rc, err := proxy(j, raw, Session{User: "u1"}) // built for the session's user (#242)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(rc)
+	if status != 200 || hdr["Content-Type"] != "application/json" || string(body) != `{"transcoding":"nvenc","user":"u1"}` || n != 1 {
 		t.Fatalf("status = %d %v %s (built %d times)", status, hdr, body, n)
 	}
 	j.SetKey(key, uid) // a token would let a forwarded request through: none may be
@@ -269,7 +274,7 @@ func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte
 // member (or a session without a role) with 403; unmarked ones answer both.
 func TestAdminOnly(t *testing.T) {
 	j, _ := fakeJellyfin(t)
-	j.Status = func() any { return map[string]any{} }
+	j.Status = func(string) any { return map[string]any{} }
 	call := func(role, path string) int {
 		raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: path})
 		status, _, body, _ := proxy(j, raw, Session{Role: role})

@@ -198,16 +198,14 @@ Copy `.env.example` only to override.
 - **Ready before code:** a task has acceptance criteria + an explicit out-of-scope list.
 - **Tracking = GitHub Issues** (bugs, tech debt, ideas, features; no tracking files).
   - Labels: one type (`bug` / `tech-debt` / `idea`), `area:*`, `p1`–`p3` (soon /
-    normal / someday), `size:s|m|l|xl`. `needs-spec` = no acceptance criteria yet:
-    don't start it. Template: `.github/ISSUE_TEMPLATE/task.md`.
+    normal / someday), `size:s|m|l|xl`. `needs-spec` = the owner hasn't approved the
+    spec yet (missing or only drafted): don't start it. Template: `.github/ISSUE_TEMPLATE/task.md`.
   - `device:tv` / `device:phone` = can't be finished without a test on the owner's TV /
     a real phone (both if it needs both). Only for technical issues and UI edge cases that
     resizing the desktop window (or devtools device mode) can't reproduce: TV browser quirks,
     real phone browsers (iOS Safari, Android Chrome), real mobile networks (cellular, relay).
-    Layout alone never gets it. A worker on a `device:*` issue builds and verifies all it can
-    on desktop, leaves the PR as a **draft** with a "Device test" checklist (what to run, on
-    which device), puts the issue's `device:*` label(s) on the PR (so device retests show in
-    `gh pr list --label device:tv`) and stops; the owner runs it (`/preview tunnel`) and marks the PR ready.
+    Layout alone never gets it. Its PR stays a **draft** carrying the same label(s) until the
+    owner has run the device test (`gh pr list --label device:tv`; `/preview tunnel`).
     Work doable away from home: `gh issue list --search "-label:device:tv -label:device:phone -label:needs-spec"`.
   - One issue → one worktree thread → one PR. Branch `<type>/<n>-<slug>`
     (`fix/42-cert-rotation`); PR body `Fixes #<n>`. PR title = a conventional commit
@@ -219,29 +217,28 @@ Copy `.env.example` only to override.
     would bring it back); reopen instead of re-filing.
   - **Group related issues** under a parent (sub-issues, order stated in the parent) when
     they touch the same code or build on each other, even if each is one PR. A group
-    runs as one orchestrator thread on the parent, which starts one worker thread per
-    sub-issue, in order: the worker builds to a ready PR with green CI, the owner merges,
-    then the next one starts. Workers never merge. A spike that kills a sub-issue: close it
-    as *not planned* with the result, file the replacement, and update the parent.
-  - Before starting: `gh issue view <n>`, and check the issue has no linked PR (taken).
-    Open a draft PR early so the issue shows it's taken.
-  - Board: project "StreamIQ" (github.com/users/bifi627/projects/2). Move the issue
-    with `bash scripts/issue-status.sh <n> "<status>"`: *Ready* when its spec is done,
-    *In progress* when work starts, *In review* when the PR is ready. New issues and
-    *Done* are automatic. Needs gh scope `project` (`gh auth refresh -s project`).
-  - Label `agent` (owner only) starts an agent thread via T3 webhook: no acceptance
-    criteria or `needs-spec` → refinement with the owner; Ready → build to a PR. The
-    owner approves a spec by removing `needs-spec`. A build self-reviews (subagent +
-    `agent-review` skill, max 2 rounds) before the PR is ready, then stops; it never
-    puts `agent` on its own PR (only the issue's `device:*` labels). On a PR, `agent` (added by the owner) starts a review thread (comments only,
-    never commits; same skill); its unresolved `[blocker]`/`[spec]` threads block the
-    merge (ruleset on `main`). `docs/tools.md` has the wiring.
+    runs as one orchestrator thread on the parent, one sub-issue at a time: the owner
+    merges each PR before the next one starts.
+  - **Issue work goes through the skills**, also when asked in chat: `refine-issue` turns an
+    issue into an approved spec (or splits it into a group), `build-issue` takes an approved
+    one to a PR (taken-check, early draft PR, self-review, device ending), `agent-issue`
+    picks between them by the issue's state and orchestrates a group. Agents never merge.
+  - Board: project "StreamIQ" (github.com/users/bifi627/projects/2). The skills move the
+    card with `bash scripts/issue-status.sh <n> "<status>"` (*Ready*, *In progress*,
+    *In review*); new issues and *Done* are automatic. Needs gh scope `project`
+    (`gh auth refresh -s project`).
+  - Label `agent` (owner only) starts an agent thread via T3 webhook: on an issue the
+    `agent-issue` skill, on a PR the `agent-pr` skill (review, comments only). The owner
+    approves a spec in the refinement thread or by removing `needs-spec` by hand.
+    Unresolved `[blocker]`/`[spec]` review threads block the merge (ruleset on `main`).
+    Wiring: `docs/tools.md`.
   - In chat, every issue/PR number is a markdown link, never a bare `#N`:
     `[#193](https://github.com/bifi627/streamiq/issues/193)` (`/issues/N` redirects to PRs too).
     On GitHub itself `#N` autolinks.
   - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a
     duplicate, then **propose** the issue (title, labels, body) in chat; create it only
-    after the owner approves.
+    after the owner approves. Ask in the same message whether the spec is approved too:
+    yes → create it without `needs-spec` and move it to *Ready*.
   - Security-sensitive findings never go in a public issue (public repo): tell the owner.
 - **Current state above is not a status log.** Don't append per-PR progress there (it
   was the merge-conflict hotspot); open work lives in `gh issue list`. Edit it only when

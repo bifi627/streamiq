@@ -52,7 +52,7 @@ jobs:
           go-version-file: gateway/go.mod
       - run: test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
         working-directory: gateway
-      - run: go vet ./... && go build ./... && go test ./...
+      - run: go vet ./... && go build ./... && go test -race ./...
         working-directory: gateway
 
   # The one golden path (dev-env spec). Containers via testcontainers-node,

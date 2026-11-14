@@ -162,7 +162,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       // Device profile (#115): probe + Jellyfin's decision in the diagnostics.
       await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(a.getByText(/probe: h264 .* L\d/)).toBeVisible()
-      await expect(a.getByText(/hls subtitles: (?!none)/)).toBeVisible() // sidecar .srt → HLS rendition
       await expect(
         a.getByText(/jellyfin: video remux \(h264\) · audio copy/),
       ).toBeVisible()
@@ -260,7 +259,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       ).toBeVisible()
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       // Subtitles (#136): off at first; the sidecar .srt's cue shows once
-      // picked, and goes away with Off.
+      // picked, at its own time (0–30 s; was shifted by seconds after a
+      // mid-clip reload, #269), and goes away with Off.
       const cue = () =>
         a.evaluate(() =>
           [...document.querySelector('video')!.textTracks]
@@ -276,6 +276,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         .getByRole('menuitemradio', { name: new RegExp(`^${en}.*SRT`) })
         .click()
       await expect.poll(cue, { timeout: 15_000 }).toBe('streamiq e2e subtitle')
+      expect(
+        await a.evaluate(() =>
+          [...document.querySelector('video')!.textTracks]
+            .filter((t) => t.mode === 'showing')
+            .flatMap((t) => [...(t.cues ?? [])])
+            .map((c) => [c.startTime, c.endTime]),
+        ),
+      ).toEqual([[0, 30]])
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a
         .getByRole('menuitem', { name: new RegExp(`^Subtitles.*${en}`) })
@@ -346,8 +354,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await both((p) =>
         expect(p.getByRole('button', { name: 'Play' })).toBeVisible(),
       )
-      // Subtitles from the second phone (last command wins): the TV reloads
-      // with them and stays paused; both phones show the pick.
+      // Subtitles from the second phone (last command wins): the TV shows
+      // them and stays paused; both phones show the pick.
       await phone2.getByLabel('Subtitles').selectOption({ index: 1 })
       const cue = () =>
         a.evaluate(() =>

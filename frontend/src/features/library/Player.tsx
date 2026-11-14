@@ -23,9 +23,12 @@
 // Raw (#164, behind a setting): a profile with every codec, no probe; no
 // fallbacks, a decode failure is an error naming the source codecs. Compatible
 // mode disables Source and Raw (settings.quality() plays them as Auto).
-// Subtitles (#136): Jellyfin offers one HLS rendition, for SubtitleStreamIndex
-// (the first text subtitle until one is picked); another track reloads with
-// it, Off and that track just switch hls.subtitleTrack. Starts Off.
+// Subtitles (#136): the picked text subtitle as WebVTT (Jellyfin's Stream.vtt,
+// over the tunnel) in our own <track>; a pick never reloads. Starts Off. Not
+// Jellyfin's HLS rendition: hls.js maps its X-TIMESTAMP-MAP (MPEGTS:900000)
+// against segment timestamps that shift with where the transcode job started,
+// so its cues landed seconds off (#269). Stream.vtt is in content time, which
+// is the playlist's and so the <video>'s.
 // Screen mode (#180): `remote` feeds it a phone's pause/resume/seek/tracks
 // commands, applied like the TV's own controls; play/stop are the screen's.
 // `onState` gets the playback state about once a second and on every change
@@ -34,7 +37,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import Hls from 'hls.js'
-import { tunnelJson } from '../../tunnel'
+import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { changed, diag, event, ranges, watchVideo } from '../../diag'
 import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
 import type { Speed } from '../../speed'
@@ -175,8 +178,8 @@ export function Player({
     let caps: Probe
     const compatible = compatibleOn() // read once: applies from the next playback
     let q = quality()
-    let text: number | undefined // the subtitle stream Jellyfin offers via HLS
-    let sub = -1 // the hls.js subtitle track: -1 off, 0 that one rendition
+    let sub = -1 // the subtitle stream shown, -1 off
+    let vtt: HTMLTrackElement | undefined // its <track>
     let track: number | undefined // audio stream; unset = Jellyfin's default
     let source: string | undefined // Jellyfin ignores AudioStreamIndex without it
     let copy: Copy = { video: true, audio: true }
@@ -196,7 +199,7 @@ export function Player({
         durationTicks: runTicks,
         paused: live() ? v.paused : held,
         audio: track ?? playing, // the requested one, like the subtitle
-        subtitle: sub < 0 ? -1 : (text ?? null),
+        subtitle: sub,
       })
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
@@ -237,7 +240,6 @@ export function Player({
           AllowVideoStreamCopy: allow.video,
           AllowAudioStreamCopy: allow.audio,
           ...(!allow.audio && { MaxAudioChannels: 2 }),
-          ...(text !== undefined && { SubtitleStreamIndex: text }),
           ...(track !== undefined && {
             AudioStreamIndex: track,
             MediaSourceId: source,
@@ -297,17 +299,9 @@ export function Player({
       h = new Hls({
         loader: tunnelLoader(pc),
         startPosition: seekTo ?? at,
-        renderTextTracksNatively: true,
         // hls.js grows the forward buffer up to 600 s for low bitrates; a TV's
         // MSE quota fills long before that (bufferFullError on webOS).
         maxMaxBufferLength: 60,
-      })
-      h.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_e, d) => {
-        event(
-          `hls subtitles: ${d.subtitleTracks.map((t) => t.name || t.lang || t.id).join(', ') || 'none'}`,
-        )
-        // Set once the tracks exist: before that hls.js drops the id.
-        if (h && d.subtitleTracks.length) h.subtitleTrack = sub
       })
       h.on(Hls.Events.ERROR, (_e, e) => {
         event(
@@ -406,15 +400,39 @@ export function Player({
       track = index
       reload(`audio: switch to stream ${index}`)
     }
+    const unshow = () => {
+      if (!vtt) return
+      vtt.track.mode = 'disabled' // Chrome keeps showing a removed track's cues
+      URL.revokeObjectURL(vtt.src)
+      vtt.remove()
+      vtt = undefined
+    }
     pickSub.current = (index) => {
-      sub = index < 0 ? -1 : 0
-      if (index < 0 || index === text) {
-        event(`subtitles: ${index < 0 ? 'off' : `stream ${index}`}`)
-        if (h) h.subtitleTrack = sub // no tracks yet: the update above sets it
-        return emit()
-      }
-      text = index
-      reload(`subtitles: switch to stream ${index}`)
+      sub = index
+      event(`subtitles: ${index < 0 ? 'off' : `stream ${index}`}`)
+      emit()
+      unshow()
+      if (index < 0) return
+      // ponytail: no media source yet (a phone's pick during startup) = the
+      // item's id, which is its one source's; multi-version items then get
+      // the default version's subtitle.
+      tunnelFetch(
+        pc,
+        `/Videos/${itemId}/${source ?? itemId}/Subtitles/${index}/0/Stream.vtt`,
+      )
+        .then((r) => {
+          if (r.status !== 200) throw new Error(`HTTP ${r.status}`)
+          if (gone || sub !== index) return // picked again meanwhile
+          unshow()
+          vtt = document.createElement('track')
+          vtt.kind = 'subtitles'
+          vtt.src = URL.createObjectURL(
+            new Blob([r.body], { type: 'text/vtt' }),
+          )
+          v.append(vtt)
+          vtt.track.mode = 'showing'
+        })
+        .catch((e) => event(`subtitles: stream ${index} failed: ${e}`))
     }
     const unremote = remote?.((c) => {
       if (c.type === 'pause') {
@@ -459,7 +477,6 @@ export function Player({
         fresh.MediaStreams?.find((s) => s.Type === 'Video')?.BitRate
       const st = subtitleTracks(fresh.MediaStreams)
       setSubs(st)
-      text = st[1] && Number(st[1].value)
       await start(
         (startTicks ?? fresh.UserData?.PlaybackPositionTicks ?? 0) /
           TICKS_PER_SECOND,
@@ -495,6 +512,7 @@ export function Player({
       v.removeEventListener('ended', ended)
       window.removeEventListener('pagehide', report)
       h?.destroy()
+      unshow()
     }
   }, [pc, speed, itemId, startTicks, remote])
 

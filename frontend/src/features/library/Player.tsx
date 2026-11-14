@@ -339,7 +339,8 @@ export function Player({
           return fallback('fallback: stereo AAC', { audio: false })
         if (e.fatal && e.type === Hls.ErrorTypes.MEDIA_ERROR)
           return fallback(`playback error: ${e.details}`)
-        if (e.fatal) fail(`playback error: ${e.details}`)
+        if (e.fatal)
+          setErr(new AppError('playback', `playback error: ${e.details}`))
       })
       // What the device is asked to decode, and whether it says it can.
       h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
@@ -373,17 +374,15 @@ export function Player({
         sb()
       })
       let stuck = 0 // video appends in a row that left the playhead empty
+      const forced = load <= failLoads() // debug: ?fail=<n>
+      // Stream copy, or a transcode after a fallback (it may escalate, #238).
+      const watch = d.videoCopy || escalates(copy, compatible) || forced
       h.on(Hls.Events.BUFFER_APPENDED, (_e, a) => {
         appended++
         r = a.timeRanges
         sb()
         // fMP4 (HEVC/AV1-capable devices) muxes into one 'audiovideo' buffer.
-        const forced = load <= failLoads() // debug: ?fail=<n>
-        if (
-          (!d.videoCopy && !forced) ||
-          (a.type !== 'video' && a.type !== 'audiovideo')
-        )
-          return
+        if (!watch || (a.type !== 'video' && a.type !== 'audiovideo')) return
         if (!forced && covers(a.timeRanges[a.type], v.currentTime)) stuck = 0
         else if (++stuck >= STUCK_APPENDS)
           if (raw) rawErr()
@@ -415,7 +414,10 @@ export function Player({
       if (!escalates(copy, compatible))
         return less ? reload(why, less) : fail(why)
       compatible = escalated = true
-      reload('fallback: compatible', { video: false, audio: false })
+      reload(`fallback: compatible (after ${why})`, {
+        video: false,
+        audio: false,
+      })
     }
 
     // Restarts at the playhead: with less stream copy (the fallbacks), another

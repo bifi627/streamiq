@@ -80,8 +80,11 @@ The topic is a group (CLAUDE.md "Group related issues"): N becomes the parent.
 during a split or in a group.
 
 - The draft goes into the issue before you ask: write it into the issue body (template:
-  `.github/ISSUE_TEMPLATE/task.md`) and leave `needs-spec` on, so the owner approves
-  the text that is really in the issue. A draft in the issue is not an approval. Every
+  `.github/ISSUE_TEMPLATE/task.md`) with `needs-spec` on: leave it, or add it if the
+  issue came without it (`gh -R bifi627/streamiq issue edit <issue> --add-label needs-spec`),
+  because a body with acceptance criteria and no `needs-spec` reads as approved and
+  the `agent` label would build it. That way the owner approves the text that is
+  really in the issue. A draft in the issue is not an approval. Every
   change the owner asks for goes into the issue before you ask again.
 - Approval is the owner saying so in this thread, about the draft that is in the
   issue. Ask with the issue link and three options: approve and build now / approve,

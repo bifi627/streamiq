@@ -286,7 +286,7 @@ Sequence on a request channel:
    A refused request gets a head (then EOF) only: `403` (not allowlisted), `413` (body too
    large), `503` (gateway has no Jellyfin key), `502` (Jellyfin unreachable). The
    gateway API (below) refuses with its own statuses (`400`, `404`, `409`).
-3. **Gateway → browser** (zero or more binary frames): the body, in ~16 KB
+3. **Gateway → browser** (zero or more binary frames): the body, in ~64 KB
    chunks under `bufferedAmount` backpressure. A whole segment is never sent
    as one message.
 4. **Gateway → browser** (one text frame): `{"eof":true}`, the end of the body.

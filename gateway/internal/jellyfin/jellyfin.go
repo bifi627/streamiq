@@ -655,6 +655,26 @@ func (s *Setup) ViewerFor(user string) (token, id string) {
 	return v.Token, v.ID
 }
 
+// ViewerState is GET /streamiq/status's "viewer" for a session of user (#242):
+// whether it plays as the shared viewer and, if so, why, as a code the web app
+// words. No credentials, no Jellyfin ids.
+func (s *Setup) ViewerState(user string) map[string]any {
+	if tok, id := s.ViewerFor(user); tok != "" && id != "" {
+		return map[string]any{"shared": false}
+	}
+	s.mu.Lock()
+	refused, admin := s.refused, s.creds.Password != ""
+	s.mu.Unlock()
+	reason := "failed" // retried on the user's next session
+	switch {
+	case refused:
+		reason = "admin-refused"
+	case !admin:
+		reason = "no-admin"
+	}
+	return map[string]any{"shared": true, "reason": reason}
+}
+
 // legacy resolves the user a pre-#50 API key is pinned to and installs the key.
 func (s *Setup) legacy(ctx context.Context, c Creds) {
 	var users []struct{ Name, Id string }

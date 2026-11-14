@@ -11,7 +11,10 @@ export async function jellyfinAdminGet(base: string, path: string) {
   const login = await fetch(base + '/Users/AuthenticateByName', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: AUTH },
-    body: JSON.stringify({ Username: JELLYFIN_ADMIN.user, Pw: JELLYFIN_ADMIN.pw }),
+    body: JSON.stringify({
+      Username: JELLYFIN_ADMIN.user,
+      Pw: JELLYFIN_ADMIN.pw,
+    }),
   }).then((r) => r.json())
   const res = await fetch(base + path, {
     headers: { Authorization: `${AUTH}, Token="${login.AccessToken}"` },

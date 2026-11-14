@@ -32,12 +32,19 @@ export async function signUp(email: string): Promise<User> {
         ...init.headers,
       },
     })
-    if (!res.ok) throw new Error(`${init.method ?? 'GET'} /api${path}: HTTP ${res.status}`)
+    if (!res.ok)
+      throw new Error(`${init.method ?? 'GET'} /api${path}: HTTP ${res.status}`)
     const text = await res.text()
     return text ? JSON.parse(text) : null
   }
   const me = await api('/me')
-  return { email, uid: r.localId, userId: me.userId, tenantId: me.tenantId, api }
+  return {
+    email,
+    uid: r.localId,
+    userId: me.userId,
+    tenantId: me.tenantId,
+    api,
+  }
 }
 
 /** admin invites member into admin's own household; member accepts (#191). */

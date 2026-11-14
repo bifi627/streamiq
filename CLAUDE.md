@@ -131,7 +131,7 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 | `backend/` | Control plane: API + WebRTC signaling (one web app) | .NET 10, EF Core, Postgres |
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
-| `e2e/` | The one E2E golden path: browser → broker → gateway → Jellyfin | Playwright + testcontainers-node |
+| `e2e/` | The E2E golden path (browser → broker → gateway → Jellyfin) + a two-user spec; shared helpers in `helpers.ts` | Playwright + testcontainers-node |
 | `scripts/` | Dev + CI scripts (`check.sh`, `dev.ps1`, `gen-test-media.sh`, …) | bash / PowerShell |
 | `dev/firebase/` | Auth emulator config for compose | — |
 

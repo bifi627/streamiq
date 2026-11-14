@@ -65,10 +65,17 @@ export function httpError(
 
 /** The broker socket closed. Before open: offline, or the upgrade was refused
  * (a 429 rate limit is invisible to JS). After: a drop. */
-export const brokerClosed = (opened: boolean, context: Context = {}) =>
-  opened
-    ? new AppError('broker-lost', 'broker connection closed', context)
-    : new AppError('broker-unreachable', 'broker connection failed', context)
+export const brokerClosed = (
+  opened: boolean,
+  context: Context = {},
+  reason = '',
+) =>
+  // The broker closes a session whose gateway's socket dropped (#172).
+  reason === 'gateway gone'
+    ? new AppError('gateway-offline', 'gateway disconnected', context)
+    : opened
+      ? new AppError('broker-lost', 'broker connection closed', context)
+      : new AppError('broker-unreachable', 'broker connection failed', context)
 
 /** The broker's `{type:"error"}` text (docs/protocol.md). */
 export const brokerError = (text: string, context: Context = {}) =>

@@ -152,6 +152,19 @@ public class BrokerSteps(IntegrationFixture fx)
         Assert.Equal(WebSocketMessageType.Close, r.MessageType);
     }
 
+    [Then("the browser socket is closed as \"([^\"]*)\"")]
+    public async Task ThenClosedAs(string reason)
+    {
+        await ThenClosed();
+        Assert.Equal(reason, _browser.CloseStatusDescription);
+    }
+
+    [When("gateway \"([^\"]*)\" disconnects")]
+    public async Task WhenGatewayDisconnects(string name)
+    {
+        await _gateways[name].Ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
     [When("\"([^\"]*)\" removes gateway \"([^\"]*)\"")]
     public async Task WhenRemove(string email, string name)
     {

@@ -29,6 +29,8 @@ import {
 export type Session = {
   pc: RTCPeerConnection
   close: () => void
+  /** close() ran (the pc closes a moment later, after the telemetry PATCH). */
+  closed: boolean
   /** gateway → client throughput (#162): starts the measurement on the first
    * call, once per session, so sessions that never stream cost no bursts. */
   speed: () => Speed
@@ -72,7 +74,9 @@ export async function connect(
     pc.close()
     ws.close() // the broker tells the gateway `bye`
   }
+  let closed = false
   const close = () => {
+    closed = true
     speed?.stop()
     const row = logged
     logged = null
@@ -113,7 +117,14 @@ export async function connect(
         }).then((r) => r.id)
       })
       .catch(() => null)
-    return { pc, close, speed: () => (speed ??= measure(pc, gatewayId)) }
+    return {
+      pc,
+      close,
+      get closed() {
+        return closed
+      },
+      speed: () => (speed ??= measure(pc, gatewayId)),
+    }
   }
   const send = (m: object) => ws.send(JSON.stringify(m))
 
@@ -148,7 +159,7 @@ export async function connect(
       // and that ends the tunnel too. The broker ignores the ping.
       ping = setInterval(() => send({ type: 'ping' }), 25_000)
     }
-    ws.onclose = () => fail(brokerClosed(opened, { gatewayId }))
+    ws.onclose = (e) => fail(brokerClosed(opened, { gatewayId }, e.reason))
     // Handle broker messages strictly in order. The gateway can still trickle a
     // candidate before its answer (Pion gathers during SetLocalDescription), so
     // candidates that beat the answer wait in `early`.

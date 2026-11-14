@@ -100,7 +100,7 @@ public static class BrowserSocket
                                 continue;
                             }
                             session = Guid.NewGuid();
-                            Broker.Sessions[session] = new Broker.Link(socket, gateway.TenantId, gatewayId);
+                            Broker.Sessions[session] = new Broker.Link(socket, gateway.TenantId, gatewayId, gateway);
                             await gateway.SendAsync(new JsonObject
                             {
                                 ["type"] = "offer",

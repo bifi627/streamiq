@@ -18,12 +18,15 @@ public static class Broker
 
     /// One end of a relay. Several readers may write to one socket (many browser
     /// sessions → one gateway), so sends are serialized.
-    public sealed class Link(WebSocket socket, Guid tenantId, Guid gatewayId)
+    public sealed class Link(WebSocket socket, Guid tenantId, Guid gatewayId, Link? via = null)
     {
         readonly SemaphoreSlim _send = new(1, 1);
         public WebSocket Socket => socket;
         public Guid TenantId => tenantId;
         public Guid GatewayId => gatewayId;
+        /// A session's gateway link (the socket its offer went to): when that socket
+        /// closes, the session's socket is closed as "gateway gone" (#172). A reconnected gateway is a new link.
+        public Link? Via => via;
 
         /// Ends this link from outside its own loop (revocation): a best-effort close
         /// frame (at most 2 s for the send lock + the frame, so a peer that stopped

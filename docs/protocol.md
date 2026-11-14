@@ -121,6 +121,10 @@ relays SDP/ICE; it can't make either side trust the other (pins + pairing do).
 
 **`GET /api/broker/ws`** — browser socket, **one socket = one session to one gateway**.
 Closing it ends the session (broker sends the gateway `bye`).
+The broker closes it as `1008 "gateway gone"` when the gateway socket that took
+this session's offer closes (restart, update): the session is dead even if ICE
+hasn't noticed yet, and the client closes its pc (#172). A control-socket drop the
+gateway survives ends it too: rare, and the next open makes a fresh session.
 
 | direction | message |
 |---|---|

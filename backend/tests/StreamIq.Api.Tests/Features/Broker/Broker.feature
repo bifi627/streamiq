@@ -44,6 +44,13 @@ Feature: Signaling broker
     And gateway "evil" answers that session
     Then the browser receives nothing
 
+  Scenario: A gateway that disconnects ends its sessions right away
+    Given "alice@home.test" has an online gateway "nas"
+    When "alice@home.test" offers to gateway "nas"
+    And gateway "nas" receives the offer
+    And gateway "nas" disconnects
+    Then the browser socket is closed as "gateway gone"
+
   Scenario: A browser socket without a valid ID token is closed
     When a browser authenticates with token "garbage"
     Then the browser socket is closed

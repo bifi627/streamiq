@@ -148,6 +148,19 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       expect(rows).toBe(1)
     })
 
+    await test.step('gateway restarts → library opens right away (#172)', async () => {
+      // The shared session still looks connected for ~5–30 s; the broker
+      // closing it (gateway socket closed) evicts it, so this Open makes a fresh one.
+      await gateway.stop()
+      gateway = await startGateway(stateDir, env)
+      const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
+      await expect(gatewayPage.getByText('StreamIQ: connected')).toBeVisible() // back on the broker
+      await gatewayPage.close()
+      await a.getByRole('link', { name: '← Gateways' }).click()
+      await a.getByRole('button', { name: 'Open' }).click()
+      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
+    })
+
     await test.step('browse → play through the tunnel → resume', async () => {
       await a.getByRole('button', { name: /Movies/ }).click()
       await expect(a).toHaveURL(/\/g\/[^/]+\/i\/[^/]+$/) // folder deep link

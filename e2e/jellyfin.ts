@@ -6,6 +6,20 @@ const AUTH =
 
 export const JELLYFIN_ADMIN = { user: 'streamiq', pw: 'streamiq-e2e' }
 
+/** GET as the e2e admin: per-user state the gateway's viewers left (#195). */
+export async function jellyfinAdminGet(base: string, path: string) {
+  const login = await fetch(base + '/Users/AuthenticateByName', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: AUTH },
+    body: JSON.stringify({ Username: JELLYFIN_ADMIN.user, Pw: JELLYFIN_ADMIN.pw }),
+  }).then((r) => r.json())
+  const res = await fetch(base + path, {
+    headers: { Authorization: `${AUTH}, Token="${login.AccessToken}"` },
+  })
+  if (!res.ok) throw new Error(`jellyfin ${path}: HTTP ${res.status}`)
+  return res.json()
+}
+
 export async function setupJellyfin(
   base: string,
   nvenc = false,

@@ -83,14 +83,19 @@ export async function probe(): Promise<Probe> {
     }
   }
   // 30 fps at 10 / 40 Mbps: a typical 1080p / 4K source. One codec string per
-  // codec (the probed one), at both sizes.
+  // codec, at both sizes: its top probed level (AV1: 5.0, 4K) and bit depth.
   const smooth = async <T extends object>(
     c: T | null,
     codecs: string,
     keep = false,
-  ) =>
-    c &&
-    fit(c, await info(codecs, 1080, 10e6), await info(codecs, 2160, 40e6), keep)
+  ) => {
+    if (!c) return c
+    const [hd, uhd] = await Promise.all([
+      info(codecs, 1080, 10e6),
+      info(codecs, 2160, 40e6),
+    ])
+    return fit(c, hd, uhd, keep)
+  }
   let surround = false
   try {
     surround = (
@@ -107,8 +112,23 @@ export async function probe(): Promise<Probe> {
   } catch {
     // no mediaCapabilities: stay stereo
   }
-  const hevc = !!hevcLevel
-  const av1 = ok('av01.0.08M.08')
+  const hevc10 = ok('hvc1.2.4.L153.B0')
+  const av10 = ok('av01.0.08M.10')
+  const [h264, hevc, av1] = await Promise.all([
+    smooth(
+      profiles.length && h264Level ? { profiles, level: h264Level } : null,
+      `avc1.${top}00${h264Level?.toString(16)}`,
+      true,
+    ),
+    smooth(
+      hevcLevel ? { level: hevcLevel, main10: hevc10 } : null,
+      hevc10 ? `hvc1.2.4.L${hevcLevel}.B0` : `hvc1.1.6.L${hevcLevel}.B0`,
+    ),
+    smooth(
+      ok('av01.0.08M.08') ? { main10: av10 } : null,
+      av10 ? 'av01.0.12M.10' : 'av01.0.12M.08',
+    ),
+  ])
   // fMP4 (HEVC/AV1 clients, see deviceProfile) plays from one muxed
   // audiovideo SourceBuffer: audio must pass muxed with every video codec it
   // can sit beside (webOS: audio/mp4 ac-3 yes, video/mp4 avc1+ac-3 no). .ts
@@ -119,19 +139,9 @@ export async function probe(): Promise<Probe> {
     av1 && 'av01.0.08M.08',
   ].filter(Boolean)
   return {
-    h264: await smooth(
-      profiles.length && h264Level ? { profiles, level: h264Level } : null,
-      `avc1.${top}00${h264Level?.toString(16)}`,
-      true,
-    ),
-    hevc: await smooth(
-      hevc ? { level: hevcLevel, main10: ok('hvc1.2.4.L153.B0') } : null,
-      `hvc1.1.6.L${hevcLevel}.B0`,
-    ),
-    av1: await smooth(
-      av1 ? { main10: ok('av01.0.08M.10') } : null,
-      'av01.0.08M.08',
-    ),
+    h264,
+    hevc,
+    av1,
     audio: Object.keys(AUDIO).filter((c) =>
       hevc || av1
         ? muxed.every((v) => ok(`${v},${AUDIO[c]}`))

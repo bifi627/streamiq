@@ -394,3 +394,28 @@ test('probe: decodingInfo trims codecs; throwing = as today', async () => {
   const q = await probe()
   assert.ok(q.av1 && q.hevc && q.hevc.hd === undefined)
 })
+
+test('probe: codecs dropped by decodingInfo leave audio tested alone (.ts)', async () => {
+  // webOS-like: ac-3 fails muxed with video; decodingInfo rejects HEVC/AV1.
+  Object.assign(globalThis, {
+    MediaSource: {
+      isTypeSupported: (t: string) =>
+        !(t.startsWith('video/') && t.includes('ac-3')),
+    },
+  })
+  Object.defineProperty(globalThis, 'navigator', {
+    value: {
+      mediaCapabilities: {
+        decodingInfo: async (c: any) => {
+          const ok = !/hvc1|av01/.test(c.video?.contentType ?? '')
+          return { supported: ok, smooth: ok }
+        },
+      },
+    },
+    configurable: true,
+  })
+  const p = await probe()
+  assert.equal(p.hevc, null)
+  assert.equal(p.av1, null)
+  assert.ok(p.audio.includes('ac3'))
+})

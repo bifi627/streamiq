@@ -234,18 +234,18 @@ Jellyfin; your media folders and everything else in the file stay.
 
 ## Releasing (maintainers)
 
-Automatic (#274): every merge to `main` that changes `gateway/**` releases, as the last
-job of `ci.yml` once all checks passed. The version is the highest stable `gateway-v*` tag
-bumped by the squash commit's subject: a breaking change, marked `!` right after the type
-(`feat!: …`, `fix(gateway)!: …`, `feat!: gateway: …`; not `feat: gateway!: …`), bumps the
-minor, anything else the patch (`scripts/next-gateway-version.sh`). The subject is the PR
-title, except for a one-commit PR, where GitHub uses that commit's headline: put the `!`
-there too. `[skip release]` in the subject skips it. A re-run never publishes an older
-commit over a newer release, and a commit that already has a release is skipped.
+Automatic (#274): after CI passed on a push to `main` (the last job of `ci.yml`), the
+gateway releases if `gateway/` (`*_test.go` aside) changed since the last stable release.
+It releases what `main` is, so a change whose own push didn't release (red CI, a cancelled
+run, `[skip release]` in the subject) goes out with the next one. Version
+(`scripts/next-gateway-version.sh`): the highest stable `gateway-v*` tag, minor bumped if any
+gateway commit since it is marked breaking with `!` right after the type (`feat!: …`,
+`fix(gateway)!: …`, `feat!: gateway: …`; not `feat: gateway!: …`), else patch bumped. The
+subject is the PR title, except for a one-commit PR, where GitHub uses that commit's
+headline: put the `!` there too. A re-run or an older commit never releases over a newer one.
 
-The major never changes automatically: to bump it, push a tag `gateway-vN.0.0` by hand on
-a commit on `main`; that releases it, and the next automatic release builds on it. Tag
-after that commit's own automatic release is out (or merge it with `[skip release]`).
+The major never changes automatically: to bump it, push a tag `gateway-vN.0.0` by hand on a
+commit on `main`; that releases it, and later automatic releases build on it.
 
 Either way CI (`release-gateway.yml`) tests, builds all six
 binaries, and publishes the GitHub Release with `SHA256SUMS`, both install

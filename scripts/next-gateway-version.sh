@@ -1,36 +1,55 @@
 #!/usr/bin/env bash
-# Next gateway release version (#274), used by release-gateway.yml after green CI on main:
-#   git tag -l 'gateway-v*' | next-gateway-version.sh "<commit message>"
-# Base = the highest stable gateway-v* tag on stdin (semver sort, prereleases skipped).
-# A breaking subject (`type!:` / `type(scope)!:`) bumps the minor, anything else the patch.
-# The major never changes here: the owner pushes gateway-vN.0.0 by hand and this follows it.
-# `next-gateway-version.sh --test` runs the self-check (check.sh + CI).
+# Next gateway release version (#274). Run in a checkout with full history + tags:
+#   next-gateway-version.sh      → the version to release HEAD as, or nothing if there's nothing to release
+#   next-gateway-version.sh --test  → self-check against a scratch repo (check.sh + CI)
+# Base = the highest stable tag gateway-vX.Y.Z (semver sort; prereleases ignored).
+# Nothing to release: HEAD is already in the base release (an older commit, a re-run),
+# or gateway/ (tests aside) is unchanged since it. So it releases main's state, not one
+# commit: a change whose own run never released (red CI, cancelled, [skip release]) goes
+# out with the next release.
+# Bump: a breaking subject (`type!:` / `type(scope)!:`) on any gateway commit since the
+# base bumps the minor, else the patch. The major never changes here: the owner pushes
+# gateway-vN.0.0 by hand and this follows it.
 set -euo pipefail
 
-next() { # $1 = tag names/refs, one per line; $2 = commit message
-  local base ma mi pa
-  base=$(sed -n 's#.*gateway-v##p' <<<"$1" | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -1)
-  IFS=. read -r ma mi pa <<<"${base:-0.0.0}"
-  if [[ ${2%%$'\n'*} =~ ^[a-z]+(\([^\)]*\))?!: ]]; then echo "$((10#$ma)).$((10#$mi + 1)).0"; else echo "$((10#$ma)).$((10#$mi)).$((10#$pa + 1))"; fi
+next() {
+  local base ma mi pa log paths=(gateway/ ':(exclude,glob)gateway/**/*_test.go')
+  base=$(git tag -l 'gateway-v*' | sed 's#^gateway-v##' | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -1)
+  if [ -n "$base" ]; then
+    git merge-base --is-ancestor HEAD "gateway-v$base" && return 0
+    git diff --quiet "gateway-v$base" HEAD -- "${paths[@]}" && return 0
+    log=$(git log --format=%s "gateway-v$base..HEAD" -- "${paths[@]}")
+  else
+    base=0.0.0 log=$(git log --format=%s HEAD -- "${paths[@]}")
+  fi
+  IFS=. read -r ma mi pa <<<"$base"
+  if grep -qE '^[a-zA-Z]+(\([^)]*\))?!:' <<<"$log"; then echo "$((10#$ma)).$((10#$mi + 1)).0"
+  else echo "$((10#$ma)).$((10#$mi)).$((10#$pa + 1))"; fi
 }
 
 if [ "${1:-}" = --test ]; then
-  t() { got=$(next "$1" "$2"); [ "$got" = "$3" ] || { echo "FAIL: next('$1', '$2') = $got, want $3" >&2; exit 1; }; }
-  tags=$'gateway-v0.0.9\ngateway-v0.0.10\nabc\trefs/tags/gateway-v0.0.2'
-  t "$tags" "fix: x (#1)" 0.0.11                      # semver sort, not string sort
-  t "$tags" "chore(ci): x" 0.0.11
-  t "$tags" "feat!: x" 0.1.0
-  t "$tags" "fix(gateway)!: x" 0.1.0
-  t "$tags" $'fix: x\n\nfeat!: in the body only' 0.0.11  # only the subject counts
-  t "$tags" "fix: x! y" 0.0.11
-  t "$tags"$'\ngateway-v1.0.0' "fix: x" 1.0.1                 # hand-pushed major is followed
-  t "$tags"$'\ngateway-v2.0.0-rc.1' "fix: x" 0.0.11          # prereleases skipped
-  t $'gateway-v0.0.08' "fix: x" 0.0.9                        # decimal, not octal
-  # the real entry point (stdin, set -e): no stable tag at all starts at 0.0.1
-  got=$(printf 'gateway-v2.0.0-rc.1\n' | bash "$0" "test") && [ "$got" = 0.0.1 ] \
-    || { echo "FAIL: stdin with no stable tag = '$got', want 0.0.1" >&2; exit 1; }
+  d=$(mktemp -d) && trap 'rm -rf "$d"' EXIT && cd "$d"
+  g() { git -c core.autocrlf=false -c user.name=t -c user.email=t@t -c commit.gpgsign=false -c tag.gpgsign=false "$@"; }
+  c() { mkdir -p "$(dirname "$1")"; echo "$2" >>"$1"; g add -A; g commit -qm "$2"; }
+  want() { got=$(next); [ "$got" = "$1" ] || { echo "FAIL: $2: got '$got', want '$1'" >&2; exit 1; }; }
+  g init -q
+  c gateway/a.go "feat: first";             want 0.0.1 "no tag yet"
+  g tag gateway-v0.0.9; g tag gateway-v0.0.10; want "" "HEAD already released"
+  c frontend/x "fix: ui";                   want "" "no gateway change"
+  c gateway/sub/a_test.go "test: only";     want "" "gateway tests only"
+  c gateway/a.go "fix: gw";                 want 0.0.11 "semver sort, not string sort"
+  c gateway/b.go "Feat!: break";            want 0.1.0 "breaking"
+  c gateway/a.go "fix: later";              want 0.1.0 "breaking earlier since the base still counts"
+  g tag gateway-v0.1.0; c frontend/x "feat!: ui only"; c gateway/a.go "fix: x"
+                                            want 0.1.1 "a frontend break is not a gateway break"
+  g tag gateway-v0.2.0-rc.1;                want 0.1.1 "prerelease ignored"
+  g tag gateway-v1.0.0; c gateway/a.go "fix: y"; want 1.0.1 "hand-pushed major followed"
+  # a stable tag off main (e.g. a PR branch head before its squash merge) must not block
+  g checkout -q -b side HEAD~1; c gateway/s.go "fix: side"; g tag gateway-v1.0.08; g checkout -q -
+                                            want 1.0.9 "tag off main doesn't block; decimal, not octal"
+  g checkout -q HEAD~1;                     want "" "older commit than the release (a re-run)"
   echo "next-gateway-version: ok"
   exit
 fi
 
-next "$(cat)" "$1"
+next

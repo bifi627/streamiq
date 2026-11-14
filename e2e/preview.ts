@@ -262,7 +262,8 @@ async function down(s = read()) {
   )
     .stdout.split(/\s+/)
     .filter(Boolean)
-  if (ids.length) spawnSync('docker', ['rm', '-f', '-v', ...ids], { stdio: 'ignore' })
+  if (ids.length)
+    spawnSync('docker', ['rm', '-f', '-v', ...ids], { stdio: 'ignore' })
   for (const end = Date.now() + 30_000; ;) {
     const open = []
     for (const p of s.ports ?? [s.port]) if (await listening(p)) open.push(p)

@@ -66,7 +66,11 @@ shared hidden user `streamiq-viewer` and the page says why.
   random password, and creates `streamiq-viewer`. The local gateway page shows where
   the admin password is (`state/jellyfin.json`, readable only on this
   computer), never the password itself. You use it to manage
-  Jellyfin.
+  Jellyfin. You may change that password in Jellyfin; then sign in as
+  `streamiq` with the new one on the local gateway page (it asks with
+  **Connect Jellyfin** once the old one is refused), or put it in the file's
+  `password`: the gateway picks up either without a restart. Until then, new
+  household members play as `streamiq-viewer`.
 - **Jellyfin already set up:** the page shows **Connect Jellyfin**. Sign in once
   with a Jellyfin administrator. The gateway uses that session to create
   `streamiq-viewer` and its own hidden admin `streamiq-admin` with a

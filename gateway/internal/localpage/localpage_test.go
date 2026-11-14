@@ -69,6 +69,13 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 		!strings.Contains(w.Body.String(), "<b>managed</b> · hardware acceleration off") {
 		t.Fatalf("status %d, body:\n%s", w.Code, w.Body)
 	}
+	// Its admin refused (#240): the form says to sign in as it.
+	jf.NeedsLogin = true
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if !strings.Contains(w.Body.String(), "Sign in as the gateway's admin <code>streamiq</code>") {
+		t.Fatalf("refused admin, body:\n%s", w.Body)
+	}
 }
 
 // `gateway status` reads /status.json over loopback; the LAN never gets it.

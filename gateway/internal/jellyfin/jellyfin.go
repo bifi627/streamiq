@@ -6,7 +6,9 @@
 // the admin out. The admin session comes from:
 //   - fresh Jellyfin (wizard not done): complete the wizard, create admin
 //     "streamiq" with a random password (kept only in state/jellyfin.json, 0600; the
-//     local page shows the file's path, never the password);
+//     local page shows the file's path, never the password). If a human changes it
+//     in Jellyfin, a page login as "streamiq" stores the new one, and so does
+//     editing the file (re-read when it changes, #240);
 //   - Jellyfin already set up: the local page asks once for an admin login (the
 //     password typed is never stored); with it the gateway also creates its own
 //     hidden admin "streamiq-admin" (random password, stored like above), so it can
@@ -147,20 +149,36 @@ type Setup struct {
 	err       string
 	warned    string // version already warned about
 	// refused: Jellyfin refused the gateway's admin while making a viewer. No
-	// retry until new admin creds (BYO: a page login; managed: bootstrap, or the
-	// fixed password in the file and a restart): Jellyfin locks users out after failed sign-ins.
+	// retry until the stored admin password changes (BYO: a page login; managed:
+	// a page login as that admin, or an edit of the file): Jellyfin locks users out after failed sign-ins.
 	refused bool
-	logged  bool // transcoding state logged (once per start; poll's goroutine only)
+	logged  bool      // transcoding state logged (once per start; poll's goroutine only)
+	mtime   time.Time // jellyfin.json as last read or written: an edit shows as a change (#240)
 }
 
 func (s *Setup) path() string { return filepath.Join(s.StateDir, "jellyfin.json") }
 
-// Load reads stored creds and installs the token, if any.
+// Load reads stored creds, if the file changed since the last read or save, and
+// installs the token, if any. At start, and on each poll: an edit of the file
+// takes effect without a restart (#240). A file that doesn't parse keeps the
+// creds in memory.
 func (s *Setup) Load() error {
-	b, err := os.ReadFile(s.path())
+	s.vmu.Lock()
+	defer s.vmu.Unlock()
+	fi, err := os.Stat(s.path())
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	same := fi.ModTime().Equal(s.mtime)
+	s.mu.Unlock()
+	if same {
+		return nil
+	}
+	b, err := os.ReadFile(s.path())
 	if err != nil {
 		return err
 	}
@@ -169,7 +187,11 @@ func (s *Setup) Load() error {
 		return fmt.Errorf("%s: %w", s.path(), err)
 	}
 	s.mu.Lock()
-	s.creds = c
+	old := s.creds
+	s.creds, s.mtime = c, fi.ModTime()
+	if c.Password != old.Password { // new admin creds: retry, and drop the error that asked for them
+		s.refused, s.err = false, ""
+	}
 	s.mu.Unlock()
 	if c.Token != "" {
 		s.OnKey(c.Token, c.ViewerID)
@@ -182,8 +204,12 @@ func (s *Setup) save(c Creds) error {
 	if err := os.WriteFile(s.path(), b, 0o600); err != nil {
 		return err
 	}
+	fi, _ := os.Stat(s.path()) // ponytail: an edit landing between write and stat is missed until the next one
 	s.mu.Lock()
 	s.creds = c
+	if fi != nil {
+		s.mtime = fi.ModTime()
+	}
 	s.mu.Unlock()
 	s.OnKey(c.Token, c.ViewerID)
 	return nil
@@ -207,6 +233,13 @@ func (s *Setup) Run(ctx context.Context) {
 }
 
 func (s *Setup) poll(ctx context.Context) {
+	const kept = " (kept the credentials from before)"
+	if err := s.Load(); err != nil {
+		s.setErr("Jellyfin: " + err.Error() + kept)
+		slog.Error("gateway: could not re-read the Jellyfin credentials; kept the ones from before", "err", err)
+	} else if strings.HasSuffix(s.View().Err, kept) {
+		s.setErr("") // fixed
+	}
 	var info struct {
 		Version                string
 		StartupWizardCompleted bool
@@ -294,7 +327,9 @@ func (s *Setup) bootstrap(ctx context.Context) error {
 }
 
 // Login connects with an existing admin's login (from the local page). The
-// password typed is not stored. A pre-#50 API key is deleted in Jellyfin.
+// password typed is not stored, except on a Jellyfin the gateway set up when the
+// login is as its own admin (streamiq): that password was in the file already,
+// and storing it recovers one a human changed (#240). A pre-#50 API key is deleted in Jellyfin.
 func (s *Setup) Login(ctx context.Context, user, pw string) error {
 	s.vmu.Lock()
 	defer s.vmu.Unlock()
@@ -312,6 +347,9 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 	}
 	if !byo { // keep the bootstrapped admin's password for the human (and configure)
 		c.User, c.Password, c.ConfigSteps, c.HWAccel = old.User, old.Password, old.ConfigSteps, old.HWAccel
+		if pw != "" && strings.EqualFold(user, old.User) { // "" would make the gateway unmanaged (managed())
+			c.Password = pw
+		}
 	}
 	c.Users = old.Users // their passwords still work
 	if err := s.save(c); err != nil {
@@ -319,7 +357,7 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 	}
 	s.mu.Lock()
 	s.err = ""
-	s.refused = s.refused && !byo // managed: the login keeps the stored admin password
+	s.refused = s.refused && c.Password == old.Password // only new admin creds are worth a retry
 	s.mu.Unlock()
 	return nil
 }
@@ -564,7 +602,7 @@ func (s *Setup) EnsureViewer(ctx context.Context, user string) {
 		fix := "the next session tries again"
 		switch {
 		case refused && c.managed():
-			fix = "changed the " + c.User + " password? Put the new one in " + s.path() + " (password) and restart the gateway"
+			fix = "changed the " + c.User + " password? Sign in as " + c.User + " with the new one on the local gateway page, or put it in " + s.path() + " (password)"
 		case refused:
 			fix = "reconnect Jellyfin"
 		}
@@ -688,8 +726,8 @@ func (s *Setup) View() View {
 		Reachable: s.reachable, Version: s.version, Tested: Tested, Err: s.err,
 		HasKey: c.Token != "" || legacy, LegacyKey: legacy, Untested: s.reachable && untested(s.version),
 		// also offered to move off a legacy key, and on BYO until the gateway has its own admin (#195)
-		// and when the gateway's own admin on BYO was refused (a login makes it again)
-		NeedsLogin: s.reachable && s.wizard && (c.Token == "" || c.Password == "" || (s.refused && !c.managed())),
+		// and when the gateway's admin was refused (BYO: a login makes it again; managed: one as it stores its new password, #240)
+		NeedsLogin: s.reachable && s.wizard && (c.Token == "" || c.Password == "" || s.refused),
 		User:       c.User, Viewer: c.Viewer,
 		Managed: c.managed(), HWAccel: c.HWAccel,
 	}

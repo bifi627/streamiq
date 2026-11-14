@@ -431,7 +431,7 @@ stays a *viewer*:
   next session tries again; after Jellyfin refused the gateway's admin, not until it has
   new admin credentials, since Jellyfin locks out users after failed sign-ins: on a
   Jellyfin the user brought, the next admin login on the local page; on one the gateway
-  set up, the changed `streamiq` password put into `state/jellyfin.json` and a restart) plays as `streamiq-viewer`. `gateway/internal/jellyfin`
+  set up, a page login as `streamiq` with its changed password, or that password put into `state/jellyfin.json`, which the gateway re-reads when it changes) plays as `streamiq-viewer`. `gateway/internal/jellyfin`
   creates viewers with the gateway's own admin (`streamiq`, or hidden `streamiq-admin`
   on a Jellyfin the user brought) and logs that session out again; tokens and
   passwords are in `state/jellyfin.json` (`users`: `users.id` → viewer). No admin

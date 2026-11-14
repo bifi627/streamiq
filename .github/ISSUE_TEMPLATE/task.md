@@ -5,7 +5,7 @@ labels: needs-spec
 ---
 
 <!-- Labels: one type (bug / tech-debt / idea), area:*, p1|p2|p3, size:s|m|l|xl.
-     Remove needs-spec once acceptance criteria + out of scope are filled in.
+     needs-spec comes off when the owner approves the spec (acceptance criteria + out of scope).
      Security-sensitive? Don't file publicly: report privately (Security → Advisories). -->
 
 ## Why

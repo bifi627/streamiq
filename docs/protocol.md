@@ -49,9 +49,10 @@ below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the AP
 records the version, `GET /api/gateways` reports `upgradeRequired: true`, and the
 broker never routes a session to that socket. The gateway logs "rerun the install
 command" and retries every 10 minutes. No negotiation: one version at a time.
-**Release order** when raising the minimum: tag the `gateway-v*` release that sends the new
+**Release order** when raising the minimum: release the gateway that sends the new
 version first (the installers fetch the latest release; the old API ignores the
-new value), deploy the API after. API first = every gateway refused, and rerunning the
+new value), deploy the API after. Separate PRs: merging the gateway one releases it
+(#274), the API one follows once that release is out. API first = every gateway refused, and rerunning the
 installer reinstalls the old release.
 
 **Households (#189).** A user can belong to several households (tenants). Every
@@ -159,7 +160,7 @@ per session (several browsers at once).
   known `role` and keeps it on the session: admin-only gateway API endpoints answer a
   member `403` (below). No protocol bump: a gateway from before #194 ignores `role` (it
   has no admin-only endpoint), so the API that sends it deploys *before* the
-  `gateway-v*` release that requires it (the reverse of the order above).
+  gateway release that requires it (the reverse of the order above: API PR first).
 - Not tied together: a stolen key alone gets nothing without a household sign-in; a
   compromised API alone gets nothing without a paired device. The role is fixed for the session: a demoted admin keeps it until the
   session ends (like a removed membership, #192).

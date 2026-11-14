@@ -600,7 +600,7 @@ func (s *Setup) EnsureViewer(ctx context.Context, user string) {
 		fix := "the next session tries again"
 		switch {
 		case refused && c.managed():
-			fix = "changed the " + c.User + " password? Sign in as " + c.User + " with the new one below"
+			fix = "changed the " + c.User + " password? Sign in as " + c.User + " with the new one on the local gateway page, or put it in " + s.path() + " (password)"
 		case refused:
 			fix = "reconnect Jellyfin"
 		}

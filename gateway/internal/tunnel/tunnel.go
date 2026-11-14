@@ -1,6 +1,6 @@
 // Package tunnel is the HTTP-over-data-channel primitive (docs/protocol.md,
 // "Tunnel framing"): one data channel per request, response head as a text
-// frame, body as ~64KB binary chunks under bufferedAmount backpressure, then an
+// frame, body as ~60KB binary chunks under bufferedAmount backpressure, then an
 // `{"eof":true}` text frame; the browser closes the channel. Media bytes pass through untouched (never recompressed); the
 // Jellyfin policy (jellyfin.go) decides what may pass and redacts the token.
 package tunnel
@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	ChunkSize   = 64 * 1024 // 4× fewer messages than 16KB: per-message cost caps a slow client (TV, #258)
+	ChunkSize   = 60 * 1024 // ~4× fewer messages than 16KB (per-message cost caps a slow client, #258); under Pion's 65535 limit for a peer without max-message-size
 	MaxBuffered = 1 << 20   // 1MB send-buffer high-water mark (backpressure)
 	// EOFGrace: how long the gateway waits for the browser to close after EOF.
 	// Backstop for a browser that never does (old client, dead tab).

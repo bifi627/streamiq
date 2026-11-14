@@ -5,7 +5,9 @@ import {
   autoCap,
   autoQuality,
   decision,
+  describe,
   deviceProfile,
+  fit,
   limit,
   median,
   nowPlaying,
@@ -333,4 +335,87 @@ test('Raw status: the source codecs, unchecked', () => {
   )
   assert.ok(d.videoCopy && d.audioCopy)
   assert.equal(rawStatus(d.codecs), 'Original · HEVC + DTS (unchecked)')
+})
+
+test('decodingInfo (#236): not smooth at 2160p = ≤1080p, unsupported at 1080p = dropped', () => {
+  const yes = { supported: true, smooth: true }
+  const jerky = { supported: true, smooth: false }
+  const no = { supported: false, smooth: false }
+  const hevc = { level: 153, main10: true }
+  assert.equal(fit(hevc), hevc) // no answer: as today
+  assert.equal(fit(hevc, yes), hevc)
+  assert.equal(fit(null, yes, yes), null)
+  assert.deepEqual(fit(hevc, yes, yes), { ...hevc, hd: false })
+  assert.deepEqual(fit(hevc, yes, jerky), { ...hevc, hd: true })
+  assert.equal(fit(hevc, no, no), null)
+  assert.deepEqual(fit(webos.h264, no, no, true), { ...webos.h264, hd: true }) // H.264 stays
+
+  const probed = {
+    ...webos,
+    hevc: fit(hevc, yes, jerky),
+    av1: fit({ main10: false }, no, no),
+  }
+  assert.match(describe(probed), /hevc L5\.1 10bit ≤1080p · av1 no/)
+  const p = deviceProfile(probed)
+  assert.equal(tp(p).VideoCodec, 'hevc,h264')
+  const conds = (codec: string, q = p) =>
+    q.CodecProfiles.find((c) => c.Codec === codec)!
+      .Conditions.filter((x) => /Width|Height/.test(x.Property))
+      .map((c) => `${c.Property} ${c.Value}`)
+  assert.deepEqual(conds('hevc'), ['Width 1920', 'Height 1080'])
+  assert.deepEqual(conds('h264'), []) // smooth (no answer) = no cap
+  assert.deepEqual(conds('hevc', deviceProfile(probed, false, false, '720p')), [
+    'Width 1280',
+    'Height 720',
+  ]) // a lower rung still wins
+})
+
+test('probe: decodingInfo trims codecs; throwing = as today', async () => {
+  Object.assign(globalThis, { MediaSource: { isTypeSupported: () => true } })
+  const nav = (decodingInfo: (c: any) => Promise<unknown>) =>
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { mediaCapabilities: { decodingInfo } },
+      configurable: true,
+    })
+  nav(async (c) => {
+    const t: string = c.video?.contentType ?? ''
+    return {
+      supported: !t.includes('av01'),
+      smooth: !(t.includes('hvc1') && c.video.height > 1080),
+    }
+  })
+  const p = await probe()
+  assert.equal(p.hevc?.hd, true)
+  assert.equal(p.h264?.hd, false)
+  assert.equal(p.av1, null)
+  nav(async () => {
+    throw new Error('nope')
+  })
+  const q = await probe()
+  assert.ok(q.av1 && q.hevc && q.hevc.hd === undefined)
+})
+
+test('probe: codecs dropped by decodingInfo leave audio tested alone (.ts)', async () => {
+  // webOS-like: ac-3 fails muxed with video; decodingInfo rejects HEVC/AV1.
+  Object.assign(globalThis, {
+    MediaSource: {
+      isTypeSupported: (t: string) =>
+        !(t.startsWith('video/') && t.includes('ac-3')),
+    },
+  })
+  Object.defineProperty(globalThis, 'navigator', {
+    value: {
+      mediaCapabilities: {
+        decodingInfo: async (c: any) => {
+          const ok = !/hvc1|av01/.test(c.video?.contentType ?? '')
+          return { supported: ok, smooth: ok }
+        },
+      },
+    },
+    configurable: true,
+  })
+  const p = await probe()
+  assert.equal(p.hevc, null)
+  assert.equal(p.av1, null)
+  assert.ok(p.audio.includes('ac3'))
 })

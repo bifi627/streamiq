@@ -3,15 +3,18 @@
 // per playback, from this profile, whether video is remuxed or transcoded and
 // whether audio is copied; it says why in TranscodeReasons. Re-probed at each
 // playback start (milliseconds, no storage). TVs over-report (#81), so the
-// player keeps its runtime fallbacks. Pure except probe() (node --test imports
+// player keeps its runtime fallbacks. mediaCapabilities.decodingInfo then
+// trims each video codec to what decodes smoothly (#236). Pure except probe() (node --test imports
 // this file).
 
+/** hd = at most 1080p: 2160p is not smooth (decodingInfo, #236) */
+type Hd = { hd?: boolean }
 export type Probe = {
   /** H.264 profiles (Jellyfin names) + highest level, e.g. 51 = 5.1 */
-  h264: { profiles: string[]; level: number } | null
+  h264: ({ profiles: string[]; level: number } & Hd) | null
   /** HEVC Main; level in Jellyfin units (level × 30, e.g. 153 = 5.1) */
-  hevc: { level: number; main10: boolean } | null
-  av1: { main10: boolean } | null
+  hevc: ({ level: number; main10: boolean } & Hd) | null
+  av1: ({ main10: boolean } & Hd) | null
   /** Jellyfin audio codec names */
   audio: string[]
   /** 5.1 audio decodes (mediaCapabilities) */
@@ -27,6 +30,23 @@ const AUDIO: Record<string, string> = {
   eac3: 'ec-3',
   opus: 'opus',
   flac: 'flac',
+}
+
+type Info = { supported: boolean; smooth: boolean }
+
+/** A codec's entry from decodingInfo at 1080p and 2160p (#236): dropped when
+ * 1080p is not supported, capped at 1080p when 2160p is not smooth. No answer
+ * (no mediaCapabilities, or it threw) = unchanged. keep = never drop (H.264:
+ * the transcode target, without it nothing plays). */
+export function fit<T extends object>(
+  c: T | null,
+  hd?: Info,
+  uhd?: Info,
+  keep = false,
+): (T & Hd) | null {
+  if (!c || !hd || !uhd) return c
+  if (!hd.supported && !keep) return null
+  return { ...c, hd: !uhd.smooth }
 }
 
 /** Asks this browser what it can decode via MSE. Works on Chrome 87. */
@@ -46,6 +66,36 @@ export async function probe(): Promise<Probe> {
     ok(`avc1.${top}00${l.toString(16)}`),
   )
   const hevcLevel = HEVC_LEVELS.find((l) => ok(`hvc1.1.6.L${l}.B0`))
+  const info = async (codecs: string, height: number, bitrate: number) => {
+    try {
+      return await navigator.mediaCapabilities.decodingInfo({
+        type: 'media-source',
+        video: {
+          contentType: `video/mp4; codecs="${codecs}"`,
+          width: (height * 16) / 9,
+          height,
+          bitrate,
+          framerate: 30,
+        },
+      })
+    } catch {
+      return undefined // no mediaCapabilities: isTypeSupported alone, as before
+    }
+  }
+  // 30 fps at 10 / 40 Mbps: a typical 1080p / 4K source. One codec string per
+  // codec, at both sizes: its top probed level (AV1: 5.0, 4K) and bit depth.
+  const smooth = async <T extends object>(
+    c: T | null,
+    codecs: string,
+    keep = false,
+  ) => {
+    if (!c) return c
+    const [hd, uhd] = await Promise.all([
+      info(codecs, 1080, 10e6),
+      info(codecs, 2160, 40e6),
+    ])
+    return fit(c, hd, uhd, keep)
+  }
   let surround = false
   try {
     surround = (
@@ -62,8 +112,23 @@ export async function probe(): Promise<Probe> {
   } catch {
     // no mediaCapabilities: stay stereo
   }
-  const hevc = !!hevcLevel
-  const av1 = ok('av01.0.08M.08')
+  const hevc10 = ok('hvc1.2.4.L153.B0')
+  const av10 = ok('av01.0.08M.10')
+  const [h264, hevc, av1] = await Promise.all([
+    smooth(
+      profiles.length && h264Level ? { profiles, level: h264Level } : null,
+      `avc1.${top}00${h264Level?.toString(16)}`,
+      true,
+    ),
+    smooth(
+      hevcLevel ? { level: hevcLevel, main10: hevc10 } : null,
+      hevc10 ? `hvc1.2.4.L${hevcLevel}.B0` : `hvc1.1.6.L${hevcLevel}.B0`,
+    ),
+    smooth(
+      ok('av01.0.08M.08') ? { main10: av10 } : null,
+      av10 ? 'av01.0.12M.10' : 'av01.0.12M.08',
+    ),
+  ])
   // fMP4 (HEVC/AV1 clients, see deviceProfile) plays from one muxed
   // audiovideo SourceBuffer: audio must pass muxed with every video codec it
   // can sit beside (webOS: audio/mp4 ac-3 yes, video/mp4 avc1+ac-3 no). .ts
@@ -74,9 +139,9 @@ export async function probe(): Promise<Probe> {
     av1 && 'av01.0.08M.08',
   ].filter(Boolean)
   return {
-    h264: profiles.length && h264Level ? { profiles, level: h264Level } : null,
-    hevc: hevc ? { level: hevcLevel, main10: ok('hvc1.2.4.L153.B0') } : null,
-    av1: av1 ? { main10: ok('av01.0.08M.10') } : null,
+    h264,
+    hevc,
+    av1,
     audio: Object.keys(AUDIO).filter((c) =>
       hevc || av1
         ? muxed.every((v) => ok(`${v},${AUDIO[c]}`))
@@ -86,11 +151,12 @@ export async function probe(): Promise<Probe> {
   }
 }
 
+const hd = (c: Hd) => (c.hd ? ' ≤1080p' : '')
 export const describe = (p: Probe) =>
   [
-    `h264 ${p.h264 ? `${p.h264.profiles.join('/')} L${p.h264.level / 10}` : 'no'}`,
-    `hevc ${p.hevc ? `L${p.hevc.level / 30}${p.hevc.main10 ? ' 10bit' : ''}` : 'no'}`,
-    `av1 ${p.av1 ? (p.av1.main10 ? '10bit' : '8bit') : 'no'}`,
+    `h264 ${p.h264 ? `${p.h264.profiles.join('/')} L${p.h264.level / 10}${hd(p.h264)}` : 'no'}`,
+    `hevc ${p.hevc ? `L${p.hevc.level / 30}${p.hevc.main10 ? ' 10bit' : ''}${hd(p.hevc)}` : 'no'}`,
+    `av1 ${p.av1 ? (p.av1.main10 ? '10bit' : '8bit') + hd(p.av1) : 'no'}`,
     `audio ${p.audio.join(',') || 'none'}`,
     p.surround ? '5.1' : 'stereo',
   ].join(' · ')
@@ -282,13 +348,17 @@ export function deviceProfile(
   const sdr = cond('VideoRangeType', 'EqualsAny', 'SDR') // HDR transcodes (tone-mapped)
   const depth = (main10?: boolean) =>
     cond('VideoBitDepth', 'LessThanEqual', main10 ? 10 : 8)
-  // On every codec: the limit holds for a remux too (above it, transcode).
-  const size = max
-    ? [
-        cond('Width', 'LessThanEqual', max.width),
-        cond('Height', 'LessThanEqual', max.height),
-      ]
-    : []
+  // On every codec: the limit holds for a remux too (above it, transcode). A
+  // codec not smooth at 2160p (#236) is capped at 1080p (every rung is ≤ that).
+  const size = (c: Hd) => {
+    const m = max ?? (c.hd ? QUALITY['1080p'] : null)
+    return m
+      ? [
+          cond('Width', 'LessThanEqual', m.width),
+          cond('Height', 'LessThanEqual', m.height),
+        ]
+      : []
+  }
   return {
     MaxStreamingBitrate: Math.min(max?.bitrate ?? MAX_BITRATE, cap),
     DirectPlayProfiles: [], // always HLS over the tunnel
@@ -313,7 +383,7 @@ export function deviceProfile(
           depth(),
           cond('VideoProfile', 'EqualsAny', p.h264.profiles.join('|')),
           cond('VideoLevel', 'LessThanEqual', p.h264.level),
-          ...size,
+          ...size(p.h264),
         ],
       },
       ...(p.hevc
@@ -325,7 +395,7 @@ export function deviceProfile(
                 sdr,
                 depth(p.hevc.main10),
                 cond('VideoLevel', 'LessThanEqual', p.hevc.level),
-                ...size,
+                ...size(p.hevc),
               ],
             },
           ]
@@ -335,7 +405,7 @@ export function deviceProfile(
             {
               Type: 'Video',
               Codec: 'av1',
-              Conditions: [sdr, depth(p.av1.main10), ...size],
+              Conditions: [sdr, depth(p.av1.main10), ...size(p.av1)],
             },
           ]
         : []),

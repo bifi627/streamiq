@@ -1,4 +1,5 @@
 /// <reference lib="dom" /> -- probe() is DOM; node --test imports the rest
+import type { Item } from './items'
 // Client capability probe → Jellyfin DeviceProfile (#115). Jellyfin decides
 // per playback, from this profile, whether video is remuxed or transcoded and
 // whether audio is copied; it says why in TranscodeReasons. Re-probed at each
@@ -299,6 +300,40 @@ const RAW_AUDIO = 'aac,ac3,eac3,dts,truehd,flac,opus,mp3'
 /** The status for Raw: the original streams, unchecked. */
 export const rawStatus = (codecs: string) => `Original · ${codecs} (unchecked)`
 
+/** The audio codecs the profile copies (not Raw, not the stereo fallback):
+ * the probed ones, in .ts only those Jellyfin puts there. */
+export const audioCodecs = (p: Probe) =>
+  p.audio.filter((c) => p.hevc || p.av1 || TS_AUDIO.includes(c))
+
+type Track = NonNullable<Item['MediaStreams']>[number]
+
+/** The audio track to ask for when the user picked none (#252): undefined =
+ * Jellyfin's default (def = its stream index) plays, because this device
+ * decodes it (codecs = audioCodecs) or no other track is eligible (Jellyfin
+ * transcodes it, as before). Eligible: the default's language, at least the
+ * channels the device outputs of it (min(default's, 6 or 2)), not commentary
+ * or audio description (title only: Jellyfin has no flag). The first wins. */
+export function autoAudio(
+  streams: Track[] = [],
+  def: number | undefined,
+  codecs: string[],
+  surround: boolean,
+) {
+  const audio = streams.filter((s) => s.Type === 'Audio')
+  const d = audio.find((s) => s.Index === def) ?? audio[0]
+  const ok = (s: Track) => codecs.includes(s.Codec?.toLowerCase() ?? '')
+  if (!d || ok(d)) return undefined
+  const lang = (s: Track) => s.Language ?? 'und'
+  const need = Math.min(d.Channels ?? 2, surround ? 6 : 2)
+  return audio.find(
+    (s) =>
+      ok(s) &&
+      lang(s) === lang(d) &&
+      (s.Channels ?? 0) >= need &&
+      !/commentary|description/i.test(s.Title ?? ''),
+  )?.Index
+}
+
 /** The DeviceProfile for PlaybackInfo. stereo = the audio fallback: AAC 2.0
  * only. compatible = the most restrictive profile (#113): H.264 only, stereo
  * AAC, .ts, at most 1080p / 8 Mbps. quality = the picker's limit (#108); Raw
@@ -340,9 +375,7 @@ export function deviceProfile(
   const fmp4 = !!(p.hevc || p.av1)
   const video = [p.hevc && 'hevc', p.av1 && 'av1', 'h264'].filter(Boolean)
   // aac first: it is what Jellyfin transcodes to.
-  const audio = stereo
-    ? ['aac']
-    : p.audio.filter((c) => fmp4 || TS_AUDIO.includes(c))
+  const audio = stereo ? ['aac'] : audioCodecs(p)
   const cond = (
     Property: string,
     Condition: string,

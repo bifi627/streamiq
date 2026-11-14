@@ -241,8 +241,7 @@ run, `[skip release]` in the subject) goes out with the next one. Version
 (`scripts/next-gateway-version.sh`): the highest stable `gateway-v*` tag, minor bumped if any
 gateway commit since it is marked breaking with `!` right after the type (`feat!: …`,
 `fix(gateway)!: …`, `feat!: gateway: …`; not `feat: gateway!: …`), else patch bumped. The
-subject is the PR title, except for a one-commit PR, where GitHub uses that commit's
-headline: put the `!` there too. A re-run or an older commit never releases over a newer one.
+subject is the PR title (repo setting: squash commit = PR title). A re-run or an older commit never releases over a newer one.
 
 The major never changes automatically: to bump it, push a tag `gateway-vN.0.0` by hand on a
 commit on `main`; that releases it, and later automatic releases build on it.

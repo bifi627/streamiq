@@ -1,6 +1,8 @@
 using System.IO;
+using System.Security.Cryptography;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using DotNet.Testcontainers.Images;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using StreamIq.Api.Data;
@@ -63,16 +65,25 @@ public sealed class IntegrationFixture : IAsyncLifetime
             // Prebuilt (dev/firebase/Dockerfile) so firebase-tools is baked into the
             // image, not npx-pulled at container start — the npm fetch moves into the
             // build step (Docker-layer cached) and boot becomes deterministic.
+            // Tagged with a hash of its inputs (the same tag e2e/stack.ts uses) and built only
+            // when that tag is missing: runs reuse it instead of building 825 MB each time.
+            // No cleanup: the resource reaper would delete it under a concurrent run
+            // ("image has not been created"), and it is never left dangling anyway.
+            var dir = Path.Combine(RepoRoot.Find(), "dev", "firebase");
+            var hash = Convert.ToHexStringLower(SHA256.HashData(
+                [.. File.ReadAllBytes(Path.Combine(dir, "Dockerfile")), .. File.ReadAllBytes(Path.Combine(dir, "firebase.json"))]))[..12];
             var firebaseImage = new ImageFromDockerfileBuilder()
-                .WithDockerfileDirectory(new CommonDirectoryPath(Path.Combine(RepoRoot.Find(), "dev", "firebase")), string.Empty)
+                .WithDockerfileDirectory(new CommonDirectoryPath(dir), string.Empty)
                 .WithDockerfile("Dockerfile")
-                // No WithName: the default random tag is per run. A fixed tag is shared by every
-                // worktree, and each run's resource reaper deletes "its" image at the end, which
-                // untags it under a concurrent run ("image has not been created"). Layers stay cached.
+                .WithName($"streamiq-firebase-emulator:{hash}")
+                .WithImageBuildPolicy(PullPolicy.Missing)
+                .WithCleanUp(false)
                 .Build();
             await firebaseImage.CreateAsync();
 
-            var pg = new PostgreSqlBuilder("postgres:18").Build();
+            // tmpfs over the image's VOLUME: Ryuk reaps this container at process exit
+            // without its anonymous volume.
+            var pg = new PostgreSqlBuilder("postgres:18").WithTmpfsMount("/var/lib/postgresql").Build();
             var firebase = new ContainerBuilder(firebaseImage)
                 .WithResourceMapping(
                     new FileInfo(Path.Combine(RepoRoot.Find(), "dev", "firebase", "firebase.json")),

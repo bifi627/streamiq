@@ -148,8 +148,27 @@ public class BrokerSteps(IntegrationFixture fx)
     [Then("the browser socket is closed")]
     public async Task ThenClosed()
     {
-        var r = await _browser.ReceiveAsync(new byte[1024], CancellationToken.None);
+        var buf = new byte[1024];
+        var r = await _browser.ReceiveAsync(buf, CancellationToken.None);
+        // A revoked gateway's socket closing races the revoke: its `bye` (#172) may come first.
+        if (r.MessageType == WebSocketMessageType.Text)
+        {
+            Assert.Equal("{\"type\":\"bye\"}", Encoding.UTF8.GetString(buf, 0, r.Count));
+            r = await _browser.ReceiveAsync(buf, CancellationToken.None);
+        }
         Assert.Equal(WebSocketMessageType.Close, r.MessageType);
+    }
+
+    [When("gateway \"([^\"]*)\" disconnects")]
+    public async Task WhenGatewayDisconnects(string name)
+    {
+        await _gateways[name].Ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Then("the browser is told bye")]
+    public async Task ThenBrowserBye()
+    {
+        Assert.Equal("bye", Assert.NotNull(await Receive(_browser)).GetProperty("type").GetString());
     }
 
     [When("\"([^\"]*)\" removes gateway \"([^\"]*)\"")]

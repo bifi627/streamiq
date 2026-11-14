@@ -534,8 +534,8 @@ func TestScreenOverTunnel(t *testing.T) {
 	// The offer's role stays on the session (#194): on an admin-only endpoint a
 	// member's tunnel request is refused, an admin's passes the gate (no status
 	// source in this test, so it then gets 404).
-	tunnel.AdminOnly[tunnel.StatusPath] = true
-	t.Cleanup(func() { delete(tunnel.AdminOnly, tunnel.StatusPath) })
+	tunnel.AdminOnly.Store(tunnel.StatusPath, true)
+	t.Cleanup(func() { tunnel.AdminOnly.Delete(tunnel.StatusPath) })
 	for b, want := range map[*browser]string{phone: `"status":403`, pair("admin-laptop", "Laptop"): `"status":404`} {
 		got, d := b.open(`{"method":"GET","url":"/streamiq/status"}`)
 		if head := b.frame(got); !strings.Contains(head, want) {
@@ -543,7 +543,7 @@ func TestScreenOverTunnel(t *testing.T) {
 		}
 		d.Close()
 	}
-	delete(tunnel.AdminOnly, tunnel.StatusPath)
+	tunnel.AdminOnly.Delete(tunnel.StatusPath)
 
 	frames, _ := tv.open(`{"method":"GET","url":"/streamiq/screen"}`)
 	if head := tv.frame(frames); !strings.Contains(head, `"status":200`) {

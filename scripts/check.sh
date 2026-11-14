@@ -22,7 +22,7 @@ npm run build --prefix frontend
 echo "== gateway: fmt + vet + build + test =="
 if command -v go >/dev/null 2>&1; then
   (cd gateway && test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
-   # -race needs cgo (none on the owner's Windows box); CI always runs -race
+   # -race needs cgo; Go reports CGO_ENABLED=0 with no C compiler (e.g. Windows without gcc)
    race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race
    go vet ./... && go build ./... && go test $race ./...)
 else

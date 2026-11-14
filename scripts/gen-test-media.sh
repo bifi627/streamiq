@@ -42,7 +42,7 @@ ffmpeg -y -f lavfi -i "testsrc=duration=360:size=1920x1080:rate=30" \
   dev-media/h264-1080p-subs.mp4
 
 # Sidecar subtitle — Jellyfin indexes a matching-basename .srt as an external
-# subtitle stream (SubtitleMethod=Hls then delivers it as a WebVTT rendition).
+# subtitle stream (the player fetches it as WebVTT: Stream.vtt, #269).
 # Cues span the clip, incl. one right after the 5:00 seek target.
 cat > dev-media/h264-1080p-subs.en.srt <<'SRT'
 1

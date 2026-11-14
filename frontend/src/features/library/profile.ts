@@ -321,7 +321,7 @@ export function deviceProfile(
         },
       ],
       CodecProfiles: [],
-      SubtitleProfiles: [{ Format: 'vtt', Method: 'Hls' }],
+      SubtitleProfiles: [{ Format: 'vtt', Method: 'External' }],
     }
   const max = limit(quality, compatible)
   const p: Probe = compatible
@@ -410,7 +410,7 @@ export function deviceProfile(
           ]
         : []),
     ],
-    SubtitleProfiles: [{ Format: 'vtt', Method: 'Hls' }], // text subs as WebVTT in HLS
+    SubtitleProfiles: [{ Format: 'vtt', Method: 'External' }], // text subs: the player fetches Stream.vtt (#269)
   }
 }
 

@@ -305,6 +305,15 @@ export function Player({
         // hls.js grows the forward buffer up to 600 s for low bitrates; a TV's
         // MSE quota fills long before that (bufferFullError on webOS).
         maxMaxBufferLength: 60,
+        // Byte budget (#262): forward = max(maxBufferSize (60 MB) in seconds
+        // at the level bitrate, maxBufferLength). The default 30 s floor is
+        // ~230 MB at 4K/60 Mbps, past Chrome's ~150 MB MSE quota
+        // (bufferFullError, segments re-fetched). A 4 s floor lets the 60 MB
+        // budget rule at high bitrates; ≤8 Mbps still gets the 60 s cap.
+        // No backBufferLength: on a full buffer the browser and hls.js evict
+        // played media themselves once the forward fits (a 10 s cap made
+        // 1080p re-fetch on a seek back).
+        maxBufferLength: 4,
       })
       h.on(Hls.Events.ERROR, (_e, e) => {
         event(

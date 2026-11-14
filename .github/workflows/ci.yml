@@ -50,6 +50,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: gateway/go.mod
+      - run: bash scripts/next-gateway-version.sh --test # #274: release-gateway's version bump
       - run: test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
         working-directory: gateway
       - run: go vet ./... && go build ./... && go test -race ./...
@@ -91,3 +92,33 @@ jobs:
             e2e/logs/
             e2e/test-results/
             e2e/playwright-report/
+
+  # Push to main only: is there a gateway release to make (scripts/next-gateway-version.sh)?
+  changes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.c.outputs.release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags + history
+      - id: c
+        env:
+          MSG: ${{ github.event.head_commit.message }} # via env, never inlined into the script
+        # [skip release] in the subject defers it: the next release carries the change
+        run: |
+          v=$(bash scripts/next-gateway-version.sh)
+          r=false; [ -n "$v" ] && r=true
+          case "${MSG%%$'\n'*}" in *'[skip release]'*) r=false ;; esac
+          echo "next gateway version: ${v:-none}, release=$r"
+          echo "release=$r" >> "$GITHUB_OUTPUT"
+
+  # #274: a gateway change on main releases itself, but only once every check passed.
+  # Add any new check job to `needs`, or it won't gate the release.
+  release-gateway:
+    needs: [changes, backend, frontend, gateway, e2e]
+    if: needs.changes.outputs.release == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release-gateway.yml

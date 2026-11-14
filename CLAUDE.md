@@ -51,7 +51,7 @@ session-bound connection auth, commit/reveal comparison code approved on the gat
 page, allowlist, pins enforced both directions; protocol in `docs/protocol.md`.
 **Item 4 — productized gateway** (pivoted from a Docker sidecar after a spike: on Docker
 Desktop, a containerized gateway gets relayed on cellular). **PR A:** native binaries on GitHub Releases
-(`gateway-v*` tag → `release-gateway.yml`), `install.sh`/`install.ps1` (install = update,
+(merge touching `gateway/**` → auto-versioned release after green CI, `!` subject = minor bump, major = hand-pushed `gateway-v*` tag; `release-gateway.yml`), `install.sh`/`install.ps1` (install = update,
 SHA256-checked), `gateway.env` config file, daily update *notice* (notify-only), version in heartbeat + Gateways list (migration #5), JSON logs.
 User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (local gateway page),
 so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin credential without manual
@@ -210,7 +210,10 @@ Copy `.env.example` only to override.
     `gh pr list --label device:tv`) and stops; the owner runs it (`/preview tunnel`) and marks the PR ready.
     Work doable away from home: `gh issue list --search "-label:device:tv -label:device:phone -label:needs-spec"`.
   - One issue → one worktree thread → one PR. Branch `<type>/<n>-<slug>`
-    (`fix/42-cert-rotation`); PR body `Fixes #<n>`. Multi-PR feature = parent issue
+    (`fix/42-cert-rotation`); PR body `Fixes #<n>`. PR title = a conventional commit
+    (`fix: …`, `feat(scope): …`); it becomes the squash commit subject, which versions the
+    gateway release (#274): a change that breaks installed gateways (gateway↔API protocol,
+    `gateway.env`, state dir, CLI) gets `!` right after the type (`feat!: …`). Multi-PR feature = parent issue
     (the spec) + sub-issues. Milestone = what's being worked toward now; no milestone
     = backlog. Not wanted anymore: close as *not planned* with a comment (why + what
     would bring it back); reopen instead of re-filing.

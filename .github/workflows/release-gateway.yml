@@ -1,12 +1,19 @@
-# Gateway release (item 4): pushing a tag gateway-vX.Y.Z (the human approval)
-# builds the native binaries and publishes them as a GitHub Release, which is
-# what install.sh / install.ps1 download and the gateway's update notice
-# checks. Tags with a suffix (gateway-v1.5.0-nightly.3) become prereleases,
-# which "latest" skips (issue #48).
+# Gateway release. Two ways in (#274):
+# - automatic: ci.yml calls this as its last job, after every check passed on a push to
+#   main, when scripts/next-gateway-version.sh finds gateway/ changed since the last stable
+#   release (and the subject has no `[skip release]`). It also picks the version: a breaking
+#   `type!:` gateway commit since that release bumps the minor, anything else the patch.
+# - by hand: pushing a tag gateway-vX.Y.Z releases that version: the only way to bump the
+#   major; later automatic releases build on it.
+# Either way it builds the native binaries and publishes them as a GitHub Release, which
+# is what install.sh / install.ps1 download and the gateway's update notice checks.
+# Tags with a suffix (gateway-v1.5.0-nightly.3) become prereleases, which "latest"
+# and the automatic version skip (issue #48).
 name: release-gateway
 on:
   push:
     tags: ['gateway-v*']
+  workflow_call:
 
 permissions:
   contents: read
@@ -14,32 +21,57 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # ponytail: one release at a time (automatic and by hand) so two runs can't pick the same
+    # version. GitHub keeps only the newest pending run, so a waiting run can be cancelled:
+    # nothing is lost, the next release (any later push to main) carries its gateway changes.
+    concurrency:
+      group: release-gateway
+      cancel-in-progress: false
     permissions:
-      contents: write # create the release; nothing else
+      contents: write # create the release + its tag; nothing else
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags + history for next-gateway-version.sh
       - uses: actions/setup-go@v7
         with:
           go-version-file: gateway/go.mod
-      - run: go vet ./... && go test ./...
+      - name: version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            v="${GITHUB_REF_NAME#gateway-v}"
+            [[ $v =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::tag must be gateway-vX.Y.Z[-suffix]"; exit 1; }
+          else
+            # empty = already in a release (a re-run, an older commit, a hand-tagged one) or no gateway change
+            v=$(bash scripts/next-gateway-version.sh)
+            if [ -z "$v" ]; then echo "::notice::nothing to release"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          fi
+          echo "version: $v"
+          echo "V=$v" >> "$GITHUB_ENV"
+      # a hand-pushed tag hasn't been through CI as such; the automatic path ran after green ci.yml
+      - if: github.ref_type == 'tag'
+        run: go vet ./... && go test ./...
         working-directory: gateway
       - name: build
+        if: steps.version.outputs.skip != 'true'
         working-directory: gateway
         run: |
-          v="${GITHUB_REF_NAME#gateway-v}"
           mkdir -p ../dist
           for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             os="${t%/*}" arch="${t#*/}" ext=""
             [ "$os" = windows ] && ext=".exe"
             CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
-              -ldflags "-s -w -X main.version=$v" -o "../dist/streamiq-gateway-$os-$arch$ext" ./cmd/gateway
+              -ldflags "-s -w -X main.version=$V" -o "../dist/streamiq-gateway-$os-$arch$ext" ./cmd/gateway
           done
           cp install/install.sh install/install.ps1 install/jellyfin-compose.yml ../dist/
           (cd ../dist && sha256sum streamiq-gateway-* jellyfin-compose.yml > SHA256SUMS)
       - name: publish
+        if: steps.version.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           pre=""
-          case "${GITHUB_REF_NAME#gateway-v}" in *-*) pre="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" dist/* --generate-notes $pre
+          case "$V" in *-*) pre="--prerelease" ;; esac
+          # --target: a new tag goes on the commit that was built, not on main's head
+          gh release create "gateway-v$V" dist/* --target "$GITHUB_SHA" --generate-notes $pre

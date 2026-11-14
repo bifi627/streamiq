@@ -234,7 +234,19 @@ Jellyfin; your media folders and everything else in the file stay.
 
 ## Releasing (maintainers)
 
-Push a tag `gateway-vX.Y.Z`. CI (`release-gateway.yml`) tests, builds all six
+Automatic (#274): after CI passed on a push to `main` (the last job of `ci.yml`), the
+gateway releases if `gateway/` (`*_test.go` aside) changed since the last stable release.
+It releases what `main` is, so a change whose own push didn't release (red CI, a cancelled
+run, `[skip release]` in the subject) goes out with the next one. Version
+(`scripts/next-gateway-version.sh`): the highest stable `gateway-v*` tag, minor bumped if any
+gateway commit since it is marked breaking with `!` right after the type (`feat!: …`,
+`fix(gateway)!: …`, `feat!: gateway: …`; not `feat: gateway!: …`), else patch bumped. The
+subject is the PR title (repo setting: squash commit = PR title). A re-run or an older commit never releases over a newer one.
+
+The major never changes automatically: to bump it, push a tag `gateway-vN.0.0` by hand on a
+commit on `main`; that releases it, and later automatic releases build on it.
+
+Either way CI (`release-gateway.yml`) tests, builds all six
 binaries, and publishes the GitHub Release with `SHA256SUMS`, both install
 scripts and `jellyfin-compose.yml`. When bumping the Jellyfin pin, update
 `docker-compose.yml`, `gateway/install/jellyfin-compose.yml`,

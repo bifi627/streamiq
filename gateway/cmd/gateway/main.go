@@ -7,12 +7,12 @@
 //	sessions    brokered browser sessions: auth channel, gated tunnel
 //	localpage   the gateway's status page on the home LAN (approve / remove browsers)
 //	jellyfin    non-admin Jellyfin viewer token without manual steps; transcoding settings; version check;
-//	            `gateway jellyfin up|upgrade` (Docker compose)
+//	            `gateway jellyfin up|upgrade` (Docker compose); `gateway jellyfin login` (repair, #241)
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
 //	update      "newer release available" notice; `gateway update` swaps the binary
 //	service     Windows logon task (`gateway service install|uninstall`)
 //
-// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade | reset-identity.
+// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade|login | reset-identity.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
 // env wins): STREAMIQ_API_URL (required), STREAMIQ_ENROLL_TOKEN, STREAMIQ_NAME, STREAMIQ_STATE_DIR,
@@ -38,6 +38,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/term"
 
 	"streamiq/gateway/internal/identity"
 	"streamiq/gateway/internal/jellyfin"
@@ -96,6 +98,24 @@ func main() {
 		} else if err == nil {
 			fmt.Println("Already on", jellyfin.Image)
 		}
+	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "login":
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			err = errors.New("run it in a terminal: it reads the password without showing it")
+			break
+		}
+		// The user name prompt doesn't watch ctx: Ctrl+C there (caught by
+		// NotifyContext) exits here. At the password prompt it is a byte (raw mode).
+		go func() {
+			<-ctx.Done()
+			fmt.Println()
+			os.Exit(130)
+		}()
+		setup := &jellyfin.Setup{Client: &http.Client{Timeout: time.Minute}, URL: origin(),
+			StateDir: stateDir(), OnKey: func(string, string) {}}
+		err = jellyfin.LoginCLI(ctx, setup, os.Stdin, os.Stdout, func() (string, error) { return jellyfin.ReadPassword(os.Stdin) })
+		if errors.Is(err, jellyfin.ErrInterrupted) {
+			os.Exit(130)
+		}
 	case cmd == "reset-identity":
 		err = resetIdentity()
 	case cmd == "status":
@@ -118,13 +138,16 @@ const usage = `usage: gateway [command] [-h]
   status                     show the running gateway's status
   jellyfin up                start Jellyfin in Docker (downloads jellyfin-compose.yml once)
   jellyfin upgrade           pin jellyfin-compose.yml to the tested Jellyfin and restart it
+  jellyfin login             sign in with a Jellyfin admin to repair the gateway's access
+                             (as the local gateway page does; docs/install.md)
   reset-identity             new certificate + empty paired-browser list: every browser pairs
                              again (after a leak; docs/install.md). Refuses while the gateway runs.
 
 Config: gateway.env next to the binary (see docs/install.md).`
 
 func stateDir() string { return env("STREAMIQ_STATE_DIR", "streamiq-state") }
-func pagePort() string { return env("STREAMIQ_PAGE_PORT", "8097") } // Jellyfin owns 8096
+func pagePort() string { return env("STREAMIQ_PAGE_PORT", "8097") }               // Jellyfin owns 8096
+func origin() string   { return env("STREAMIQ_ORIGIN", "http://localhost:8096") } // local Jellyfin
 
 // serviceInstall enrolls first if needed (a scheduled task doesn't inherit the
 // installer's env, so the token is spent here and never stored), then installs
@@ -246,7 +269,7 @@ func run(ctx context.Context) {
 		// never follows one to a URL the allowlist did not see.
 		Client: &http.Client{Transport: &http.Transport{DisableCompression: true},
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
-		URL: env("STREAMIQ_ORIGIN", "http://localhost:8096"), // local Jellyfin
+		URL: origin(),
 	}
 	// Token: the stored one, else the setup loop gets one (fresh Jellyfin) or
 	// the local page asks for an admin login.

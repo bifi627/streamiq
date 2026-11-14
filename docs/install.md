@@ -88,6 +88,15 @@ Jellyfin** again. A gateway set up before this change uses an admin API key
 and shows **admin API key: reconnect Jellyfin**: sign in once, and the
 gateway switches over and deletes the old key.
 
+**Without the page** (a headless NAS or server over SSH): run
+`gateway jellyfin login` on the gateway's computer. It asks for a Jellyfin
+administrator and its password (not shown while you type) and does what the
+page's sign-in does: on a Jellyfin the gateway set up, sign in as `streamiq`
+with its new password; on your own Jellyfin, with your administrator (it resets
+`streamiq-admin` and `streamiq-viewer`). It finds the gateway's state through
+`gateway.env` next to the binary, like the running gateway, which picks the
+change up within a minute without a restart. Check with `gateway status`.
+
 The page warns when Jellyfin runs a version the gateway wasn't tested with.
 
 ## 4. Add your media libraries

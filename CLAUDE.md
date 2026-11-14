@@ -221,7 +221,7 @@ Copy `.env.example` only to override.
     merges each PR before the next one starts.
   - **Issue work goes through the skills**, also when asked in chat: `refine-issue` turns an
     issue into an approved spec (or splits it into a group), `build-issue` takes an approved
-    one to a PR (taken-check, early draft PR, self-review, the posted agent review, device
+    one to a PR (taken-check, early draft PR, the posted agent review, device
     ending), `agent-issue`
     picks between them by the issue's state and orchestrates a group. Agents never merge.
   - Board: project "StreamIQ" (github.com/users/bifi627/projects/2). The skills move the

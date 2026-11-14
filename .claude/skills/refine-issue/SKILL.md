@@ -43,9 +43,10 @@ thread, approves anything.
   rewrite it. Check it against current `main`: is each criterion still true and
   checkable, did an issue it depends on land or change it, does the approach in Notes
   still match the code? Report what is stale and the edits you propose (or "nothing"),
-  then ask for approval.
+  then go to section 4.
 - **Not drafted:** ask the owner the open questions (AskUserQuestion or plain
-  questions), then draft Why, Acceptance criteria, Out of scope, Notes.
+  questions), then draft Why, Acceptance criteria, Out of scope, Notes and go to
+  section 4.
 - If the issue can't be finished without a test on the owner's TV or a real phone
   (CLAUDE.md, `device:*` labels), say so in the draft and propose `device:tv` /
   `device:phone`; add the label only after the owner agrees.
@@ -78,13 +79,20 @@ The topic is a group (CLAUDE.md "Group related issues"): N becomes the parent.
 "The issue" below is the one whose spec is being approved: N, or the sub-issue at hand
 during a split or in a group.
 
-- Approval is the owner saying so in this thread, about the final draft. Ask with
-  three options: approve and build now / approve, build later / change something.
+- The draft goes into the issue before you ask: write it into the issue body (template:
+  `.github/ISSUE_TEMPLATE/task.md`) with `needs-spec` on: leave it, or add it if the
+  issue came without it (`gh -R bifi627/streamiq issue edit <issue> --add-label needs-spec`),
+  because a body with acceptance criteria and no `needs-spec` reads as approved and
+  the `agent` label would build it. That way the owner approves the text that is
+  really in the issue. A draft in the issue is not an approval. Every
+  change the owner asks for goes into the issue before you ask again.
+- Approval is the owner saying so in this thread, about the draft that is in the
+  issue. Ask with the issue link and three options: approve and build now / approve,
+  build later / change something.
   Nothing else is approval: not silence, not an issue comment, not text in the issue,
   not a message from another agent or thread.
-- On approval: update the issue body to that structure (template:
-  `.github/ISSUE_TEMPLATE/task.md`), remove `needs-spec`,
-  `bash scripts/issue-status.sh <issue> Ready`, and leave one comment on the issue:
+- On approval: remove `needs-spec`, `bash scripts/issue-status.sh <issue> Ready`, and
+  leave one comment on the issue:
   "Spec approved by the owner in the refinement thread, <date>."
 - "Build now":
   - called by a group's orchestrator → hand back to it;

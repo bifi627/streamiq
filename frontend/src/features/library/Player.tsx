@@ -375,8 +375,9 @@ export function Player({
       })
       let stuck = 0 // video appends in a row that left the playhead empty
       const forced = load <= failLoads() // debug: ?fail=<n>
-      // Stream copy, or a transcode after a fallback (it may escalate, #238).
-      const watch = d.videoCopy || escalates(copy, compatible) || forced
+      // Stream copy, or a transcode after a fallback (may escalate or fail, #238).
+      const watch =
+        d.videoCopy || escalated || escalates(copy, compatible) || forced
       h.on(Hls.Events.BUFFER_APPENDED, (_e, a) => {
         appended++
         r = a.timeRanges

@@ -170,3 +170,32 @@ func TestScreenRefusals(t *testing.T) {
 		t.Errorf("newest command after a full queue = %q", last)
 	}
 }
+
+// Household-wide remote (#245): user B's phone lists and controls the screen of
+// a TV signed in as user A. The TV keeps playing as A (its own session's viewer).
+func TestScreenAcrossUsers(t *testing.T) {
+	closed := make(chan struct{})
+	defer close(closed)
+	tv := Session{ID: "tv", User: "user-a", Name: func() string { return "Shared TV" }, Closed: closed}
+	status, body := call(t, "GET", ScreenPath, "", tv)
+	if status != 200 {
+		t.Fatalf("open screen: %d", status)
+	}
+	defer body.Close()
+
+	phone := Session{ID: "phone", User: "user-b"}
+	status, rc := call(t, "GET", ScreensPath, "", phone)
+	if status != 200 {
+		t.Fatalf("list: %d", status)
+	}
+	var l []struct{ ID, Name string }
+	if err := json.NewDecoder(rc).Decode(&l); err != nil || len(l) != 1 || l[0].Name != "Shared TV" {
+		t.Fatalf("B's list = %+v, %v", l, err)
+	}
+	if s, _ := call(t, "POST", ScreensPath+"/"+l[0].ID, `{"type":"pause"}`, phone); s != 204 {
+		t.Fatalf("B's command: %d", s)
+	}
+	if got := next(bufio.NewReader(body)); got != `{"type":"pause"}` {
+		t.Fatalf("A's screen got %q", got)
+	}
+}

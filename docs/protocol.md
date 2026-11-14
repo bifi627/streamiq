@@ -368,8 +368,12 @@ Code: `gateway/internal/tunnel/screen.go`; TS types: `frontend/src/features/gate
 - **Screen id**: random per screen (`crypto/rand.Text()`, 26 chars, base32), not
   the client key; a reconnect gets a new id. No keep-alive on the held response:
   an idle tunnel session survives 60 min direct and relayed (#178).
-- No per-user rules on who may control a screen yet (#92): any paired client of
-  the gateway can.
+- **Who controls: the whole household** (#245, decided). Any paired client of the
+  gateway, whichever user is signed in, lists and controls every open screen; there
+  is no per-user or role filter. A shared living-room TV is the point of the remote.
+- **Whose progress: the TV's user.** The TV plays through its own session, so resume
+  and played state land on its signed-in user's Jellyfin viewer, even when another
+  user's phone started or controls playback. To watch as B, sign the TV in as B.
 
 **`GET /streamiq/screen`** (TV): opens this session's screen, named by the
 client's pairing `name`. `200`, `Content-Type: application/x-ndjson`, no

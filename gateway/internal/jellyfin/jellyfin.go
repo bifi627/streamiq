@@ -150,6 +150,7 @@ type Setup struct {
 	// retry until new admin creds (BYO: a page login; managed: bootstrap, or the
 	// fixed password in the file and a restart): Jellyfin locks users out after failed sign-ins.
 	refused bool
+	logged  bool // transcoding state logged (once per start; poll's goroutine only)
 }
 
 func (s *Setup) path() string { return filepath.Join(s.StateDir, "jellyfin.json") }
@@ -242,6 +243,23 @@ func (s *Setup) poll(ctx context.Context) {
 		s.mu.Unlock()
 		slog.Info("gateway: completed the Jellyfin setup wizard", "admin", adminName, "password_in", s.path())
 		s.configure(ctx) // seed now, not a poll later
+	}
+	if v := s.View(); !s.logged && v.Reachable && v.HasKey {
+		s.logged = true
+		logTranscoding(v)
+	}
+}
+
+// logTranscoding says once per start how Jellyfin transcodes and where to
+// change it (#250): without it, a GPU left off goes unnoticed.
+func logTranscoding(v View) {
+	switch {
+	case !v.Managed:
+		slog.Info("gateway: Jellyfin transcoding is set in your own Jellyfin: Dashboard → Playback → Transcoding", "managed", false)
+	case v.HWAccel == "":
+		slog.Info("gateway: Jellyfin transcodes on the CPU; for an NVIDIA GPU set STREAMIQ_JELLYFIN_HWACCEL=nvenc in gateway.env (docs/install.md, \"GPU transcoding\")", "managed", true, "hwaccel", "off")
+	default:
+		slog.Info("gateway: Jellyfin transcodes on the GPU", "managed", true, "hwaccel", v.HWAccel)
 	}
 }
 

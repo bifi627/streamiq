@@ -240,6 +240,9 @@ export function Player({
           AllowVideoStreamCopy: allow.video,
           AllowAudioStreamCopy: allow.audio,
           ...(!allow.audio && { MaxAudioChannels: 2 }),
+          // None in the stream: else Jellyfin picks a default/forced one and,
+          // image subtitles being Encode-only here, burns it in. Ours: <track>.
+          SubtitleStreamIndex: -1,
           ...(track !== undefined && {
             AudioStreamIndex: track,
             MediaSourceId: source,

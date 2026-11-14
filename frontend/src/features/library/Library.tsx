@@ -745,8 +745,9 @@ function Privacy({ pc }: { pc: RTCPeerConnection }) {
   )
 }
 
-// Guest-mode banner (#242), on the library and the player: checked once per
-// tunnel session (the gateway picks the viewer when the session opens).
+// Guest-mode banner (#242), on the library and the player. ponytail: checked
+// once per tunnel session, though the gateway picks the viewer per request; a
+// viewer made or dropped mid-session shows on the next connection.
 function Guest({ pc }: { pc: RTCPeerConnection }) {
   const admin = useHousehold().current?.role === 'admin'
   const [s, setS] = useState<GatewayStatus | null>(null)

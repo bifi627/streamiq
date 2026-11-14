@@ -235,6 +235,12 @@ Copy `.env.example` only to override.
     approves a spec in the refinement thread or by removing `needs-spec` by hand.
     Unresolved `[blocker]`/`[spec]` review threads block the merge (ruleset on `main`).
     Wiring: `docs/tools.md`.
+  - **Agent signature:** the agent posts with the owner's login, so everything it writes
+    on GitHub says so. Every comment, review, review comment and reply starts with the line
+    `<!-- streamiq-agent -->` and its text starts with `🤖 <model> · ` (`🤖 Opus 5.5 · **[blocker]** …`),
+    `<model>` = the agent's own model name as its system prompt states it. A PR or issue
+    body it writes or rewrites ends with the line
+    `🤖 Written by an agent (<model>) <!-- streamiq-agent -->` (once; a rewrite updates the model).
   - In chat, every issue/PR number is a markdown link, never a bare `#N`:
     `[#193](https://github.com/bifi627/streamiq/issues/193)` (`/issues/N` redirects to PRs too).
     On GitHub itself `#N` autolinks.

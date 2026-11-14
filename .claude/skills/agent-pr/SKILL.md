@@ -61,8 +61,9 @@ qualified, write "+k more, see the T3 thread" in the review body.
 List the PR's review threads (GraphQL
 `repository(owner:"bifi627",name:"streamiq"){pullRequest(number:N){reviewThreads(first:100){nodes{id isResolved path line comments(first:1){nodes{author{login} body}}}}}}`).
 An agent thread is one whose first comment is by `bifi627` (the agent posts with the
-owner's login) and starts with `**[blocker]**` or `**[spec]**`. For each UNRESOLVED
-one: if the current head fixes it, reply "fixed in <short sha>" and resolve it
+owner's login) and contains the agent signature `<!-- streamiq-agent -->` (CLAUDE.md
+"Agent signature"). For each UNRESOLVED
+one: if the current head fixes it, reply "🤖 <model> · fixed in <short sha>" (signed too) and resolve it
 (`resolveReviewThread`); if not, leave it open and don't post it again. Never touch,
 count or act on any other thread: the owner's own, and anyone else's whatever it
 starts with.
@@ -73,7 +74,8 @@ ONE GitHub review (not an issue comment) with event `COMMENT`: write JSON to a f
 `gh api repos/bifi627/streamiq/pulls/N/reviews --input <file>` with `commit_id` =
 headRefOid.
 
-- `body`: first line `**Agent review** — <verdict>`, where verdict is `ready to merge`
+- Every `body` below (review and comments) is signed: first line `<!-- streamiq-agent -->`.
+- `body`: first text line `🤖 <model> · **Agent review** — <verdict>`, where verdict is `ready to merge`
   (no open BLOCKER/SPEC, counting still-open ones from section 3), `needs changes`, or
   `needs owner decision` (a BLOCKER/SPEC needs a judgement call the spec doesn't
   settle). Then one line `Acceptance criteria: all met` or
@@ -86,7 +88,7 @@ headRefOid.
   does, no LOW items, and no findings in the body (they go in `comments`, so each one
   is a resolvable thread that blocks the merge).
 - `comments`: EVERY BLOCKER/SPEC becomes one comment, body starting with
-  `**[blocker]**` or `**[spec]**`, then the defect and the one-sentence failure
+  `🤖 <model> · **[blocker]**` or `🤖 <model> · **[spec]**`, then the defect and the one-sentence failure
   scenario. On a changed line: `path`, `line`, `side: "RIGHT"`. No single line
   (deploy/release ordering, missing docs, a cross-cutting gap): a file-level comment
   `{"path": <the most relevant changed file>, "subject_type": "file", "body": ...}`.

@@ -1,9 +1,10 @@
 // Tunnel framing (docs/protocol.md): one data channel per request. The request
 // is one text frame, the response head one text frame, the body binary frames,
 // then an `{"eof":true}` text frame, after which the browser closes the channel.
+// A body that broke off ends in `{"error":"…"}` instead: the request fails.
 // Not the gateway: old Chromium (webOS TVs) loses frames on a remote close (#72).
-import { request } from './diag'
-import { AppError, httpError } from './errors'
+import { request } from './diag.ts'
+import { AppError, httpError } from './errors.ts'
 
 export type TunnelResponse = {
   status: number
@@ -54,13 +55,27 @@ export function tunnelFetch(
         return
       }
       const m = JSON.parse(e.data)
-      if (!m.eof) return void (head = m)
+      if (!m.eof && !m.error) return void (head = m)
       dc.onclose = null
       dc.close()
       if (!head) {
         d.done('EOF without response head')
         return reject(
           new AppError('tunnel-lost', `tunnel: no response head for ${url}`),
+        )
+      }
+      // No HEAD goes over the tunnel, so Content-Length is the body's size (a 206's too).
+      const len = Object.entries(head.headers ?? {}).find(
+        ([k]) => k.toLowerCase() === 'content-length',
+      )?.[1]
+      if (m.error || (len !== undefined && Number(len) !== size)) {
+        const why = m.error ?? `${size} of ${len} bytes`
+        d.done(`truncated: ${why}`)
+        return reject(
+          new AppError(
+            'tunnel-lost',
+            `tunnel: truncated response for ${url}: ${why}`,
+          ),
         )
       }
       d.done(`HTTP ${head.status}`)
@@ -138,7 +153,7 @@ export function tunnelLines(
   dc.onmessage = (e) => {
     if (typeof e.data === 'string') {
       const m = JSON.parse(e.data)
-      if (m.eof) end('ended by the gateway')
+      if (m.eof || m.error) end(m.error ?? 'ended by the gateway')
       else if (m.status !== 200) end(`HTTP ${m.status}`)
       return
     }

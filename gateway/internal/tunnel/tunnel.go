@@ -136,8 +136,7 @@ func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 	sendHead(d, status, hdr)
 	if err := streamBody(d, body, who.Closed); err != nil {
 		log.Printf("gateway: tunnel -> %d, body cut off: %v", status, err)
-		b, _ := json.Marshal(map[string]string{"error": err.Error()})
-		end = string(b)
+		end = `{"error":"body cut off"}` // ponytail: details stay in the log (they name LAN addresses)
 		return
 	}
 	log.Printf("gateway: tunnel -> %d", status)

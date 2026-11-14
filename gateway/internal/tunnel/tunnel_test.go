@@ -456,7 +456,10 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 	for i := 0; i < 2; i++ { // head, then the end frame
 		select {
 		case s := <-texts:
-			if i == 1 && !strings.HasPrefix(s, `{"error":`) {
+			if i == 0 && !strings.HasSuffix(s, `"status":200}`) {
+				t.Fatalf("first frame = %s, want the 200 head", s)
+			}
+			if i == 1 && s != `{"error":"body cut off"}` {
 				t.Fatalf("end frame = %s, want an error frame", s)
 			}
 		case <-time.After(30 * time.Second):

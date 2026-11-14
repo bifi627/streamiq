@@ -210,7 +210,10 @@ Copy `.env.example` only to override.
     `gh pr list --label device:tv`) and stops; the owner runs it (`/preview tunnel`) and marks the PR ready.
     Work doable away from home: `gh issue list --search "-label:device:tv -label:device:phone -label:needs-spec"`.
   - One issue → one worktree thread → one PR. Branch `<type>/<n>-<slug>`
-    (`fix/42-cert-rotation`); PR body `Fixes #<n>`. Multi-PR feature = parent issue
+    (`fix/42-cert-rotation`); PR body `Fixes #<n>`. PR title = a conventional commit
+    (`fix: …`, `feat(scope): …`); it becomes the squash commit subject, which versions the
+    gateway release (#274): a change that breaks installed gateways (gateway↔API protocol,
+    `gateway.env`, state dir, CLI) gets `!` right after the type (`feat!: …`). Multi-PR feature = parent issue
     (the spec) + sub-issues. Milestone = what's being worked toward now; no milestone
     = backlog. Not wanted anymore: close as *not planned* with a comment (why + what
     would bring it back); reopen instead of re-filing.

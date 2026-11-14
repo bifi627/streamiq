@@ -1,13 +1,17 @@
 // One tunnel session per gateway, shared by the routes that need it (#152): the
 // library and the web gateway page's details. Counted users; the session closes
 // IDLE_MS after the last release, and a new user in that window keeps it. A
-// failed connect, a dropped session, or a changed ICE policy (relay toggle) is
+// failed connect, a dropped or closed session, or a changed ICE policy (relay toggle) is
 // evicted lazily: the next user opens a fresh one. No imports, so node:test can
 // drive it with a stubbed `open`; connect.ts wires it to the real connect().
 
 export const IDLE_MS = 30_000
 
-type Closable = { pc: { connectionState: string }; close: () => void }
+type Closable = {
+  pc: { connectionState: string }
+  close: () => void
+  closed?: boolean
+}
 type Entry<S> = {
   p: Promise<S>
   s?: S
@@ -43,13 +47,14 @@ export function sharer<S extends Closable>(
   /** The gateway's shared session; call release() once when done with it. */
   function share(gatewayId: string) {
     let e = map.get(gatewayId)
-    // disconnected too: a restarted gateway leaves the pc there for ~30 s before
-    // failed; its current users keep it (it may recover), new ones don't.
-    // ponytail: a gateway restart seconds ago still looks connected, and that
-    // session is reused ("no response"); a broker `bye` to clients would fix it.
-    const dead = ['disconnected', 'failed', 'closed'].includes(
-      e?.s?.pc.connectionState ?? '',
-    )
+    // disconnected too: its current users keep it (it may recover), new ones
+    // don't. closed: the session closed itself, e.g. on the broker's `bye` when
+    // the gateway's socket dropped (#172), before its pc says so.
+    const dead =
+      !!e?.s?.closed ||
+      ['disconnected', 'failed', 'closed'].includes(
+        e?.s?.pc.connectionState ?? '',
+      )
     if (e && (dead || e.policy !== policy())) evict(gatewayId, e)
     e = map.get(gatewayId)
     if (!e) {

@@ -130,6 +130,7 @@ Closing it ends the session (broker sends the gateway `bye`).
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |
 | browser → broker | `{type:"ice", candidate}` |
 | broker → browser | `{type:"answer", sdp}` · `{type:"ice", candidate}` |
+| broker → browser | `{type:"bye"}` — the gateway socket that took this session's offer closed (restart, update): the session is dead even if ICE hasn't noticed yet, so the client closes its pc (#172). A mere control-socket drop the gateway survives ends it too: rare, and the next open makes a fresh session. |
 | browser → broker | `{type:"ping"}` — every 25 s while the socket is open, ignored by the broker: keeps an idle session's socket from being dropped by a proxy (#178, #180) |
 
 **Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, user, role, sdp}`,

@@ -88,3 +88,12 @@ test('a dropped session, changed policy or re-pair is evicted for the next user'
   await share('g').session
   assert.equal(st.opened.length, 4)
 })
+
+test("a session closed on the broker's bye is evicted before its pc says so", async () => {
+  const st = stub()
+  const { share } = sharer(st.open, () => null, IDLE)
+  const a = share('g')
+  const s1 = await a.session
+  s1.close() // `bye`: connect() closes it; pc still 'connected' for now
+  assert.notEqual(await share('g').session, s1)
+})

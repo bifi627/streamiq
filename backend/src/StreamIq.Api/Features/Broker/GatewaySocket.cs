@@ -99,6 +99,12 @@ public static class GatewaySocket
             finally
             {
                 Broker.Gateways.TryRemove(new(gateway.Id, me));
+                // Its sessions are dead (a restart takes the pcs with it); tell their
+                // clients now instead of letting ICE notice in ~30 s (#172).
+                foreach (var s in Broker.Sessions.Values.Where(s => s.Via == me))
+                {
+                    await s.SendAsync(new JsonObject { ["type"] = "bye" }, CancellationToken.None);
+                }
             }
         }).RequireRateLimiting("signaling");
     }

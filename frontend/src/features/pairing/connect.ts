@@ -29,6 +29,8 @@ import {
 export type Session = {
   pc: RTCPeerConnection
   close: () => void
+  /** close() ran (the pc closes a moment later, after the telemetry PATCH). */
+  closed: boolean
   /** gateway → client throughput (#162): starts the measurement on the first
    * call, once per session, so sessions that never stream cost no bursts. */
   speed: () => Speed
@@ -72,7 +74,9 @@ export async function connect(
     pc.close()
     ws.close() // the broker tells the gateway `bye`
   }
+  let closed = false
   const close = () => {
+    closed = true
     speed?.stop()
     const row = logged
     logged = null
@@ -113,7 +117,14 @@ export async function connect(
         }).then((r) => r.id)
       })
       .catch(() => null)
-    return { pc, close, speed: () => (speed ??= measure(pc, gatewayId)) }
+    return {
+      pc,
+      close,
+      get closed() {
+        return closed
+      },
+      speed: () => (speed ??= measure(pc, gatewayId)),
+    }
   }
   const send = (m: object) => ws.send(JSON.stringify(m))
 
@@ -195,6 +206,10 @@ export async function connect(
         else early.push(m.candidate)
       } else if (m.type === 'error') {
         fail(brokerError(m.error, { gatewayId }))
+      } else if (m.type === 'bye') {
+        // The gateway's socket to the broker dropped (restart): this pc is dead
+        // even if ICE hasn't noticed yet (#172).
+        fail(err('gateway-offline', 'gateway disconnected from the broker'))
       }
     }
     pc.onconnectionstatechange = () =>

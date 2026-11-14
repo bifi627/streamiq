@@ -34,7 +34,8 @@ type fake struct {
 	loggedOut []string       // users whose session was logged out
 	enc       map[string]any // /System/Configuration/encoding
 	encPosts  int
-	news      int // POST /Users/New
+	news      int  // POST /Users/New
+	booting   bool // a starting Jellyfin: 503 to /Users/Me (and the wizard reported not done)
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
@@ -109,7 +110,9 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.tokens[t] = b.Username
 		json.NewEncoder(w).Encode(map[string]any{"AccessToken": t, "User": map[string]string{"Id": u.id}})
 	case "GET /Users/Me":
-		if caller == nil {
+		if f.booting {
+			deny(503)
+		} else if caller == nil {
 			deny(401)
 		}
 	case "GET /Users":
@@ -865,7 +868,7 @@ func TestResetJellyfinSetUpAgain(t *testing.T) {
 		// Booting, Jellyfin briefly reports the wizard not done; the creds still work: keep them.
 		before := s.creds
 		f.mu.Lock()
-		f.wizard = false
+		f.wizard, f.booting = false, true
 		f.mu.Unlock()
 		s.poll(ctx)
 		if after := s.creds; after.Token != before.Token || after.Password != before.Password || len(after.Users) != 1 {

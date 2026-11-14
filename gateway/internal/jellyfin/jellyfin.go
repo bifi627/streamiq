@@ -142,7 +142,7 @@ type Setup struct {
 	OnKey    func(token, userID string)
 	HWAccel  string // STREAMIQ_JELLYFIN_HWACCEL, one of HWAccels
 
-	vmu       sync.Mutex // held by whoever rewrites creds or signs in as the gateway's admin: EnsureViewer, check, configure, Login
+	vmu       sync.Mutex // held by whoever rewrites creds or signs in as the gateway's admin: EnsureViewer, check, configure, Login, bootstrap, Load
 	mu        sync.Mutex
 	creds     Creds
 	legacyID  string // user id resolved for a pre-#50 API key
@@ -267,9 +267,6 @@ func (s *Setup) poll(ctx context.Context) {
 			slog.Error("gateway: Jellyfin setup failed", "err", err)
 			return
 		}
-		s.mu.Lock()
-		s.err, s.refused, s.legacyID = "", false, ""
-		s.mu.Unlock()
 		slog.Info("gateway: completed the Jellyfin setup wizard", "admin", adminName, "password_in", s.path())
 		s.configure(ctx) // seed now, not a poll later
 	case c.Token != "" || len(c.Users) > 0:
@@ -347,7 +344,13 @@ func (s *Setup) bootstrap(ctx context.Context) error {
 		return err
 	}
 	c.User, c.Password = adminName, pw
-	return s.save(c)
+	if err := s.save(c); err != nil {
+		return err
+	}
+	s.mu.Lock() // under vmu: EnsureViewer must not see the old admin's refusal
+	s.err, s.refused, s.legacyID = "", false, ""
+	s.mu.Unlock()
+	return nil
 }
 
 // Login connects with an existing admin's login (from the local page). The

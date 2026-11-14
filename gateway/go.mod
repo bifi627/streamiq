@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/pion/webrtc/v4 v4.2.26
+	golang.org/x/term v0.47.0
 )
 
 require (

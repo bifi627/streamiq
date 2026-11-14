@@ -48,8 +48,8 @@ export function sharer<S extends Closable>(
   function share(gatewayId: string) {
     let e = map.get(gatewayId)
     // disconnected too: its current users keep it (it may recover), new ones
-    // don't. closed: the session closed itself, e.g. on the broker's `bye` when
-    // the gateway's socket dropped (#172), before its pc says so.
+    // don't. closed: the session closed itself, e.g. when the broker closed it
+    // because the gateway's socket dropped (#172), before its pc says so.
     const dead =
       !!e?.s?.closed ||
       ['disconnected', 'failed', 'closed'].includes(

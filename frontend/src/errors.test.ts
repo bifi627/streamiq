@@ -13,6 +13,7 @@ import {
 test('broker socket: closed before open is unreachable, after is a drop', () => {
   assert.equal(brokerClosed(false).kind, 'broker-unreachable')
   assert.equal(brokerClosed(true).kind, 'broker-lost')
+  assert.equal(brokerClosed(true, {}, 'gateway gone').kind, 'gateway-offline')
 })
 
 test('broker error text', () => {

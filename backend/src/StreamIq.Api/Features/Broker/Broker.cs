@@ -25,7 +25,7 @@ public static class Broker
         public Guid TenantId => tenantId;
         public Guid GatewayId => gatewayId;
         /// A session's gateway link (the socket its offer went to): when that socket
-        /// closes, the session gets `bye` (#172). A reconnected gateway is a new link.
+        /// closes, the session's socket is closed as "gateway gone" (#172). A reconnected gateway is a new link.
         public Link? Via => via;
 
         /// Ends this link from outside its own loop (revocation): a best-effort close

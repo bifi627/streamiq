@@ -49,7 +49,7 @@ Feature: Signaling broker
     When "alice@home.test" offers to gateway "nas"
     And gateway "nas" receives the offer
     And gateway "nas" disconnects
-    Then the browser is told bye
+    Then the browser socket is closed as "gateway gone"
 
   Scenario: A browser socket without a valid ID token is closed
     When a browser authenticates with token "garbage"

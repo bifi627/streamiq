@@ -159,7 +159,7 @@ export async function connect(
       // and that ends the tunnel too. The broker ignores the ping.
       ping = setInterval(() => send({ type: 'ping' }), 25_000)
     }
-    ws.onclose = () => fail(brokerClosed(opened, { gatewayId }))
+    ws.onclose = (e) => fail(brokerClosed(opened, { gatewayId }, e.reason))
     // Handle broker messages strictly in order. The gateway can still trickle a
     // candidate before its answer (Pion gathers during SetLocalDescription), so
     // candidates that beat the answer wait in `early`.
@@ -206,10 +206,6 @@ export async function connect(
         else early.push(m.candidate)
       } else if (m.type === 'error') {
         fail(brokerError(m.error, { gatewayId }))
-      } else if (m.type === 'bye') {
-        // The gateway's socket to the broker dropped (restart): this pc is dead
-        // even if ICE hasn't noticed yet (#172).
-        fail(err('gateway-offline', 'gateway disconnected from the broker'))
       }
     }
     pc.onconnectionstatechange = () =>

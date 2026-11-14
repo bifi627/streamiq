@@ -149,8 +149,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     })
 
     await test.step('gateway restarts → library opens right away (#172)', async () => {
-      // The shared session still looks connected for ~5–30 s; the broker's
-      // `bye` (gateway socket closed) evicts it, so this Open makes a fresh one.
+      // The shared session still looks connected for ~5–30 s; the broker
+      // closing it (gateway socket closed) evicts it, so this Open makes a fresh one.
       await gateway.stop()
       gateway = await startGateway(stateDir, env)
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)

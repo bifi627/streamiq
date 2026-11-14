@@ -27,6 +27,12 @@ Pick one:
   `gateway jellyfin up` again and leave the setup wizard alone. The file is
   yours; updates never overwrite it. Needs Docker with Compose v2
   (`docker compose`); the gateway says so if it's missing.
+  Jellyfin keeps its users, libraries and watch state in the `jellyfin-config`
+  folder next to the file, so Docker cleanups (`docker system prune --volumes`,
+  Docker Desktop's "Clean up data") don't touch them; after one, run
+  `gateway jellyfin up` again. If Jellyfin does come back empty (that folder
+  deleted), the gateway sets it up again by itself: add your media libraries
+  again; each user's resume state starts over.
 
 ## 2. Install the gateway
 

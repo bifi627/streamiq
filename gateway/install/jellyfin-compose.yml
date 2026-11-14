@@ -16,7 +16,10 @@ services:
     ports:
       - "8096:8096"
     volumes:
-      - config:/config
+      # Jellyfin's users, libraries and watch state, in a folder next to this
+      # file: Docker cleanups (prune, Docker Desktop "Clean up data") delete
+      # named volumes, not this folder. The cache can go.
+      - ./jellyfin-config:/config
       - cache:/cache
       # Media folders, read-only. One entry per folder, any number of drives.
       # Windows paths work as-is, e.g. source: 'D:\Movies'.
@@ -42,5 +45,4 @@ services:
     # devices:
     #   - /dev/dri:/dev/dri
 volumes:
-  config:
   cache:

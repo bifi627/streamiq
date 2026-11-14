@@ -34,7 +34,8 @@ type fake struct {
 	loggedOut []string       // users whose session was logged out
 	enc       map[string]any // /System/Configuration/encoding
 	encPosts  int
-	news      int // POST /Users/New
+	news      int  // POST /Users/New
+	booting   bool // a starting Jellyfin: 503 to /Users/Me (and the wizard reported not done)
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
@@ -109,7 +110,9 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.tokens[t] = b.Username
 		json.NewEncoder(w).Encode(map[string]any{"AccessToken": t, "User": map[string]string{"Id": u.id}})
 	case "GET /Users/Me":
-		if caller == nil {
+		if f.booting {
+			deny(503)
+		} else if caller == nil {
 			deny(401)
 		}
 	case "GET /Users":
@@ -840,5 +843,53 @@ func TestTranscodingLoggedOnce(t *testing.T) {
 	s3.poll(context.Background())
 	if count("Dashboard → Playback → Transcoding") != 1 {
 		t.Fatalf("unmanaged:\n%s", buf.String())
+	}
+}
+
+// A wiped Jellyfin (Docker volume deleted, #280) is set up again over the stored
+// creds, managed or BYO: new admin, new viewer, the users' old viewers dropped.
+func TestResetJellyfinSetUpAgain(t *testing.T) {
+	for _, byo := range []bool{true, false} {
+		f, srv := newFake(t, byo)
+		var got [2]string
+		s := newSetup(t, srv.URL, &got)
+		ctx := context.Background()
+		if byo {
+			if err := s.Login(ctx, "me", "pw"); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			s.poll(ctx)
+		}
+		s.EnsureViewer(ctx, alice)
+		if tok, _ := s.ViewerFor(alice); tok == "" || f.users["streamiq-"+alice] == nil {
+			t.Fatalf("byo=%v: no viewer for alice before the reset", byo)
+		}
+		// Booting, Jellyfin briefly reports the wizard not done; the creds still work: keep them.
+		before := s.creds
+		f.mu.Lock()
+		f.wizard, f.booting = false, true
+		f.mu.Unlock()
+		s.poll(ctx)
+		if after := s.creds; after.Token != before.Token || after.Password != before.Password || len(after.Users) != 1 {
+			t.Fatalf("byo=%v: a booting Jellyfin replaced the creds: %+v", byo, after)
+		}
+		f2, srv2 := newFake(t, false) // the wipe: a fresh Jellyfin on the same address
+		s.URL = srv2.URL
+		s.poll(ctx)
+		c := connected(t, f2, s, got)
+		if c.BYO || c.User != adminName || c.Password != f2.users[adminName].pw || len(c.Users) != 0 || !s.creds.managed() {
+			t.Fatalf("byo=%v: after reset creds %+v", byo, c)
+		}
+		if tok, _ := s.ViewerFor(alice); tok != "" {
+			t.Fatalf("byo=%v: alice kept a viewer of the wiped Jellyfin", byo)
+		}
+		s.EnsureViewer(ctx, alice)
+		if _, id := mine(t, f2, s, alice); id == "" {
+			t.Fatalf("byo=%v: alice got no new viewer", byo)
+		}
+		if v := s.View(); !v.HasKey || v.NeedsLogin || v.Err != "" {
+			t.Fatalf("byo=%v: view %+v", byo, v)
+		}
 	}
 }

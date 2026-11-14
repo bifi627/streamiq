@@ -239,7 +239,8 @@ export type StackOptions = {
 
 // tmpfs over every VOLUME the image declares, so no run leaves an anonymous
 // volume behind (stop() removes them, but Ryuk's reaping after a crash or
-// Ctrl+C doesn't). ponytail: Jellyfin's transcodes (/cache) land in RAM too.
+// Ctrl+C doesn't). Jellyfin's transcodes (/cache) land in RAM too, so not in
+// the preview (startStack).
 const NO_VOLUMES = {
   postgres: { '/var/lib/postgresql': 'rw' },
   'jellyfin/jellyfin': { '/config': 'rw', '/cache': 'rw' },
@@ -284,12 +285,14 @@ export async function startStack(o: StackOptions) {
   const jellyfinContainer = labeled(
     new GenericContainer(pin('jellyfin/jellyfin'))
       .withExposedPorts(8096)
-      .withTmpFs(NO_VOLUMES['jellyfin/jellyfin'])
       .withWaitStrategy(
         Wait.forHttp('/System/Info/Public', 8096).forStatusCode(200),
       )
       .withStartupTimeout(180_000),
   )
+  // Not in the preview: a long 4K stream keeps GBs of segments in /cache. Its
+  // anonymous volumes go with `preview down` (docker rm -v) instead.
+  if (!o.label) jellyfinContainer.withTmpFs(NO_VOLUMES['jellyfin/jellyfin'])
   if (o.nvenc) {
     // ponytail: testcontainers has no GPU option, so set Docker's DeviceRequests
     // on its protected hostConfig. If testcontainers renames it, this is a silent

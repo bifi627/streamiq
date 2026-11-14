@@ -345,7 +345,7 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 	}
 	if !byo { // keep the bootstrapped admin's password for the human (and configure)
 		c.User, c.Password, c.ConfigSteps, c.HWAccel = old.User, old.Password, old.ConfigSteps, old.HWAccel
-		if strings.EqualFold(user, old.User) {
+		if pw != "" && strings.EqualFold(user, old.User) { // "" would make the gateway unmanaged (managed())
 			c.Password = pw
 		}
 	}

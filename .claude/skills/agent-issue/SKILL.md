@@ -76,7 +76,7 @@ It writes no code itself.
      thread). Never restate the build steps in the brief: `build-issue` is their one
      home. Then wait for its report with `t3_thread_wait`. Not `delegate_task` and not
      an Agent subagent: a worker needs a current checkout of its own and starts its own
-     self-review subagent. Tool not there → tell the owner to put `agent` on the
+     review subagent. Tool not there → tell the owner to put `agent` on the
      sub-issue instead; stop.
   4. Hand over: give the owner the PR link, its review verdict and its CI status
      (`gh pr checks <pr>`) here; CI red → send the worker back to fix it first (`t3_thread_send`). A draft

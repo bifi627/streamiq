@@ -2,15 +2,15 @@
 name: agent-review
 description: >-
   Use when an agent reviews a StreamIQ change and must sort findings into
-  BLOCKER / SPEC / LOW: the builder's self-review of its branch before marking
-  the PR ready, and the T3 task "agent label → review PR" before it posts the
-  GitHub review. Picks the /code-review level, runs it without posting, triages
+  BLOCKER / SPEC / LOW: called by `agent-pr` before it posts the GitHub review
+  (a build's review of its own PR and the `agent` label on a PR both go through
+  it). Picks the /code-review level, runs it without posting, triages
   strictly, returns the findings. Posts nothing. Not for a human-requested
   review (use /code-review directly).
 ---
 
-The one home of the agent review's triage rules: the build's self-review and the
-GitHub review task both use them, so their verdicts mean the same thing.
+The one home of the agent review's triage rules: every posted agent review
+(`agent-pr`) uses them, so a verdict means the same thing whoever started it.
 
 Target (`$ARGUMENTS`): a PR number, or nothing = the current branch
 (`git branch --show-current`) vs `origin/main`. The diff under review is `gh pr diff N`
@@ -28,14 +28,11 @@ something (e.g. a `## For the reviewer` list): answer each point.
 
 ## 2. Level
 
-- `xhigh` if the diff touches a crown-jewel path: backend `Data/` (tenant filter,
-  migrations), backend `Auth/`, the broker / gateway sockets (`Features/Broker`,
-  `Features/Gateways`), `gateway/internal/{tunnel,pairing,identity,localpage}`, the
-  gateway API allowlist/token handling, install scripts, or CI/release workflows.
-- `medium` if the change is docs/CI-config only or under ~50 changed lines.
-- otherwise `high`.
-
-First match wins (a CI-config-only change is `xhigh`).
+`bash scripts/review-level.sh <PR number>` (no number = the current branch vs
+`origin/main`) prints it: `xhigh`, `high` or `low`. Use what it prints; don't judge
+the level yourself. The rule (the crown-jewel paths, what counts as docs only) lives
+in that script and nowhere else. The level is only the `/code-review` argument: your
+own reading of the spec and the triage below are the same at every level.
 
 ## 3. Review
 
@@ -48,11 +45,18 @@ empty (empty = the working-tree diff, which is empty once everything is pushed).
 
 Each finding into exactly one bucket. Be strict; the default is LOW.
 
+What `/code-review` returns is unverified candidates: it is told to prefer recall
+over precision and to reach a minimum number of findings, most of its angles hunt
+cleanups, and it checks nothing. So expect LOW items and wrong ones on a clean change.
+You are the only verification: read the code for every BLOCKER and SPEC candidate and
+confirm it yourself before you report it. One you can't confirm is dropped (a BLOCKER)
+or LOW (a SPEC); a posted finding blocks the merge and costs a fix round.
+
 - **BLOCKER**: a concrete failure scenario you can state in one sentence that breaks
   a real user flow, loses/corrupts data, breaks tenant isolation, leaks a
   credential/PII, weakens auth/pinning, breaks the protocol between deployed gateways
   and the API (including deploy/release ordering), or makes a test pass by weakening
-  it. Verify each against the code yourself; drop it if you can't confirm it.
+  it.
 - **SPEC**: an acceptance criterion not met; out-of-scope work / a drive-by fix in the
   diff; docs the change invalidated left stale (`docs/tools.md` for tools/credentials,
   `docs/protocol.md` for protocol); a new dependency with no justification in the PR
@@ -71,12 +75,14 @@ GitHub; the caller gives the details to the owner only in its T3 thread.
 
 Return, in this order:
 
-1. Level used.
+1. Level used, and the counts: findings `/code-review` returned, then how many you
+   sorted into BLOCKER, SPEC and LOW (all of them, not only the listed ones).
 2. Acceptance criteria: `all met` or `not met — <which>`.
 3. Answers to what the PR body asked reviewers to check (if anything).
 4. BLOCKER / SPEC findings, one per item: `[blocker]` or `[spec]` (+ `security`
    if so), `path:line` (or `path` for a file-level / cross-cutting one), the
    defect, and the one-sentence failure scenario.
-5. LOW findings, one line each.
+5. LOW findings, one line each: at most the 5 most worth a look, then "+k more LOW,
+   not listed".
 
 No praise, no summary of what the change does.

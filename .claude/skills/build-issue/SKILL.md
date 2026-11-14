@@ -2,7 +2,7 @@
 name: build-issue
 description: >-
   Use when building one approved StreamIQ issue to a pull request: worktree
-  branch, early draft PR, `check.sh`, self-review, the posted agent review with
+  branch, early draft PR, `check.sh`, the posted agent review with
   its fix rounds, then a ready PR (a draft with a device checklist for
   `device:*` issues). Called by
   the `agent-issue` dispatch, as the worker's brief from a group's orchestrator,
@@ -59,45 +59,46 @@ you run in; a worker started by an orchestrator reports there.
 - If blocked or the spec turns out to be wrong: stop, comment on the issue what's
   unclear, and ask the owner in the thread.
 
-## 3. Self-review (not posted)
+## 3. Review
 
-After `check.sh` is green (all commits pushed): one pass by a fresh-context subagent
-(Agent tool, foreground) with exactly this prompt: "Run the `agent-review` skill on
-branch <branch> vs origin/main (worktree <path>) and return its output verbatim." Then:
+After `check.sh` is green and all commits are pushed, the agent review of this PR runs
+here, in the PR's own thread: no `agent` label is needed on it, and it is the only
+review (no separate self-review before it). Start a fresh-context subagent (Agent
+tool, foreground) with exactly this prompt and nothing else, so the reviewer is not
+steered: "Run the `agent-pr` skill on PR <pr> (`/agent-pr <pr>`) in worktree <path>.
+You are a subagent of the PR's build thread. Return the verdict and all findings
+verbatim." It posts one GitHub review and sets the verdict label. (It shows as two
+subagents: the reviewer and the `/code-review` it starts and waits for.)
 
-- BLOCKER / SPEC findings: fix each (same CLAUDE.md rules: no drive-by fixes,
-  `check.sh` run and read, tests never weakened to satisfy a finding) and push.
-- A finding you disagree with (except `security` ones, see below): no code change for
-  it; add it to the PR body under `## For the reviewer` (one line each: the finding +
-  why you left it). The posted review answers those.
-- LOW findings: ignore. `security` findings: never on GitHub; tell the owner in the
-  thread.
+Set the Agent tool's `effort` to `high` and leave `model` unset, whatever the diff:
+the reviewer's own work (the spec check, verifying and triaging the findings) is the
+same for every change. This line is where the owner changes either. The
+`/code-review` level is a different thing and the reviewer picks it itself
+(`scripts/review-level.sh`).
 
-Review subagents, here and in section 4: set the Agent tool's `effort` to the review
-level `agent-review` section 2 gives this diff (`medium` / `high` / `xhigh`); leave
-`model` unset. This line is where the owner changes either.
+Then, by verdict:
 
-## 4. Posted review
-
-The agent review of this PR runs here, in the PR's own thread, so no `agent` label is
-needed on it. Start a NEW fresh-context subagent (Agent tool, foreground) with exactly
-this prompt and nothing else, so the reviewer is not steered: "Run the `agent-pr` skill
-on PR <pr> (`/agent-pr <pr>`) in worktree <path>. You are a subagent of the PR's build
-thread. Return the verdict and all findings verbatim." It posts one GitHub review and
-sets the verdict label. Then, by verdict:
-
-- `review:ready` → section 5.
-- `review:changes` → fix each posted finding (same rules as above), push, and run the
-  posted review again with a NEW subagent; it resolves the threads the new head fixed.
+- `review:ready` → section 4.
+- `review:changes` → fix each posted finding (CLAUDE.md rules: no drive-by fixes,
+  `check.sh` run and read, tests never weakened to satisfy a finding), push, and run
+  the review again with a NEW subagent; it resolves the threads the new head fixed.
   A finding you disagree with: reply on its thread with why, and leave it open for the
   owner. At most 2 posted reviews.
 - `review:decision`, or still `review:changes` after the second → no more rounds; go to
-  section 5 and tell the owner what is open and why.
+  section 4 and tell the owner what is open and why.
+- LOW findings (every review returns some): your call, but only together with the
+  fixes for a `review:changes` verdict, so the next review covers them. Then you may
+  fix one if it is in code this PR already changes and takes a line or two; ignore
+  the rest (no drive-by fixes). After `review:ready`, or when no further review
+  follows, change no code for them: a push then would leave unreviewed code under the
+  verdict.
+- `security` findings (the reviewer returns them to you, they are not on GitHub):
+  never on GitHub; tell the owner in the thread.
 
 Never resolve a review thread yourself, and never edit or delete the posted review.
 Report the rounds (findings per round, what you fixed) in the thread.
 
-## 5. Finish
+## 4. Finish
 
 - Non-device issues: mark the PR ready, `bash scripts/issue-status.sh N "In review"`.
   Report the PR link with its verdict and stop.

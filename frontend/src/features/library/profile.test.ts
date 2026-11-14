@@ -6,6 +6,7 @@ import {
   autoQuality,
   decision,
   describe,
+  escalates,
   deviceProfile,
   fit,
   limit,
@@ -418,4 +419,12 @@ test('probe: codecs dropped by decodingInfo leave audio tested alone (.ts)', asy
   assert.equal(p.hevc, null)
   assert.equal(p.av1, null)
   assert.ok(p.audio.includes('ac3'))
+})
+
+test('escalates to compatible only after a fallback, not in compatible mode', () => {
+  const all = { video: true, audio: true }
+  assert.equal(escalates(all, false), false) // first failure: the normal fallback
+  assert.equal(escalates({ video: false, audio: true }, false), true)
+  assert.equal(escalates({ video: true, audio: false }, false), true)
+  assert.equal(escalates({ video: false, audio: true }, true), false) // already on
 })

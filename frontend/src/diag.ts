@@ -132,6 +132,8 @@ export function setFlag(name: string, on: boolean) {
 const q = () => new URLSearchParams(location.search)
 export const debugOn = () => q().has('debug') || flag('debug')
 export const relayOn = () => q().has('relay') || flag('relay')
+/** ?fail=<n>: the first n player loads look stuck (forces the #238 escalation). */
+export const failLoads = () => Number(q().get('fail')) || 0
 
 // Errors nobody caught would otherwise vanish on a TV.
 addEventListener('error', (e) => event(`error: ${e.message}`))

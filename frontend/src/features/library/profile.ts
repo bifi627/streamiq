@@ -210,6 +210,14 @@ export function autoQuality(mbps?: number, bitrate?: number): Quality {
 export const toQuality = (v: unknown): Quality =>
   QUALITIES.includes(v as Quality) ? (v as Quality) : 'Auto'
 
+/** Whether a failure escalates to the compatible profile (#238): only after
+ * a fallback already turned some stream copy off, and not when compatible
+ * mode is on. The caller excludes Raw (no fallbacks). */
+export const escalates = (
+  copy: { video: boolean; audio: boolean },
+  compatible: boolean,
+) => !compatible && !(copy.video && copy.audio)
+
 /** The limit in effect: the quality's, but at most 1080p in compatible mode
  * (#113). null = no limit. */
 export const limit = (quality: Quality, compatible = false) =>

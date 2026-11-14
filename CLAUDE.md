@@ -221,14 +221,17 @@ Copy `.env.example` only to override.
     merges each PR before the next one starts.
   - **Issue work goes through the skills**, also when asked in chat: `refine-issue` turns an
     issue into an approved spec (or splits it into a group), `build-issue` takes an approved
-    one to a PR (taken-check, early draft PR, self-review, device ending), `agent-issue`
+    one to a PR (taken-check, early draft PR, self-review, the posted agent review, device
+    ending), `agent-issue`
     picks between them by the issue's state and orchestrates a group. Agents never merge.
   - Board: project "StreamIQ" (github.com/users/bifi627/projects/2). The skills move the
     card with `bash scripts/issue-status.sh <n> "<status>"` (*Ready*, *In progress*,
     *In review*); new issues and *Done* are automatic. Needs gh scope `project`
     (`gh auth refresh -s project`).
   - Label `agent` (owner only) starts an agent thread via T3 webhook: on an issue the
-    `agent-issue` skill, on a PR the `agent-pr` skill (review, comments only). The owner
+    `agent-issue` skill, on a PR the `agent-pr` skill (review, comments only). A build
+    runs that review on its own PR as its last step, so the label on a PR is for PRs no
+    agent built and for re-reviews. The owner
     approves a spec in the refinement thread or by removing `needs-spec` by hand.
     Unresolved `[blocker]`/`[spec]` review threads block the merge (ruleset on `main`).
     Wiring: `docs/tools.md`.

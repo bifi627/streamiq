@@ -78,8 +78,8 @@ It writes no code itself.
      an Agent subagent: a worker needs a current checkout of its own and starts its own
      self-review subagent. Tool not there → tell the owner to put `agent` on the
      sub-issue instead; stop.
-  4. Hand over: give the owner the PR link and its CI status (`gh pr checks <pr>`)
-     here; CI red → send the worker back to fix it first (`t3_thread_send`). A draft
+  4. Hand over: give the owner the PR link, its review verdict and its CI status
+     (`gh pr checks <pr>`) here; CI red → send the worker back to fix it first (`t3_thread_send`). A draft
      waiting for a device test: ask the owner whether to wait for it or go on with the
      next sub-issue that doesn't build on it. Then end your turn. Do not link or watch
      the PR from this thread: a linked PR settles the thread when it merges, and

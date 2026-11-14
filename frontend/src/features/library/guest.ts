@@ -6,11 +6,19 @@ export function guestNotice(
   admin: boolean,
 ): string | null {
   if (s?.viewer?.shared !== true) return null
-  const why = s.viewer.reason ? ` (${s.viewer.reason})` : ''
+  const why = REASONS[s.viewer.reason ?? ''] // unknown code (newer gateway): no reason
   return (
-    `Couldn't load your profile${why}. You're watching in guest mode: your progress isn't saved to your profile. ` +
+    `Couldn't load your profile${why ? ` (${why})` : ''}. You're watching in guest mode: your progress isn't saved to your profile. ` +
     (admin
       ? "Check the gateway's local page (linked on the Gateways list)."
       : 'Ask a household admin to check the gateway.')
   )
+}
+
+// GET /streamiq/status viewer.reason codes (docs/protocol.md).
+const REASONS: Record<string, string> = {
+  'admin-refused': "Jellyfin refused the gateway's administrator sign-in",
+  'no-admin': 'the gateway has no Jellyfin administrator of its own',
+  failed:
+    "the gateway couldn't create your Jellyfin user; it tries again on your next connection",
 }

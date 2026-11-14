@@ -727,12 +727,12 @@ func TestViewerFallback(t *testing.T) {
 			t.Fatalf("viewer state %s, want %s", b, want)
 		}
 	}
-	state(`{"reason":"the gateway has no Jellyfin administrator of its own","shared":true}`)
+	state(`{"reason":"no-admin","shared":true}`)
 	if err := s.Login(ctx, "me", "pw"); err != nil {
 		t.Fatal(err)
 	}
 	s.poll(ctx)
-	state(`"reason":"the gateway couldn't create your Jellyfin user yet`)
+	state(`{"reason":"failed","shared":true}`)
 	f.mu.Lock()
 	pw := f.users[byoAdmin].pw
 	f.users[byoAdmin].pw = "changed by someone"
@@ -741,7 +741,7 @@ func TestViewerFallback(t *testing.T) {
 	if tok, _ := s.ViewerFor(alice); tok != "" || !strings.Contains(s.View().Err, "reconnect Jellyfin") || !s.View().NeedsLogin {
 		t.Fatalf("token %q, view %+v", tok, s.View())
 	}
-	state(`{"reason":"Jellyfin refused the gateway's administrator sign-in","shared":true}`)
+	state(`{"reason":"admin-refused","shared":true}`)
 	f.mu.Lock()
 	f.users[byoAdmin].pw = pw
 	f.mu.Unlock()

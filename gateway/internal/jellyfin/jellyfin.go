@@ -656,8 +656,8 @@ func (s *Setup) ViewerFor(user string) (token, id string) {
 }
 
 // ViewerState is GET /streamiq/status's "viewer" for a session of user (#242):
-// whether it plays as the shared viewer and, if so, why. No credentials, no
-// Jellyfin ids.
+// whether it plays as the shared viewer and, if so, why, as a code the web app
+// words. No credentials, no Jellyfin ids.
 func (s *Setup) ViewerState(user string) map[string]any {
 	if tok, id := s.ViewerFor(user); tok != "" && id != "" {
 		return map[string]any{"shared": false}
@@ -665,12 +665,12 @@ func (s *Setup) ViewerState(user string) map[string]any {
 	s.mu.Lock()
 	refused, admin := s.refused, s.creds.Password != ""
 	s.mu.Unlock()
-	reason := "the gateway couldn't create your Jellyfin user yet; it tries again on your next connection"
+	reason := "failed" // retried on the user's next session
 	switch {
 	case refused:
-		reason = "Jellyfin refused the gateway's administrator sign-in"
+		reason = "admin-refused"
 	case !admin:
-		reason = "the gateway has no Jellyfin administrator of its own"
+		reason = "no-admin"
 	}
 	return map[string]any{"shared": true, "reason": reason}
 }

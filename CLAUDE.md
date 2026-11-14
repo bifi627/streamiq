@@ -200,6 +200,15 @@ Copy `.env.example` only to override.
   - Labels: one type (`bug` / `tech-debt` / `idea`), `area:*`, `p1`–`p3` (soon /
     normal / someday), `size:s|m|l|xl`. `needs-spec` = no acceptance criteria yet:
     don't start it. Template: `.github/ISSUE_TEMPLATE/task.md`.
+  - `device:tv` / `device:phone` = can't be finished without a test on the owner's TV /
+    a real phone (both if it needs both). Only for technical issues and UI edge cases that
+    resizing the desktop window (or devtools device mode) can't reproduce: TV browser quirks,
+    real phone browsers (iOS Safari, Android Chrome), real mobile networks (cellular, relay).
+    Layout alone never gets it. A worker on a `device:*` issue builds and verifies all it can
+    on desktop, leaves the PR as a **draft** with a "Device test" checklist (what to run, on
+    which device), puts the issue's `device:*` label(s) on the PR (so device retests show in
+    `gh pr list --label device:tv`) and stops; the owner runs it (`/preview tunnel`) and marks the PR ready.
+    Work doable away from home: `gh issue list --search "-label:device:tv -label:device:phone -label:needs-spec"`.
   - One issue → one worktree thread → one PR. Branch `<type>/<n>-<slug>`
     (`fix/42-cert-rotation`); PR body `Fixes #<n>`. Multi-PR feature = parent issue
     (the spec) + sub-issues. Milestone = what's being worked toward now; no milestone
@@ -221,7 +230,7 @@ Copy `.env.example` only to override.
     criteria or `needs-spec` → refinement with the owner; Ready → build to a PR. The
     owner approves a spec by removing `needs-spec`. A build self-reviews (subagent +
     `agent-review` skill, max 2 rounds) before the PR is ready, then stops; it never
-    labels its own PR. On a PR, `agent` (added by the owner) starts a review thread (comments only,
+    puts `agent` on its own PR (only the issue's `device:*` labels). On a PR, `agent` (added by the owner) starts a review thread (comments only,
     never commits; same skill); its unresolved `[blocker]`/`[spec]` threads block the
     merge (ruleset on `main`). `docs/tools.md` has the wiring.
   - In chat, every issue/PR number is a markdown link, never a bare `#N`:

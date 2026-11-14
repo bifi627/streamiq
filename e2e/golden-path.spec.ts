@@ -9,15 +9,14 @@ import {
   expect,
   test,
   type Browser,
-  type BrowserContext,
   type Page,
   type Request,
 } from '@playwright/test'
+import { gatewayTab, pair, password, tunnelOk, videoTime } from './helpers.ts'
 import { startGateway } from './stack.ts'
 
 // One account per repeat: the Auth emulator lives for the whole run.
 const email = () => `e2e-${test.info().repeatEachIndex}@streamiq.test`
-const password = 'e2e-password'
 
 async function signIn(browser: Browser, create = false, path = '/') {
   const page = await (await browser.newContext()).newPage() // own IndexedDB = own client key
@@ -31,11 +30,6 @@ async function signIn(browser: Browser, create = false, path = '/') {
     await expect(page.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   return page
 }
-
-const videoTime = (p: Page) =>
-  p
-    .locator('video')
-    .evaluate((v: HTMLVideoElement) => (v.readyState >= 2 ? v.currentTime : -1))
 
 // Dominant frequency (Hz) of the <video>'s audio: tells the fixture's 440 Hz
 // English track from its 880 Hz German one (#109).
@@ -100,34 +94,6 @@ const keepPcs = (p: Page) =>
       }
     } as typeof P
   })
-
-const tunnelOk = (p: Page) =>
-  expect(p.getByText('Tunnel OK · HTTP 200')).toBeVisible()
-
-/**
- * Opens the local gateway page in a new tab. Navigating the old tab races its
- * 3s meta refresh: whichever navigation starts second cancels the first (#149).
- */
-async function gatewayTab(ctx: BrowserContext, url: string) {
-  for (const p of ctx.pages()) await p.close() // drops the pending refresh
-  const page = await ctx.newPage()
-  await page.goto(url)
-  return page
-}
-
-/** Pair from the web app; approve on the gateway page only if the codes match. */
-async function pair(app: Page, ctx: BrowserContext, gatewayUrl: string) {
-  await app.getByRole('button', { name: 'Pair this browser' }).click()
-  const code = (await app
-    .locator('p', { hasText: /^Code/ })
-    .locator('b')
-    .textContent())!
-  const gatewayPage = await gatewayTab(ctx, gatewayUrl)
-  const request = gatewayPage.locator('form[action="/decide"]')
-  await expect(request).toContainText(code) // page self-refreshes every 3s
-  await request.getByRole('button', { name: 'Approve' }).click()
-  await tunnelOk(app)
-}
 
 test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', async ({
   browser,

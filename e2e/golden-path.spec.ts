@@ -541,7 +541,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         a.getByRole('menuitem', { name: /^Quality.*Auto · 480p \(data saver/ }),
       ).toBeVisible()
-      await a.keyboard.press('Escape')
       await a.goto(`${process.env.E2E_APP_URL!}/settings`)
       await a.getByRole('combobox', { name: 'Data saver' }).selectOption('auto')
       await expect(a.getByText(/^Off now/)).toBeVisible() // desktop: no cellular

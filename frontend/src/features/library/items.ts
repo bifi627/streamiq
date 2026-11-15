@@ -40,7 +40,7 @@ export type Item = {
 }
 
 /** The series page's primary button (#204): the in-progress episode, else
- * the first unwatched one (specials last), else the first. `/Shows/NextUp` is
+ * the first unwatched one, else the first one (specials last both times). `/Shows/NextUp` is
  * not on the gateway allowlist, so this reads the episodes' user data. */
 export function upNext(episodes: Item[]) {
   const started = episodes.find(
@@ -51,6 +51,7 @@ export function upNext(episodes: Item[]) {
     started ??
     unwatched.find((e) => e.ParentIndexNumber !== 0) ??
     unwatched[0] ??
+    episodes.find((e) => e.ParentIndexNumber !== 0) ??
     episodes[0]
   )
 }

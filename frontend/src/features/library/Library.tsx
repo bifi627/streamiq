@@ -268,8 +268,9 @@ function Title({ item, season }: { item: Item; season?: string }) {
               {lists.episodes
                 .filter((e) => e.SeasonId === shown)
                 .map((e) => (
-                  <li key={e.Id}>
+                  <li key={e.Id} className="ep-row">
                     <Episode item={e} onPlay={play} />
+                    <PlayOn pc={pc} item={e} />
                   </li>
                 ))}
             </ul>

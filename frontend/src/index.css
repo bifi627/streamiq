@@ -918,7 +918,19 @@ progress::-moz-progress-bar {
   padding: 0;
   list-style: none;
 }
+.ep-row {
+  display: flex;
+  flex-wrap: wrap; /* narrow: Play on… goes below the episode */
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+.ep-row > div {
+  flex: none; /* Play on…: its screen list opens below the button */
+}
 .episode {
+  flex: 1 1 18rem;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--sp-4);

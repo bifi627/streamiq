@@ -1,6 +1,6 @@
 // Package backup packs the gateway's state dir into one zip and unpacks it
 // again (`gateway backup` / `gateway restore`, #52), plus the install dir's
-// jellyfin-compose.yml (#297). The zip is not encrypted:
+// jellyfin-compose.yml (#297) and Jellyfin's own backup archive (#298). The zip is not encrypted:
 // whoever has it can pose as the gateway (docs/install.md).
 package backup
 
@@ -28,6 +28,13 @@ var required = []string{"cert.pem", "gateway.json"}
 // so the prefix keeps it from ever being taken for (or written as) a state file.
 const ComposeEntry = "install/jellyfin-compose.yml"
 
+// JellyfinEntry is the managed Jellyfin's backup archive (#298), prefixed like
+// ComposeEntry. Restore never unpacks it: `gateway jellyfin restore` does (ExtractJellyfin).
+const JellyfinEntry = "install/jellyfin-backup.zip"
+
+// maxJellyfin caps the Jellyfin archive (database only: no images, no trickplay).
+var maxJellyfin int64 = 8 << 30 // a var for the test
+
 // What Restore did with the compose file.
 const (
 	ComposeNone    = ""        // the backup has none
@@ -50,10 +57,10 @@ func FileName(dir string, now time.Time) string {
 	return "streamiq-gateway-" + name + now.Format("2006-01-02-150405") + ".zip"
 }
 
-// Write zips every regular file in dir except skip, and compose (the managed
-// Jellyfin's compose file) if it exists. It only reads, so it works while the
-// gateway runs.
-func Write(dir, compose string, w io.Writer) error {
+// Write zips every regular file in dir except skip, compose (the managed
+// Jellyfin's compose file) if it exists, and jellyfin (Jellyfin's backup
+// archive) unless "". It only reads, so it works while the gateway runs.
+func Write(dir, compose, jellyfin string, w io.Writer) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
@@ -97,6 +104,20 @@ func Write(dir, compose string, w io.Writer) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
+	if jellyfin != "" {
+		src, err := os.Open(jellyfin)
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+		f, err := zw.CreateHeader(&zip.FileHeader{Name: JellyfinEntry, Method: zip.Store}) // a zip already
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(f, src); err != nil {
+			return err
+		}
+	}
 	return zw.Close()
 }
 
@@ -114,7 +135,7 @@ func Restore(path, dir, compose string, force bool) (string, error) {
 	var names []string
 	for _, f := range zr.File {
 		n := f.Name
-		if n == ComposeEntry {
+		if n == ComposeEntry || n == JellyfinEntry {
 			continue
 		}
 		// Flat names only: no directories, no zip-slip.
@@ -142,6 +163,9 @@ func Restore(path, dir, compose string, force bool) (string, error) {
 	}
 	files := map[string][]byte{}
 	for _, f := range zr.File {
+		if f.Name == JellyfinEntry { // never into RAM or state/
+			continue
+		}
 		rc, err := f.Open()
 		if err != nil {
 			return ComposeNone, err
@@ -207,4 +231,59 @@ func Restore(path, dir, compose string, force bool) (string, error) {
 		return ComposeNone, err
 	}
 	return ComposeWritten, nil
+}
+
+// ErrNoJellyfin: the backup holds no Jellyfin data.
+var ErrNoJellyfin = errors.New("this backup has no Jellyfin data (the gateway skipped Jellyfin when it was made; `gateway backup` says why)")
+
+// ExtractJellyfin streams the backup's Jellyfin archive into dst (a new file)
+// and returns the backup's jellyfin.json, the login that goes with it.
+func ExtractJellyfin(path, dst string) (creds []byte, err error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+	var jf, cf *zip.File
+	for _, f := range zr.File {
+		switch f.Name {
+		case JellyfinEntry:
+			jf = f
+		case "jellyfin.json":
+			cf = f
+		}
+	}
+	if jf == nil || cf == nil {
+		return nil, ErrNoJellyfin
+	}
+	rc, err := cf.Open()
+	if err != nil {
+		return nil, err
+	}
+	creds, err = io.ReadAll(io.LimitReader(rc, maxFile))
+	rc.Close()
+	if err != nil {
+		return nil, err
+	}
+	rc, err = jf.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	n, err := io.Copy(out, io.LimitReader(rc, maxJellyfin+1))
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && n > maxJellyfin {
+		err = fmt.Errorf("%s: %s is too big", path, JellyfinEntry)
+	}
+	if err != nil {
+		os.Remove(dst)
+		return nil, err
+	}
+	return creds, nil
 }

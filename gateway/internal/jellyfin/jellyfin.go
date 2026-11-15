@@ -729,14 +729,24 @@ type httpErr struct {
 
 func (e httpErr) Error() string { return fmt.Sprintf("%s %s: HTTP %d", e.method, e.path, e.status) }
 
-func unauthorized(err error) bool {
+func unauthorized(err error) bool { return status(err) == http.StatusUnauthorized }
+
+// status is a Jellyfin error's HTTP status, 0 if none.
+func status(err error) int {
 	var h httpErr
-	return errors.As(err, &h) && h.status == http.StatusUnauthorized
+	if errors.As(err, &h) {
+		return h.status
+	}
+	return 0
 }
 
 // call does one Jellyfin request; out (if non-nil) receives the JSON body.
 func (s *Setup) call(ctx context.Context, method, path, token, body string, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	return s.callT(ctx, 30*time.Second, method, path, token, body, out)
+}
+
+func (s *Setup) callT(ctx context.Context, timeout time.Duration, method, path, token, body string, out any) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, s.URL+path, strings.NewReader(body))
 	if err != nil {

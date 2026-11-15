@@ -3,9 +3,11 @@ package backup
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -45,7 +47,7 @@ func readDir(t *testing.T, dir string) map[string]string {
 func backupFile(t *testing.T, dir string) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := Write(dir, filepath.Join(dir, "no-compose.yml"), &buf); err != nil {
+	if err := Write(dir, filepath.Join(dir, "no-compose.yml"), "", &buf); err != nil {
 		t.Fatal(err)
 	}
 	p := filepath.Join(t.TempDir(), "b.zip")
@@ -124,7 +126,7 @@ func TestCompose(t *testing.T) {
 	compose := filepath.Join(t.TempDir(), "jellyfin-compose.yml")
 	os.WriteFile(compose, []byte("services: {}"), 0o644)
 	var buf bytes.Buffer
-	if err := Write(src, compose, &buf); err != nil {
+	if err := Write(src, compose, "", &buf); err != nil {
 		t.Fatal(err)
 	}
 	zipPath := filepath.Join(t.TempDir(), "b.zip")
@@ -188,7 +190,7 @@ func TestComposeTooBig(t *testing.T) {
 }
 
 func TestWriteNeedsIdentity(t *testing.T) {
-	if err := Write(writeDir(t, map[string]string{"allowlist.json": "[]"}), "", &bytes.Buffer{}); err == nil {
+	if err := Write(writeDir(t, map[string]string{"allowlist.json": "[]"}), "", "", &bytes.Buffer{}); err == nil {
 		t.Fatal("backed up a state dir without cert.pem/gateway.json")
 	}
 }
@@ -200,5 +202,63 @@ func TestFileName(t *testing.T) {
 	}
 	if got := FileName(t.TempDir(), day); got != "streamiq-gateway-2026-11-15-000000.zip" {
 		t.Fatal(got)
+	}
+}
+
+func TestJellyfin(t *testing.T) {
+	src := writeDir(t, state)
+	archive := filepath.Join(t.TempDir(), "jellyfin-backup-1.zip")
+	big := bytes.Repeat([]byte("j"), maxFile+1) // over the state files' cap: never read like one
+	os.WriteFile(archive, big, 0o644)
+	var buf bytes.Buffer
+	if err := Write(src, "", archive, &buf); err != nil {
+		t.Fatal(err)
+	}
+	zipPath := filepath.Join(t.TempDir(), "b.zip")
+	os.WriteFile(zipPath, buf.Bytes(), 0o600)
+	zr, _ := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if f := zr.File[len(zr.File)-1]; f.Name != JellyfinEntry || f.Method != zip.Store {
+		t.Fatalf("last entry %q method %d", f.Name, f.Method)
+	}
+
+	// gateway restore (and the installer) leave it alone.
+	dst := filepath.Join(t.TempDir(), "state")
+	if _, err := Restore(zipPath, dst, filepath.Join(t.TempDir(), "c.yml"), false); err != nil {
+		t.Fatal(err)
+	}
+	want := maps.Clone(state)
+	delete(want, "page-token")
+	delete(want, "page-link")
+	if got := readDir(t, dst); !maps.Equal(got, want) {
+		t.Fatalf("state dir = %v", slices.Sorted(maps.Keys(got)))
+	}
+
+	out := filepath.Join(t.TempDir(), "jf.zip")
+	creds, err := ExtractJellyfin(zipPath, out)
+	if err != nil || string(creds) != state["jellyfin.json"] {
+		t.Fatalf("creds %q, err %v", creds, err)
+	}
+	if b, _ := os.ReadFile(out); !bytes.Equal(b, big) {
+		t.Fatal("archive changed on the way")
+	}
+	if _, err := ExtractJellyfin(zipPath, out); err == nil {
+		t.Fatal("wrote over an existing file")
+	}
+
+	old := maxJellyfin
+	maxJellyfin = int64(len(big)) - 1
+	defer func() { maxJellyfin = old }()
+	capped := filepath.Join(t.TempDir(), "jf.zip")
+	if _, err := ExtractJellyfin(zipPath, capped); err == nil {
+		t.Fatal("accepted an archive over the cap")
+	}
+	if _, err := os.Stat(capped); err == nil {
+		t.Fatal("left the oversized archive behind")
+	}
+}
+
+func TestNoJellyfin(t *testing.T) {
+	if _, err := ExtractJellyfin(backupFile(t, writeDir(t, state)), filepath.Join(t.TempDir(), "x")); !errors.Is(err, ErrNoJellyfin) {
+		t.Fatalf("err %v", err)
 	}
 }

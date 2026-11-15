@@ -34,8 +34,12 @@ type fake struct {
 	loggedOut []string       // users whose session was logged out
 	enc       map[string]any // /System/Configuration/encoding
 	encPosts  int
-	news      int  // POST /Users/New
-	booting   bool // a starting Jellyfin: 503 to /Users/Me (and the wizard reported not done)
+	news      int    // POST /Users/New
+	booting   bool   // a starting Jellyfin: 503 to /Users/Me (and the wizard reported not done)
+	info      []int  // next /System/Info/Public status codes (then 200)
+	signIns   int    // POST /Users/AuthenticateByName
+	backups   int    // POST /Backup/Create
+	restored  string // POST /Backup/Restore's ArchiveFileName
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
@@ -85,6 +89,14 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	deny := func(code int) { w.WriteHeader(code) }
 	switch r.Method + " " + path {
 	case "GET /System/Info/Public":
+		if len(f.info) > 0 {
+			code := f.info[0]
+			f.info = f.info[1:]
+			if code != 200 {
+				deny(code)
+				return
+			}
+		}
 		json.NewEncoder(w).Encode(map[string]any{"Version": "12.4.0", "StartupWizardCompleted": f.wizard})
 	case "POST /Startup/Configuration", "GET /Startup/User", "POST /Startup/RemoteAccess":
 		if f.wizard {
@@ -99,6 +111,7 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "POST /Users/AuthenticateByName":
 		var b struct{ Username, Pw string }
 		json.NewDecoder(r.Body).Decode(&b)
+		f.signIns++
 		u := f.users[b.Username]
 		if u == nil || u.pw != b.Pw || u.pw == "" {
 			deny(401)
@@ -183,6 +196,23 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.enc = e
 		f.encPosts++
+	case "POST /Backup/Create":
+		var o struct{ Database, Metadata, Trickplay, Subtitles bool }
+		json.NewDecoder(r.Body).Decode(&o)
+		if !admin || !o.Database || o.Metadata || o.Trickplay || o.Subtitles {
+			deny(400)
+			return
+		}
+		f.backups++
+		json.NewEncoder(w).Encode(map[string]any{"ServerVersion": "12.4.0.0", "Path": "/config/data/backups/jellyfin-backup-1.zip"})
+	case "POST /Backup/Restore":
+		var b struct{ ArchiveFileName string }
+		json.NewDecoder(r.Body).Decode(&b)
+		if !admin {
+			deny(401)
+			return
+		}
+		f.restored = b.ArchiveFileName
 	case "POST /Sessions/Logout":
 		f.loggedOut = append(f.loggedOut, f.tokens[tok])
 		delete(f.tokens, tok)

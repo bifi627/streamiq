@@ -27,10 +27,42 @@ try {
     $got = (Get-FileHash $new -Algorithm SHA256).Hash
     if (-not $want -or $got -ne $want) { throw "StreamIQ: checksum mismatch for $bin, not installing" }
 
+    # Update: the installed (old) binary backs up its own state first, and is kept
+    # next to it, for `gateway rollback` (#296). No backup, no update. A gateway
+    # older than `gateway backup` (#52) can't: it's replaced without one.
+    $keep = $null
+    $state = Join-Path $dir 'state'
+    if (-not ((Test-Path (Join-Path $state 'cert.pem')) -and (Test-Path (Join-Path $state 'gateway.json')))) {
+        # no gateway identity (fresh install, failed enrollment, removed gateway): nothing to roll back to
+    } elseif (-not (Test-Path $exe) -or (Get-FileHash $exe).Hash -eq $got) {
+        # a re-run of the installed release keeps no copy (it would push the real previous one out)
+    } elseif ((& $exe -h) -match '^  backup ') {
+        # PowerShell 5.1 turns a native command's redirected stderr into an error: hence the catch.
+        $ver = try { & $exe version 2>$null } catch { $null }
+        if (-not $ver) { $ver = 'unknown' }
+        $keep = Join-Path $dir "backups\$(Get-Date -Format yyyyMMdd-HHmmss)-$ver"
+        New-Item -ItemType Directory -Force $keep | Out-Null
+        & $exe backup (Join-Path $keep 'state.zip') | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Remove-Item -Recurse -Force $keep
+            throw 'StreamIQ: backing up the installed gateway failed, nothing changed'
+        }
+    } elseif (Test-Path $exe) {
+        Write-Warning 'StreamIQ: the installed gateway cannot back itself up; updating without a rollback point'
+    }
+
     # Running copy (update): stop it so the exe can be replaced.
     Get-Process gateway -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
     Start-Sleep -Seconds 1
-    Move-Item -Force $new $exe
+    Remove-Item -Force "$exe.old" -ErrorAction SilentlyContinue # left by a rollback, or an update before #296
+    if ($keep) { Move-Item $exe (Join-Path $keep 'gateway.exe') }
+    try { Move-Item -Force $new $exe } catch {
+        if ($keep) { Move-Item (Join-Path $keep 'gateway.exe') $exe }
+        throw
+    }
+    # The last 3 updates' backups stay (as gateway update keeps them).
+    Get-ChildItem -Directory (Join-Path $dir 'backups') -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending | Select-Object -Skip 3 | Remove-Item -Recurse -Force
 } finally {
     Remove-Item -Force $new, $sums -ErrorAction SilentlyContinue
 }

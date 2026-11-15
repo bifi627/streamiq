@@ -294,7 +294,7 @@ gateway) has its own backups: **Dashboard → Backups**.
 | Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates; [`gateway backup`](#back-up-and-restore-the-gateway) copies it) | `state/` |
 | Log | the gateway's console window (closing it stops the gateway) | `gateway.log` |
 | Autostart | scheduled task `streamiq-gateway` (`gateway service install`) | your crontab line |
-| Previous binary after `gateway update` | `gateway.exe.old` (replaced by the next update) | — |
+| Previous binaries + their state, for [`gateway rollback`](#roll-back-an-update) | `backups\` (the last 3 updates) | `backups/` |
 
 `STREAMIQ_DIR` overrides the install dir. Set `STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` on
 the first install to change the gateway's name or page port.
@@ -314,11 +314,38 @@ that command:
   stops the running gateway, swaps the binary and starts it again.
 
 Your settings and paired browsers stay. Nothing updates without you running it.
+Before it replaces anything, an update backs up the gateway with the installed
+version and keeps that version's binary: see [Roll back an update](#roll-back-an-update).
+If that backup fails, the update stops and nothing changes.
 
 **Jellyfin (Docker):** when the page warns that Jellyfin runs a version the
 gateway wasn't tested with, run `gateway jellyfin upgrade`. It changes only the
 `image:` line in `jellyfin-compose.yml` to the tested version and restarts
 Jellyfin; your media folders and everything else in the file stay.
+
+## Roll back an update
+
+If a new version misbehaves, go back to the one before it:
+
+- Windows: `%LOCALAPPDATA%\streamiq\gateway.exe rollback`
+- Linux / macOS: `~/.local/share/streamiq/gateway rollback`
+
+It stops the gateway, puts the previous binary back, restores the state that
+version had (`gateway restore --force` with that binary), starts it again and
+prints the version it went back to. Paired browsers keep working: same gateway,
+same identity. The state is the one from the moment of the update: a browser
+paired since then pairs again. Run it again to go back one more update.
+
+Every update (`gateway update`, or the installer run over an install) leaves one
+folder in `backups/` next to the binary, `<date>-<time>-<version>`, with the
+replaced binary and a [`gateway backup`](#back-up-and-restore-the-gateway) zip
+(`state.zip`). The last 3 are kept; an update removes older ones. **These are
+unencrypted secrets, like any gateway backup**: whoever has `backups/` can pose as
+your gateway. Rollback restores the gateway's state only, not Jellyfin's data
+(that stays in `state.zip`: `gateway jellyfin restore`). A version older than
+`gateway backup` can't back itself up: updating from it leaves no rollback point.
+Neither does an installer run over a gateway without identity (removed or never
+enrolled) or over the same release.
 
 ## Start on boot
 

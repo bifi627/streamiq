@@ -10,12 +10,13 @@
 //	            `gateway jellyfin up|upgrade` (Docker compose); `gateway jellyfin login` (repair, #241);
 //	            `gateway jellyfin restore` (Jellyfin's backup API, #298)
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
-//	update      "newer release available" notice; `gateway update` swaps the binary
+//	update      "newer release available" notice; `gateway update` swaps the binary,
+//	            keeping the old one + a state backup in backups/ for `gateway rollback` (#296)
 //	service     Windows logon task (`gateway service install|uninstall`)
 //	backup      `gateway backup` / `gateway restore`: the state dir + jellyfin-compose.yml + Jellyfin's
 //	            database as one zip (#52, #297, #298)
 //
-// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade|login|restore <file> | reset-identity |
+// Commands: gateway [run] | service install|uninstall | update | rollback | version | status | jellyfin up|upgrade|login|restore <file> | reset-identity |
 // backup [file] | restore [--force] <file>.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
@@ -29,14 +30,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -93,6 +97,10 @@ func main() {
 		}
 	case cmd == "update":
 		err = selfUpdate(ctx, exe)
+	case cmd == "rollback" && len(os.Args) == 2:
+		err = rollback(ctx, exe)
+	case cmd == "version" && len(os.Args) == 2:
+		fmt.Println(version) // install.sh / install.ps1 name the pre-update backup with it
 	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "up":
 		err = jellyfinUp(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
 	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "upgrade":
@@ -153,7 +161,11 @@ func main() {
 const usage = `usage: gateway [command] [-h]
   run                        run the gateway (default)
   service install|uninstall  start it at logon in its own window (Windows)
-  update                     install the latest release (Windows)
+  update                     install the latest release (Windows); keeps the old binary and a
+                             state backup in backups/ (the last 3 updates)
+  rollback                   go back to the version before the last update: stops the gateway,
+                             puts the old binary and its state back, starts it again
+  version                    print this binary's version
   status                     show the running gateway's status
   jellyfin up                start Jellyfin in Docker (downloads jellyfin-compose.yml once)
   jellyfin upgrade           pin jellyfin-compose.yml to the tested Jellyfin and restart it
@@ -234,22 +246,8 @@ func jellyfinSetup() *jellyfin.Setup {
 // backupState writes the backup zip (0600, never over an existing file), with
 // Jellyfin's database when the gateway set Jellyfin up; else it says why not.
 func backupState(ctx context.Context, file, compose string) error {
-	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if errors.Is(err, os.ErrExist) {
-		return fmt.Errorf("%s already exists: name another file (gateway backup <file>)", file)
-	} else if err != nil {
-		return err
-	}
-	archive, remove, jerr := jellyfinSetup().CreateBackup(ctx, compose)
-	if remove != nil {
-		defer remove()
-	}
-	err = backup.Write(stateDir(), compose, archive, f)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
+	jerr, err := writeBackup(ctx, file, compose)
 	if err != nil {
-		os.Remove(file)
 		return err
 	}
 	abs, _ := filepath.Abs(file)
@@ -272,6 +270,28 @@ func backupState(ctx context.Context, file, compose string) error {
 		fmt.Printf("  Jellyfin:     with the gateway stopped, gateway jellyfin restore %s (the order is in docs/install.md)\n", filepath.Base(file))
 	}
 	return nil
+}
+
+// writeBackup writes the zip; jerr says why Jellyfin's database is not in it.
+func writeBackup(ctx context.Context, file, compose string) (jerr, err error) {
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return nil, fmt.Errorf("%s already exists: name another file (gateway backup <file>)", file)
+	} else if err != nil {
+		return nil, err
+	}
+	archive, remove, jerr := jellyfinSetup().CreateBackup(ctx, compose)
+	if remove != nil {
+		defer remove()
+	}
+	err = backup.Write(stateDir(), compose, archive, f)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(file)
+	}
+	return jerr, err
 }
 
 // restoreState unpacks a backup into the state dir (and its compose file next to the binary).
@@ -352,11 +372,29 @@ func selfUpdate(ctx context.Context, exe string) error {
 	if err := update.Download(ctx, env("STREAMIQ_DOWNLOAD", update.DownloadURL), update.Asset(), exe+".new"); err != nil {
 		return err
 	}
+	// This (old) binary backs up its own state, before anything is replaced (#296).
+	keep, err := update.BackupDir(filepath.Dir(exe), version, time.Now())
+	if err == nil {
+		_, err = writeBackup(ctx, filepath.Join(keep, update.StateZip), filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
+	}
+	if err != nil {
+		os.Remove(exe + ".new")
+		if keep != "" {
+			os.RemoveAll(keep)
+		}
+		return fmt.Errorf("backup before the update failed, nothing changed: %w", err)
+	}
+	os.Remove(exe + ".old") // left by a rollback, or an update before #296
 	task := service.Installed()
 	if task {
 		service.Stop(exe)
 	}
-	err = update.Swap(exe, exe+".new")
+	err = update.Swap(exe, exe+".new", filepath.Join(keep, filepath.Base(exe)))
+	if err == nil {
+		if perr := update.Prune(filepath.Dir(exe)); perr != nil { // the update itself is done
+			fmt.Fprintln(os.Stderr, "gateway: removing old backups:", perr)
+		}
+	}
 	if task {
 		if serr := service.Start(); err == nil {
 			err = serr
@@ -370,7 +408,61 @@ func selfUpdate(ctx context.Context, exe string) error {
 	} else {
 		fmt.Printf("Updated v%s → v%s. Restart the gateway to run it (or: gateway service install).\n", version, latest)
 	}
+	fmt.Printf("v%s and its state are kept in %s: gateway rollback goes back to it.\n", version, keep)
 	return nil
+}
+
+// rollback puts back the binary and state the last update replaced (#296):
+// stop, restore the state with the kept binary (it knows its own format), swap
+// the binaries, start.
+func rollback(ctx context.Context, exe string) error {
+	install := filepath.Dir(exe)
+	dir, prev, err := update.Previous(install, filepath.Base(exe))
+	if err != nil {
+		return err
+	}
+	kept := filepath.Join(dir, filepath.Base(exe))
+	task := service.Installed()
+	stopGateway(exe)
+	for i := 0; notRunning() != nil; i++ {
+		if i == 20 {
+			return notRunning()
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	c := exec.CommandContext(ctx, kept, "restore", "--force", filepath.Join(dir, update.StateZip))
+	c.Dir, c.Stdout, c.Stderr = install, io.Discard, os.Stderr
+	if err := c.Run(); err != nil {
+		return fmt.Errorf("restoring the state with %s: %w (nothing changed; start the gateway again)", kept, err)
+	}
+	if err := update.Swap(exe, kept, exe+".old"); err != nil {
+		return fmt.Errorf("the state of %s is restored, but its binary could not be put back: %w (copy %s over %s by hand)", prev, err, kept, exe)
+	}
+	os.Remove(exe + ".old") // Windows: still running (this process); the next update removes it
+	os.RemoveAll(dir)       // used up: a second rollback goes one update further back
+	fmt.Printf("Rolled back %s → %s.\n", version, prev)
+	switch {
+	case task:
+		err = service.Start()
+	case runtime.GOOS == "windows":
+		fmt.Println("Start it: gateway service install")
+	default: // as install.sh starts it
+		err = exec.Command("sh", "-c", `cd "$1" && nohup "$2" >> "$1/gateway.log" 2>&1 &`, "sh", install, exe).Run()
+	}
+	if err == nil && (task || runtime.GOOS != "windows") {
+		fmt.Println("Started it again.")
+	}
+	return err
+}
+
+// stopGateway ends a gateway running from exe (not this process): the logon
+// task on Windows, else what install.sh started (its pkill pattern).
+func stopGateway(exe string) {
+	if runtime.GOOS == "windows" {
+		service.Stop(exe)
+		return
+	}
+	exec.Command("pkill", "-f", "^"+regexp.QuoteMeta(exe)+"$").Run()
 }
 
 // run is the gateway daemon.

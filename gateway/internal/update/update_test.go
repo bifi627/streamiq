@@ -8,8 +8,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewer(t *testing.T) {
@@ -83,23 +86,60 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 
 func TestSwap(t *testing.T) {
 	dir := t.TempDir()
-	exe, nw := filepath.Join(dir, "gateway.exe"), filepath.Join(dir, "gateway.exe.new")
+	exe, nw, out := filepath.Join(dir, "gateway.exe"), filepath.Join(dir, "gateway.exe.new"), filepath.Join(dir, "gateway.exe.old")
 	os.WriteFile(exe, []byte("v1"), 0o755)
-	os.WriteFile(exe+".old", []byte("v0"), 0o755) // left over from the previous update
+	os.WriteFile(out, []byte("v0"), 0o755) // left over from a rollback
 	os.WriteFile(nw, []byte("v2"), 0o755)
-	if err := Swap(exe, nw); err != nil {
+	if err := Swap(exe, nw, out); err != nil {
 		t.Fatal(err)
 	}
-	for p, want := range map[string]string{exe: "v2", exe + ".old": "v1"} {
+	for p, want := range map[string]string{exe: "v2", out: "v1"} {
 		if b, _ := os.ReadFile(p); string(b) != want {
 			t.Errorf("%s = %q, want %q", filepath.Base(p), b, want)
 		}
 	}
 	// Move-in fails (no new file): the old exe stays in place.
-	if err := Swap(exe, filepath.Join(dir, "missing")); err == nil {
+	if err := Swap(exe, filepath.Join(dir, "missing"), out); err == nil {
 		t.Fatal("want error")
 	}
 	if b, _ := os.ReadFile(exe); string(b) != "v2" {
 		t.Fatalf("exe after failed swap = %q, want v2 restored", b)
+	}
+}
+
+func TestBackupsKeepThreeAndPreviousIsNewest(t *testing.T) {
+	install := t.TempDir()
+	now := time.Date(2026, 11, 15, 10, 0, 0, 0, time.UTC)
+	for i, v := range []string{"1.0.0", "1.1.0", "1.2.0", "1.3.0", "unknown"} {
+		d, err := BackupDir(install, v, now.Add(time.Duration(i)*time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(d, StateZip), []byte("zip"), 0o600)
+		if v != "unknown" { // the newest has no binary: an update that failed before the swap
+			os.WriteFile(filepath.Join(d, "gateway"), []byte(v), 0o700)
+		}
+	}
+	if err := Prune(install); err != nil {
+		t.Fatal(err)
+	}
+	es, _ := os.ReadDir(filepath.Join(install, Backups))
+	var names []string
+	for _, e := range es {
+		names = append(names, e.Name())
+	}
+	want := []string{"20261115-100200-1.2.0", "20261115-100300-1.3.0", "20261115-100400-unknown"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("kept %v, want %v", names, want)
+	}
+	d, v, err := Previous(install, "gateway")
+	if err != nil || v != "1.3.0" || filepath.Base(d) != want[1] {
+		t.Fatalf("Previous = %s %q %v, want %s 1.3.0", d, v, err, want[1])
+	}
+	if _, _, err := Previous(t.TempDir(), "gateway"); err == nil {
+		t.Fatal("no backups: want error")
+	}
+	if fi, _ := os.Stat(filepath.Join(install, Backups)); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o700 {
+		t.Fatalf("backups mode %v, want 0700", fi.Mode().Perm())
 	}
 }

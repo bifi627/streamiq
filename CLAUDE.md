@@ -52,7 +52,8 @@ page, allowlist, pins enforced both directions; protocol in `docs/protocol.md`.
 **Item 4 — productized gateway** (pivoted from a Docker sidecar after a spike: on Docker
 Desktop, a containerized gateway gets relayed on cellular). **PR A:** native binaries on GitHub Releases
 (merge touching `gateway/**` → auto-versioned release after green CI, `!` subject = minor bump, major = hand-pushed `gateway-v*` tag; `release-gateway.yml`), `install.sh`/`install.ps1` (install = update,
-SHA256-checked), `gateway.env` config file, daily update *notice* (notify-only), version in heartbeat + Gateways list (migration #5), JSON logs.
+SHA256-checked), `gateway.env` config file, daily update *notice* (notify-only), every update keeps the old binary + a
+state backup in `backups/` for `gateway rollback` (#296), version in heartbeat + Gateways list (migration #5), JSON logs.
 User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (local gateway page),
 so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin credential without manual
 steps (`gateway/internal/jellyfin`: wizard bootstrap on a fresh Jellyfin, else one admin login

@@ -53,6 +53,7 @@ html.tv body {
   box-sizing: border-box;
 }
 body {
+  display: flow-root; /* a child's top margin stays inside, no scroll */
   margin: 0;
   background: var(--bg);
   min-height: 100vh;
@@ -317,12 +318,24 @@ input[type='radio'] {
   margin-top: calc(var(--sp-2) - var(--sp-4));
 }
 .password {
-  display: flex;
-  gap: var(--sp-2);
+  position: relative;
 }
 .password input {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
+  padding-right: 4.5rem;
+}
+/* the Show toggle sits inside the field's right end */
+.password button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-height: 100%;
+  background: none;
+  color: var(--link);
+  font-size: 0.875rem;
+}
+.password button:focus-visible {
+  outline-offset: -3px;
 }
 .signin .error {
   margin: 0;
@@ -347,12 +360,19 @@ button.link {
 }
 @media (min-width: 601px) {
   .signin {
+    gap: var(--sp-4);
     min-height: 0;
-    margin: 10vh auto;
+    margin: 5vh auto;
     padding: var(--sp-6);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
+  }
+  html.tv .signin {
+    margin: 0 auto; /* body has the safe-area padding */
+  }
+  .signin .wide {
+    min-height: var(--target);
   }
   .signin input:not([type='checkbox']) {
     background: var(--bg);
@@ -360,12 +380,4 @@ button.link {
   .switch {
     margin: 0;
   }
-}
-
-.setting {
-  display: block;
-  margin-top: var(--sp-4);
-}
-.setting + p {
-  margin: var(--sp-1) 0 0 var(--sp-6);
 }

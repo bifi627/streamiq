@@ -42,18 +42,28 @@ Run the code-review skill WITHOUT posting: `/code-review <level> <target>
 empty (empty = the working-tree diff, which is empty once everything is pushed). No
 `--comment`, no `--fix`. Collect its findings.
 
-**Follow-up review:** only when the PR's build thread started you (its fix round;
-the owner's `agent` label or request always gets the full review above), the PR
-already has a posted agent review
-(`gh api repos/bifi627/streamiq/pulls/N/reviews --jq '[.[]|select(.body|contains("streamiq-agent"))]|last|.commit_id'`
-prints a sha) and that commit is still under the head (`git fetch -q origin pull/N/head
-&& git merge-base --is-ancestor <sha> FETCH_HEAD`; not so after a rebase → a full
-review as above). Then do NOT run `/code-review`: it would review the whole PR again
-and return its minimum of new candidates every round. Read `git diff <sha>..FETCH_HEAD`
-yourself, with the files around it: did these commits fix what they were for, and did
-they break anything? Your findings are only what these commits introduced or left
-unfixed; the level you report is `delta`, the candidates the number you found (0 is a
-normal result). Sections 1, 4, 5 and 6 are the same, over the whole PR.
+**Follow-up review** (a build's fix round): instead of the above, when ALL of this
+holds; if any doesn't, or you can't tell, run the full review above.
+
+- The PR's build thread started you. The owner's `agent` label or request always gets
+  the full review.
+- The PR has an earlier agent review. The last one:
+  `gh api --paginate repos/bifi627/streamiq/pulls/N/reviews --jq '.[]|select(.body|contains("**Agent review**"))|.commit_id' | tail -1`
+  prints its commit `<sha>`; read its body the same way (`.body`).
+- That body says nothing of a finding "sent to owner privately" or of "more, see the
+  T3 thread": such a finding has no GitHub thread, so only a full review finds it again.
+- Only fix commits came after it. `<head>` = the PR's `headRefOid` from `gh pr view`
+  (never `FETCH_HEAD`: any other fetch in the checkout rewrites it). After
+  `git fetch -q origin pull/N/head`: `git merge-base --is-ancestor <sha> <head>` holds
+  (not after a rebase) and `git rev-list --merges <sha>..<head>` prints nothing (not
+  after `main` was merged in).
+
+Then do NOT run `/code-review`: it would review the whole PR again and return its
+minimum of new candidates every round. Read `git diff <sha>..<head>` yourself, with
+the files around it: did these commits fix what they were for, and did they break
+anything? Your findings are what these commits introduced or left unfixed; the level
+you report is `delta`, the candidates the number you found (0 is a normal result).
+Sections 1, 2 (for the merge-risk floor), 4, 5 and 6 are the same, over the whole PR.
 
 ## 4. Triage
 

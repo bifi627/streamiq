@@ -8,11 +8,16 @@ import {
   spawnSync,
   type ChildProcess,
 } from 'node:child_process'
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
-import { GenericContainer, Wait } from 'testcontainers'
+import {
+  GenericContainer,
+  getContainerRuntimeClient,
+  ImageName,
+  Wait,
+} from 'testcontainers'
 import { JELLYFIN_ADMIN, setupJellyfin } from './jellyfin.ts'
 
 export const root = path.resolve(import.meta.dirname, '..')
@@ -232,6 +237,36 @@ export type StackOptions = {
   nvenc?: boolean
 }
 
+// tmpfs over every VOLUME the image declares, so no run leaves an anonymous
+// volume behind (stop() removes them, but Ryuk's reaping after a crash or
+// Ctrl+C doesn't). Jellyfin's transcodes (/cache) land in RAM too, so not in
+// the preview (startStack).
+const NO_VOLUMES = {
+  postgres: { '/var/lib/postgresql': 'rw' },
+  'jellyfin/jellyfin': { '/config': 'rw', '/cache': 'rw' },
+  'coturn/coturn': { '/var/lib/coturn': 'rw' },
+}
+
+/**
+ * Firebase emulator image (dev/firebase, same as the backend test harness, which
+ * tags it the same way): tagged with a hash of its inputs and built only when
+ * that tag is missing, so runs reuse it instead of leaving a dangling 825 MB
+ * build behind each time. Never deleted, so concurrent runs can share it.
+ */
+async function emulatorImage() {
+  const dir = path.join(root, 'dev', 'firebase')
+  const hash = createHash('sha256')
+  for (const f of ['Dockerfile', 'firebase.json'])
+    hash.update(fs.readFileSync(path.join(dir, f)))
+  const tag = `streamiq-firebase-emulator:${hash.digest('hex').slice(0, 12)}`
+  const client = await getContainerRuntimeClient()
+  if (!(await client.image.exists(ImageName.fromString(tag))))
+    await GenericContainer.fromDockerfile(dir).build(tag, {
+      deleteOnExit: false,
+    })
+  return new GenericContainer(tag)
+}
+
 /**
  * Starts the whole stack hermetically: random ports everywhere (but lan.port),
  * so it runs next to a live `dev.ps1` stack, other worktrees, and in CI alike.
@@ -245,10 +280,7 @@ export async function startStack(o: StackOptions) {
   const labeled = (c: GenericContainer) =>
     o.label ? c.withLabels({ 'streamiq.preview': o.label }) : c
 
-  // Firebase emulator image: same Dockerfile as dev + the backend test harness.
-  const firebaseImage = await GenericContainer.fromDockerfile(
-    path.join(root, 'dev', 'firebase'),
-  ).build('streamiq-firebase-emulator:e2e', { deleteOnExit: false })
+  const firebaseImage = await emulatorImage()
 
   const jellyfinContainer = labeled(
     new GenericContainer(pin('jellyfin/jellyfin'))
@@ -258,6 +290,9 @@ export async function startStack(o: StackOptions) {
       )
       .withStartupTimeout(180_000),
   )
+  // Not in the preview: a long 4K stream keeps GBs of segments in /cache. Its
+  // anonymous volumes go with `preview down` (docker rm -v) instead.
+  if (!o.label) jellyfinContainer.withTmpFs(NO_VOLUMES['jellyfin/jellyfin'])
   if (o.nvenc) {
     // ponytail: testcontainers has no GPU option, so set Docker's DeviceRequests
     // on its protected hostConfig. If testcontainers renames it, this is a silent
@@ -289,6 +324,7 @@ export async function startStack(o: StackOptions) {
           POSTGRES_DB: 'streamiq',
         })
         .withExposedPorts(5432)
+        .withTmpFs(NO_VOLUMES.postgres)
         // Twice: the init run restarts the server once before it's really ready.
         .withWaitStrategy(
           Wait.forLogMessage(
@@ -358,6 +394,16 @@ export async function startStack(o: StackOptions) {
       '-c:v libx264 -pix_fmt yuv420p -c:a aac -shortest -metadata:s:a:0 language=eng -metadata:s:a:1 language=deu ' +
       '-metadata title="streamiq e2e clip" "$D/streamiq e2e clip.mp4" && ' +
       `printf '1\n00:00:00,000 --> 00:00:30,000\nstreamiq e2e subtitle\n' > "$D/streamiq e2e clip.en.srt"`,
+  )
+  // Auto audio (#252): the default track (440 Hz) is MP2, which the browser
+  // probe never lists; the second (880 Hz) is AAC in the same language.
+  // Its name sorts after the main clip: other steps take the first movie.
+  await sh(
+    'D="/media/streamiq e2e mp2 default" && mkdir -p "$D" && /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -y ' +
+      '-f lavfi -i testsrc=duration=30:size=640x360:rate=30 -f lavfi -i sine=frequency=440:duration=30 ' +
+      '-f lavfi -i sine=frequency=880:duration=30 -map 0:v -map 1:a -map 2:a ' +
+      '-c:v libx264 -pix_fmt yuv420p -c:a:0 mp2 -c:a:1 aac -shortest -metadata:s:a language=eng ' +
+      '-metadata title="streamiq e2e mp2 default" "$D/streamiq e2e mp2 default.mkv"',
   )
   if (o.nvenc) await sh('nvidia-smi -L') // the GPU really is in the container
   await setupJellyfin(process.env.E2E_JELLYFIN_URL, o.nvenc)
@@ -461,6 +507,7 @@ async function startCoturn(labeled: (c: GenericContainer) => GenericContainer) {
     try {
       const coturn = await labeled(
         new GenericContainer(pin('coturn/coturn'))
+          .withTmpFs(NO_VOLUMES['coturn/coturn'])
           .withCommand([
             'turnserver',
             '-n',

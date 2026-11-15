@@ -2,6 +2,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  audioCodecs,
+  autoAudio,
   autoCap,
   autoQuality,
   decision,
@@ -427,4 +429,31 @@ test('escalates to compatible only after a fallback, not in compatible mode', ()
   assert.equal(escalates({ video: false, audio: true }, false), true)
   assert.equal(escalates({ video: true, audio: false }, false), true)
   assert.equal(escalates({ video: false, audio: true }, true), false) // already on
+})
+
+test('auto audio (#252): a decodable track of the default language', () => {
+  const a = (Index: number, Codec: string, Channels: number, more = {}) => ({
+    Index,
+    Type: 'Audio',
+    Codec,
+    Channels,
+    Language: 'eng',
+    ...more,
+  })
+  const dts = a(1, 'dts', 6)
+  const codecs = audioCodecs(webos) // .ts: aac, ac3 (not opus)
+  const pick = (streams: ReturnType<typeof a>[], surround = true) =>
+    autoAudio([{ Index: 0, Type: 'Video' }, ...streams], 1, codecs, surround)
+  assert.equal(pick([a(1, 'ac3', 6), a(2, 'aac', 6)]), undefined) // default decodes
+  assert.equal(pick([dts, a(2, 'ac3', 6)]), 2)
+  assert.equal(pick([dts, a(2, 'opus', 6), a(3, 'aac', 6)]), 3) // opus: not in .ts
+  assert.equal(pick([dts, a(2, 'aac', 2)]), undefined) // stereo on a 5.1 device
+  assert.equal(pick([dts, a(2, 'aac', 2)], false), 2) // stereo device
+  assert.equal(
+    pick([dts, a(2, 'ac3', 6, { Title: "Director's Commentary" })]),
+    undefined,
+  )
+  assert.equal(pick([dts, a(2, 'ac3', 6, { Language: 'ger' })]), undefined)
+  // No default index: the first audio track is Jellyfin's default.
+  assert.equal(autoAudio([dts, a(2, 'ac3', 6)], undefined, codecs, true), 2)
 })

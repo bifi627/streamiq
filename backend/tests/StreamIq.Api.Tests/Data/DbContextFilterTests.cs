@@ -6,7 +6,7 @@ namespace StreamIq.Api.Tests.Data;
 
 public class DbContextFilterTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:17").Build();
+    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:17").WithTmpfsMount("/var/lib/postgresql/data").Build(); // tmpfs: no anonymous volume left behind
 
     public async Task InitializeAsync()
     {

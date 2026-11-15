@@ -185,8 +185,8 @@ Copy `.env.example` only to override.
   Go 1.26, .NET 10 SDK, Node 24, Docker are present — gateway work runs locally
   now (the devcontainer remains for CI parity / clean-room builds).
 - **Worktrees:** tests are isolated — `check.sh` / backend tests / e2e run concurrently
-  across worktrees (random ports, per-checkout `e2e/.bin`; Docker image tags are still
-  machine-wide, last build wins). The *dev* stack is not:
+  across worktrees (random ports, per-checkout `e2e/.bin`; the test Firebase emulator image is
+  shared, tagged by a hash of `dev/firebase`). The *dev* stack is not:
   compose (`name: streamiq`, fixed ports) and `dev.ps1` (:5028/:5173) are one per machine,
   shared by all worktrees (emulator users live in the `streamiq_firebase-data` volume,
   not in a checkout). Fresh worktree: `check.sh` runs `npm ci` itself.

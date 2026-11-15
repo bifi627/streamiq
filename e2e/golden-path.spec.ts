@@ -321,6 +321,33 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
+    await test.step('auto audio (#252): a decodable track instead of an MP2 default', async () => {
+      await a.getByRole('button', { name: 'Open' }).click()
+      await a.getByRole('button', { name: /Movies/ }).click()
+      await a.getByRole('button', { name: /streamiq e2e mp2 default/ }).click()
+      await expect
+        .poll(() => pitch(a), { timeout: 30_000 })
+        .toBeCloseTo(880, -2)
+      // Newest first: this load's decision, then the pick before it. Video
+      // may transcode (the mkv has no bitrate); the audio is copied.
+      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      await expect(
+        a.getByText(
+          /jellyfin: video \w+ \(h264\) · audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: default not decodable, stream \1 instead/,
+        ),
+      ).toBeVisible()
+      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
+      // The audio menu shows it as the one playing.
+      await a.getByRole('button', { name: 'Playback options' }).click()
+      await a.getByRole('menuitem', { name: /^Audio/ }).click()
+      await expect(
+        a.getByRole('menuitemradio', { name: /AAC mono/, checked: true }),
+      ).toBeVisible()
+      await a.goBack() // player → folder
+      await a.goBack() // folder → library home
+      await a.getByRole('link', { name: '← Gateways' }).click()
+    })
+
     await test.step('play on TV (#180) + phone remote (#181): commands, state, Back', async () => {
       // TV = tab a; phones = more tabs of the same paired browser (each its own
       // tunnel session, so its own screens view).

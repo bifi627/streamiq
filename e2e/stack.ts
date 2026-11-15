@@ -359,6 +359,16 @@ export async function startStack(o: StackOptions) {
       '-metadata title="streamiq e2e clip" "$D/streamiq e2e clip.mp4" && ' +
       `printf '1\n00:00:00,000 --> 00:00:30,000\nstreamiq e2e subtitle\n' > "$D/streamiq e2e clip.en.srt"`,
   )
+  // Auto audio (#252): the default track (440 Hz) is MP2, which the browser
+  // probe never lists; the second (880 Hz) is AAC in the same language.
+  // Its name sorts after the main clip: other steps take the first movie.
+  await sh(
+    'D="/media/streamiq e2e mp2 default" && mkdir -p "$D" && /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -y ' +
+      '-f lavfi -i testsrc=duration=30:size=640x360:rate=30 -f lavfi -i sine=frequency=440:duration=30 ' +
+      '-f lavfi -i sine=frequency=880:duration=30 -map 0:v -map 1:a -map 2:a ' +
+      '-c:v libx264 -pix_fmt yuv420p -c:a:0 mp2 -c:a:1 aac -shortest -metadata:s:a language=eng ' +
+      '-metadata title="streamiq e2e mp2 default" "$D/streamiq e2e mp2 default.mkv"',
+  )
   if (o.nvenc) await sh('nvidia-smi -L') // the GPU really is in the container
   await setupJellyfin(process.env.E2E_JELLYFIN_URL, o.nvenc)
 

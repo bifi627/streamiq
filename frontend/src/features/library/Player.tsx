@@ -20,8 +20,9 @@
 // plays (original or transcode size).
 // Audio (#109): the same reload with AudioStreamIndex (no switchable audio
 // renditions in Jellyfin's HLS) + MediaSourceId (without it Jellyfin ignores
-// the index); the first load plays Jellyfin's default track. Remux keeps
-// stream copy of the chosen track.
+// the index); the first load plays Jellyfin's default track, or a track of
+// its language this device decodes when it can't (autoAudio, #252; not in Raw
+// or compatible mode). Remux keeps stream copy of the chosen track.
 // Auto (#162): the session's measured throughput (speed.ts) picks the rung
 // (autoQuality); a load waits at most ~3 s for a running measurement. Source
 // and the rungs ignore it, apart from Source's "may stutter" hint.
@@ -50,6 +51,8 @@ import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { Controls } from './Controls'
 import {
+  audioCodecs,
+  autoAudio,
   autoCap,
   autoQuality,
   decision,
@@ -519,6 +522,21 @@ export function Player({
       bitrate =
         fresh.MediaSources?.[0]?.Bitrate ??
         fresh.MediaStreams?.find((s) => s.Type === 'Video')?.BitRate
+      const ms = fresh.MediaSources?.[0]
+      const auto =
+        compatible || q === 'Raw' || track !== undefined
+          ? undefined
+          : autoAudio(
+              fresh.MediaStreams,
+              ms?.DefaultAudioStreamIndex,
+              audioCodecs(caps),
+              caps.surround,
+            )
+      if (auto !== undefined) {
+        track = auto
+        source = ms?.Id
+        event(`audio: default not decodable, stream ${auto} instead`)
+      }
       const st = subtitleTracks(fresh.MediaStreams)
       setSubs(st)
       await start(

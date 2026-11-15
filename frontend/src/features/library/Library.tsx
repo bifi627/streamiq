@@ -86,7 +86,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   return (
     <section>
       <p style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Link to="/">← Gateways</Link>
+        <Link to="/gateways">← Gateways</Link>
         <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
           Use as screen
         </Link>
@@ -295,8 +295,8 @@ export function ScreenPage() {
     <>
       {ended && (
         <p role="alert">
-          Screen mode ended ({ended}). <Link to="/">Back to your gateways</Link>{' '}
-          and open it again.
+          Screen mode ended ({ended}).{' '}
+          <Link to="/gateways">Back to your gateways</Link> and open it again.
         </p>
       )}
       {play ? (

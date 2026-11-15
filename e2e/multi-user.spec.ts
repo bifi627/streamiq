@@ -56,7 +56,7 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
     // Each in their own browser (own client key), each paired.
     const open = async (user: typeof A) => {
       const p = await (await browser.newContext()).newPage()
-      await p.goto(app())
+      await p.goto(app() + '/gateways')
       await signIn(p, user, A.tenantId)
       await pair(p, gatewayCtx, gateway.pageUrl)
       await p.getByRole('button', { name: 'Open' }).click()

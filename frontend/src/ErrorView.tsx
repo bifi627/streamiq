@@ -50,7 +50,7 @@ export function ErrorView({
             </button>
           ) : (
             // Pairing lives on the Gateways list.
-            <Link key={a} to="/">
+            <Link key={a} to="/gateways">
               {label[a]}
             </Link>
           ),

@@ -16,6 +16,28 @@ import { useNavigate } from '@tanstack/react-router'
 import { Invites } from '../households/Invites'
 import { Members } from '../households/Members'
 import { useHousehold } from '../households/household'
+import { arrowFocus } from '../../focus'
+
+// `/` (#225): straight into the library when the household has exactly one
+// gateway, else the list. History replace both ways, so Back doesn't bounce.
+export function Home() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    const list = () => navigate({ to: '/gateways', replace: true })
+    getGateways()
+      .then((g) =>
+        g.length === 1
+          ? navigate({
+              to: '/g/$gatewayId',
+              params: { gatewayId: g[0].id },
+              replace: true,
+            })
+          : list(),
+      )
+      .catch(list) // the list shows the error
+  }, [navigate])
+  return null
+}
 
 // Gateways list + "Add gateway" (onboarding flow 1). Polls so a freshly installed
 // gateway shows up, and online/offline stays current. ponytail: 5s poll, push
@@ -23,10 +45,11 @@ import { useHousehold } from '../households/household'
 // (#190): hidden for a member (the API answers 403 anyway) and until /me is in;
 // a member gets told an admin does them instead (#211).
 export function Gateways() {
-  const [gateways, setGateways] = useState<Gateway[]>([])
+  const [gateways, setGateways] = useState<Gateway[] | null>(null) // null = loading
   const role = useHousehold().current?.role
   const admin = role === 'admin'
   const [install, setInstall] = useState<Install | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   const navigate = useNavigate()
 
@@ -52,7 +75,7 @@ export function Gateways() {
       return
     try {
       await removeGateway(d.id)
-      setGateways((gs) => gs.filter((g) => g.id !== d.id))
+      setGateways((gs) => gs && gs.filter((g) => g.id !== d.id))
     } catch (e) {
       setErr(toAppError(e))
     }
@@ -66,45 +89,95 @@ export function Gateways() {
     }
   }
 
+  // No clipboard API on plain http (a LAN address): a click on the command
+  // selects all of it instead (CSS user-select: all).
+  function copy(label: string, cmd: string) {
+    navigator.clipboard
+      ?.writeText(cmd)
+      .then(() => setCopied(label))
+      .catch(() => {})
+  }
+
   return (
-    <section>
-      <h2>Gateways</h2>
+    <section className="gateways" onKeyDown={arrowFocus}>
+      <div className="head">
+        <h1>Gateways</h1>
+        {admin && (
+          <button type="button" onClick={addGateway}>
+            Add gateway
+          </button>
+        )}
+      </div>
       {err && <ErrorView error={err} />}
-      {gateways.length === 0 ? (
-        !err && (
-          <p>
-            No gateways yet.
-            {role === 'member' && ' Ask a household admin to add one.'}
+      {install && (
+        <div className="card install">
+          <h2>Add a gateway</h2>
+          <p className="muted">
+            Run one of these on your NAS or PC. The token works once and expires
+            at {new Date(install.expiresAt).toLocaleTimeString()}.
           </p>
-        )
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {[
+            ['bash', install.installCommand],
+            ['PowerShell', install.installCommandPowershell],
+          ].map(([label, cmd]) => (
+            <div key={label}>
+              <div className="cmd-head">
+                <b>
+                  {label}
+                  {cmd.includes('go run') && (
+                    <span className="meta muted">
+                      {' '}
+                      (from <code>gateway/</code>)
+                    </span>
+                  )}
+                </b>
+                <button type="button" onClick={() => copy(label, cmd)}>
+                  {copied === label ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <pre>{cmd}</pre>
+            </div>
+          ))}
+        </div>
+      )}
+      {gateways?.length === 0 && !err && (
+        <p>
+          No gateways yet.
+          {role === 'member' && ' Ask a household admin to add one.'}
+        </p>
+      )}
+      {!!gateways?.length && (
+        <ul className="cards">
           {gateways.map((d) => (
-            <li key={d.id}>
-              <span style={{ color: d.online ? 'green' : '#888' }}>●</span>{' '}
-              {d.name ?? 'gateway'}{' '}
-              <code style={{ fontSize: '0.8em', color: '#888' }}>{d.id}</code> —{' '}
+            <li key={d.id} className="card">
+              <div className="card-head">
+                <h2>{d.name ?? 'gateway'}</h2>
+                <span className="chip">
+                  <span className={d.online ? 'dot online' : 'dot'} />
+                  {d.online ? 'Online' : 'Offline'}
+                </span>
+              </div>
+              {d.version && (
+                <span className="meta muted">Version {d.version}</span>
+              )}
               {d.upgradeRequired ? (
-                <b>update required: rerun the install command on the gateway</b>
-              ) : d.online ? (
-                'online'
+                <p className="notice">
+                  Update required: rerun the install command on the gateway.
+                </p>
               ) : (
-                'offline'
+                d.update && (
+                  <p className="notice">
+                    Update available: {d.update}. Run <code>install.sh</code>{' '}
+                    (Linux/macOS) or <code>gateway update</code> (Windows) on
+                    the gateway.
+                  </p>
+                )
               )}
-              {d.version && ` · ${d.version}`}
-              {d.online && d.lanUrl && (
-                <>
-                  {' · '}
-                  <a href={d.lanUrl} target="_blank" rel="noreferrer">
-                    Open gateway page
-                  </a>
-                </>
-              )}
-              {d.online && (
-                <>
-                  {' · '}
+              <div className="actions">
+                {d.online && (
                   <button
                     type="button"
+                    className="primary"
                     onClick={() =>
                       navigate({
                         to: '/g/$gatewayId',
@@ -114,54 +187,27 @@ export function Gateways() {
                   >
                     Open
                   </button>
-                  <Pairing gatewayId={d.id} lanUrl={d.lanUrl} />
-                </>
-              )}{' '}
-              {admin && (
-                <button type="button" onClick={() => remove(d)}>
-                  Remove
-                </button>
-              )}
+                )}
+                {d.online && d.lanUrl && (
+                  <a href={d.lanUrl} target="_blank" rel="noreferrer">
+                    Gateway page
+                  </a>
+                )}
+                {admin && (
+                  <button
+                    type="button"
+                    className="end"
+                    onClick={() => remove(d)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {d.online && <Pairing gatewayId={d.id} lanUrl={d.lanUrl} />}
               <StatusDetails g={d} />
             </li>
           ))}
         </ul>
-      )}
-      {admin && (
-        <button type="button" onClick={addGateway}>
-          Add gateway
-        </button>
-      )}
-      {install && (
-        <div>
-          <p>
-            Run this on your NAS/PC (one-time token, expires{' '}
-            {new Date(install.expiresAt).toLocaleTimeString()}):
-          </p>
-          {[
-            ['bash', install.installCommand],
-            ['PowerShell', install.installCommandPowershell],
-          ].map(([label, cmd]) => (
-            <div key={label}>
-              <b>{label}</b>
-              {cmd.includes('go run') && (
-                <>
-                  {' '}
-                  (from <code>gateway/</code>)
-                </>
-              )}
-              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                {cmd}
-              </pre>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard.writeText(cmd)}
-              >
-                Copy
-              </button>
-            </div>
-          ))}
-        </div>
       )}
       <Members />
       {admin && <Invites />}
@@ -190,22 +236,15 @@ function StatusDetails({ g }: { g: Gateway }) {
       <summary>Status</summary>
       <ul>
         <li>
+          ID <code>{g.id}</code>
+        </li>
+        <li>
           StreamIQ:{' '}
           {g.online && g.lastSeenAt
             ? `connected, last heartbeat ${new Date(g.lastSeenAt).toLocaleTimeString()}`
             : 'not connected'}
         </li>
-        <li>
-          Version {g.version ?? 'unknown'}
-          {g.update && (
-            <b>
-              {' '}
-              · update available: {g.update}, run <code>install.sh</code>{' '}
-              (Linux/macOS) or <code>gateway update</code> (Windows) on the
-              gateway
-            </b>
-          )}
-        </li>
+        <li>Version {g.version ?? 'unknown'}</li>
         {open && <Details g={g} />}
       </ul>
     </details>

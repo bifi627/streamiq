@@ -192,11 +192,24 @@ export function Player({
   const [next, setNext] = useState<Item>()
   const series = onNext && item?.Type === 'Episode' ? item.SeriesId : undefined
   useEffect(() => {
+    setNext(undefined) // never the episode now playing
     if (!series) return
-    tunnelJson<{ Items: Item[] }>(pc, `/Shows/${series}/Episodes`).then(
-      (p) => setNext(p.Items[p.Items.findIndex((e) => e.Id === itemId) + 1]),
+    let gone = false // a late answer for the previous episode
+    // isMissing=false: no episode Jellyfin lists without a file (#337).
+    tunnelJson<{ Items: Item[] }>(
+      pc,
+      `/Shows/${series}/Episodes?isMissing=false`,
+    ).then(
+      (p) => {
+        if (gone) return
+        const i = p.Items.findIndex((e) => e.Id === itemId)
+        setNext(i < 0 ? undefined : p.Items[i + 1]) // not listed: no button
+      },
       () => {}, // ponytail: no list = no button
     )
+    return () => {
+      gone = true
+    }
   }, [pc, series, itemId])
   const stateRef = useRef(onState)
   useEffect(() => {

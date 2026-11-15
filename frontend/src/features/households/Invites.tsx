@@ -18,16 +18,19 @@ const linkFor = (token: string) => `${location.origin}/join#${token}`
 // Share through the phone's apps (Web Share; absent on TVs and plain http).
 export function Invites() {
   const [invites, setInvites] = useState<Invite[]>([])
-  const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(
-    null,
-  )
+  const [link, setLink] = useState<{
+    id: string
+    url: string
+    expiresAt: string
+  } | null>(null)
   const [copied, setCopied] = useState(false)
   const [err, setErr] = useState<AppError | null>(null)
+  const [loaded, setLoaded] = useState(false) // "No open invites" only after a load
   const inviteBtn = useRef<HTMLButtonElement>(null)
 
   const load = () =>
     authed<Invite[]>('/invites')
-      .then(setInvites)
+      .then((l) => (setInvites(l), setLoaded(true)))
       .catch((e) => setErr(toAppError(e)))
   useEffect(() => {
     load()
@@ -36,10 +39,14 @@ export function Invites() {
   async function create() {
     setErr(null)
     try {
-      const r = await authed<{ token: string; expiresAt: string }>('/invites', {
+      const r = await authed<{
+        id: string
+        token: string
+        expiresAt: string
+      }>('/invites', {
         method: 'POST',
       })
-      setLink({ url: linkFor(r.token), expiresAt: r.expiresAt })
+      setLink({ id: r.id, url: linkFor(r.token), expiresAt: r.expiresAt })
       setCopied(false)
       await load()
     } catch (e) {
@@ -51,6 +58,7 @@ export function Invites() {
     setErr(null)
     try {
       await authed(`/invites/${id}`, { method: 'DELETE' })
+      if (id === link?.id) setLink(null) // its link box goes with it
       // Revoke goes with its row: focus a control that stays, or the D-pad
       // (arrowFocus on the page) loses its place, as in Pairing (#226).
       inviteBtn.current?.focus()
@@ -124,6 +132,7 @@ export function Invites() {
           ))}
         </ul>
       ) : (
+        loaded &&
         !link && (
           <p className="meta muted">
             No open invites. An invite link works once and for 7 days.

@@ -375,7 +375,7 @@ function Shell() {
         <span className="grow" />
         {me && me.memberships.length > 1 && (
           <select
-            aria-label="Household"
+            aria-label="Switch household"
             value={me.tenantId}
             onChange={(e) => switchHousehold(e.target.value)}
           >

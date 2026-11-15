@@ -94,7 +94,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
       <p className="lib-top">
         <Link to="/gateways">← Gateways</Link>
         <span className="lib-actions">
-          {session && !playing && <Privacy pc={session.pc} />}
+          {session && !playing && !screenMode && <Privacy pc={session.pc} />}
           {!screenMode && (
             <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
               Use as screen
@@ -747,7 +747,12 @@ export function RemotePage({ screenId }: { screenId: string }) {
       ) : (
         <>
           {/* always the box, empty until the art is known: the keys never jump */}
-          <Artwork art={art} width={780} className="art remote-art" />
+          <Artwork
+            art={art}
+            width={780}
+            // no backdrop: the poster whole, not a band of it (#337)
+            className={`art remote-art${item && !backdrop(item) ? ' whole' : ''}`}
+          />
           <h3>{item?.Name}</h3>
           <input
             type="range"

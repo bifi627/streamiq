@@ -31,7 +31,11 @@ export function Privacy({ pc }: { pc: RTCPeerConnection }) {
         className="badge"
         aria-label={label} // the text hides on a portrait phone
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        onClick={(e) => {
+          // A mouse click focuses it, and :focus would keep it open (#337).
+          if (open && e.detail) e.currentTarget.blur()
+          setOpen(!open)
+        }}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           {p.relay ? (

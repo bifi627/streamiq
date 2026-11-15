@@ -141,6 +141,10 @@ export function Controls({
         clearTimeout(timer.current)
         setShown(false)
         setPage(null)
+        // the privacy explanation shuts with the bar (#337)
+        bar.current
+          ?.querySelector<HTMLElement>('.badge[aria-expanded="true"]')
+          ?.click()
         if (bar.current?.contains(document.activeElement))
           root.current?.focus({ preventScroll: true })
       },

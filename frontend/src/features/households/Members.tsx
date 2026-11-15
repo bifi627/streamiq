@@ -62,7 +62,7 @@ export function Members() {
       setErr(asMember(e))
     }
   }
-  const who = (m: Member) => m.name ?? m.email ?? 'unknown user'
+  const who = (m: Member) => m.name || m.email || 'unknown user'
   const remove = (m: Member) =>
     confirm(
       m.userId === me?.id
@@ -86,7 +86,7 @@ export function Members() {
           return (
             <li key={m.userId}>
               <span className="avatar" aria-hidden="true">
-                {who(m).charAt(0).toUpperCase()}
+                {[...who(m)][0].toUpperCase()}
               </span>
               <span className="who">
                 <span className="name-line">

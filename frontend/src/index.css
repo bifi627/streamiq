@@ -895,6 +895,9 @@ button.secondary:hover {
   aspect-ratio: 16 / 9;
   border-radius: 16px;
 }
+.remote-art.whole img {
+  object-fit: contain;
+}
 .remote .seek {
   min-height: var(--target);
   margin: 0;
@@ -1304,6 +1307,10 @@ progress::-moz-progress-bar {
 }
 .ep-row > div {
   flex: none; /* Play on…: its screen list opens below the button */
+  width: min-content; /* as wide as the button, list open or not */
+}
+.ep-row .play-on > button {
+  white-space: nowrap;
 }
 .episode {
   flex: 1 1 18rem;

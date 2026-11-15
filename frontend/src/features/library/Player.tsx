@@ -193,8 +193,15 @@ export function Player({
   const series = onNext && item?.Type === 'Episode' ? item.SeriesId : undefined
   useEffect(() => {
     if (!series) return
-    tunnelJson<{ Items: Item[] }>(pc, `/Shows/${series}/Episodes`).then(
-      (p) => setNext(p.Items[p.Items.findIndex((e) => e.Id === itemId) + 1]),
+    // isMissing=false: no episode Jellyfin lists without a file (#337).
+    tunnelJson<{ Items: Item[] }>(
+      pc,
+      `/Shows/${series}/Episodes?isMissing=false`,
+    ).then(
+      (p) => {
+        const i = p.Items.findIndex((e) => e.Id === itemId)
+        setNext(i < 0 ? undefined : p.Items[i + 1]) // not listed: no button
+      },
       () => {}, // ponytail: no list = no button
     )
   }, [pc, series, itemId])

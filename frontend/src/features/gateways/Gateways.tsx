@@ -31,6 +31,7 @@ import { Invites } from '../households/Invites'
 import { Members } from '../households/Members'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../focus'
+import { updated, type Started } from './update'
 
 // `/` (#225): straight into the library when the household has exactly one
 // gateway, else the list. History replace both ways, so Back doesn't bounce.
@@ -304,15 +305,14 @@ const UPDATE_WAIT = 2 * 60_000
 // mid-way, and gateway rollback brings back the old version.
 function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
   const [remote, setRemote] = useState<true | string | null>(null) // null = not known
-  // The target, and the version before the click.
-  const [updating, setUpdating] = useState<{
-    to: string
-    from: string | null
-  } | null>(null)
+  const [updating, setUpdating] = useState<Started | null>(null)
   const [late, setLate] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const status = useRef<HTMLParagraphElement>(null)
-  const active = updating !== null && !(g.online && g.version !== updating.from)
+  // Done: forget it, or the gateway going offline later reads as this update
+  // again (and its rollback advice). Set during render, as React suggests.
+  if (updating && updated(updating, g)) setUpdating(null)
+  const active = updating !== null
 
   useEffect(() => {
     if (!canUpdate || !g.update || active) return

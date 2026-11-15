@@ -1306,11 +1306,14 @@ progress::-moz-progress-bar {
   gap: var(--sp-2);
 }
 .ep-row > div {
-  flex: none; /* Play on…: its screen list opens below the button */
-  width: min-content; /* as wide as the button, list open or not */
+  display: contents; /* Play on…: its list opens below as a full row */
 }
 .ep-row .play-on > button {
-  white-space: nowrap;
+  flex: none;
+  width: auto;
+}
+.ep-row .play-on > :not(button) {
+  flex-basis: 100%;
 }
 .episode {
   flex: 1 1 18rem;

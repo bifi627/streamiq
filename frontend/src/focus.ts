@@ -1,7 +1,9 @@
 // Arrow-key focus moves (#201): a TV remote's D-pad sends arrow keys. Put
 // onKeyDown={arrowFocus} on a container (nav, list, grid): an arrow moves focus
 // to the nearest focusable element inside it in that direction. Enter is the
-// browser's own on links and buttons. Text fields and selects keep their arrows.
+// browser's own on links and buttons (Enter in a form's field submits it).
+// Selects, textareas, sliders, number fields and radios keep their arrows; other
+// one-line fields: up/down leave them, left/right only past the caret's end (#202).
 import type { KeyboardEvent } from 'react'
 
 type Box = { left: number; top: number; right: number; bottom: number }
@@ -34,6 +36,15 @@ export function nearest(from: Box, boxes: Box[], key: string) {
 const focusable =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+// Left/right leave a one-line field only from its caret's end on that side
+// (no selection); fields without a caret API (email) keep them.
+function caretAtEdge(el: HTMLInputElement, key: string) {
+  if (key === 'ArrowUp' || key === 'ArrowDown') return true
+  const { selectionStart: a, selectionEnd: b } = el
+  if (a === null || a !== b) return false
+  return key === 'ArrowLeft' ? a === 0 : a === el.value.length
+}
+
 export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
   const from = e.target as HTMLElement
   if (
@@ -43,7 +54,10 @@ export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
     e.metaKey ||
     e.shiftKey || // browser shortcuts
     e.defaultPrevented || // an inner container moved already
-    from.matches('input, select, textarea')
+    from.matches(
+      'select, textarea, input[type=range], input[type=number], input[type=radio]',
+    ) ||
+    (from instanceof HTMLInputElement && !caretAtEdge(from, e.key))
   )
     return
   const els = [

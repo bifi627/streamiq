@@ -67,8 +67,8 @@ export async function signIn(page: Page, user: User, household?: string) {
       ([k, v]) => localStorage.setItem(k, v),
       [`streamiq.household.${user.uid}`, household],
     )
-  await page.getByPlaceholder('email').fill(user.email)
-  await page.getByPlaceholder('password').fill(password)
+  await page.getByLabel('Email').fill(user.email)
+  await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 

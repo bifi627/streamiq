@@ -96,7 +96,7 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
       await a.evaluate(() => ((window as { mark?: 1 }).mark = 1))
       await a.getByRole('link', { name: 'Settings' }).click() // sign out lives there (#201)
       await a.getByRole('button', { name: 'Sign out' }).click()
-      await expect(a.getByPlaceholder('email')).toBeVisible()
+      await expect(a.getByLabel('Email')).toBeVisible()
       expect(
         await a.evaluate(() => (window as { mark?: 1 }).mark),
       ).toBeUndefined() // reloaded

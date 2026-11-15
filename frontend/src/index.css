@@ -53,6 +53,7 @@ html.tv body {
   box-sizing: border-box;
 }
 body {
+  display: flow-root; /* a child's top margin stays inside, no scroll */
   margin: 0;
   background: var(--bg);
   min-height: 100vh;
@@ -255,24 +256,164 @@ input[type='radio'] {
   }
 }
 
-/* Settings / sign-in leftovers until their own redesign (#202, #229). */
-.stack {
-  display: grid;
-  gap: var(--sp-2);
-}
-.buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
+/* Sign-in (#202): full-height column on a phone, a centered card above. */
 .signin {
-  max-width: 20rem;
-  margin: 4rem auto;
-  padding: 0 var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  max-width: 26rem;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: var(--sp-7) var(--sp-5) var(--sp-6);
 }
-.error {
-  color: #ff8a8a;
+.signin header p {
+  margin: var(--sp-2) 0 0;
 }
+.tagline {
+  font-size: 1.0625rem;
+}
+.privacy {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.875rem;
+}
+.privacy svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: var(--direct);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.signin .wide {
+  min-height: 3.25rem;
+}
+/* Google's dark-theme sign-in button: their colors and "G" */
+.google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  border: 1px solid #8e918f;
+  background: #131314;
+  color: #e3e3e3;
+}
+.google:hover {
+  background: #1f1f20;
+}
+.google svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.or {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.or::before,
+.or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.signin form,
+.signin label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.signin form {
+  gap: var(--sp-4);
+}
+.signin label {
+  font-size: 0.875rem;
+}
+.signin label + .password {
+  margin-top: calc(var(--sp-2) - var(--sp-4));
+}
+.password {
+  position: relative;
+}
+.password input {
+  width: 100%;
+  padding-right: var(--target);
+}
+/* the Show toggle sits inside the field's right end */
+.password button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--target);
+  min-height: 100%;
+  padding: 0;
+  background: none;
+  color: var(--text-muted);
+}
+.password button:hover {
+  color: var(--text);
+}
+.password svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.password button:focus-visible {
+  outline-offset: -3px;
+}
+.signin .error {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: 10px;
+  background: #2a1a1c;
+  color: #ffb4b4;
+  font-size: 0.875rem;
+}
+.switch {
+  margin: auto 0 0;
+  text-align: center;
+  font-size: 0.875rem;
+}
+button.link {
+  min-height: var(--target);
+  padding: 0 var(--sp-1);
+  background: none;
+  color: var(--link);
+  font-size: inherit;
+  text-decoration: underline;
+}
+@media (min-width: 601px) {
+  .signin {
+    gap: var(--sp-4);
+    min-height: 0;
+    margin: 5vh auto;
+    padding: var(--sp-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  html.tv .signin {
+    margin: 0 auto; /* body has the safe-area padding */
+  }
+  .signin .wide {
+    min-height: var(--target);
+  }
+  .signin input:not([type='checkbox']) {
+    background: var(--bg);
+  }
+  .switch {
+    margin: 0;
+  }
+}
+
+/* Settings leftovers until its own redesign (#229). */
 .setting {
   display: block;
   margin-top: var(--sp-4);

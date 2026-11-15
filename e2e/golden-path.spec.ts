@@ -22,8 +22,10 @@ const email = () => `e2e-${test.info().repeatEachIndex}@streamiq.test`
 async function signIn(browser: Browser, create = false, path = '/') {
   const page = await (await browser.newContext()).newPage() // own IndexedDB = own client key
   await page.goto(process.env.E2E_APP_URL! + path)
-  await page.getByPlaceholder('email').fill(email())
-  await page.getByPlaceholder('password').fill(password)
+  if (create)
+    await page.getByRole('button', { name: 'Create an account' }).click()
+  await page.getByLabel('Email').fill(email())
+  await page.getByLabel('Password', { exact: true }).fill(password)
   await page
     .getByRole('button', { name: create ? 'Create account' : 'Sign in' })
     .click()
@@ -653,8 +655,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         storageTypes: 'indexeddb',
       })
       await a.goto(`${app}/g/${id}`)
-      await a.getByPlaceholder('email').fill(email())
-      await a.getByPlaceholder('password').fill(password)
+      await a.getByLabel('Email').fill(email())
+      await a.getByLabel('Password', { exact: true }).fill(password)
       await a.getByRole('button', { name: 'Sign in' }).click()
       const alert = a.locator('[role=alert][data-kind="not-paired"]')
       await expect(alert).toContainText(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { authed } from '../../api'
 import { switchHousehold } from './household'
@@ -23,6 +23,7 @@ export function Invites() {
   )
   const [copied, setCopied] = useState(false)
   const [err, setErr] = useState<AppError | null>(null)
+  const inviteBtn = useRef<HTMLButtonElement>(null)
 
   const load = () =>
     authed<Invite[]>('/invites')
@@ -50,6 +51,9 @@ export function Invites() {
     setErr(null)
     try {
       await authed(`/invites/${id}`, { method: 'DELETE' })
+      // Revoke goes with its row: focus a control that stays, or the D-pad
+      // (arrowFocus on the page) loses its place, as in Pairing (#226).
+      inviteBtn.current?.focus()
       await load()
     } catch (e) {
       setErr(toAppError(e))
@@ -71,7 +75,12 @@ export function Invites() {
     <section className="card">
       <div className="card-head">
         <h2>Invites</h2>
-        <button type="button" className="primary" onClick={create}>
+        <button
+          ref={inviteBtn}
+          type="button"
+          className="primary"
+          onClick={create}
+        >
           Invite someone
         </button>
       </div>

@@ -686,7 +686,7 @@ export function Player({
         onNext={next && onNext && (() => onNext(next))}
         top={
           <>
-            <hgroup className="title">
+            <hgroup className="now">
               <h2>{item?.SeriesName ?? item?.Name}</h2>
               {item?.SeriesName && (
                 <p>

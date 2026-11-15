@@ -9,9 +9,11 @@
 .player video {
   display: block;
   width: 100%;
+  max-height: 65vh; /* under the TV-mode shell the bar stays on screen; pillarboxed */
 }
 .player:fullscreen video {
   height: 100%;
+  max-height: none;
 }
 .player[data-idle='true'] {
   cursor: none;
@@ -87,18 +89,18 @@
   align-items: flex-start;
   gap: var(--sp-4);
 }
-.player .title {
+.player .now {
   flex: 1;
   min-width: 0;
 }
-.player .title h2 {
+.player .now h2 {
   margin: 0;
   font-size: var(--fs-section);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.player .title p {
+.player .now p {
   margin: 0;
   font-size: var(--fs-meta);
   color: #cfcfd4;
@@ -133,6 +135,9 @@
   color: var(--bg);
 }
 .player .bar .next {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   padding: 0 var(--sp-4);
 }
 .player .bar svg {
@@ -262,7 +267,7 @@
 }
 
 /* Portrait phones: one button row (no volume slider: phones have hardware
-   keys; mute stays), a compact popover over the controls, so it fits the
+   keys; mute stays; no ±10: drag the seek bar), a compact popover over the controls, so it fits the
    short player; the badge shows its icon only. */
 @media (orientation: portrait) {
   .player .bar {
@@ -281,7 +286,15 @@
     min-width: var(--target);
     min-height: var(--target);
   }
-  .player .badge-text {
+  .player .row {
+    gap: var(--sp-1);
+  }
+  .player .badge-text,
+  .player .next span,
+  .player .skip {
     display: none;
+  }
+  .player .bar .next {
+    padding: 0 var(--sp-3);
   }
 }

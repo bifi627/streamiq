@@ -357,9 +357,10 @@ to update it.
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
 bytes through the normal chunking and backpressure above. `size` defaults to
 4 MiB and is capped at 16 MiB; anything else (over the cap, negative, not a
-number) is `400`. Streaming sessions (library, `/diagnostics`) time 3 ×
-`size=1048576` bursts in the background once up, and again on a
-`navigator.connection` `change`, and keep the median (Mbps): the player's Auto
+number) is `400`. Streaming sessions (library, `/diagnostics`) time a
+`size=1048576` warm-up burst (dropped: mostly ramp-up, #259), then 3 bursts
+sized to last ~2 s at the previous read (1–16 MiB), in the background once
+up and again on a `navigator.connection` `change`, and keep the median (Mbps): the player's Auto
 quality caps `MaxStreamingBitrate` at 70 % of it (#162). The last value is a
 localStorage hint per gateway + direct/relay + connection type; the session's
 own measurement goes to telemetry (`throughputKbps`).

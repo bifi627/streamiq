@@ -5,6 +5,7 @@ import {
   audioCodecs,
   autoAudio,
   autoCap,
+  burstSize,
   autoQuality,
   decision,
   describe,
@@ -456,4 +457,10 @@ test('auto audio (#252): a decodable track of the default language', () => {
   assert.equal(pick([dts, a(2, 'ac3', 6, { Language: 'ger' })]), undefined)
   // No default index: the first audio track is Jellyfin's default.
   assert.equal(autoAudio([dts, a(2, 'ac3', 6)], undefined, codecs, true), 2)
+})
+
+test('a throughput burst lasts ~2 s at the last read, within 1..16 MiB (#259)', () => {
+  assert.equal(burstSize(40), 10_000_000) // 40 Mbps × 2 s
+  assert.equal(burstSize(2), 1 << 20) // slow link: at least the warm-up size
+  assert.equal(burstSize(300), 16 << 20) // loopback: the gateway's cap
 })

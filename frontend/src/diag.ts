@@ -173,26 +173,25 @@ const dropLast = () => {
   }
 }
 let stop: (() => void) | undefined
+const heap0 = mem()?.usedJSHeapSize ?? 0 // page load, even if the sampler starts later
 
 function startSampler() {
   if (stop) return
-  const heap0 = mem()?.usedJSHeapSize ?? 0
   let prev = performance.now()
   let maxLag = 0
   let busy = 0 // ms of long tasks since the last tick
   let high = false // heap above 80% of its limit
-  let obs: PerformanceObserver | undefined
-  try {
-    obs = new PerformanceObserver((l) =>
-      l.getEntries().forEach((e) => (busy += e.duration)),
-    )
-    obs.observe({ type: 'longtask' })
-  } catch {
-    obs = undefined // unsupported: no busy %
-  }
+  // observe() only warns on an unknown type, so check first (unsupported: no busy %)
+  const obs = PerformanceObserver.supportedEntryTypes?.includes('longtask')
+    ? new PerformanceObserver((l) =>
+        l.getEntries().forEach((e) => (busy += e.duration)),
+      )
+    : undefined
+  obs?.observe({ type: 'longtask' })
   const t = setInterval(() => {
     const now = performance.now()
-    const lag = Math.max(0, Math.round(now - prev - TICK))
+    // Hidden pages get throttled timers: that's not load.
+    const lag = document.hidden ? 0 : Math.max(0, Math.round(now - prev - TICK))
     const pct = Math.min(100, Math.round((busy / (now - prev)) * 100))
     prev = now
     busy = 0

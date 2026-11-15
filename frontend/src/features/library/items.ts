@@ -11,6 +11,8 @@ export type Item = {
   ParentId?: string
   RunTimeTicks?: number
   ProductionYear?: number
+  Overview?: string
+  Genres?: string[]
   IndexNumber?: number
   ParentIndexNumber?: number
   ImageTags?: { Primary?: string }
@@ -36,6 +38,27 @@ export type Item = {
     IsTextSubtitleStream?: boolean
   }[]
 }
+
+/** The series page's primary button (#204): the in-progress episode, else
+ * the first unwatched one, else the first one (specials last both times). `/Shows/NextUp` is
+ * not on the gateway allowlist, so this reads the episodes' user data. */
+export function upNext(episodes: Item[]) {
+  const started = episodes.find(
+    (e) => !e.UserData?.Played && (e.UserData?.PlaybackPositionTicks ?? 0) > 0,
+  )
+  const unwatched = episodes.filter((e) => !e.UserData?.Played)
+  return (
+    started ??
+    unwatched.find((e) => e.ParentIndexNumber !== 0) ??
+    unwatched[0] ??
+    episodes.find((e) => e.ParentIndexNumber !== 0) ??
+    episodes[0]
+  )
+}
+
+/** A tile opens the player, not a page: a movie has its page (#204) with
+ * Play / Resume. The Resume spot plays at once regardless. */
+export const playsAtOnce = (i: Item) => playable(i) && i.Type !== 'Movie'
 
 /** Opens in the player, not as a listing. */
 export const playable = (i: Item) =>

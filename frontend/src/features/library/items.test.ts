@@ -7,6 +7,8 @@ import {
   covers,
   rangeHeader,
   subtitleTracks,
+  upNext,
+  type Item,
 } from './items.ts'
 
 test('hls.js exclusive range end → inclusive HTTP Range', () => {
@@ -83,4 +85,24 @@ test('subtitleTracks: Off + text subtitles only', () => {
     ],
   )
   assert.deepEqual(subtitleTracks(), [{ value: '-1', label: 'Off' }])
+})
+
+test('upNext: in progress, else first unwatched (specials last), else first', () => {
+  const ep = (Id: string, season: number, ud?: Item['UserData']) =>
+    ({
+      Id,
+      Name: Id,
+      Type: 'Episode',
+      ParentIndexNumber: season,
+      UserData: ud,
+    }) as Item
+  const sp = ep('sp', 0)
+  const a = ep('a', 1, { Played: true })
+  const b = ep('b', 1)
+  const c = ep('c', 2, { PlaybackPositionTicks: 5 })
+  assert.equal(upNext([sp, a, b, c]).Id, 'c')
+  assert.equal(upNext([sp, a, b]).Id, 'b')
+  assert.equal(upNext([sp, a]).Id, 'sp')
+  assert.equal(upNext([a]).Id, 'a')
+  assert.equal(upNext([ep('sw', 0, { Played: true }), a]).Id, 'a')
 })

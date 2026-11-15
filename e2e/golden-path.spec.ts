@@ -202,6 +202,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(a).toHaveURL(/\/g\/[^/]+\/i\/[^/]+$/) // folder deep link
       await a.reload() // restores the folder: item loaded by ID over a new tunnel
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page (#204)
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(3)
@@ -218,6 +219,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         a.getByText(/jellyfin: video remux \(h264\) · audio copy/),
       ).toBeVisible()
       await a.goBack() // leaving the player saves the position
+      await a.goBack() // movie page → folder
       await a.goBack() // browser history: folder → library home
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.reload()
@@ -358,6 +360,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Open' }).click()
       await a.getByRole('button', { name: /Movies/ }).click()
       await a.getByRole('button', { name: /streamiq e2e mp2 default/ }).click()
+      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
       await expect
         .poll(() => pitch(a), { timeout: 30_000 })
         .toBeCloseTo(880, -2)
@@ -374,7 +377,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         a.getByRole('menuitemradio', { name: /AAC mono/, checked: true }),
       ).toBeVisible()
-      await a.goBack() // player → folder
+      await a.goBack() // player → movie page
+      await a.goBack() // movie page → folder
       await a.goBack() // folder → library home
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
@@ -494,6 +498,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Open' }).click()
       await a.getByRole('button', { name: /Movies/ }).click()
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(1)
@@ -525,6 +530,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Open' }).click()
       await a.getByRole('button', { name: /Movies/ }).click()
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(1)
@@ -704,6 +710,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       // Paired → the library reconnects on a fresh session.
       await a.getByRole('button', { name: /Movies/ }).click()
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(0)

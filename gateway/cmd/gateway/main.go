@@ -240,9 +240,10 @@ func backupState(file string) error {
 	fmt.Println("!! Keep it like a password: not in a shared or synced folder, not in email.")
 	fmt.Println("!! If it leaks: docs/install.md, \"If the gateway or a backup of its state may have leaked\".")
 	fmt.Println()
-	fmt.Println("To restore (new machine or reinstall): install the gateway, stop it, then run")
-	fmt.Printf("  gateway restore %s\n", filepath.Base(file))
-	fmt.Println("and start it again. Stop the old gateway first: two copies fight over the connection.")
+	fmt.Println("To restore (docs/install.md, \"Back up and restore the gateway\"), stop the old gateway first")
+	fmt.Println("(two copies fight over the connection), then:")
+	fmt.Printf("  new machine:  the install command with STREAMIQ_API_URL and STREAMIQ_RESTORE=%s, no enroll token\n", filepath.Base(file))
+	fmt.Printf("  same install: stop the gateway, run gateway restore %s, start it again\n", filepath.Base(file))
 	return nil
 }
 

@@ -228,7 +228,12 @@ function Title({ item, season }: { item: Item; season?: string }) {
           </svg>
           Back
         </button>
-        <Artwork art={primary(item)} width={360} className="title-poster" />
+        <Artwork
+          art={primary(item)}
+          card={item}
+          width={360}
+          className="title-poster"
+        />
         <h1>{item.Name}</h1>
         {meta.length > 0 && <p className="muted">{meta.join(' · ')}</p>}
         {item.Overview && <p className="overview">{item.Overview}</p>}
@@ -313,7 +318,12 @@ function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
   return (
     <button type="button" className="episode" onClick={() => onPlay(item)}>
       <span className="still">
-        <Artwork art={primary(item)} width={352} className="still-art" />
+        <Artwork
+          art={primary(item)}
+          card={item}
+          width={352}
+          className="still-art"
+        />
         {pos > 0 && !item.UserData?.Played && <Watched item={item} />}
       </span>
       <span className="ep-text">
@@ -886,7 +896,12 @@ function Listing({
         {items.map((i) => (
           <li key={i.Id}>
             <button type="button" onClick={() => onOpen(i)} className="tile">
-              <Artwork art={primary(i)} width={280} className="poster" />
+              <Artwork
+                art={primary(i)}
+                card={i}
+                width={280}
+                className="poster"
+              />
               <div>
                 {i.IndexNumber != null &&
                   i.Type === 'Episode' &&

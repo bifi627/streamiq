@@ -194,13 +194,65 @@ Whoever has a copy of `state/` can pose as your gateway. Replace its identity:
 4. Open StreamIQ on each browser: it shows a pairing code, approve it on the
    local gateway page.
 
+## Back up and restore the gateway
+
+`state/` is what makes your gateway *this* gateway: its certificate (paired
+browsers check it), its StreamIQ credential, the paired browsers and its Jellyfin
+login. Back it up once, and again after you pair a new browser:
+
+    gateway backup                 # streamiq-gateway-<name>-<date>-<time>.zip in the current folder
+    gateway backup D:\keep\gw.zip  # or name the file
+
+Run the `gateway` in the install dir; it works while the gateway runs. The page login (`page-token`, `page-link`) is left out: the
+restored gateway makes a new one.
+
+**The backup is a secret and not encrypted.** Whoever has the file can pose as
+your gateway. Keep it like a password: not in a shared or synced folder, not in
+email. If it leaks, see
+[If the gateway or a backup of its state may have leaked](#if-the-gateway-or-a-backup-of-its-state-may-have-leaked).
+
+First stop or uninstall the old gateway if it still runs (Windows: `gateway
+service uninstall`). Two copies of the same gateway fight over its connection:
+the one that connected last wins, the other one keeps reconnecting.
+
+**Onto a new machine** (or after deleting the install dir): run the installer with
+the backup instead of an enroll token. `STREAMIQ_API_URL` is your StreamIQ web
+app's address (it's also in the old install's `gateway.env`):
+
+- Linux / macOS: `curl -fsSL …/install.sh | STREAMIQ_API_URL=… STREAMIQ_RESTORE=./streamiq-gateway-….zip sh`
+- Windows (PowerShell): `$env:STREAMIQ_API_URL='…'; $env:STREAMIQ_RESTORE='.\streamiq-gateway-….zip'; irm …/install.ps1 | iex`
+
+It installs, restores the backup, then starts the gateway. No new gateway is added
+in the web app. The backup holds only `state/`, not your settings in `gateway.env`:
+if you set more than the API URL (`STREAMIQ_ORIGIN` for a Jellyfin on another
+machine, `STREAMIQ_JELLYFIN_HWACCEL`, `STREAMIQ_PAGE_PORT`, …), keep a copy of the
+old `gateway.env` with the backup. Copy those lines into the new install's
+`gateway.env` (leave its `STREAMIQ_STATE_DIR`), then restart the gateway.
+
+**Same install, `state/` lost or broken:** stop the gateway, run `gateway restore
+<file>`, start it again (`gateway service install`, or as in
+[Start on boot](#start-on-boot)). Restore refuses while the gateway runs, and over
+a state dir that already holds a gateway: `gateway restore --force <file>` replaces
+it (files the backup doesn't have are removed).
+
+Either way the gateway comes back with its old name and ID, and paired browsers
+open it without a new pairing code.
+
+Not in the backup: `gateway.env` (see above) and Jellyfin's own data (libraries,
+watch history, its users).
+Against the same Jellyfin the restored login just works. On a fresh Jellyfin
+(wizard not done) the gateway sets it up again by itself, as in
+[3. Connect Jellyfin](#3-connect-jellyfin); add your libraries again. A different
+Jellyfin that is already set up refuses the old login: the local gateway page asks
+you to **Connect Jellyfin**.
+
 ## Where things live
 
 | | Windows | Linux / macOS |
 |---|---|---|
 | Install dir | `%LOCALAPPDATA%\streamiq` | `~/.local/share/streamiq` |
 | Settings | `gateway.env` (yours, kept on updates) | same |
-| Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates) | `state/` |
+| Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates; [`gateway backup`](#back-up-and-restore-the-gateway) copies it) | `state/` |
 | Log | the gateway's console window (closing it stops the gateway) | `gateway.log` |
 | Autostart | scheduled task `streamiq-gateway` (`gateway service install`) | your crontab line |
 | Previous binary after `gateway update` | `gateway.exe.old` (replaced by the next update) | — |

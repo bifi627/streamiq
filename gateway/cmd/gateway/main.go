@@ -11,8 +11,10 @@
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
 //	update      "newer release available" notice; `gateway update` swaps the binary
 //	service     Windows logon task (`gateway service install|uninstall`)
+//	backup      `gateway backup` / `gateway restore`: the state dir as one zip (#52)
 //
-// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade|login | reset-identity.
+// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade|login | reset-identity |
+// backup [file] | restore [--force] <file>.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
 // env wins): STREAMIQ_API_URL (required), STREAMIQ_ENROLL_TOKEN, STREAMIQ_NAME, STREAMIQ_STATE_DIR,
@@ -41,6 +43,7 @@ import (
 
 	"golang.org/x/term"
 
+	"streamiq/gateway/internal/backup"
 	"streamiq/gateway/internal/identity"
 	"streamiq/gateway/internal/jellyfin"
 	"streamiq/gateway/internal/localpage"
@@ -118,6 +121,20 @@ func main() {
 		}
 	case cmd == "reset-identity":
 		err = resetIdentity()
+	case cmd == "backup" && (len(os.Args) == 2 || len(os.Args) == 3 && !strings.HasPrefix(os.Args[2], "-")):
+		file := backup.FileName(stateDir(), time.Now())
+		if len(os.Args) == 3 {
+			file = os.Args[2]
+		}
+		err = backupState(file)
+	case cmd == "restore" && len(os.Args) == 3 && !strings.HasPrefix(os.Args[2], "-"):
+		err = restoreState(os.Args[2], false)
+	case cmd == "restore" && len(os.Args) == 4 && slices.Contains(os.Args[2:], "--force"):
+		file := os.Args[2]
+		if file == "--force" {
+			file = os.Args[3]
+		}
+		err = restoreState(file, true)
 	case cmd == "status":
 		link, _ := os.ReadFile(filepath.Join(stateDir(), "page-link"))
 		err = localpage.PrintStatus(ctx, os.Stdout, pagePort(), strings.TrimSpace(string(link)))
@@ -142,6 +159,10 @@ const usage = `usage: gateway [command] [-h]
                              (as the local gateway page does; docs/install.md)
   reset-identity             new certificate + empty paired-browser list: every browser pairs
                              again (after a leak; docs/install.md). Refuses while the gateway runs.
+  backup [file]              write the state dir (identity, credential, paired browsers, Jellyfin
+                             login) to one zip; works while the gateway runs. NOT encrypted.
+  restore [--force] <file>   put a backup back into the state dir. Refuses while the gateway runs,
+                             and over an existing gateway unless --force.
 
 Config: gateway.env next to the binary (see docs/install.md).`
 
@@ -172,13 +193,20 @@ func serviceInstall(ctx context.Context, exe string) error {
 	return nil
 }
 
-// resetIdentity replaces the DTLS cert and clears the allowlist. A running
-// gateway holds both in memory (and would rewrite allowlist.json), so refuse
-// while its local page answers.
-func resetIdentity() error {
+// notRunning refuses while the local page answers: a running gateway holds its
+// state in memory (and rewrites allowlist.json).
+func notRunning() error {
 	if c, err := net.DialTimeout("tcp", "127.0.0.1:"+pagePort(), time.Second); err == nil {
 		c.Close()
 		return fmt.Errorf("the gateway is running (port %s answers): stop it first (Windows: gateway service uninstall, or close its window)", pagePort())
+	}
+	return nil
+}
+
+// resetIdentity replaces the DTLS cert and clears the allowlist.
+func resetIdentity() error {
+	if err := notRunning(); err != nil {
+		return err
 	}
 	fp, err := identity.Reset(stateDir())
 	if err != nil {
@@ -187,6 +215,49 @@ func resetIdentity() error {
 	fmt.Printf("New gateway identity %s.\n", fp)
 	fmt.Println("Paired browsers were removed: each one shows a pairing code on its next connect; approve it on the local gateway page.")
 	fmt.Println("Start the gateway again (gateway service install, or gateway run).")
+	return nil
+}
+
+// backupState writes the backup zip (0600, never over an existing file).
+func backupState(file string) error {
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("%s already exists: name another file (gateway backup <file>)", file)
+	} else if err != nil {
+		return err
+	}
+	err = backup.Write(stateDir(), f)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(file)
+		return err
+	}
+	abs, _ := filepath.Abs(file)
+	fmt.Printf("Wrote %s.\n\n", abs)
+	fmt.Println("!! This file is NOT encrypted. Whoever has it can pose as your gateway.")
+	fmt.Println("!! Keep it like a password: not in a shared or synced folder, not in email.")
+	fmt.Println("!! If it leaks: docs/install.md, \"If the gateway or a backup of its state may have leaked\".")
+	fmt.Println()
+	fmt.Println("To restore (docs/install.md, \"Back up and restore the gateway\"), stop the old gateway first")
+	fmt.Println("(two copies fight over the connection), then:")
+	fmt.Printf("  new machine:  the install command with STREAMIQ_API_URL and STREAMIQ_RESTORE=%s, no enroll token\n", filepath.Base(file))
+	fmt.Printf("  same install: stop the gateway, run gateway restore %s, start it again\n", filepath.Base(file))
+	return nil
+}
+
+// restoreState unpacks a backup into the state dir.
+func restoreState(file string, force bool) error {
+	if err := notRunning(); err != nil {
+		return err
+	}
+	if err := backup.Restore(file, stateDir(), force); err != nil {
+		return err
+	}
+	abs, _ := filepath.Abs(stateDir())
+	fmt.Printf("Restored the gateway into %s.\n", abs)
+	fmt.Println("Start it (gateway service install, or gateway run): it comes back as the same gateway, paired browsers included.")
 	return nil
 }
 

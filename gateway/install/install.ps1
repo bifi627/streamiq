@@ -49,6 +49,11 @@ if (-not (Test-Path $envFile)) {
 # creates the logon task streamiq-gateway and starts it: its own console window
 # is the log; closing it stops the gateway (no hidden start: AV heuristic, #69).
 Remove-Item (Join-Path $dir 'state\page-link') -ErrorAction SilentlyContinue # wait below for this start's fresh link
+# A backup onto this machine (#52): restored before the first start, so it doesn't enroll a new gateway.
+if ($env:STREAMIQ_RESTORE) {
+    & $exe restore $env:STREAMIQ_RESTORE
+    if ($LASTEXITCODE -ne 0) { throw "StreamIQ: gateway restore failed (exit $LASTEXITCODE)" }
+}
 & $exe service install
 $rc = $LASTEXITCODE
 Remove-Item Env:STREAMIQ_ENROLL_TOKEN -ErrorAction SilentlyContinue

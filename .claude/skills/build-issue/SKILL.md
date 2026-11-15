@@ -88,12 +88,16 @@ Then, by verdict:
   owner. At most 2 posted reviews.
 - `review:decision`, or still `review:changes` after the second → no more rounds; go to
   section 4 and tell the owner what is open and why.
-- LOW findings (every review returns some): your call, but only together with the
-  fixes for a `review:changes` verdict, so the next review covers them. Then you may
-  fix one if it is in code this PR already changes and takes a line or two; ignore
-  the rest (no drive-by fixes). After `review:ready`, or when no further review
-  follows, change no code for them: a push then would leave unreviewed code under the
-  verdict.
+- LOW findings (every review returns some): your call alone; nobody sends you after
+  them, and you don't ask. The reviewer lists only the ones it confirmed and a user
+  would notice. Fix the ones that are high impact and low effort: it is in code this
+  PR already changes and takes a line or two.
+  Ignore the rest (no drive-by fixes). With `review:changes`: in the same push as those
+  fixes, so the next review covers them. After `review:ready`: all of them in ONE push
+  after `check.sh`, with NO further review: a fix this small doesn't earn one, and a
+  review would only return new LOW findings. Name that commit in your report (sha + one
+  line per fix), so the owner knows what the verdict doesn't cover. A fix that needs
+  more than a line or two is not low effort: leave it.
 - `security` findings (the reviewer returns them to you, they are not on GitHub):
   never on GitHub; tell the owner in the thread.
 

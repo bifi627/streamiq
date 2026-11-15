@@ -42,6 +42,19 @@ Run the code-review skill WITHOUT posting: `/code-review <level> <target>
 empty (empty = the working-tree diff, which is empty once everything is pushed). No
 `--comment`, no `--fix`. Collect its findings.
 
+**Follow-up review:** only when the PR's build thread started you (its fix round;
+the owner's `agent` label or request always gets the full review above), the PR
+already has a posted agent review
+(`gh api repos/bifi627/streamiq/pulls/N/reviews --jq '[.[]|select(.body|contains("streamiq-agent"))]|last|.commit_id'`
+prints a sha) and that commit is still under the head (`git fetch -q origin pull/N/head
+&& git merge-base --is-ancestor <sha> FETCH_HEAD`; not so after a rebase → a full
+review as above). Then do NOT run `/code-review`: it would review the whole PR again
+and return its minimum of new candidates every round. Read `git diff <sha>..FETCH_HEAD`
+yourself, with the files around it: did these commits fix what they were for, and did
+they break anything? Your findings are only what these commits introduced or left
+unfixed; the level you report is `delta`, the candidates the number you found (0 is a
+normal result). Sections 1, 4, 5 and 6 are the same, over the whole PR.
+
 ## 4. Triage
 
 Each finding into exactly one bucket. Be strict; the default is LOW.
@@ -106,7 +119,10 @@ Return, in this order:
 5. BLOCKER / SPEC findings, one per item: `[blocker]` or `[spec]` (+ `security`
    if so), `path:line` (or `path` for a file-level / cross-cutting one), the
    defect, and the one-sentence failure scenario.
-6. LOW findings, one line each: at most the 5 most worth a look, then "+k more LOW,
-   not listed".
+6. LOW findings, one line each, at most 5: only those a user would notice (wrong
+   behavior, a visible glitch) AND that you confirmed by reading the code. Cleanups,
+   style, naming, duplication, speculative edge cases and anything you didn't confirm
+   are never listed, only counted: "+k more LOW, not listed". None qualifies → "no LOW
+   worth listing", which is a normal result.
 
 No praise, no summary of what the change does.

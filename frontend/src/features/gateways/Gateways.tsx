@@ -3,6 +3,7 @@ import {
   createEnrollmentToken,
   getGateways,
   removeGateway,
+  renameGateway,
   type Gateway,
   type GatewayStatus,
   type Install,
@@ -86,6 +87,19 @@ export function Gateways() {
     }
   }
 
+  async function rename(d: Gateway, name: string) {
+    try {
+      await renameGateway(d.id, name)
+      setGateways(
+        (gs) => gs && gs.map((g) => (g.id === d.id ? { ...g, name } : g)),
+      )
+      return true
+    } catch (e) {
+      setErr(toAppError(e))
+      return false
+    }
+  }
+
   async function addGateway() {
     try {
       setInstall(await createEnrollmentToken())
@@ -157,7 +171,10 @@ export function Gateways() {
           {gateways.map((d) => (
             <li key={d.id} className="card">
               <div className="card-head">
-                <h2>{d.name ?? 'gateway'}</h2>
+                <GatewayName
+                  name={d.name ?? 'gateway'}
+                  rename={admin ? (n) => rename(d, n) : undefined}
+                />
                 <span className="chip">
                   <span className={d.online ? 'dot online' : 'dot'} />
                   {d.online ? 'Online' : 'Offline'}
@@ -227,6 +244,55 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
     Remove
   </button>
 )
+
+// The name, plus an inline Rename for an admin (#310). Enter saves (form
+// submit), Escape cancels; the section's arrowFocus reaches the controls.
+function GatewayName({
+  name,
+  rename,
+}: {
+  name: string
+  rename?: (name: string) => Promise<boolean>
+}) {
+  const [draft, setDraft] = useState<string | null>(null) // null = not editing
+  if (draft === null)
+    return (
+      <div className="name">
+        <h2>{name}</h2>
+        {rename && (
+          <button type="button" className="link" onClick={() => setDraft(name)}>
+            Rename
+          </button>
+        )}
+      </div>
+    )
+  return (
+    <form
+      className="name"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        if (await rename!(draft.trim())) setDraft(null)
+      }}
+      onKeyDown={(e) => e.key === 'Escape' && setDraft(null)}
+    >
+      <input
+        aria-label="Gateway name"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        maxLength={100}
+        required
+        pattern=".*\S.*"
+        autoFocus
+      />
+      <button type="submit" className="primary">
+        Save
+      </button>
+      <button type="button" onClick={() => setDraft(null)}>
+        Cancel
+      </button>
+    </form>
+  )
+}
 
 const tokenText = {
   ok: 'token set',

@@ -131,6 +131,23 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await expect(
       a.getByRole('listitem').filter({ hasText: 'Version' }),
     ).toContainText('Online')
+    await test.step('admin renames the gateway inline (#310)', async () => {
+      const card = a.getByRole('listitem').filter({ hasText: 'Version' })
+      await card.getByRole('button', { name: 'Rename' }).click()
+      await a.keyboard.press('Escape') // cancels
+      await card.getByRole('button', { name: 'Rename' }).click()
+      await card
+        .getByRole('textbox', { name: 'Gateway name' })
+        .fill('  Living room NAS  ')
+      await a.keyboard.press('Enter') // saves
+      await expect(card.getByRole('heading', { level: 2 })).toHaveText(
+        'Living room NAS',
+      )
+      await a.reload() // from the API, not just local state
+      await expect(
+        a.getByRole('heading', { level: 2, name: 'Living room NAS' }),
+      ).toBeVisible()
+    })
     const gatewayCtx = await browser.newContext()
     if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
 

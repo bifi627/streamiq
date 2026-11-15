@@ -175,6 +175,7 @@ var api = app.MapGroup("/api");
 GetMe.Map(api);
 ListGateways.Map(api);
 RevokeGateway.Map(api);
+RenameGateway.Map(api);
 CreateEnrollmentToken.Map(api);
 Enroll.Map(api);
 GatewaySocket.Map(api);

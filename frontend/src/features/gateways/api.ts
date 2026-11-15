@@ -66,5 +66,12 @@ export const getGateways = () => authed<Gateway[]>('/gateways')
 export const removeGateway = (id: string) =>
   authed(`/gateways/${id}`, { method: 'DELETE' })
 
+export const renameGateway = (id: string, name: string) =>
+  authed(`/gateways/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })

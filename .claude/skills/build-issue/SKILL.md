@@ -87,8 +87,13 @@ Then, by verdict:
   the review again with a NEW subagent; it resolves the threads the new head fixed.
   A finding you disagree with: reply on its thread with why, and leave it open for the
   owner. At most 2 posted reviews.
-- `review:decision`, or still `review:changes` after the second → no more rounds; go to
-  section 4 and tell the owner what is open and why.
+- `review:decision` → no more rounds; go to section 4 and tell the owner what is open
+  and why.
+- Still `review:changes` after the second → no third review. Fix the posted findings
+  you can (same rules), push, and reply on each of those threads (signed, CLAUDE.md
+  "Agent signature"): "fixed in <short sha>: <what changed>; not reviewed". Leave the
+  threads open: with no review left, nobody else answers them, and the owner resolves
+  them. Then section 4: tell the owner what is open and name that commit.
 - LOW findings (most reviews return some): your call alone; nobody sends you after
   them, and you don't ask. The reviewer lists only the ones it confirmed and a user
   would notice. Fix the ones that are high impact and low effort: it is in code this

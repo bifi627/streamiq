@@ -709,9 +709,9 @@ export function RemotePage({ screenId }: { screenId: string }) {
   )
   if (!screen)
     return (
-      <p role="alert" className="remote">
-        Screen closed. {library}
-      </p>
+      <div className="remote">
+        <p role="alert">Screen closed. {library}</p>
+      </div>
     )
   const pos = (st?.positionTicks ?? 0) / TICKS_PER_SECOND
   const dur = (st?.durationTicks ?? 0) / TICKS_PER_SECOND
@@ -736,7 +736,8 @@ export function RemotePage({ screenId }: { screenId: string }) {
         <p>Nothing playing. {library}</p>
       ) : (
         <>
-          {art && <Artwork art={art} width={780} className="art remote-art" />}
+          {/* always the box, empty until the art is known: the keys never jump */}
+          <Artwork art={art} width={780} className="art remote-art" />
           <h3>{item?.Name}</h3>
           <input
             type="range"

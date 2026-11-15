@@ -710,8 +710,9 @@ button.secondary:hover {
   flex: none;
 }
 
-/* Play on… under a tile (#180, #227): the screens drop down as a list. */
-.play-on {
+/* Play on… (#180, #227): the screens drop down as a list. The gap only
+   under a tile; episode rows and the title side space it themselves. */
+.tiles .play-on {
   margin-top: var(--sp-2);
 }
 .play-on > button {

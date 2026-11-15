@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # /code-review level and merge-risk floor of a change for the agent review.
-# Prints two words: `<level> <floor>`, level = xhigh | high | low, floor = 0..10.
+# Prints `<level> <floor> <why>`: level = xhigh | high | low, floor = 0..10, why = the
+# rule that set the floor.
 # The one place both rules live (the agent-review skill runs this instead of
 # judging them); change the lists here.
 #
@@ -11,8 +12,10 @@
 # angles; xhigh = 10 angles plus a sweep for gaps, about 3.5x the time of high.
 #
 # Floor = the lowest merge risk the reviewer may give (it may go higher, with a
-# reason): 0 docs only, 1 frontend or e2e only, 2 anything else, 4 gateway/** (auto-released
-# to installed gateways), 6 a `!` PR title or a device:* label, 7 a crown-jewel path.
+# reason): 0 docs only, 1 frontend or e2e only, 2 anything else, 4 gateway/** but its
+# tests (what next-gateway-version.sh releases to installed gateways), 6 a `!` PR
+# title, 7 a crown-jewel path. No device:* floor: those PRs stay draft until the
+# owner's device test, so that gate already covers them.
 set -euo pipefail
 
 # xhigh: a changed file is under one of these paths (the crown jewels). Paths, not
@@ -35,30 +38,36 @@ gateway/install/install.ps1
 
 if [ $# -gt 0 ]; then
   files=$(gh pr diff "$1" --name-only)
-  meta=$(gh pr view "$1" --json title,labels --jq '.title, (.labels[].name)')
+  title=$(gh pr view "$1" --json title --jq .title)
 else
   git fetch -q origin
   files=$(git diff --name-only origin/main...HEAD)
-  meta=$(gh pr view --json title,labels --jq '.title, (.labels[].name)' 2>/dev/null || true)
+  title=$(gh pr view --json title --jq .title 2>/dev/null) ||
+    echo "review-level: no PR for this branch, the \`!\` floor is not checked" >&2
 fi
 [ -n "$files" ] || { echo "review-level: empty diff" >&2; exit 1; }
 
-level=low floor=0
-raise() { [ "$1" -gt "$floor" ] && floor=$1 || true; }
+level=low floor=0 why=docs
+raise() { if [ "$1" -gt "$floor" ]; then floor=$1 why=$2; fi; }
 while IFS= read -r f; do
   for p in $XHIGH; do
-    case "$f" in "$p"*) level=xhigh; raise 7 ;; esac
+    case "$f" in "$p"*) level=xhigh; raise 7 crown-jewel ;; esac
   done
   case "$f" in
-    CLAUDE.md | .claude/*) [ $level = xhigh ] || level=high; raise 2 ;;
+    CLAUDE.md | .claude/*) [ $level = xhigh ] || level=high ;;
     docs/* | *.md) ;;
-    frontend/* | e2e/*) [ $level = xhigh ] || level=high; raise 1 ;;
-    gateway/*) [ $level = xhigh ] || level=high; raise 4 ;;
-    *) [ $level = xhigh ] || level=high; raise 2 ;;
+    *) [ $level = xhigh ] || level=high ;;
+  esac
+  case "$f" in
+    gateway/*_test.go) raise 2 other ;;
+    gateway/*) raise 4 gateway-release ;;
+    frontend/* | e2e/*) raise 1 frontend ;;
+    CLAUDE.md | .claude/*) raise 2 other ;;
+    docs/* | *.md) ;;
+    *) raise 2 other ;;
   esac
 done <<<"$files"
 
-# Title is the first line: `type!:` / `type(scope)!:` marks a breaking change.
-head -n1 <<<"$meta" | grep -qE '^[a-z]+(\([^)]*\))?!:' && raise 6
-tail -n +2 <<<"$meta" | grep -q '^device:' && raise 6
-echo "$level $floor"
+# `type!:` / `type(scope)!:` marks a breaking change (same pattern as next-gateway-version.sh).
+[[ ${title:-} =~ ^[a-zA-Z]+(\([^\)]*\))?!: ]] && raise 6 breaking-title
+echo "$level $floor $why"

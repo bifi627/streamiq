@@ -29,8 +29,8 @@ something (e.g. a `## For the reviewer` list): answer each point.
 ## 2. Level
 
 `bash scripts/review-level.sh <PR number>` (no number = the current branch vs
-`origin/main`) prints two words: the level (`xhigh`, `high` or `low`) and the merge-risk
-floor (0–10, section 5). Use the level it prints; don't judge it yourself. Both rules
+`origin/main`) prints three words: the level (`xhigh`, `high` or `low`), the merge-risk
+floor (0–10, section 5) and the rule that set it (e.g. `crown-jewel`). Use the level it prints; don't judge it yourself. Both rules
 (the crown-jewel paths, what counts as docs only, the floors) live in that script and
 nowhere else. The level is only the `/code-review` argument: your
 own reading of the spec and the triage below are the same at every level.
@@ -84,7 +84,9 @@ Go higher, with the reason, for each of these the diff shows:
   CLI change, anything the gateway's auto-release ships to installed gateways (a frontend
   or API redeploy is easy to undo).
 - **Untested behavior:** no e2e / Reqnroll / xUnit / Go test drives the changed behavior.
-- **Device-only:** it can only really be checked on a TV, a phone, cellular or relay.
+- **Unflagged device check:** it can only really be checked on a TV, a phone, cellular
+  or relay, but neither the PR nor its issue has a `device:*` label. (With the label,
+  the PR stays a draft until the owner's device test: that gate covers it, no raise.)
 
 Bands: 0–1 = merge without a second look · 2–4 = skim the diff · 5–7 = drive the named
 flows yourself (`dev.ps1` or `/preview`) · 8–10 = test deeply on the named flows and
@@ -97,7 +99,7 @@ Return, in this order:
 
 1. Level used, and the counts: findings `/code-review` returned, then how many you
    sorted into BLOCKER, SPEC and LOW (all of them, not only the listed ones).
-2. Merge risk (when section 5 applies): `<n>/10 (floor <f>: <why the floor>) — <reason
+2. Merge risk (when section 5 applies): `<n>/10 (floor <f>: <the script's rule>) — <reason
    for going higher, if any>; test: <flows>` (no `test:` part below 5).
 3. Acceptance criteria: `all met` or `not met — <which>`.
 4. Answers to what the PR body asked reviewers to check (if anything).

@@ -102,8 +102,8 @@ headRefOid.
 - Exactly one label, matching the verdict in the review body:
   `gh -R bifi627/streamiq pr edit N --add-label <label>` with `review:ready` (ready to
   merge), `review:changes` (needs changes) or `review:decision` (needs owner decision).
-  On `review:ready` also one risk label: `risk:low` (0–3), `risk:mid` (4–6) or
-  `risk:high` (7–10). If you stopped early (closed PR, fork), add no label.
+  On `review:ready` also one risk label: `risk:low` (0–1), `risk:mid` (2–4) or
+  `risk:high` (5–10), the bands of `agent-review` section 5. If you stopped early (closed PR, fork), add no label.
 - In the thread: the verdict, the merge risk (on `ready to merge`), the PR link, then the LOW findings as a short list (one
   line each) so the owner can still skim them. As a subagent, also return every
   BLOCKER/SPEC finding in full (path:line, the defect, the failure scenario), `security`

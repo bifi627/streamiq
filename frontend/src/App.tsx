@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -72,56 +72,100 @@ function authMessage(e: unknown) {
 function SignIn() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [show, setShow] = useState(false)
+  const [signUp, setSignUp] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  async function go(kind: 'in' | 'up') {
+  async function run(f: () => Promise<unknown>) {
     setErr(null)
     try {
-      const fn =
-        kind === 'in'
-          ? signInWithEmailAndPassword
-          : createUserWithEmailAndPassword
-      await fn(auth, email, password)
+      await f()
     } catch (e) {
       setErr(authMessage(e))
     }
   }
 
-  async function google() {
-    setErr(null)
-    try {
-      await signInWithPopup(auth, new GoogleAuthProvider())
-    } catch (e) {
-      setErr(authMessage(e))
-    }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    const fn = signUp
+      ? createUserWithEmailAndPassword
+      : signInWithEmailAndPassword
+    run(() => fn(auth, email, password))
   }
 
   return (
-    <main className="signin stack">
-      <h1>StreamIQ</h1>
-      <input
-        placeholder="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <input
-        placeholder="password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-      <div className="buttons">
-        <button type="button" onClick={() => go('in')}>
-          Sign in
-        </button>
-        <button type="button" onClick={() => go('up')}>
-          Create account
-        </button>
-      </div>
-      <button type="button" onClick={google}>
+    <main className="signin" onKeyDown={arrowFocus}>
+      <header>
+        <h1 className="wordmark">
+          Stream<span>IQ</span>
+        </h1>
+        <p className="tagline">Your home media, anywhere.</p>
+        <p className="privacy muted">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M3 11l9-7 9 7M5 10v10h14V10" />
+          </svg>
+          Your files never leave your hardware.
+        </p>
+      </header>
+      <button
+        type="button"
+        className="wide"
+        onClick={() =>
+          run(() => signInWithPopup(auth, new GoogleAuthProvider()))
+        }
+      >
         Continue with Google
       </button>
-      {err && <p className="error">{err}</p>}
+      <div className="or meta muted">or</div>
+      <form onSubmit={submit}>
+        <label>
+          Email
+          <input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </label>
+        <label htmlFor="password">Password</label>
+        <div className="password">
+          <input
+            id="password"
+            type={show ? 'text' : 'password'}
+            autoComplete={signUp ? 'new-password' : 'current-password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button
+            type="button"
+            aria-label={show ? 'Hide password' : 'Show password'}
+            onClick={() => setShow(!show)}
+          >
+            {show ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        {err && (
+          <p className="error" role="alert">
+            {err}
+          </p>
+        )}
+        <button type="submit" className="primary wide">
+          {signUp ? 'Create account' : 'Sign in'}
+        </button>
+      </form>
+      <p className="switch muted">
+        {signUp ? 'Have an account?' : 'New here?'}{' '}
+        <button
+          type="button"
+          className="link"
+          onClick={() => {
+            setSignUp(!signUp)
+            setErr(null)
+          }}
+        >
+          {signUp ? 'Sign in instead' : 'Create an account'}
+        </button>
+      </p>
     </main>
   )
 }

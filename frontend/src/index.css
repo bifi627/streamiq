@@ -255,24 +255,113 @@ input[type='radio'] {
   }
 }
 
-/* Settings / sign-in leftovers until their own redesign (#202, #229). */
-.stack {
-  display: grid;
-  gap: var(--sp-2);
-}
-.buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
+/* Sign-in (#202): full-height column on a phone, a centered card above. */
 .signin {
-  max-width: 20rem;
-  margin: 4rem auto;
-  padding: 0 var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  max-width: 26rem;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: var(--sp-7) var(--sp-5) var(--sp-6);
 }
-.error {
-  color: #ff8a8a;
+.signin header p {
+  margin: var(--sp-2) 0 0;
 }
+.tagline {
+  font-size: 1.0625rem;
+}
+.privacy {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.875rem;
+}
+.privacy svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: var(--direct);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.signin .wide {
+  min-height: 3.25rem;
+}
+.or {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.or::before,
+.or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.signin form,
+.signin label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.signin form {
+  gap: var(--sp-4);
+}
+.signin label {
+  font-size: 0.875rem;
+}
+.signin label + .password {
+  margin-top: calc(var(--sp-2) - var(--sp-4));
+}
+.password {
+  display: flex;
+  gap: var(--sp-2);
+}
+.password input {
+  flex: 1;
+  min-width: 0;
+}
+.signin .error {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: 10px;
+  background: #2a1a1c;
+  color: #ffb4b4;
+  font-size: 0.875rem;
+}
+.switch {
+  margin: auto 0 0;
+  text-align: center;
+  font-size: 0.875rem;
+}
+button.link {
+  min-height: var(--target);
+  padding: 0 var(--sp-1);
+  background: none;
+  color: var(--link);
+  font-size: inherit;
+  text-decoration: underline;
+}
+@media (min-width: 601px) {
+  .signin {
+    min-height: 0;
+    margin: 10vh auto;
+    padding: var(--sp-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .signin input:not([type='checkbox']) {
+    background: var(--bg);
+  }
+  .switch {
+    margin: 0;
+  }
+}
+
 .setting {
   display: block;
   margin-top: var(--sp-4);

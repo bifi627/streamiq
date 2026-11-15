@@ -1,7 +1,9 @@
 // Arrow-key focus moves (#201): a TV remote's D-pad sends arrow keys. Put
 // onKeyDown={arrowFocus} on a container (nav, list, grid): an arrow moves focus
 // to the nearest focusable element inside it in that direction. Enter is the
-// browser's own on links and buttons. Text fields and selects keep their arrows.
+// browser's own on links and buttons (Enter in a form's field submits it).
+// Selects, textareas, sliders, number fields and radios keep their arrows; other
+// one-line fields keep left/right for the caret, up/down leave them (#202).
 import type { KeyboardEvent } from 'react'
 
 type Box = { left: number; top: number; right: number; bottom: number }
@@ -43,7 +45,10 @@ export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
     e.metaKey ||
     e.shiftKey || // browser shortcuts
     e.defaultPrevented || // an inner container moved already
-    from.matches('input, select, textarea')
+    from.matches(
+      'select, textarea, input[type=range], input[type=number], input[type=radio]',
+    ) ||
+    (from.matches('input') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight'))
   )
     return
   const els = [

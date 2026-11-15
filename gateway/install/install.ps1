@@ -31,7 +31,12 @@ try {
     # next to it, for `gateway rollback` (#296). No backup, no update. A gateway
     # older than `gateway backup` (#52) can't: it's replaced without one.
     $keep = $null
-    if ((Test-Path $exe) -and ((& $exe -h) -match '^  backup ')) {
+    $state = Join-Path $dir 'state'
+    if (-not ((Test-Path (Join-Path $state 'cert.pem')) -and (Test-Path (Join-Path $state 'gateway.json')))) {
+        # no gateway identity (fresh install, failed enrollment, removed gateway): nothing to roll back to
+    } elseif (-not (Test-Path $exe) -or (Get-FileHash $exe).Hash -eq $got) {
+        # a re-run of the installed release keeps no copy (it would push the real previous one out)
+    } elseif ((& $exe -h) -match '^  backup ') {
         # PowerShell 5.1 turns a native command's redirected stderr into an error: hence the catch.
         $ver = try { & $exe version 2>$null } catch { $null }
         if (-not $ver) { $ver = 'unknown' }
@@ -51,7 +56,10 @@ try {
     Start-Sleep -Seconds 1
     Remove-Item -Force "$exe.old" -ErrorAction SilentlyContinue # left by a rollback, or an update before #296
     if ($keep) { Move-Item $exe (Join-Path $keep 'gateway.exe') }
-    Move-Item -Force $new $exe
+    try { Move-Item -Force $new $exe } catch {
+        if ($keep) { Move-Item (Join-Path $keep 'gateway.exe') $exe }
+        throw
+    }
     # The last 3 updates' backups stay (as gateway update keeps them).
     Get-ChildItem -Directory (Join-Path $dir 'backups') -ErrorAction SilentlyContinue |
         Sort-Object Name -Descending | Select-Object -Skip 3 | Remove-Item -Recurse -Force

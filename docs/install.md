@@ -333,7 +333,8 @@ If a new version misbehaves, go back to the one before it:
 It stops the gateway, puts the previous binary back, restores the state that
 version had (`gateway restore --force` with that binary), starts it again and
 prints the version it went back to. Paired browsers keep working: same gateway,
-same identity. Run it again to go back one more update.
+same identity. The state is the one from the moment of the update: a browser
+paired since then pairs again. Run it again to go back one more update.
 
 Every update (`gateway update`, or the installer run over an install) leaves one
 folder in `backups/` next to the binary, `<date>-<time>-<version>`, with the
@@ -343,6 +344,8 @@ unencrypted secrets, like any gateway backup**: whoever has `backups/` can pose 
 your gateway. Rollback restores the gateway's state only, not Jellyfin's data
 (that stays in `state.zip`: `gateway jellyfin restore`). A version older than
 `gateway backup` can't back itself up: updating from it leaves no rollback point.
+Neither does an installer run over a gateway without identity (removed or never
+enrolled) or over the same release.
 
 ## Start on boot
 

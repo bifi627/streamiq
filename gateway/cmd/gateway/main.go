@@ -391,7 +391,9 @@ func selfUpdate(ctx context.Context, exe string) error {
 	}
 	err = update.Swap(exe, exe+".new", filepath.Join(keep, filepath.Base(exe)))
 	if err == nil {
-		err = update.Prune(filepath.Dir(exe))
+		if perr := update.Prune(filepath.Dir(exe)); perr != nil { // the update itself is done
+			fmt.Fprintln(os.Stderr, "gateway: removing old backups:", perr)
+		}
 	}
 	if task {
 		if serr := service.Start(); err == nil {

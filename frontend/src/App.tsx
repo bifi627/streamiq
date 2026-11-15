@@ -54,7 +54,7 @@ import {
   switchHousehold,
 } from './features/households/household'
 
-// Readable text for the popup failures a user can cause; anything else keeps
+// Readable text for the auth failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
 const authErrors: Record<string, string> = {
   'auth/invalid-email': 'Enter a valid email address.',
@@ -82,26 +82,27 @@ function SignIn() {
   const [busy, setBusy] = useState(false)
 
   async function run(f: () => Promise<unknown>) {
-    if (busyRef.current) return
-    busyRef.current = true
-    setBusy(true)
     setErr(null)
     try {
       await f()
     } catch (e) {
       setErr(authMessage(e))
-    } finally {
-      busyRef.current = false
-      setBusy(false)
     }
   }
 
-  const submit = (e: FormEvent) => {
+  // Only the form is locked: Firebase reports a closed Google popup up to
+  // ~18 s late, and a second Google click already replaces the pending popup.
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
     const fn = signUp
       ? createUserWithEmailAndPassword
       : signInWithEmailAndPassword
-    run(() => fn(auth, email, password))
+    await run(() => fn(auth, email, password))
+    busyRef.current = false
+    setBusy(false)
   }
 
   return (
@@ -121,7 +122,6 @@ function SignIn() {
       <button
         type="button"
         className="wide google"
-        aria-disabled={busy}
         onClick={() =>
           run(() => signInWithPopup(auth, new GoogleAuthProvider()))
         }

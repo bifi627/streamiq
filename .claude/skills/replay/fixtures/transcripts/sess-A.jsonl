@@ -1,4 +1,0 @@
-{"type":"user","timestamp":"2026-06-11T09:00:00Z","sessionId":"sess-A","gitBranch":"stage","message":{"role":"user","content":"always run npm run lint before committing"}}
-{"type":"assistant","timestamp":"2026-06-11T09:00:03Z","sessionId":"sess-A","gitBranch":"stage","message":{"role":"assistant","content":[{"type":"text","text":"Understood — I'll run npm run lint before every commit."}]}}
-{"type":"user","timestamp":"2026-06-11T09:05:00Z","sessionId":"sess-A","gitBranch":"stage","message":{"role":"user","content":"port 5001 is busy today, use 5002 for this run"}}
-{"type":"assistant","timestamp":"2026-06-11T09:05:04Z","sessionId":"sess-A","gitBranch":"stage","message":{"role":"assistant","content":[{"type":"text","text":"Sure, starting the dev server on port 5002 for now."}]}}

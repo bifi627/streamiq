@@ -1,3 +1,0 @@
-{"type":"user","timestamp":"2026-06-13T14:00:00Z","sessionId":"sess-B","gitBranch":"stage","message":{"role":"user","content":"before you commit, run npm run lint like always"}}
-{"type":"assistant","timestamp":"2026-06-13T14:00:05Z","sessionId":"sess-B","gitBranch":"stage","message":{"role":"assistant","content":[{"type":"text","text":"Running npm run lint first. Here is the guard I added:\nif (ready) {\n  start();\n}\nand the polling handler:\nfunction onTick() {\n  poll();\n}"}]}}
-{"type":"user","timestamp":"2026-06-13T14:10:00Z","sessionId":"sess-B","gitBranch":"stage","message":{"role":"user","content":"looks good, ship it"}}

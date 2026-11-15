@@ -1,3 +1,0 @@
-{"type":"user","timestamp":"2026-06-15T10:00:00Z","sessionId":"sess-C","gitBranch":"stage","message":{"role":"user","content":"heads up, we moved off Heroku — we deploy to Railway now"}}
-{"type":"assistant","timestamp":"2026-06-15T10:00:06Z","sessionId":"sess-C","gitBranch":"stage","message":{"role":"assistant","content":[{"type":"text","text":"Got it, I'll treat Railway as the deploy target. Updated the deploy guard:\nif (env.isProd) {\n  deployToRailway();\n}\nand the rollback path:\nif (failed) {\n  rollback();\n}"}]}}
-{"type":"user","timestamp":"2026-06-15T10:15:00Z","sessionId":"sess-C","gitBranch":"stage","message":{"role":"user","content":"perfect, thanks"}}

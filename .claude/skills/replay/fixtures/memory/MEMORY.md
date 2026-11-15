@@ -1,2 +1,0 @@
-- [Deploy target](project_deploy_target.md) — where the app is hosted
-- [Test runner preference](feedback_test_runner.md) — how to run the test suite

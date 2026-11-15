@@ -60,7 +60,7 @@ import {
   audioCodecs,
   autoAudio,
   autoCap,
-  autoQuality,
+  effective,
   decision,
   describe,
   deviceProfile,
@@ -226,9 +226,8 @@ export function Player({
       at0 = at
       const mbps = await speed?.get(q === 'Auto' ? 3000 : 0)
       if (gone || load !== loads) return
-      // Data saver (#291) caps Auto only; a hand-picked quality plays as picked.
-      const saver = q === 'Auto' && dataSaverOn()
-      const eff = q === 'Auto' ? autoQuality(mbps, bitrate, saver) : q
+      const saver = dataSaverOn() // #291: caps Auto only (effective)
+      const eff = effective(q, mbps, bitrate, saver)
       const cap = q === 'Auto' ? autoCap(mbps) : undefined
       setLink({ mbps, auto: eff, saver })
       if (q === 'Auto' && (mbps || saver))

@@ -217,6 +217,15 @@ export function autoQuality(
   )
 }
 
+/** The quality a load plays: Auto's pick (autoQuality), else the one picked
+ * by hand, which data saver (#291) doesn't touch. */
+export const effective = (
+  q: Quality,
+  mbps?: number,
+  bitrate?: number,
+  saver = false,
+): Quality => (q === 'Auto' ? autoQuality(mbps, bitrate, saver) : q)
+
 /** Data saver (#291): the stored choice, or for 'auto' the browser's hint
  * (Network Information API, Chromium only: missing = off). */
 export type SaverMode = 'auto' | 'on' | 'off'

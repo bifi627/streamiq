@@ -9,6 +9,7 @@ import {
   autoQuality,
   decision,
   describe,
+  effective,
   escalates,
   deviceProfile,
   fit,
@@ -482,6 +483,9 @@ test('data saver (#291): Automatic follows the browser, On/Off override it, Auto
       .MaxStreamingBitrate,
     0.7e6,
   )
-  // a hand-picked rung isn't touched: the saver only goes into Auto's pick
-  assert.equal(limit('1080p')?.height, 1080)
+  // the saver caps Auto only: a hand-picked quality plays as picked
+  assert.equal(effective('Auto', 20, 40e6, true), '480p')
+  assert.equal(effective('1080p', 20, 40e6, true), '1080p')
+  assert.equal(effective('Source', 20, 40e6, true), 'Source')
+  assert.equal(effective('Auto', 20, 40e6, false), '1080p')
 })

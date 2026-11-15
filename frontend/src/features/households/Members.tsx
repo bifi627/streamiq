@@ -86,7 +86,9 @@ export function Members() {
           return (
             <li key={m.userId}>
               <span className="avatar" aria-hidden="true">
-                {[...who(m)][0].toUpperCase()}
+                {[
+                  ...new Intl.Segmenter().segment(who(m)),
+                ][0].segment.toUpperCase()}
               </span>
               <span className="who">
                 <span className="name-line">

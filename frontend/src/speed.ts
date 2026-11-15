@@ -3,13 +3,15 @@
 // ~2 s each at the last read, in the background; median in Mbps. Runs when a session first
 // asks for it (#152) and again on a navigator.connection `change` (where supported). The last
 // value is kept in localStorage as the next session's starting hint, per
-// gateway + direct/relay + connection type.
+// gateway + direct/relay + connection type. Data saver (#291): no warm-up and
+// 3 × 1 MiB (~3 MB), not kept as the hint (it reads low: ramp-up).
 import { event } from './diag'
 import { pairInfo } from './stats'
 import { tunnelFetch } from './tunnel'
 import { burstSize, median } from './features/library/profile'
+import { dataSaverOn } from './settings'
 
-const WARMUP = 1 << 20
+const MIB = 1 << 20
 
 type Connection = EventTarget & { type?: string }
 const connection = () =>
@@ -46,19 +48,21 @@ export function measure(pc: RTCPeerConnection, gatewayId: string): Speed {
         if (r.status !== 200) throw new Error(`HTTP ${r.status}`)
         return (r.body.length * 8) / (performance.now() - t0) / 1000
       }
-      const warm = await burst(WARMUP)
+      const saver = dataSaverOn()
+      const warm = saver ? undefined : await burst(MIB)
       const runs: number[] = []
       for (let i = 0; i < 3; i++)
-        runs.push(await burst(burstSize(runs.at(-1) ?? warm)))
+        runs.push(await burst(saver ? MIB : burstSize(runs.at(-1) ?? warm!)))
       fresh = median(runs)
       error = undefined
-      try {
-        localStorage.setItem(key, fresh.toFixed(1))
-      } catch {
-        // not kept: the next session starts without a hint
-      }
+      if (!saver)
+        try {
+          localStorage.setItem(key, fresh.toFixed(1))
+        } catch {
+          // not kept: the next session starts without a hint
+        }
       event(
-        `speed: ~${fresh.toFixed(1)} Mbps (median of ${runs.map((r) => r.toFixed(1)).join(' / ')}, warm-up ${warm.toFixed(1)} dropped; ${key.split(':').slice(2).join(', ')})`,
+        `speed: ~${fresh.toFixed(1)} Mbps (median of ${runs.map((r) => r.toFixed(1)).join(' / ')}, ${warm !== undefined ? `warm-up ${warm.toFixed(1)} dropped` : 'data saver: 3 × 1 MiB, not kept'}; ${key.split(':').slice(2).join(', ')})`,
       )
     })()
       .catch((e: Error) => {

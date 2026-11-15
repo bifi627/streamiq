@@ -2,7 +2,12 @@
 // account sync until #92, nothing goes to the API). try/catch: storage can
 // throw (private mode, blocked site data); missing/invalid = the default.
 // Read at playback start, so a change applies from the next playback.
-import { toQuality, type Quality } from './features/library/profile'
+import {
+  saverOn,
+  toQuality,
+  type Quality,
+  type SaverMode,
+} from './features/library/profile'
 
 const KEY = 'streamiq.settings.compatible'
 const RAW_KEY = 'streamiq.settings.raw'
@@ -55,6 +60,35 @@ export function setQuality(q: Quality) {
     /* not saved: this playback only */
   }
 }
+
+/** Data saver (#291): Automatic (unset) / On / Off. Read on every
+ * measurement and playback start. */
+const SAVER_KEY = 'streamiq.settings.dataSaver'
+export function dataSaver(): SaverMode {
+  try {
+    const v = localStorage.getItem(SAVER_KEY)
+    return v === 'on' || v === 'off' ? v : 'auto'
+  } catch {
+    return 'auto'
+  }
+}
+export function setDataSaver(mode: SaverMode) {
+  try {
+    if (mode === 'auto') localStorage.removeItem(SAVER_KEY)
+    else localStorage.setItem(SAVER_KEY, mode)
+  } catch {
+    /* not saved: stays Automatic */
+  }
+}
+export const dataSaverOn = () =>
+  saverOn(
+    dataSaver(),
+    (
+      navigator as Navigator & {
+        connection?: { saveData?: boolean; type?: string }
+      }
+    ).connection,
+  )
 
 /** TV mode (#201): larger root size + 5 % safe-area padding (index.css
  * `html.tv`). Manual only, no TV detection. */

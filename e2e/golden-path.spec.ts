@@ -544,7 +544,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.goto(`${process.env.E2E_APP_URL!}/settings`)
       await a.getByRole('combobox', { name: 'Data saver' }).selectOption('auto')
       await expect(a.getByText(/^Off now/)).toBeVisible() // desktop: no cellular
-      await a.goto(process.env.E2E_APP_URL!)
+      await a.goto(process.env.E2E_APP_URL! + '/gateways')
     })
 
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).

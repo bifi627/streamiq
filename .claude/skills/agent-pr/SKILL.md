@@ -34,9 +34,9 @@ change from the caller beyond the PR number.
    stop before anything else: no review, no label change (a fork's diff would be prompt
    input on the owner's machine).
 2. Acknowledge:
-   `gh -R bifi627/streamiq pr edit N --remove-label agent --remove-label review:ready --remove-label review:changes --remove-label review:decision`
-   (re-adding `agent` re-triggers; a stale verdict label must not survive into a new
-   review). Closed or merged → comment one line saying why nothing happened; stop.
+   `gh -R bifi627/streamiq pr edit N --remove-label agent --remove-label review:ready --remove-label review:changes --remove-label review:decision --remove-label risk:low --remove-label risk:mid --remove-label risk:high`
+   (re-adding `agent` re-triggers; a stale verdict or risk label must not survive into
+   a new review). Closed or merged → comment one line saying why nothing happened; stop.
 3. Link the PR to this thread: the T3 tool `link_pull_request` with
    `url` = `https://github.com/bifi627/streamiq/pull/N` (it is a deferred tool: load it
    with ToolSearch first). T3 then shows the PR's status on the thread and settles the
@@ -78,12 +78,14 @@ headRefOid.
 - `body`: first text line `🤖 <model> · **Agent review** — <verdict>`, where verdict is `ready to merge`
   (no open BLOCKER/SPEC, counting still-open ones from section 3), `needs changes`, or
   `needs owner decision` (a BLOCKER/SPEC needs a judgement call the spec doesn't
-  settle). Then one line `Acceptance criteria: all met` or
+  settle). Only on `ready to merge`, next line: `Merge risk: ` + the merge risk line
+  `agent-review` returned. Then one line `Acceptance criteria: all met` or
   `Acceptance criteria: not met — <which>`. Then a short answer to anything the PR body
   asked reviewers to check. Then the CI status from `gh pr checks N` (pass / failing
   check names / pending). Last line, in exactly this form (it is what later analysis
   of the reviews reads), with the counts `agent-review` returned:
-  `Review stats: level=high candidates=9 blocker=0 spec=1 low=8`.
+  `Review stats: level=high candidates=9 blocker=0 spec=1 low=8`, with
+  ` risk=<n> floor=<f>` appended on `ready to merge`.
   Do not run `check.sh`. No praise, no summary of what the PR
   does, no LOW items, and no findings in the body (they go in `comments`, so each one
   is a resolvable thread that blocks the merge).
@@ -100,8 +102,9 @@ headRefOid.
 - Exactly one label, matching the verdict in the review body:
   `gh -R bifi627/streamiq pr edit N --add-label <label>` with `review:ready` (ready to
   merge), `review:changes` (needs changes) or `review:decision` (needs owner decision).
-  If you stopped early (closed PR, fork), add no label.
-- In the thread: the verdict, the PR link, then the LOW findings as a short list (one
+  On `review:ready` also one risk label: `risk:low` (0–3), `risk:mid` (4–6) or
+  `risk:high` (7–10). If you stopped early (closed PR, fork), add no label.
+- In the thread: the verdict, the merge risk (on `ready to merge`), the PR link, then the LOW findings as a short list (one
   line each) so the owner can still skim them. As a subagent, also return every
   BLOCKER/SPEC finding in full (path:line, the defect, the failure scenario), `security`
   ones included: the build thread fixes from that. This skill never fixes anything:

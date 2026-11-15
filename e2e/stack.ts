@@ -8,11 +8,16 @@ import {
   spawnSync,
   type ChildProcess,
 } from 'node:child_process'
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
-import { GenericContainer, Wait } from 'testcontainers'
+import {
+  GenericContainer,
+  getContainerRuntimeClient,
+  ImageName,
+  Wait,
+} from 'testcontainers'
 import { JELLYFIN_ADMIN, setupJellyfin } from './jellyfin.ts'
 
 export const root = path.resolve(import.meta.dirname, '..')
@@ -232,6 +237,36 @@ export type StackOptions = {
   nvenc?: boolean
 }
 
+// tmpfs over every VOLUME the image declares, so no run leaves an anonymous
+// volume behind (stop() removes them, but Ryuk's reaping after a crash or
+// Ctrl+C doesn't). Jellyfin's transcodes (/cache) land in RAM too, so not in
+// the preview (startStack).
+const NO_VOLUMES = {
+  postgres: { '/var/lib/postgresql': 'rw' },
+  'jellyfin/jellyfin': { '/config': 'rw', '/cache': 'rw' },
+  'coturn/coturn': { '/var/lib/coturn': 'rw' },
+}
+
+/**
+ * Firebase emulator image (dev/firebase, same as the backend test harness, which
+ * tags it the same way): tagged with a hash of its inputs and built only when
+ * that tag is missing, so runs reuse it instead of leaving a dangling 825 MB
+ * build behind each time. Never deleted, so concurrent runs can share it.
+ */
+async function emulatorImage() {
+  const dir = path.join(root, 'dev', 'firebase')
+  const hash = createHash('sha256')
+  for (const f of ['Dockerfile', 'firebase.json'])
+    hash.update(fs.readFileSync(path.join(dir, f)))
+  const tag = `streamiq-firebase-emulator:${hash.digest('hex').slice(0, 12)}`
+  const client = await getContainerRuntimeClient()
+  if (!(await client.image.exists(ImageName.fromString(tag))))
+    await GenericContainer.fromDockerfile(dir).build(tag, {
+      deleteOnExit: false,
+    })
+  return new GenericContainer(tag)
+}
+
 /**
  * Starts the whole stack hermetically: random ports everywhere (but lan.port),
  * so it runs next to a live `dev.ps1` stack, other worktrees, and in CI alike.
@@ -245,10 +280,7 @@ export async function startStack(o: StackOptions) {
   const labeled = (c: GenericContainer) =>
     o.label ? c.withLabels({ 'streamiq.preview': o.label }) : c
 
-  // Firebase emulator image: same Dockerfile as dev + the backend test harness.
-  const firebaseImage = await GenericContainer.fromDockerfile(
-    path.join(root, 'dev', 'firebase'),
-  ).build('streamiq-firebase-emulator:e2e', { deleteOnExit: false })
+  const firebaseImage = await emulatorImage()
 
   const jellyfinContainer = labeled(
     new GenericContainer(pin('jellyfin/jellyfin'))
@@ -258,6 +290,9 @@ export async function startStack(o: StackOptions) {
       )
       .withStartupTimeout(180_000),
   )
+  // Not in the preview: a long 4K stream keeps GBs of segments in /cache. Its
+  // anonymous volumes go with `preview down` (docker rm -v) instead.
+  if (!o.label) jellyfinContainer.withTmpFs(NO_VOLUMES['jellyfin/jellyfin'])
   if (o.nvenc) {
     // ponytail: testcontainers has no GPU option, so set Docker's DeviceRequests
     // on its protected hostConfig. If testcontainers renames it, this is a silent
@@ -289,6 +324,7 @@ export async function startStack(o: StackOptions) {
           POSTGRES_DB: 'streamiq',
         })
         .withExposedPorts(5432)
+        .withTmpFs(NO_VOLUMES.postgres)
         // Twice: the init run restarts the server once before it's really ready.
         .withWaitStrategy(
           Wait.forLogMessage(
@@ -471,6 +507,7 @@ async function startCoturn(labeled: (c: GenericContainer) => GenericContainer) {
     try {
       const coturn = await labeled(
         new GenericContainer(pin('coturn/coturn'))
+          .withTmpFs(NO_VOLUMES['coturn/coturn'])
           .withCommand([
             'turnserver',
             '-n',

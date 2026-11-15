@@ -223,7 +223,11 @@ app's address (it's also in the old install's `gateway.env`):
 - Windows (PowerShell): `$env:STREAMIQ_API_URL='…'; $env:STREAMIQ_RESTORE='.\streamiq-gateway-….zip'; irm …/install.ps1 | iex`
 
 It installs, restores the backup, then starts the gateway. No new gateway is added
-in the web app.
+in the web app. The backup holds only `state/`, not your settings in `gateway.env`:
+if you set more than the API URL (`STREAMIQ_ORIGIN` for a Jellyfin on another
+machine, `STREAMIQ_JELLYFIN_HWACCEL`, `STREAMIQ_PAGE_PORT`, …), keep a copy of the
+old `gateway.env` with the backup. Copy those lines into the new install's
+`gateway.env` (leave its `STREAMIQ_STATE_DIR`), then restart the gateway.
 
 **Same install, `state/` lost or broken:** stop the gateway, run `gateway restore
 <file>`, start it again (`gateway service install`, or as in
@@ -234,7 +238,8 @@ it (files the backup doesn't have are removed).
 Either way the gateway comes back with its old name and ID, and paired browsers
 open it without a new pairing code.
 
-Not in the backup: Jellyfin's own data (libraries, watch history, its users).
+Not in the backup: `gateway.env` (see above) and Jellyfin's own data (libraries,
+watch history, its users).
 Against the same Jellyfin the restored login just works. On a fresh Jellyfin
 (wizard not done) the gateway sets it up again by itself, as in
 [3. Connect Jellyfin](#3-connect-jellyfin); add your libraries again. A different

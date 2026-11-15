@@ -225,7 +225,7 @@ app's address (it's also in the old install's `gateway.env`):
 - Windows (PowerShell): `$env:STREAMIQ_API_URL='…'; $env:STREAMIQ_RESTORE='.\streamiq-gateway-….zip'; irm …/install.ps1 | iex`
 
 It installs, restores the backup, then starts the gateway. No new gateway is added
-in the web app. The backup holds only `state/`, not your settings in `gateway.env`:
+in the web app. The backup holds `state/` (and `jellyfin-compose.yml`), not your settings in `gateway.env`:
 if you set more than the API URL (`STREAMIQ_ORIGIN` for a Jellyfin on another
 machine, `STREAMIQ_JELLYFIN_HWACCEL`, `STREAMIQ_PAGE_PORT`, …), keep a copy of the
 old `gateway.env` with the backup. Copy those lines into the new install's

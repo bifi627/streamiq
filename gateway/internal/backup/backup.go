@@ -203,6 +203,7 @@ func Restore(path, dir, compose string, force bool) (string, error) {
 		err = cerr
 	}
 	if err != nil {
+		os.Remove(compose) // a partial one would be "kept" by every later restore
 		return ComposeNone, err
 	}
 	return ComposeWritten, nil

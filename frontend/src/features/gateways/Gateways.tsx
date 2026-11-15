@@ -15,7 +15,6 @@ import { Pairing } from '../pairing/Pairing'
 import { dropShared, share } from '../pairing/connect'
 import { deletePin } from '../pairing/store'
 import {
-  ADMIN_ONLY,
   AppError,
   describe,
   renameMessage,
@@ -26,8 +25,6 @@ import { isBack } from '../library/items'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
-import { Invites } from '../households/Invites'
-import { Members } from '../households/Members'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../focus'
 
@@ -279,14 +276,6 @@ export function Gateways() {
             </li>
           ))}
         </ul>
-      )}
-      <Members />
-      {admin && <Invites />}
-      {role === 'member' && (
-        <section>
-          <h2>Invites</h2>
-          <p>Invite someone: {ADMIN_ONLY}</p>
-        </section>
       )}
     </section>
   )

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { authed } from '../../api'
 import { switchHousehold } from './household'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
+import { arrowFocus } from '../../focus'
 
 type Invite = { id: string; createdAt: string; expiresAt: string }
 type Preview = { householdId: string; name: string | null; member: boolean }
@@ -13,13 +14,16 @@ type Preview = { householdId: string; name: string | null; member: boolean }
 const linkFor = (token: string) => `${location.origin}/join#${token}`
 
 // Invites of the current household (admin-only, #191): create a single-use link
-// (7 days), list the pending ones, revoke one. The link is shown once.
+// (7 days), list the pending ones, revoke one. The link is shown once: Copy, or
+// Share through the phone's apps (Web Share; absent on TVs and plain http).
 export function Invites() {
   const [invites, setInvites] = useState<Invite[]>([])
   const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(
     null,
   )
+  const [copied, setCopied] = useState(false)
   const [err, setErr] = useState<AppError | null>(null)
+  const inviteBtn = useRef<HTMLButtonElement>(null)
 
   const load = () =>
     authed<Invite[]>('/invites')
@@ -36,6 +40,7 @@ export function Invites() {
         method: 'POST',
       })
       setLink({ url: linkFor(r.token), expiresAt: r.expiresAt })
+      setCopied(false)
       await load()
     } catch (e) {
       setErr(toAppError(e))
@@ -46,48 +51,84 @@ export function Invites() {
     setErr(null)
     try {
       await authed(`/invites/${id}`, { method: 'DELETE' })
+      // Revoke goes with its row: focus a control that stays, or the D-pad
+      // (arrowFocus on the page) loses its place, as in Pairing (#226).
+      inviteBtn.current?.focus()
       await load()
     } catch (e) {
       setErr(toAppError(e))
     }
   }
 
+  // No clipboard API on plain http (a LAN address): the link selects on click.
+  const copy = (url: string) =>
+    navigator.clipboard
+      ?.writeText(url)
+      .then(() => setCopied(true))
+      .catch(() => {})
+  const share = (url: string) =>
+    navigator
+      .share({ title: 'Join my StreamIQ household', url })
+      .catch(() => {}) // closed the share sheet
+
   return (
-    <section>
-      <h2>Invites</h2>
+    <section className="card">
+      <div className="card-head">
+        <h2>Invites</h2>
+        <button
+          ref={inviteBtn}
+          type="button"
+          className="primary"
+          onClick={create}
+        >
+          Invite someone
+        </button>
+      </div>
       {err && <ErrorView error={err} />}
-      <button type="button" onClick={create}>
-        Invite someone
-      </button>
       {link && (
-        <div>
+        <div className="pair-box invite-link">
           <p>
             Send this link to the person you invite. It works once and expires{' '}
-            {new Date(link.expiresAt).toLocaleString()}:
+            {new Date(link.expiresAt).toLocaleString()}.
           </p>
-          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-            {link.url}
-          </pre>
-          <button
-            type="button"
-            onClick={() => navigator.clipboard.writeText(link.url)}
-          >
-            Copy
-          </button>
+          <pre>{link.url}</pre>
+          <div className="actions">
+            <button type="button" onClick={() => copy(link.url)}>
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+            {'share' in navigator && (
+              <button type="button" onClick={() => share(link.url)}>
+                Share…
+              </button>
+            )}
+          </div>
         </div>
       )}
-      {invites.length > 0 && (
-        <ul style={{ listStyle: 'none', padding: 0 }}>
+      {invites.length > 0 ? (
+        <ul className="rows">
           {invites.map((i) => (
             <li key={i.id}>
-              Pending invite, created {new Date(i.createdAt).toLocaleString()},
-              expires {new Date(i.expiresAt).toLocaleString()}{' '}
-              <button type="button" onClick={() => revoke(i.id)}>
-                Revoke
-              </button>
+              <span className="who">
+                <b>Pending invite</b>
+                <span className="meta muted">
+                  Created {new Date(i.createdAt).toLocaleString()} · expires{' '}
+                  {new Date(i.expiresAt).toLocaleString()}
+                </span>
+              </span>
+              <span className="row-actions">
+                <button type="button" onClick={() => revoke(i.id)}>
+                  Revoke
+                </button>
+              </span>
             </li>
           ))}
         </ul>
+      ) : (
+        !link && (
+          <p className="meta muted">
+            No open invites. An invite link works once and for 7 days.
+          </p>
+        )
       )}
     </section>
   )
@@ -137,26 +178,40 @@ export function Join() {
     }
   }
 
-  if (err) return <ErrorView error={err} />
-  if (!preview) return <p>Checking the invite…</p>
   return (
-    <section>
-      <h2>Join a household</h2>
-      <p>
-        You're invited to join <b>{preview.name ?? 'a household'}</b> as a
-        member: you can watch on its gateways.
-      </p>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="button" disabled={busy} onClick={join}>
-          Join
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate({ to: '/', replace: true })}
-        >
-          Not now
-        </button>
-      </div>
+    <section className="card join" onKeyDown={arrowFocus}>
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M3 11l9-7 9 7M5 10v10h14V10" />
+      </svg>
+      {err ? (
+        <ErrorView error={err} />
+      ) : !preview ? (
+        <p className="muted">Checking the invite…</p>
+      ) : (
+        <>
+          <h1>Join {preview.name ?? 'a household'}</h1>
+          <p className="muted">
+            You're invited as a member: you can watch on its gateways.
+          </p>
+          <div className="actions">
+            <button
+              type="button"
+              className="primary"
+              autoFocus
+              disabled={busy}
+              onClick={join}
+            >
+              Join
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate({ to: '/', replace: true })}
+            >
+              Not now
+            </button>
+          </div>
+        </>
+      )}
     </section>
   )
 }

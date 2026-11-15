@@ -53,6 +53,7 @@ import { clearArt } from './features/library/art'
 import { getGateways, type Gateway } from './features/gateways/api'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
+import { Household } from './features/households/HouseholdPage'
 import {
   HouseholdContext,
   householdLabel,
@@ -368,6 +369,7 @@ function Shell() {
               Library
             </Link>
           )}
+          <Link to="/household">Household</Link>
           <Link to="/settings">Settings</Link>
         </nav>
         <span className="grow" />
@@ -474,6 +476,11 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: 'settings',
     component: Settings,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'household',
+    component: Household,
   }),
   createRoute({
     getParentRoute: () => rootRoute,

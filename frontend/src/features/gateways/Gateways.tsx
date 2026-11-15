@@ -202,7 +202,7 @@ export function Gateways() {
       {!!gateways?.length && (
         <ul className="cards">
           {gateways.map((d) => (
-            <li key={d.id} className="card">
+            <li key={d.id} className="card" data-gateway={d.id}>
               <div className="card-head">
                 <GatewayName
                   name={d.name ?? 'gateway'}
@@ -335,6 +335,21 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
     return () => clearTimeout(t)
   }, [active])
 
+  // An update started here can unmount the focused control (the button on a
+  // 409, the Updating line once done): focus then falls to <body>, outside the
+  // D-pad container. Put it on the card's Status, which always renders (#226,
+  // as Pairing does). Only on this notice's own state changes, not the poll.
+  const keep = useRef(false)
+  useEffect(() => {
+    const lost =
+      !document.activeElement || document.activeElement === document.body
+    if (!keep.current || !lost) return
+    document
+      .querySelector<HTMLElement>(`[data-gateway="${g.id}"] summary`)
+      ?.focus()
+    keep.current = false
+  }, [g.id, active, remote, g.update])
+
   async function start(target: string) {
     if (
       !confirm(
@@ -343,6 +358,7 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
     )
       return
     setMsg(null)
+    keep.current = true
     try {
       const r = await updateGateway(g.id)
       if ('reason' in r) setRemote(r.reason)

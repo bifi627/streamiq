@@ -474,7 +474,8 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 }
 
 // POST /streamiq/name (#310): admin-only, answers the stored name, a hook's
-// ErrBadRequest (or a bad body) is 400, and without the hook it 404s.
+// ErrBadRequest (or a bad body) is 400, any other hook error 500, and without
+// the hook it 404s.
 func TestRename(t *testing.T) {
 	j, _ := fakeJellyfin(t)
 	stored := ""
@@ -515,5 +516,10 @@ func TestRename(t *testing.T) {
 	}
 	if stored != "Living room" {
 		t.Fatalf("stored %q", stored)
+	}
+	// The hook's own failure (state dir unwritable) is 500, never 502 (#327).
+	j.Rename = func(string) (string, error) { return "", fmt.Errorf("disk full") }
+	if st, _ := call(Admin, `{"name":"x"}`); st != http.StatusInternalServerError {
+		t.Fatalf("failing hook: %d, want 500", st)
 	}
 }

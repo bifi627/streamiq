@@ -57,6 +57,7 @@ body {
   margin: 0;
   background: var(--bg);
   min-height: 100vh;
+  min-height: 100dvh; /* phone address bar; Chrome 87 keeps 100vh */
 }
 
 h1,
@@ -103,7 +104,8 @@ button {
 button:hover {
   background: #2a2a30;
 }
-button:disabled {
+button:disabled,
+button[aria-disabled='true'] /* busy, but keeps focus for the D-pad */ {
   opacity: 0.5;
   cursor: default;
 }
@@ -263,6 +265,7 @@ input[type='radio'] {
   gap: var(--sp-5);
   max-width: 26rem;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: var(--sp-7) var(--sp-5) var(--sp-6);
 }

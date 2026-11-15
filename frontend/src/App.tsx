@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -57,6 +57,8 @@ import {
 // Readable text for the popup failures a user can cause; anything else keeps
 // Firebase's message (still useful when reported).
 const authErrors: Record<string, string> = {
+  'auth/invalid-email': 'Enter a valid email address.',
+  'auth/missing-email': 'Enter your email address.',
   'auth/popup-closed-by-user': 'Sign-in window was closed before finishing.',
   'auth/cancelled-popup-request': 'Sign-in window was closed before finishing.',
   'auth/popup-blocked':
@@ -75,13 +77,22 @@ function SignIn() {
   const [show, setShow] = useState(false)
   const [signUp, setSignUp] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // A ref, not the state: a second Enter can land before the re-render.
+  const busyRef = useRef(false)
+  const [busy, setBusy] = useState(false)
 
   async function run(f: () => Promise<unknown>) {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
     setErr(null)
     try {
       await f()
     } catch (e) {
       setErr(authMessage(e))
+    } finally {
+      busyRef.current = false
+      setBusy(false)
     }
   }
 
@@ -110,6 +121,7 @@ function SignIn() {
       <button
         type="button"
         className="wide google"
+        aria-disabled={busy}
         onClick={() =>
           run(() => signInWithPopup(auth, new GoogleAuthProvider()))
         }
@@ -136,7 +148,8 @@ function SignIn() {
         Continue with Google
       </button>
       <div className="or meta muted">or</div>
-      <form onSubmit={submit}>
+      {/* noValidate: a bad email gets our inline error, not the browser's pop-up */}
+      <form onSubmit={submit} noValidate>
         <label>
           Email
           <input
@@ -172,7 +185,7 @@ function SignIn() {
             {err}
           </p>
         )}
-        <button type="submit" className="primary wide">
+        <button type="submit" className="primary wide" aria-disabled={busy}>
           {signUp ? 'Create account' : 'Sign in'}
         </button>
       </form>

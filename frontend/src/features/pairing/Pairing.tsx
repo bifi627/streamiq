@@ -128,11 +128,7 @@ export function Pairing({
           <dl className="facts">
             <dt>Route</dt>
             <dd>
-              {!s.path
-                ? 'unknown'
-                : s.path.relay
-                  ? 'relayed (TURN)'
-                  : 'direct'}
+              {!s.path ? 'unknown' : s.path.relay ? 'relayed (TURN)' : 'direct'}
               {s.path?.rttMs !== undefined &&
                 ` · ${s.path.rttMs.toLocaleString()} ms round trip`}
             </dd>

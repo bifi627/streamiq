@@ -196,7 +196,7 @@ function Settings() {
       </p>
       <DiagnosticsToggle />
       <p className="muted">
-        Connection details on every page, to report a problem.
+        Connection, CPU and memory details on every page, to report a problem.
       </p>
       <p className="setting">
         {auth.currentUser?.email}{' '}

@@ -137,6 +137,37 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await test.step('browser A pairs; codes match on both sides', () =>
       pair(a, gatewayCtx, gateway.pageUrl))
 
+    await test.step('admin renames the gateway over the tunnel (#310)', async () => {
+      const card = a.getByRole('listitem').filter({ hasText: 'Version' })
+      const renameBtn = card.getByRole('button', { name: 'Rename' })
+      const input = card.getByRole('textbox', { name: 'Gateway name' })
+      const heading = card.getByRole('heading', { level: 2 })
+      const before = await heading.textContent()
+      await renameBtn.click()
+      await input.fill('discarded')
+      await a.keyboard.press('Escape') // cancels
+      await expect(heading).toHaveText(before!)
+      await expect(renameBtn).toBeFocused() // D-pad keeps its place
+      await a.keyboard.press('Enter') // reopens from the keyboard
+      await input.fill('  Living room NAS  ')
+      await a.keyboard.press('Enter') // saves
+      await expect(heading).toHaveText('Living room NAS')
+      await expect(renameBtn).toBeFocused()
+      // The gateway owns it: its local page shows it at once, and the API
+      // learns it from the early heartbeat (a reload reads the list again).
+      const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
+      await expect(
+        gatewayPage.getByRole('heading', {
+          name: 'StreamIQ gateway · Living room NAS',
+        }),
+      ).toBeVisible()
+      await gatewayPage.close()
+      await a.reload()
+      await expect(
+        a.getByRole('heading', { level: 2, name: 'Living room NAS' }),
+      ).toBeVisible()
+    })
+
     await test.step('library → back → library within 30 s: one shared session (#152)', async () => {
       let rows = 0 // connection telemetry: one POST per session attempt
       const count = (r: Request) =>

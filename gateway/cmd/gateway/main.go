@@ -540,6 +540,13 @@ func run(ctx context.Context) {
 		newer.Store(new(string))
 		go checkUpdates(ctx, &notice, &newer)
 		started := time.Now().UTC()
+		jf.Rename = func(name string) (string, error) { // gateway API POST /streamiq/name (#310)
+			n, err := st.SetName(name)
+			if errors.Is(err, onboarding.ErrBadName) {
+				err = fmt.Errorf("%w: %w", tunnel.ErrBadRequest, err)
+			}
+			return n, err
+		}
 		jf.Status = func(user string) any { // gateway API GET /streamiq/status (docs/protocol.md)
 			v := setup.View()
 			return map[string]any{
@@ -560,7 +567,7 @@ func run(ctx context.Context) {
 		go func() {
 			log.Printf("gateway: local page on %s (login link in %s)", lan, filepath.Join(stateDir, "page-link"))
 			page := localpage.Handler(localpage.Config{
-				Name: st.Name, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
+				Name: st.CurrentName, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
 				LastBeat: &lastBeat, Update: &notice, Store: store,
 				Jellyfin: func() any { return setup.View() }, Login: setup.Login,
 			})

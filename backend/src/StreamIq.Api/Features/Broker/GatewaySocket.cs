@@ -67,6 +67,7 @@ public static class GatewaySocket
                             var lanUrl = SafeLanUrl((string?)msg["lanUrl"]);
                             var version = (string?)msg["version"] is { Length: <= 40 } v ? v : null;
                             var update = (string?)msg["update"] is { Length: > 0 and <= 40 } u ? u : null;
+                            var name = SafeName((string?)msg["name"]);
                             // Matching the hash, not just the id: a socket that authenticated
                             // just before a revoke is closed at its next heartbeat.
                             var live = await db.Gateways.Where(d => d.Id == gateway.Id && d.CredentialHash == hash)
@@ -75,7 +76,8 @@ public static class GatewaySocket
                                     .SetProperty(d => d.LanUrl, lanUrl)
                                     .SetProperty(d => d.Version, version)
                                     .SetProperty(d => d.Protocol, protocol)
-                                    .SetProperty(d => d.Update, update), ct);
+                                    .SetProperty(d => d.Update, update)
+                                    .SetProperty(d => d.Name, d => name ?? d.Name), ct);
                             if (live == 0)
                             {
                                 await me.KillAsync("revoked");
@@ -115,6 +117,18 @@ public static class GatewaySocket
             ["sdp"] = m["sdp"]?.DeepClone(),
             ["candidate"] = m["candidate"]?.DeepClone(),
         };
+    }
+
+    // The gateway owns its name (#310). Missing or blank (an older gateway) or with a
+    // control character (Postgres text refuses NUL) = null: keep the stored name. Cut to
+    // 100 UTF-16 units, never between a surrogate pair (Npgsql refuses a lone one).
+    internal static string? SafeName(string? s)
+    {
+        if (s?.Trim() is not { Length: > 0 } n || n.Any(char.IsControl))
+        {
+            return null;
+        }
+        return n.Length <= 100 ? n : n[..(char.IsHighSurrogate(n[99]) ? 99 : 100)];
     }
 
     // The web app renders this as a link: only plain http(s) URLs, never javascript: etc.

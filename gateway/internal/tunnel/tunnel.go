@@ -8,6 +8,7 @@ package tunnel
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -186,8 +187,8 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 
 // gatewayAPI answers /streamiq/* (docs/protocol.md, "Gateway API"): the gateway
 // itself, never Jellyfin, and without a Jellyfin token. Only an exact, unencoded
-// path matches (GET, or POST on the screen endpoints); anything else under the
-// prefix is 404.
+// path matches (GET, or POST on the screen endpoints and /streamiq/name);
+// anything else under the prefix is 404.
 func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[string]string, io.ReadCloser, error) {
 	method := rq.Method
 	switch {
@@ -196,6 +197,8 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 		return http.StatusForbidden, nil, nil, fmt.Errorf("gateway API: %s %s is admin-only", method, u.Path)
 	case isScreenPath(u.Path):
 		return screenAPI(method, u.Path, rq.Body, who)
+	case u.Path == NamePath && method == "POST" && j.Rename != nil:
+		return rename(j.Rename, rq.Body)
 	case method != "GET":
 	case u.Path == BurstPath:
 		return burst(u.Query().Get("size"))
@@ -217,10 +220,36 @@ const (
 )
 
 // AdminOnly marks gateway API paths (exact, any method) that only a household
-// admin may call; a member gets 403. None yet: #89 decides per endpoint.
+// admin may call; a member gets 403. #89 decides per endpoint.
 // ponytail: exact paths only; a prefix/pattern match when an admin-only path takes an id.
 // A sync.Map so tests can mark a path while tunnel goroutines read it.
 var AdminOnly sync.Map // path -> true
+
+func init() { AdminOnly.Store(NamePath, true) }
+
+// NamePath renames the gateway (#310): POST {"name": "…"} → 200 {"name": stored}.
+// The gateway owns its name; the heartbeat tells the API.
+const NamePath = "/streamiq/name"
+
+// ErrBadRequest from a gateway API hook (Jellyfin.Rename) answers 400.
+var ErrBadRequest = errors.New("bad request")
+
+func rename(set func(string) (string, error), body string) (int, map[string]string, io.ReadCloser, error) {
+	var in struct{ Name string }
+	if json.Unmarshal([]byte(body), &in) != nil {
+		return http.StatusBadRequest, nil, nil, errors.New("gateway API: rename: bad body")
+	}
+	name, err := set(in.Name)
+	if errors.Is(err, ErrBadRequest) {
+		return http.StatusBadRequest, nil, nil, err
+	}
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	b, _ := json.Marshal(map[string]string{"name": name})
+	hdr := map[string]string{"Content-Type": "application/json", "Content-Length": strconv.Itoa(len(b)), "Cache-Control": "no-store"}
+	return http.StatusOK, hdr, io.NopCloser(bytes.NewReader(b)), nil
+}
 
 // isGatewayAPI: the prefix is matched case-insensitively, like Jellyfin's
 // routing, so no spelling of it reaches Jellyfin.

@@ -29,6 +29,9 @@ type Jellyfin struct {
 	// request for a session of user (users.id). ponytail: lives here because the
 	// tunnel has one config struct.
 	Status func(user string) any
+	// Rename is POST /streamiq/name (#310): stores the trimmed name and returns
+	// it; ErrBadRequest = out of bounds. nil = the endpoint 404s.
+	Rename func(name string) (string, error)
 	// Viewer is a StreamIQ user's own token and Jellyfin user id; "" = none, use
 	// the shared one (SetKey). nil = everyone shares it.
 	Viewer func(user string) (key, userID string)

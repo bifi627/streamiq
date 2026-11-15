@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -89,14 +91,14 @@ func TestRunControlHeartbeats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var lastBeat atomic.Int64
-	go RunControl(ctx, srv.URL, &State{Credential: "cred-1"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat,
+	go RunControl(ctx, srv.URL, &State{Credential: "cred-1", Name: "nas"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat,
 		func() string { return "" }, func([]byte, func(any)) {})
 	select {
 	case hb := <-got:
-		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" || hb["protocol"] != float64(Protocol) {
+		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" || hb["protocol"] != float64(Protocol) || hb["name"] != "nas" {
 			t.Fatalf("heartbeat = %v", hb)
 		}
-		if len(hb) != 4 { // liveness only (#140): details are GET /streamiq/status
+		if len(hb) != 5 { // liveness + name only (#140): details are GET /streamiq/status
 			t.Fatalf("heartbeat has extra fields: %v", hb)
 		}
 		if _, ok := hb["update"]; ok {
@@ -104,6 +106,74 @@ func TestRunControlHeartbeats(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("no heartbeat received")
+	}
+}
+
+// SetName (#310) trims, refuses out-of-bounds names, stores the name in
+// gateway.json and sends a heartbeat with it right away, not at the next tick.
+func TestSetNameStoresAndBeatsEarly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gateway.json")
+	os.WriteFile(path, []byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600)
+	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"", "   ", strings.Repeat("x", 101), "a\x00b", "a\nb", strings.Repeat("😀", 51)} {
+		if _, err := st.SetName(bad); !errors.Is(err, ErrBadName) {
+			t.Fatalf("SetName(%q) = %v, want ErrBadName", bad, err)
+		}
+	}
+	for _, ok := range []string{strings.Repeat("é", 100), strings.Repeat("😀", 50)} { // 100 UTF-16 units
+		if n, err := st.SetName(ok); err != nil || n != ok {
+			t.Fatalf("100 units: %q, %v", n, err)
+		}
+	}
+
+	beats := make(chan string, 4)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		for {
+			_, b, err := c.Read(r.Context())
+			if err != nil {
+				return
+			}
+			var hb map[string]any
+			json.Unmarshal(b, &hb)
+			beats <- hb["name"].(string)
+		}
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	<-st.renamed // drop the signal from the setup rename above
+	go RunControl(ctx, srv.URL, st, "", "dev", new(atomic.Int64), func() string { return "" }, func([]byte, func(any)) {})
+	next := func() string {
+		select {
+		case n := <-beats:
+			return n
+		case <-ctx.Done():
+			t.Fatal("no heartbeat (the early one must not wait 30 s)")
+			return ""
+		}
+	}
+	next() // the connect beat
+	if n, err := st.SetName("  Living room NAS  "); err != nil || n != "Living room NAS" {
+		t.Fatalf("SetName = %q, %v", n, err)
+	}
+	if n := next(); n != "Living room NAS" {
+		t.Fatalf("early heartbeat name = %q", n)
+	}
+	b, _ := os.ReadFile(path)
+	var saved State
+	if json.Unmarshal(b, &saved); saved.Name != "Living room NAS" || saved.Credential != "cred-1" || saved.GatewayID != "g1" {
+		t.Fatalf("gateway.json = %s", b)
+	}
+	if st.CurrentName() != "Living room NAS" {
+		t.Fatalf("CurrentName = %q", st.CurrentName())
 	}
 }
 

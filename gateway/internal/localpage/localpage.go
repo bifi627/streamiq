@@ -99,12 +99,13 @@ DTLS fingerprint (browsers pin this):<br><code style="word-break:break-all">{{.F
 
 // Config is what the page shows and drives.
 type Config struct {
-	Name, GatewayID, Fingerprint, Version string
-	LastBeat                              *atomic.Int64           // unix time of the last heartbeat, 0 = disconnected
-	Update                                *atomic.Pointer[string] // update notice, "" = up to date
-	Store                                 *pairing.Store
-	Jellyfin                              func() any                                       // status snapshot (jellyfin.View)
-	Login                                 func(ctx context.Context, user, pw string) error // connect Jellyfin (viewer token)
+	Name                            func() string // live: a rename (#310) shows without a restart
+	GatewayID, Fingerprint, Version string
+	LastBeat                        *atomic.Int64           // unix time of the last heartbeat, 0 = disconnected
+	Update                          *atomic.Pointer[string] // update notice, "" = up to date
+	Store                           *pairing.Store
+	Jellyfin                        func() any                                       // status snapshot (jellyfin.View)
+	Login                           func(ctx context.Context, user, pw string) error // connect Jellyfin (viewer token)
 }
 
 // Handler renders the status page and takes the Approve/Reject/Remove and
@@ -118,7 +119,7 @@ func Handler(c Config) http.Handler {
 			beat = time.Unix(t, 0)
 		}
 		page.Execute(w, map[string]any{
-			"Name": c.Name, "GatewayID": c.GatewayID, "Fingerprint": c.Fingerprint,
+			"Name": c.Name(), "GatewayID": c.GatewayID, "Fingerprint": c.Fingerprint,
 			"Version": c.Version, "Update": *c.Update.Load(), "LastBeat": beat,
 			"Jellyfin": c.Jellyfin(), "Pending": c.Store.Pending(), "Paired": c.Store.Paired(),
 		})
@@ -132,7 +133,7 @@ func Handler(c Config) http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(Status{
-			Name: c.Name, Version: c.Version, Update: *c.Update.Load(),
+			Name: c.Name(), Version: c.Version, Update: *c.Update.Load(),
 			LastBeat: c.LastBeat.Load(), Jellyfin: c.Jellyfin(),
 		})
 	})

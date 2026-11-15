@@ -464,6 +464,19 @@ html.tv .no-tv {
 .card-head h2 {
   overflow-wrap: anywhere;
 }
+/* name + Rename, or the inline rename form (#310) */
+.card-head .name {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.card-head .name input {
+  flex: 1;
+  min-width: 10rem;
+}
 .actions {
   display: flex;
   flex-wrap: wrap;

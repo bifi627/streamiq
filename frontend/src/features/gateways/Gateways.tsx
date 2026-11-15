@@ -1,15 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   createEnrollmentToken,
   getGateways,
   removeGateway,
+  renameGateway,
   type Gateway,
   type GatewayStatus,
   type Install,
 } from './api'
 import { Pairing } from '../pairing/Pairing'
 import { share } from '../pairing/connect'
-import { ADMIN_ONLY, AppError, isKind, toAppError } from '../../errors'
+import {
+  ADMIN_ONLY,
+  AppError,
+  describe,
+  isKind,
+  toAppError,
+} from '../../errors'
+import { isBack } from '../library/items'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
@@ -86,6 +94,23 @@ export function Gateways() {
     }
   }
 
+  // null = renamed; else the error to show in the form.
+  async function rename(d: Gateway, name: string) {
+    try {
+      const stored = await renameGateway(d.id, name)
+      setGateways(
+        (gs) =>
+          gs && gs.map((g) => (g.id === d.id ? { ...g, name: stored } : g)),
+      )
+      return null
+    } catch (x) {
+      const e = toAppError(x)
+      return e.context.status === 404
+        ? 'This gateway is too old to rename: update it.'
+        : describe(e).message
+    }
+  }
+
   async function addGateway() {
     try {
       setInstall(await createEnrollmentToken())
@@ -157,7 +182,10 @@ export function Gateways() {
           {gateways.map((d) => (
             <li key={d.id} className="card">
               <div className="card-head">
-                <h2>{d.name ?? 'gateway'}</h2>
+                <GatewayName
+                  name={d.name ?? 'gateway'}
+                  rename={admin && d.online ? (n) => rename(d, n) : undefined}
+                />
                 <span className="chip">
                   <span className={d.online ? 'dot online' : 'dot'} />
                   {d.online ? 'Online' : 'Offline'}
@@ -227,6 +255,88 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
     Remove
   </button>
 )
+
+// The name, plus an inline Rename for an admin while the gateway is online
+// (#310). Enter saves (form submit), Escape / the remote's Back cancels; arrowFocus
+// reaches the controls.
+function GatewayName({
+  name,
+  rename,
+}: {
+  name: string
+  rename?: (name: string) => Promise<string | null>
+}) {
+  const [draft, setDraft] = useState<string | null>(null) // null = not editing
+  const [error, setError] = useState<string | null>(null)
+  const renameBtn = useRef<HTMLButtonElement>(null)
+  const edited = useRef(false)
+  // Closing the form unmounts the focused control: focus Rename again, or the
+  // D-pad (arrowFocus on the section) loses its place, as in Pairing (#226).
+  useEffect(() => {
+    if (draft === null && edited.current) renameBtn.current?.focus()
+    edited.current = draft !== null
+  }, [draft])
+  // !rename: went offline mid-edit, so the name only.
+  if (draft === null || !rename)
+    return (
+      <div className="name">
+        <h2>{name}</h2>
+        {rename && (
+          <button
+            ref={renameBtn}
+            type="button"
+            className="link"
+            onClick={() => {
+              setDraft(name)
+              setError(null)
+            }}
+          >
+            Rename
+          </button>
+        )}
+      </div>
+    )
+  return (
+    <form
+      className="name"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        const e2 = await rename(draft.trim())
+        if (e2) setError(e2)
+        else setDraft(null)
+      }}
+      onKeyDown={(e) => {
+        if (!isBack(e.nativeEvent)) return
+        e.preventDefault() // else the browser's own Back runs too (webOS remote)
+        setDraft(null)
+      }}
+    >
+      <input
+        aria-label="Gateway name"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setError(null)
+        }}
+        maxLength={100}
+        required
+        pattern=".*\S.*"
+        autoFocus
+      />
+      <button type="submit" className="primary">
+        Save
+      </button>
+      <button type="button" onClick={() => setDraft(null)}>
+        Cancel
+      </button>
+      {error && (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  )
+}
 
 const tokenText = {
   ok: 'token set',

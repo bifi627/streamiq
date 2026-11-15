@@ -14,8 +14,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf16"
 
 	"github.com/coder/websocket"
 )
@@ -31,10 +35,58 @@ var ErrUpgradeRequired = errors.New("the StreamIQ service no longer supports thi
 	"update it by rerunning the install command (docs/install.md)")
 
 // State is gateway.json in the state dir. Delete the dir = brand-new gateway.
+// Name is shared mutable state (#310): read it with CurrentName, change it with SetName.
 type State struct {
 	GatewayID  string `json:"gatewayId"`
 	Credential string `json:"credential"`
 	Name       string `json:"name"`
+
+	path    string
+	mu      sync.Mutex
+	renamed chan struct{} // one pending signal: send a heartbeat now
+}
+
+// ErrBadName: a name must be 1–100 characters after trimming, counted in UTF-16
+// units like the API (an emoji is 2), and without control characters (Postgres
+// text refuses NUL).
+var ErrBadName = errors.New("name must be 1-100 characters, no control characters")
+
+// CurrentName is the gateway's name now.
+func (s *State) CurrentName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Name
+}
+
+// SetName trims name, stores it in gateway.json (atomically) and asks
+// RunControl for an early heartbeat, so the API mirrors it at once.
+func (s *State) SetName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if n := len(utf16.Encode([]rune(name))); n < 1 || n > 100 || strings.ContainsFunc(name, unicode.IsControl) {
+		return "", ErrBadName
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := writeAtomic(s.path, s.GatewayID, s.Credential, name); err != nil {
+		return "", err
+	}
+	s.Name = name
+	log.Printf("gateway: renamed to %q", name)
+	select {
+	case s.renamed <- struct{}{}:
+	default: // a beat is already pending
+	}
+	return name, nil
+}
+
+// writeAtomic: a crash mid-write leaves the old file, never half a credential.
+func writeAtomic(path, id, credential, name string) error {
+	b, _ := json.Marshal(map[string]string{"gatewayId": id, "credential": credential, "name": name})
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // LoadOrEnroll returns the stored credential, or spends the enrollment token to
@@ -43,7 +95,7 @@ type State struct {
 func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, error) {
 	path := filepath.Join(dir, "gateway.json")
 	if b, err := os.ReadFile(path); err == nil {
-		var st State
+		st := State{path: path, renamed: make(chan struct{}, 1)}
 		return &st, json.Unmarshal(b, &st)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
@@ -67,12 +119,11 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("enroll: %s (token expired or already used? create a new one)", res.Status)
 	}
-	st := State{Name: name}
+	st := State{Name: name, path: path, renamed: make(chan struct{}, 1)}
 	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
 		return nil, fmt.Errorf("enroll: %w", err)
 	}
-	b, _ := json.Marshal(st)
-	if err := os.WriteFile(path, b, 0o600); err != nil {
+	if err := writeAtomic(path, st.GatewayID, st.Credential, st.Name); err != nil {
 		return nil, err
 	}
 	log.Printf("gateway: enrolled as gateway %s", st.GatewayID)
@@ -85,6 +136,7 @@ type heartbeat struct {
 	Version  string `json:"version"`
 	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
 	Protocol int    `json:"protocol"`
+	Name     string `json:"name"` // the API mirrors it (#310)
 }
 
 // RunControl holds the authenticated control socket until it drops: heartbeats
@@ -121,12 +173,13 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 		t := time.NewTicker(heartbeatEvery)
 		defer t.Stop()
 		for {
-			send(heartbeat{Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol})
+			send(heartbeat{Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol, Name: st.CurrentName()})
 			lastBeat.Store(time.Now().Unix())
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
+			case <-st.renamed: // a rename: tell the API now, not at the next tick
 			}
 		}
 	}()

@@ -160,6 +160,26 @@ public class OnboardingSteps(IntegrationFixture fx) : IDisposable
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
     }
 
+    // "none" = no name field; otherwise the quoted value is sent as it is.
+    [When("gateway \"(.*)\" heartbeats with name \"(.*)\"")]
+    public async Task WhenHeartbeatName(string gateway, string name)
+    {
+        using var ws = await Connect(_credentials[gateway]);
+        var hb = new Dictionary<string, object> { ["type"] = "heartbeat", ["protocol"] = GatewaySocket.MinGatewayProtocol };
+        if (name != "none")
+        {
+            hb["name"] = name.Trim('"');
+        }
+        await ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(hb), WebSocketMessageType.Text, true, CancellationToken.None);
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [Then("\"(.*)\" sees 1 gateway named \"(.*)\"")]
+    public async Task ThenNamed(string email, string name)
+    {
+        Assert.Equal(name, Assert.Single((await Gateways(email)).EnumerateArray()).GetProperty("name").GetString());
+    }
+
     [Then("\"(.*)\" sees \"(.*)\" with update \"(.*)\"")]
     public async Task ThenUpdate(string email, string name, string update)
     {

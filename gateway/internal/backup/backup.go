@@ -25,7 +25,7 @@ var required = []string{"cert.pem", "gateway.json"}
 // maxFile caps one unpacked file: the real ones are a few KB.
 const maxFile = 10 << 20
 
-// FileName is the default backup name: streamiq-gateway-<name>-<date>.zip.
+// FileName is the default backup name: streamiq-gateway-<name>-<date>-<time>.zip.
 func FileName(dir string, now time.Time) string {
 	var st struct{ Name string }
 	b, _ := os.ReadFile(filepath.Join(dir, "gateway.json"))
@@ -34,7 +34,7 @@ func FileName(dir string, now time.Time) string {
 	if name != "" {
 		name += "-"
 	}
-	return "streamiq-gateway-" + name + now.Format("2006-01-02") + ".zip"
+	return "streamiq-gateway-" + name + now.Format("2006-01-02-150405") + ".zip"
 }
 
 // Write zips every regular file in dir except skip. It only reads, so it works
@@ -87,7 +87,7 @@ func Restore(path, dir string, force bool) error {
 	for _, f := range zr.File {
 		n := f.Name
 		// Flat names only: no directories, no zip-slip.
-		if n == "" || n == "." || n == ".." || strings.ContainsAny(n, `/\:`) || f.FileInfo().IsDir() {
+		if !filepath.IsLocal(n) || filepath.Base(n) != n || strings.ContainsAny(n, `/\:`) || f.FileInfo().IsDir() {
 			return fmt.Errorf("%s: not a gateway backup (entry %q)", path, n)
 		}
 		names = append(names, n)
@@ -127,6 +127,19 @@ func Restore(path, dir string, force bool) error {
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
+	}
+	if force { // the old gateway's files the backup doesn't have (e.g. its allowlist.json) go
+		old, err := os.ReadDir(dir)
+		if err != nil {
+			return err
+		}
+		for _, e := range old {
+			if _, ok := files[e.Name()]; !ok && e.Type().IsRegular() && !slices.Contains(skip, e.Name()) {
+				if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	for n, b := range files {
 		p := filepath.Join(dir, n)

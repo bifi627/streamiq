@@ -121,7 +121,7 @@ func main() {
 		}
 	case cmd == "reset-identity":
 		err = resetIdentity()
-	case cmd == "backup" && len(os.Args) <= 3:
+	case cmd == "backup" && (len(os.Args) == 2 || len(os.Args) == 3 && !strings.HasPrefix(os.Args[2], "-")):
 		file := backup.FileName(stateDir(), time.Now())
 		if len(os.Args) == 3 {
 			file = os.Args[2]

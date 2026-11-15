@@ -51,6 +51,10 @@ fi
 # The enrollment token only matters on the first start; it is never stored.
 # Full path on purpose: pkill above matches it on the next update.
 rm -f "$DIR/state/page-link" # the installer waits for this start's fresh link
+# A backup onto this machine (#52): restored before the first start, so it doesn't enroll a new gateway.
+if [ -n "${STREAMIQ_RESTORE:-}" ]; then
+  "$DIR/gateway" restore "$STREAMIQ_RESTORE" || exit 1
+fi
 cd "$DIR" && nohup "$DIR/gateway" >> "$DIR/gateway.log" 2>&1 &
 sleep 2
 echo "StreamIQ gateway started"

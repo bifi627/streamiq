@@ -84,7 +84,7 @@ func TestRoundTrip(t *testing.T) {
 
 func TestRefusesExistingWithoutForce(t *testing.T) {
 	zipPath := backupFile(t, writeDir(t, state))
-	dst := writeDir(t, map[string]string{"gateway.json": `{"name":"other"}`})
+	dst := writeDir(t, map[string]string{"gateway.json": `{"name":"other"}`, "metadata.json": "{}"})
 	err := Restore(zipPath, dst, false)
 	if err == nil || !strings.Contains(err.Error(), "gateway.json") || !strings.Contains(err.Error(), "--force") {
 		t.Fatalf("err = %v, want a refusal naming gateway.json and --force", err)
@@ -95,8 +95,12 @@ func TestRefusesExistingWithoutForce(t *testing.T) {
 	if err := Restore(zipPath, dst, true); err != nil {
 		t.Fatal(err)
 	}
-	if readDir(t, dst)["gateway.json"] != state["gateway.json"] {
+	got := readDir(t, dst)
+	if got["gateway.json"] != state["gateway.json"] {
 		t.Fatal("--force did not overwrite")
+	}
+	if _, ok := got["metadata.json"]; ok {
+		t.Fatal("--force kept the old gateway's file the backup doesn't have")
 	}
 }
 
@@ -123,10 +127,10 @@ func TestWriteNeedsIdentity(t *testing.T) {
 
 func TestFileName(t *testing.T) {
 	day := time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC)
-	if got := FileName(writeDir(t, state), day); got != "streamiq-gateway-Living-room-2026-11-15.zip" {
+	if got := FileName(writeDir(t, state), day); got != "streamiq-gateway-Living-room-2026-11-15-000000.zip" {
 		t.Fatal(got)
 	}
-	if got := FileName(t.TempDir(), day); got != "streamiq-gateway-2026-11-15.zip" {
+	if got := FileName(t.TempDir(), day); got != "streamiq-gateway-2026-11-15-000000.zip" {
 		t.Fatal(got)
 	}
 }

@@ -663,10 +663,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         "This browser isn't paired with this gateway (anymore). Pair it again.",
       )
       await alert.getByRole('button', { name: 'Pair this browser' }).click()
-      const code = (await alert
-        .locator('p', { hasText: /^Code/ })
-        .locator('b')
-        .textContent())!
+      const code = (await alert.getByLabel('Comparison code').textContent())!
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       const request = gatewayPage.locator('form[action="/decide"]')
       await expect(request).toContainText(code)

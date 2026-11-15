@@ -100,6 +100,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
             <Pairing
               gatewayId={gatewayId}
               lanUrl={null}
+              needsPair
               onPaired={() => {
                 setErr(null)
                 setAttempt((n) => n + 1)

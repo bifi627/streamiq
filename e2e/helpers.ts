@@ -77,8 +77,13 @@ export const videoTime = (p: Page) =>
     .locator('video')
     .evaluate((v: HTMLVideoElement) => (v.readyState >= 2 ? v.currentTime : -1))
 
-export const tunnelOk = (p: Page) =>
-  expect(p.getByText('Tunnel OK · HTTP 200')).toBeVisible()
+/** Test connection (or a pairing) tunneled GET /System/Info/Public: a 2xx
+ * (else ErrorView) and the server's version shown from its JSON. */
+export async function tunnelOk(p: Page) {
+  const ok = p.locator('[role=status]', { hasText: 'Tunnel OK' })
+  await expect(ok).toBeVisible()
+  await expect(ok.locator('dt', { hasText: 'Version' })).toBeVisible()
+}
 
 /**
  * Opens the local gateway page in a new tab. Navigating the old tab races its
@@ -94,10 +99,7 @@ export async function gatewayTab(ctx: BrowserContext, url: string) {
 /** Pair from the web app; approve on the gateway page only if the codes match. */
 export async function pair(app: Page, ctx: BrowserContext, gatewayUrl: string) {
   await app.getByRole('button', { name: 'Pair this browser' }).click()
-  const code = (await app
-    .locator('p', { hasText: /^Code/ })
-    .locator('b')
-    .textContent())!
+  const code = (await app.getByLabel('Comparison code').textContent())!
   const gatewayPage = await gatewayTab(ctx, gatewayUrl)
   const request = gatewayPage.locator('form[action="/decide"]')
   await expect(request).toContainText(code) // page self-refreshes every 3s

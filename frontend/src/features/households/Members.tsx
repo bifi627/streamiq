@@ -63,37 +63,58 @@ export function Members() {
     act(m, { method: 'PUT', body: JSON.stringify({ role }) }, '/role')
 
   return (
-    <section>
+    <section className="card">
       <h2>Members</h2>
       {err && <ErrorView error={err} />}
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {members.map((m) => (
-          <li key={m.userId}>
-            {who(m)}
-            {m.name && m.email && (
-              <span style={{ color: '#888' }}> {m.email}</span>
-            )}
-            {m.userId === me?.id && ' (you)'} — {m.role}, joined{' '}
-            {new Date(m.joinedAt).toLocaleDateString()}{' '}
-            {me?.admin &&
-              (m.role === 'admin' ? (
-                <button type="button" onClick={() => setRole(m, 'member')}>
-                  Make member
-                </button>
-              ) : (
-                <button type="button" onClick={() => setRole(m, 'admin')}>
-                  Make admin
-                </button>
-              ))}{' '}
-            {(me?.admin || m.userId === me?.id) && (
-              <button type="button" onClick={() => remove(m)}>
-                {m.userId === me?.id ? 'Leave' : 'Remove'}
-              </button>
-            )}
-          </li>
-        ))}
+      <ul className="rows">
+        {members.map((m) => {
+          const self = m.userId === me?.id
+          return (
+            <li key={m.userId}>
+              <span className="avatar" aria-hidden="true">
+                {who(m).charAt(0).toUpperCase()}
+              </span>
+              <span className="who">
+                <span className="name-line">
+                  <b>
+                    {who(m)}
+                    {self && <span className="muted"> (you)</span>}
+                  </b>
+                  <span className={m.role === 'admin' ? 'chip admin' : 'chip'}>
+                    {m.role === 'admin' ? 'Admin' : 'Member'}
+                  </span>
+                </span>
+                {m.name && m.email && (
+                  <span className="meta muted">{m.email}</span>
+                )}
+                <span className="meta muted">
+                  Joined {new Date(m.joinedAt).toLocaleDateString()}
+                </span>
+              </span>
+              {(me?.admin || self) && (
+                <span className="row-actions">
+                  {me?.admin && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRole(m, m.role === 'admin' ? 'member' : 'admin')
+                      }
+                    >
+                      {m.role === 'admin' ? 'Make member' : 'Make admin'}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => remove(m)}>
+                    {self ? 'Leave' : 'Remove'}
+                  </button>
+                </span>
+              )}
+            </li>
+          )
+        })}
       </ul>
-      {me && !me.admin && <p>Remove members, change roles: {ADMIN_ONLY}</p>}
+      {me && !me.admin && (
+        <p className="meta muted">Remove members, change roles: {ADMIN_ONLY}</p>
+      )}
     </section>
   )
 }

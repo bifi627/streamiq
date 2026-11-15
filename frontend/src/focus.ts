@@ -32,11 +32,20 @@ export function nearest(from: Box, boxes: Box[], key: string) {
 }
 
 const focusable =
-  'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
   const from = e.target as HTMLElement
-  if (!dirs.includes(e.key) || from.matches('input, select, textarea')) return
+  if (
+    !dirs.includes(e.key) ||
+    e.altKey ||
+    e.ctrlKey ||
+    e.metaKey ||
+    e.shiftKey || // browser shortcuts
+    e.defaultPrevented || // an inner container moved already
+    from.matches('input, select, textarea')
+  )
+    return
   const els = [
     ...e.currentTarget.querySelectorAll<HTMLElement>(focusable),
   ].filter((el) => el !== from && el.getClientRects().length > 0)

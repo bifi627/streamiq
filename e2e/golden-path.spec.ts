@@ -326,13 +326,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         .toBeCloseTo(880, -2)
       // Newest first: this load's decision, then the pick before it. Video
       // may transcode (the mkv has no bitrate); the audio is copied.
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
           /jellyfin: video \w+ \(h264\) · audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: default not decodable, stream \1 instead/,
         ),
       ).toBeVisible()
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       // The audio menu shows it as the one playing.
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a.getByRole('menuitem', { name: /^Audio/ }).click()

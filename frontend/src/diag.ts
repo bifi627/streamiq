@@ -1,6 +1,6 @@
 // On-page connection diagnostics for devices without devtools (TVs, phones).
 // Always recorded (cheap ring buffers); the panel only shows when enabled via
-// the header's Diagnostics button or `?debug`. Toggles live in localStorage
+// the Settings checkbox or `?debug`. Toggles live in localStorage
 // because a TV can't edit the URL.
 
 export type Req = {

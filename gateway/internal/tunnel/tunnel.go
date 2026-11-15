@@ -157,7 +157,13 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 		return http.StatusRequestEntityTooLarge, nil, nil, fmt.Errorf("body %d bytes", len(rq.Body))
 	}
 	if u, err := url.Parse(rq.URL); err == nil && isGatewayAPI(u.Path) {
-		return gatewayAPI(j, rq, u, who)
+		status, hdr, body, err := gatewayAPI(j, rq, u, who)
+		if status == 0 && err != nil {
+			// The gateway's own failure (#327): 500, not the 502 handleReq
+			// gives a failed Jellyfin call, which the web app shows as "media server down".
+			status = http.StatusInternalServerError
+		}
+		return status, hdr, body, err
 	}
 	c := j.credFor(who.User)
 	req, status, err := j.prepare(rq, c)

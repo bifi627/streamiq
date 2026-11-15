@@ -293,7 +293,8 @@ Sequence on a request channel:
    ```
    A refused request gets a head (then EOF) only: `403` (not allowlisted), `413` (body too
    large), `503` (gateway has no Jellyfin key), `502` (Jellyfin unreachable). The
-   gateway API (below) refuses with its own statuses (`400`, `404`, `409`).
+   gateway API (below) refuses with its own statuses (`400`, `404`, `409`), and answers
+   its own failure with `500`.
 3. **Gateway → browser** (zero or more binary frames): the body, in ~60 KB
    chunks under `bufferedAmount` backpressure. A whole segment is never sent
    as one message.
@@ -322,7 +323,9 @@ case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints and
 `/streamiq/name`) matches an endpoint; anything else under the prefix (unknown path, other method,
-percent-encoded) is `404`. A `body` over 64 KB is `413`. Like every
+percent-encoded) is `404`. A `body` over 64 KB is `413`. A handler's own failure
+(e.g. `/streamiq/name` can't write `state/gateway.json`) is `500`, never the `502`
+that means Jellyfin is unreachable (#327). Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (`tunnel.AdminOnly`, exact

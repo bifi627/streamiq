@@ -88,6 +88,15 @@ export const brokerError = (text: string, context: Context = {}) =>
 /** Also the hint where an admin-only action is hidden from a member (#211). */
 export const ADMIN_ONLY = 'Only a household admin can do this.'
 
+/** The rename form's text for a failed POST /streamiq/name (#310). A 500 is
+ * the gateway's own failure, e.g. it can't write its state dir (#327). */
+export const renameMessage = (e: AppError) =>
+  e.context.status === 404
+    ? 'This gateway is too old to rename: update it.'
+    : e.context.status === 500
+      ? "The gateway couldn't save the name; see its log."
+      : describe(e).message
+
 export type Action = 'retry' | 'pair' | 'gateways' | 'sign-in'
 
 // ponytail: placeholder wording; the real text comes with the design pass (#93).

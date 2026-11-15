@@ -13,7 +13,7 @@ import { share } from '../pairing/connect'
 import {
   ADMIN_ONLY,
   AppError,
-  describe,
+  renameMessage,
   isKind,
   toAppError,
 } from '../../errors'
@@ -114,11 +114,8 @@ export function Gateways() {
           gs && gs.map((g) => (g.id === d.id ? { ...g, name: stored } : g)),
       )
       return null
-    } catch (x) {
-      const e = toAppError(x)
-      return e.context.status === 404
-        ? 'This gateway is too old to rename: update it.'
-        : describe(e).message
+    } catch (e) {
+      return renameMessage(toAppError(e))
     }
   }
 

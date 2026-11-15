@@ -6,6 +6,7 @@ import {
   brokerError,
   describe,
   httpError,
+  renameMessage,
   toAppError,
   type Kind,
 } from './errors.ts'
@@ -36,6 +37,14 @@ test('HTTP status → kind, by who answered', () => {
   const e = httpError('tunnel', 404, '/streamiq/status')
   assert.equal(e.context.status, 404)
   assert.equal(e.message, '/streamiq/status → HTTP 404')
+})
+
+test('rename form: a gateway 500 names the gateway, never the media server', () => {
+  const m = (s: number) =>
+    renameMessage(httpError('tunnel', s, '/streamiq/name'))
+  assert.equal(m(500), "The gateway couldn't save the name; see its log.")
+  assert.equal(m(404), 'This gateway is too old to rename: update it.')
+  assert.equal(m(403), 'Request failed.')
 })
 
 test('toAppError keeps AppErrors and wraps the rest as unknown', () => {

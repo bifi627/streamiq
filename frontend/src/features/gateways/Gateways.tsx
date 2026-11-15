@@ -10,6 +10,7 @@ import {
 } from './api'
 import { Pairing } from '../pairing/Pairing'
 import { share } from '../pairing/connect'
+import { getPin } from '../pairing/store'
 import {
   ADMIN_ONLY,
   AppError,
@@ -65,6 +66,29 @@ export function Gateways() {
   const [copied, setCopied] = useState<string | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   const navigate = useNavigate()
+  // Gateways this browser holds a pin for: Rename goes over the tunnel, so it
+  // shows only there (#329). A stale pin keeps it: the rename's error says so.
+  const [pinned, setPinned] = useState<ReadonlySet<string>>(new Set())
+  const ids = gateways?.map((g) => g.id).join() ?? ''
+  useEffect(() => {
+    let gone = false
+    Promise.all(
+      ids
+        .split(',')
+        .filter(Boolean)
+        .map((id) =>
+          getPin(id).then(
+            (p) => (p ? id : ''),
+            () => '',
+          ),
+        ),
+    ).then((r) => {
+      if (!gone) setPinned(new Set(r.filter(Boolean)))
+    })
+    return () => {
+      gone = true
+    }
+  }, [ids])
 
   useEffect(() => {
     const load = () =>
@@ -184,7 +208,11 @@ export function Gateways() {
               <div className="card-head">
                 <GatewayName
                   name={d.name ?? 'gateway'}
-                  rename={admin && d.online ? (n) => rename(d, n) : undefined}
+                  rename={
+                    admin && d.online && pinned.has(d.id)
+                      ? (n) => rename(d, n)
+                      : undefined
+                  }
                 />
                 <span className="chip">
                   <span className={d.online ? 'dot online' : 'dot'} />
@@ -212,6 +240,7 @@ export function Gateways() {
                 <Pairing
                   gatewayId={d.id}
                   lanUrl={d.lanUrl}
+                  onPaired={() => setPinned((s) => new Set(s).add(d.id))}
                   open={() =>
                     navigate({
                       to: '/g/$gatewayId',
@@ -257,6 +286,7 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
 )
 
 // The name, plus an inline Rename for an admin while the gateway is online
+// and this browser is paired with it
 // (#310). Enter saves (form submit), Escape / the remote's Back cancels; arrowFocus
 // reaches the controls.
 function GatewayName({

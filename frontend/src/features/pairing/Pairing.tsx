@@ -49,19 +49,22 @@ export function Pairing({
 
   const root = useRef<HTMLDivElement>(null)
   const testBtn = useRef<HTMLButtonElement>(null)
-  // A run can unmount the focused control (Pair once paired or refused, the
-  // error's Retry): focus then falls to <body>, outside every D-pad container.
-  // Put it on Test connection, which always renders (#226).
-  const hadFocus = useRef(false)
+  // A run can unmount the focused control (Pair once refused, the error's
+  // Retry): focus then falls to <body>, outside every D-pad container. Put it
+  // on Test connection, which always renders (#226). Only for a run started
+  // from inside the block, and only on its state changes: never on the
+  // Gateways list's 5 s poll renders.
+  const keep = useRef(false)
   useEffect(() => {
     const lost =
       !document.activeElement || document.activeElement === document.body
-    if (hadFocus.current && lost) testBtn.current?.focus()
-    hadFocus.current = !!root.current?.contains(document.activeElement)
-  })
+    if (keep.current && lost) testBtn.current?.focus()
+    if (s.step === 'done' || s.step === 'failed') keep.current = false
+  }, [s])
   const busy = s.step === 'connecting' || s.step === 'code'
   async function run(pair: boolean) {
     if (busy) return
+    keep.current = !!root.current?.contains(document.activeElement)
     setS({ step: 'connecting', pair })
     try {
       const x = await connect(
@@ -80,7 +83,9 @@ export function Pairing({
         if (pair) onPaired?.() // paired even if the test request failed
       }
     } catch (e) {
-      setS({ step: 'failed', err: toAppError(e) })
+      const err = toAppError(e)
+      if (err.kind === 'not-paired') setPinned(false) // Retry keeps Pair, not Open
+      setS({ step: 'failed', err })
     }
   }
 

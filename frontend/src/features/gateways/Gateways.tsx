@@ -23,18 +23,23 @@ import { arrowFocus } from '../../focus'
 export function Home() {
   const navigate = useNavigate()
   useEffect(() => {
-    const list = () => navigate({ to: '/gateways', replace: true })
+    let gone = false // left before the list came: no redirect
     getGateways()
-      .then((g) =>
-        g.length === 1
-          ? navigate({
-              to: '/g/$gatewayId',
-              params: { gatewayId: g[0].id },
-              replace: true,
-            })
-          : list(),
-      )
-      .catch(list) // the list shows the error
+      .then((g) => (g.length === 1 ? g[0].id : null))
+      .catch(() => null) // the list shows the error
+      .then((id) => {
+        if (gone) return
+        if (id)
+          navigate({
+            to: '/g/$gatewayId',
+            params: { gatewayId: id },
+            replace: true,
+          })
+        else navigate({ to: '/gateways', replace: true })
+      })
+    return () => {
+      gone = true
+    }
   }, [navigate])
   return null
 }
@@ -84,6 +89,7 @@ export function Gateways() {
   async function addGateway() {
     try {
       setInstall(await createEnrollmentToken())
+      setCopied(null)
     } catch (e) {
       setErr(toAppError(e))
     }
@@ -103,14 +109,14 @@ export function Gateways() {
       <div className="head">
         <h1>Gateways</h1>
         {admin && (
-          <button type="button" onClick={addGateway}>
+          <button type="button" className="no-tv" onClick={addGateway}>
             Add gateway
           </button>
         )}
       </div>
       {err && <ErrorView error={err} />}
       {install && (
-        <div className="card install">
+        <div className="card install no-tv">
           <h2>Add a gateway</h2>
           <p className="muted">
             Run one of these on your NAS or PC. The token works once and expires

@@ -85,7 +85,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
 
   return (
     <section>
-      <p style={{ display: 'flex', justifyContent: 'space-between' }}>
+      <p className="lib-top">
         <Link to="/gateways">← Gateways</Link>
         <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
           Use as screen
@@ -526,7 +526,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
               step={1}
               value={drag ?? pos}
               onChange={(e) => seek(Number(e.target.value))}
-              style={{ width: '100%' }}
+              className="seek"
             />
             <small>
               {clock(drag ?? pos)} / {clock(dur)}
@@ -677,21 +677,13 @@ function Listing({
             <div key={title}>
               {title && <h3>{title}</h3>}
               {items.length === 0 && <p>Nothing here.</p>}
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-                  gap: 12,
-                }}
-              >
+              <ul className="tiles">
                 {items.map((i) => (
                   <li key={i.Id}>
                     <button
                       type="button"
                       onClick={() => onOpen(i)}
-                      style={{ width: '100%', textAlign: 'left' }}
+                      className="tile"
                     >
                       <Poster pc={pc} item={i} />
                       <div>
@@ -814,15 +806,5 @@ function Poster({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
       if (url) URL.revokeObjectURL(url)
     }
   }, [pc, item.Id, tag])
-  return (
-    <div style={{ aspectRatio: '2 / 3', background: '#ddd' }}>
-      {src && (
-        <img
-          src={src}
-          alt=""
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-      )}
-    </div>
-  )
+  return <div className="poster">{src && <img src={src} alt="" />}</div>
 }

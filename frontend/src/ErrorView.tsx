@@ -31,13 +31,9 @@ export function ErrorView({
     <div
       role="alert"
       data-kind={error.kind}
-      style={
-        loud
-          ? { color: 'white', background: 'crimson', padding: '0.5rem' }
-          : { color: 'crimson' }
-      }
+      className={loud ? 'err loud' : 'err'}
     >
-      <p style={{ margin: '0.5rem 0' }}>
+      <p>
         {loud ? <b>{message}</b> : message}{' '}
         {actions.map((a) =>
           a === 'retry' ? (
@@ -58,7 +54,7 @@ export function ErrorView({
       </p>
       {actions.includes('pair') && pair}
       {error.message !== message && (
-        <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>{error.message}</p>
+        <p className="err-detail">{error.message}</p>
       )}
     </div>
   )
@@ -81,7 +77,7 @@ export function UncaughtErrors() {
   }, [])
   if (!error) return null
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'start' }}>
+    <div className="uncaught">
       <ErrorView error={error} />
       <button type="button" onClick={() => setError(null)}>
         Dismiss

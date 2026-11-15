@@ -15,7 +15,7 @@ const app = () => process.env.E2E_APP_URL!
 async function playTo(p: Page, sec: number) {
   await p.getByRole('button', { name: /Movies/ }).click()
   await p.getByRole('button', { name: /streamiq e2e clip/ }).click()
-  await p.getByRole('button', { name: 'Play', exact: true }).click() // movie page (#204)
+  await p.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page (#204)
   await expect.poll(() => videoTime(p), { timeout: 30_000 }).toBeGreaterThan(0)
   await p.evaluate(
     (s) => (document.querySelector('video')!.currentTime = s),

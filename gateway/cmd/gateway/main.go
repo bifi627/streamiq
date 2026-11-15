@@ -11,7 +11,7 @@
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
 //	update      "newer release available" notice; `gateway update` swaps the binary
 //	service     Windows logon task (`gateway service install|uninstall`)
-//	backup      `gateway backup` / `gateway restore`: the state dir as one zip (#52)
+//	backup      `gateway backup` / `gateway restore`: the state dir + jellyfin-compose.yml as one zip (#52, #297)
 //
 // Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade|login | reset-identity |
 // backup [file] | restore [--force] <file>.

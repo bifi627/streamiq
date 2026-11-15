@@ -363,7 +363,9 @@ sized to last ~2 s at the previous read (1–16 MiB), in the background once
 up and again on a `navigator.connection` `change`, and keep the median (Mbps): the player's Auto
 quality caps `MaxStreamingBitrate` at 70 % of it (#162). The last value is a
 localStorage hint per gateway + direct/relay + connection type; the session's
-own measurement goes to telemetry (`throughputKbps`).
+own measurement goes to telemetry (`throughputKbps`). With the client's data
+saver on (#291) a run is just 3 `size=1048576` bursts (no warm-up, ~3 MB), not
+kept as the hint, and Auto stays at 480p.
 
 ### Screens: phone as remote (`/streamiq/screen*`, #95, #179)
 

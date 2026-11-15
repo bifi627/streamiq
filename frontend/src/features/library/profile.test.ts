@@ -9,6 +9,7 @@ import {
   autoQuality,
   decision,
   describe,
+  effective,
   escalates,
   deviceProfile,
   fit,
@@ -18,6 +19,7 @@ import {
   probe,
   qualities,
   rawStatus,
+  saverOn,
   sizeName,
   sourceHint,
   toQuality,
@@ -463,4 +465,27 @@ test('a throughput burst lasts ~2 s at the last read, within 1..16 MiB (#259)', 
   assert.equal(burstSize(40), 10_000_000) // 40 Mbps × 2 s
   assert.equal(burstSize(2), 1 << 20) // slow link: at least the warm-up size
   assert.equal(burstSize(300), 16 << 20) // loopback: the gateway's cap
+})
+
+test('data saver (#291): Automatic follows the browser, On/Off override it, Auto ≤ 480p', () => {
+  assert.equal(saverOn('auto', { saveData: true, type: 'wifi' }), true)
+  assert.equal(saverOn('auto', { type: 'cellular' }), true)
+  assert.equal(saverOn('auto', { type: 'wifi', saveData: false }), false)
+  assert.equal(saverOn('auto', undefined), false) // no Network Information API
+  assert.equal(saverOn('on', undefined), true)
+  assert.equal(saverOn('off', { saveData: true, type: 'cellular' }), false)
+  assert.equal(autoQuality(100, 40e6, true), '480p') // fast link: still 480p
+  assert.equal(autoQuality(undefined, undefined, true), '480p') // no measurement
+  assert.equal(autoQuality(20, 40e6, false), '1080p')
+  // a slow link still caps below 480p's 1.5 Mbps
+  assert.equal(
+    deviceProfile(webos, false, false, autoQuality(1, 40e6, true), autoCap(1))
+      .MaxStreamingBitrate,
+    0.7e6,
+  )
+  // the saver caps Auto only: a hand-picked quality plays as picked
+  assert.equal(effective('Auto', 20, 40e6, true), '480p')
+  assert.equal(effective('1080p', 20, 40e6, true), '1080p')
+  assert.equal(effective('Source', 20, 40e6, true), 'Source')
+  assert.equal(effective('Auto', 20, 40e6, false), '1080p')
 })

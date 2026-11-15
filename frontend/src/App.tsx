@@ -36,9 +36,13 @@ import {
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 import {
   compatibleOn,
+  dataSaver,
+  dataSaverOn,
   lastGateway,
+  netInfo,
   rawOn,
   setCompatible,
+  setDataSaver,
   setLastGateway,
   setRaw,
   setTv,
@@ -215,6 +219,7 @@ function Settings() {
   const [compatible, setOn] = useState(compatibleOn)
   const [raw, setRawOn] = useState(rawOn)
   const [tv, setTvOn] = useState(tvOn)
+  const [saver, setSaver] = useState(dataSaver)
   return (
     <section>
       <button
@@ -244,6 +249,31 @@ function Settings() {
       <p className="muted">
         For old TVs: plays everything in the safest format, costs more work on
         your home PC.
+      </p>
+      <label className="setting">
+        Data saver{' '}
+        <select
+          value={saver}
+          onChange={(e) => {
+            const v = e.target.value as typeof saver
+            setDataSaver(v)
+            setSaver(v)
+          }}
+        >
+          <option value="auto">Automatic</option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <p className="muted">
+        {dataSaverOn() ? 'On now' : 'Off now'}: Auto quality stays at 480p and
+        the speed test uses ~3 MB instead of up to ~50 MB. Automatic turns it on
+        on mobile data or when the browser asks to save data. This browser
+        reports:{' '}
+        {netInfo()
+          ? `connection ${netInfo()!.type ?? 'unknown'}, save data ${netInfo()!.saveData ? 'on' : 'off'}`
+          : 'nothing (no Network Information API)'}
+        .
       </p>
       <label className="setting">
         <input

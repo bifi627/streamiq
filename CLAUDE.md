@@ -122,6 +122,8 @@ probe says this device decodes, transcodes the rest; **Raw** = opt-in setting, n
 every codec copied as-is, unchecked, no fallbacks (#164); the rungs (1080p/720p/480p)
 cap size + bitrate. **Compatible mode** = per-device setting for old TVs: H.264 +
 stereo AAC in .ts, at most 1080p; Source and Raw are off while it's on (#113).
+**Data saver** = per-device Automatic/On/Off (Automatic = `saveData` or cellular): Auto
+stays at 480p and the throughput test is 3 × 1 MiB (#291).
 Docs under `docs/superpowers/` keep the old words.
 **Project name:** StreamIQ (was "r8er" until 2026-11-06). Code forms: `streamiq` (paths,
 module, DB, binaries), `StreamIq` (.NET namespaces/types), `STREAMIQ_` (env vars); "StreamIQ"

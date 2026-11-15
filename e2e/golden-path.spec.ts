@@ -515,6 +515,38 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.goto(process.env.E2E_APP_URL! + '/gateways')
     })
 
+    await test.step('data saver (#291): small measurement, Auto at 480p', async () => {
+      await a.getByRole('link', { name: 'Settings' }).click()
+      await a.getByRole('combobox', { name: 'Data saver' }).selectOption('on')
+      await expect(a.getByText(/^On now/)).toBeVisible()
+      await a.reload() // a fresh tunnel session: it measures in saver mode
+      await a.getByRole('link', { name: 'Gateways' }).click()
+      await a.getByRole('button', { name: 'Open' }).click()
+      await a.getByRole('button', { name: /Movies/ }).click()
+      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      await expect
+        .poll(() => videoTime(a), { timeout: 30_000 })
+        .toBeGreaterThan(1)
+      await expect(
+        a.getByText(
+          /speed: ~[\d.]+ Mbps \(median of [\d. /]+, data saver: 3 × 1 MiB, not kept/,
+        ),
+      ).toBeVisible()
+      await expect(
+        a.getByText(
+          /quality: Auto \(≤480p[\s\S]*auto: link .*data saver on → 480p/,
+        ),
+      ).toBeVisible()
+      await a.getByRole('button', { name: 'Playback options' }).click()
+      await expect(
+        a.getByRole('menuitem', { name: /^Quality.*Auto · 480p \(data saver/ }),
+      ).toBeVisible()
+      await a.goto(`${process.env.E2E_APP_URL!}/settings`)
+      await a.getByRole('combobox', { name: 'Data saver' }).selectOption('auto')
+      await expect(a.getByText(/^Off now/)).toBeVisible() // desktop: no cellular
+      await a.goto(process.env.E2E_APP_URL! + '/gateways')
+    })
+
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
     await test.step('diagnostics panel: force relay → tunnel works, panel logs it', async () => {
       await a.getByLabel('Force relay (TURN) on next connect').check()

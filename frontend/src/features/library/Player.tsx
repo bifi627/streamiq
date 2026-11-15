@@ -45,7 +45,13 @@ import { ErrorView } from '../../ErrorView'
 import Hls from 'hls.js'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { changed, diag, event, failLoads, ranges, watchVideo } from '../../diag'
-import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
+import {
+  compatibleOn,
+  dataSaverOn,
+  quality,
+  rawOn,
+  setQuality,
+} from '../../settings'
 import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
@@ -55,6 +61,7 @@ import {
   autoAudio,
   autoCap,
   autoQuality,
+  effective,
   decision,
   describe,
   deviceProfile,
@@ -152,9 +159,11 @@ export function Player({
   })
   const [now, setNow] = useState<string>()
   // The measured link (Mbps) and Auto's pick from it, as of the last load.
-  const [link, setLink] = useState<{ mbps?: number; auto: Quality }>({
-    auto: 'Auto',
-  })
+  const [link, setLink] = useState<{
+    mbps?: number
+    auto: Quality
+    saver?: boolean
+  }>({ auto: 'Auto' })
   const pick = useRef<(q: Quality) => void>(() => {})
   // The audio menu: the item's tracks and the one playing (from the URL).
   const [tracks, setTracks] = useState<ReturnType<typeof audioTracks>>([])
@@ -218,12 +227,13 @@ export function Player({
       at0 = at
       const mbps = await speed?.get(q === 'Auto' ? 3000 : 0)
       if (gone || load !== loads) return
-      const eff = q === 'Auto' ? autoQuality(mbps, bitrate) : q
+      const saver = dataSaverOn() // #291: caps Auto only (effective)
+      const eff = effective(q, mbps, bitrate, saver)
       const cap = q === 'Auto' ? autoCap(mbps) : undefined
-      setLink({ mbps, auto: eff })
-      if (q === 'Auto' && mbps)
+      setLink({ mbps, auto: autoQuality(mbps, bitrate, saver), saver }) // Auto's pick, also while a rung is picked
+      if (q === 'Auto' && (mbps || saver))
         event(
-          `auto: link ~${mbps.toFixed(1)} Mbps${speed?.fresh() ? '' : ' (stored hint)'} → cap ${(cap! / 1e6).toFixed(1)} Mbps, source ${bitrate ? `${(bitrate / 1e6).toFixed(1)} Mbps` : '?'} → ${eff === 'Auto' ? 'no limit (fits)' : eff}`,
+          `auto: link ${mbps ? `~${mbps.toFixed(1)} Mbps${speed?.fresh() ? '' : ' (stored hint)'} → cap ${(cap! / 1e6).toFixed(1)} Mbps` : 'unknown'}, source ${bitrate ? `${(bitrate / 1e6).toFixed(1)} Mbps` : '?'}${saver ? ', data saver on' : ''} → ${eff === 'Auto' ? 'no limit (fits)' : eff}`,
         )
       const max = limit(eff, compatible)
       const rate = Math.min(max?.bitrate ?? Infinity, cap ?? Infinity) / 1e6
@@ -593,8 +603,14 @@ export function Player({
             options: qualities(file.size, q, rawOn()).map((o) => ({
               value: o,
               label:
-                o === 'Auto' && link.mbps
-                  ? `Auto${link.auto === 'Auto' ? '' : ` · ${link.auto}`} (your connection ~${mbpsText(link.mbps)} Mbps)`
+                o === 'Auto' && (link.mbps || link.saver)
+                  ? `Auto${link.auto === 'Auto' ? '' : ` · ${link.auto}`} (${[
+                      link.saver && 'data saver',
+                      link.mbps &&
+                        `your connection ~${mbpsText(link.mbps)} Mbps`,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')})`
                   : o,
               hint: QUALITY[o]
                 ? `${(QUALITY[o].bitrate / 1e6).toLocaleString()} Mbps`

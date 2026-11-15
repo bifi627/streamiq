@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { diag, relayOn, setFlag, snapshot, subscribe } from '../../diag'
 import { pairInfo } from '../../stats'
+import { dataSaverOn } from '../../settings'
 import { connect } from '../pairing/connect'
 import { isKind } from '../../errors'
 import { getGateways, type Gateway } from '../gateways/api'
@@ -67,7 +68,7 @@ export function DiagnosticsPage() {
       const mbps = speed.fresh()
       if (!mbps) throw new Error(speed.error() ?? 'timed out')
       lines.push(
-        `throughput: ${mbps.toFixed(1)} Mbps (median of 3 ~2 s bursts after a warm-up; Auto caps at ${(mbps * 0.7).toFixed(1)} Mbps)`,
+        `throughput: ${mbps.toFixed(1)} Mbps (median of ${dataSaverOn() ? '3 × 1 MiB bursts, data saver on' : '3 ~2 s bursts after a warm-up'}; Auto caps at ${(mbps * 0.7).toFixed(1)} Mbps)`,
       )
       show()
     } catch (e) {

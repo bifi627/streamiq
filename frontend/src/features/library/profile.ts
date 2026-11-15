@@ -201,8 +201,14 @@ export const autoCap = (mbps?: number) =>
 /** Auto's pick from the measurement: no limit without one, or for a source
  * (bps) under the cap (it remuxes unchanged); else the highest rung under the
  * cap, at least 480p (deviceProfile still caps that at autoCap). An unknown
- * source bitrate gets the rung (Jellyfin knows it, we may not). */
-export function autoQuality(mbps?: number, bitrate?: number): Quality {
+ * source bitrate gets the rung (Jellyfin knows it, we may not). Data saver
+ * (#291): always 480p, the lowest rung. */
+export function autoQuality(
+  mbps?: number,
+  bitrate?: number,
+  saver = false,
+): Quality {
+  if (saver) return '480p'
   const cap = autoCap(mbps)
   if (!cap || (bitrate && bitrate <= cap)) return 'Auto'
   return (
@@ -210,6 +216,26 @@ export function autoQuality(mbps?: number, bitrate?: number): Quality {
     '480p'
   )
 }
+
+/** The quality a load plays: Auto's pick (autoQuality), else the one picked
+ * by hand, which data saver (#291) doesn't touch. */
+export const effective = (
+  q: Quality,
+  mbps?: number,
+  bitrate?: number,
+  saver = false,
+): Quality => (q === 'Auto' ? autoQuality(mbps, bitrate, saver) : q)
+
+/** Data saver (#291): the stored choice, or for 'auto' the browser's hint
+ * (Network Information API, Chromium only: missing = off). */
+export type SaverMode = 'auto' | 'on' | 'off'
+export const saverOn = (
+  mode: SaverMode,
+  conn?: { saveData?: boolean; type?: string },
+) =>
+  mode === 'auto'
+    ? !!conn?.saveData || conn?.type === 'cellular'
+    : mode === 'on'
 
 /** A stored value as a Quality; invalid or missing = Auto. */
 export const toQuality = (v: unknown): Quality =>

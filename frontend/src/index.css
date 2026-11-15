@@ -290,6 +290,23 @@ input[type='radio'] {
 .signin .wide {
   min-height: 3.25rem;
 }
+/* Google's dark-theme sign-in button: their colors and "G" */
+.google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  border: 1px solid #8e918f;
+  background: #131314;
+  color: #e3e3e3;
+}
+.google:hover {
+  background: #1f1f20;
+}
+.google svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
 .or {
   display: flex;
   align-items: center;
@@ -322,17 +339,31 @@ input[type='radio'] {
 }
 .password input {
   width: 100%;
-  padding-right: 4.5rem;
+  padding-right: var(--target);
 }
 /* the Show toggle sits inside the field's right end */
 .password button {
   position: absolute;
   top: 0;
   right: 0;
+  width: var(--target);
   min-height: 100%;
+  padding: 0;
   background: none;
-  color: var(--link);
-  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.password button:hover {
+  color: var(--text);
+}
+.password svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .password button:focus-visible {
   outline-offset: -3px;

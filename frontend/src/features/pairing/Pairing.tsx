@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { connect } from './connect'
 import { getPin } from './store'
 import { AppError, toAppError } from '../../errors'
@@ -41,6 +41,8 @@ export function Pairing({
     )
   }, [gatewayId])
 
+  const pairBtn = useRef<HTMLButtonElement>(null)
+  const testBtn = useRef<HTMLButtonElement>(null)
   const busy = s.step === 'connecting' || s.step === 'code'
   async function run(pair: boolean) {
     if (busy) return
@@ -50,7 +52,11 @@ export function Pairing({
         gatewayId,
         pair ? (code) => setS({ step: 'code', code }) : undefined,
       )
-      if (pair) setPinned(true)
+      if (pair) {
+        // Pair goes away now: keep the D-pad's focus on the card (#226).
+        if (document.activeElement === pairBtn.current) testBtn.current?.focus()
+        setPinned(true)
+      }
       try {
         const [info, stats] = await Promise.all([
           tunnelJson<Info>(x.pc, '/System/Info/Public'),
@@ -59,8 +65,8 @@ export function Pairing({
         setS({ step: 'done', paired: pair, info, path: pairInfo(stats) })
       } finally {
         x.close()
+        if (pair) onPaired?.() // paired even if the test request failed
       }
-      if (pair) onPaired?.()
     } catch (e) {
       setS({ step: 'failed', err: toAppError(e) })
     }
@@ -71,7 +77,9 @@ export function Pairing({
     needsPair ||
     pinned === false ||
     err?.kind === 'not-paired' ||
-    err?.kind === 'pin-mismatch'
+    err?.kind === 'pin-mismatch' ||
+    (s.step === 'connecting' && s.pair) || // stays put while it runs
+    s.step === 'code'
   const gatewayPage = lanUrl ? (
     <a href={lanUrl} target="_blank" rel="noreferrer">
       gateway page
@@ -86,6 +94,7 @@ export function Pairing({
       <div className="actions">
         {showPair && (
           <button
+            ref={pairBtn}
             type="button"
             className="primary"
             aria-disabled={busy}
@@ -94,7 +103,12 @@ export function Pairing({
             Pair this browser
           </button>
         )}
-        <button type="button" aria-disabled={busy} onClick={() => run(false)}>
+        <button
+          ref={testBtn}
+          type="button"
+          aria-disabled={busy}
+          onClick={() => run(false)}
+        >
           Test connection
         </button>
       </div>

@@ -1,4 +1,3 @@
-import { ADMIN_ONLY } from '../../errors'
 import { arrowFocus } from '../../focus'
 import { householdLabel, useHousehold } from './household'
 import { Invites } from './Invites'
@@ -21,12 +20,6 @@ export function Household() {
       </div>
       <Members />
       {current?.role === 'admin' && <Invites />}
-      {current?.role === 'member' && (
-        <section className="card">
-          <h2>Invites</h2>
-          <p className="meta muted">Invite someone: {ADMIN_ONLY}</p>
-        </section>
-      )}
     </section>
   )
 }

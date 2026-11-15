@@ -113,7 +113,9 @@ export function Members() {
         })}
       </ul>
       {me && !me.admin && (
-        <p className="meta muted">Remove members, change roles: {ADMIN_ONLY}</p>
+        <p className="meta muted">
+          Invite someone, remove members, change roles: {ADMIN_ONLY}
+        </p>
       )}
     </section>
   )

@@ -1,6 +1,7 @@
 import { authed } from '../../api'
 import { share } from '../pairing/connect'
-import { tunnelJson } from '../../tunnel'
+import { tunnelFetch, tunnelJson } from '../../tunnel'
+import { httpError } from '../../errors'
 
 export type Gateway = {
   id: string
@@ -29,6 +30,7 @@ export type GatewayStatus = {
     token?: 'ok' | 'missing' | 'legacy'
   }
   viewer?: { shared?: boolean; reason?: string } // this session's (#242); reason: see guest.ts
+  remoteUpdate?: true | string // #312: the update button works, or why not
 }
 
 // Screens: phone as remote (docs/protocol.md, "Screens"). Used by Library.tsx.
@@ -109,3 +111,22 @@ export const removeClient = (id: string, keyFp: string) =>
 
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })
+
+// Gateway API POST /streamiq/update (#312): 202 → the version it installs, then
+// the gateway goes down for the swap; 409 → why it won't (the reply's reason).
+export async function updateGateway(
+  id: string,
+): Promise<{ version: string } | { reason: string }> {
+  const { session, release } = share(id)
+  try {
+    const r = await tunnelFetch((await session).pc, '/streamiq/update', {
+      method: 'POST',
+      body: '{}',
+    })
+    if (r.status !== 202 && r.status !== 409)
+      throw httpError('tunnel', r.status, '/streamiq/update')
+    return JSON.parse(new TextDecoder().decode(r.body))
+  } finally {
+    release()
+  }
+}

@@ -1,0 +1,53 @@
+package update
+
+import "sync/atomic"
+
+// Remote is an update started from the web app (#312, gateway API POST
+// /streamiq/update): only where the logon task brings the new binary back up.
+type Remote struct {
+	Version   string        // this binary's
+	Supported bool          // service.Supported: Windows only for now (#119, #277)
+	Newer     func() string // the newer release the daily check found, "" = none
+	Task      func() bool   // service.Installed: nothing else would restart the gateway
+	// Start runs the detached `gateway update`; wait returns once it has exited
+	// (failed, or the swap stopped this gateway with it).
+	Start   func() (wait func(), err error)
+	running atomic.Bool
+}
+
+// Reason says why a remote update isn't possible now; "" = it is.
+func (r *Remote) Reason() string {
+	switch {
+	case !r.Supported:
+		return "remote update works on Windows only so far"
+	case r.Version == "dev":
+		return "dev build"
+	case r.running.Load():
+		return "an update is already running"
+	case r.Newer() == "" || !Newer(r.Newer(), r.Version):
+		return "already up to date"
+	case !r.Task():
+		return "no logon task, so nothing would start the gateway again after the update"
+	}
+	return ""
+}
+
+// Run starts the update and returns the version it installs, or why not
+// (refused, nothing started). One at a time: a second Run while the first
+// updater runs is refused.
+func (r *Remote) Run() (target, refused string, err error) {
+	if why := r.Reason(); why != "" {
+		return "", why, nil
+	}
+	if !r.running.CompareAndSwap(false, true) {
+		return "", "an update is already running", nil
+	}
+	target = r.Newer()
+	wait, err := r.Start()
+	if err != nil {
+		r.running.Store(false)
+		return "", "", err
+	}
+	go func() { wait(); r.running.Store(false) }()
+	return target, "", nil
+}

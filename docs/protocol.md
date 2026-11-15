@@ -323,15 +323,15 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name` and `/streamiq/clients/remove`) matches an endpoint; anything else under the prefix (unknown path, other method,
+`/streamiq/name`, `/streamiq/clients/remove` and `/streamiq/update`) matches an endpoint; anything else under the prefix (unknown path, other method,
 percent-encoded) is `404`. A `body` over 64 KB is `413`. A handler's own failure
 (e.g. `/streamiq/name` can't write `state/gateway.json`) is `500`, never the `502`
 that means Jellyfin is unreachable (#327). Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (`tunnel.AdminOnly`, exact
-path, any method): a session whose role isn't `admin` gets `403`: `/streamiq/name`
-and `/streamiq/clients*` so far; #89 decides per endpoint. Code: `gateway/internal/tunnel/tunnel.go`.
+path, any method): a session whose role isn't `admin` gets `403`: `/streamiq/name`,
+`/streamiq/clients*` and `/streamiq/update` so far; #89 decides per endpoint. Code: `gateway/internal/tunnel/tunnel.go`.
 
 **`GET /streamiq/status`** (#146, #140): `200`, JSON, built on each request.
 Fields are added over time; a client ignores ones it doesn't know.
@@ -339,7 +339,8 @@ Fields are added over time; a client ignores ones it doesn't know.
 { "transcoding": "nvenc", "os": "windows", "arch": "amd64", "startedAt": "2026-11-10T08:00:00Z",
   "jellyfin": { "reachable": true, "version": "10.11.2", "untested": false, "token": "ok" },
   "pairedClients": 2, "activeSessions": 1,
-  "viewer": { "shared": true, "reason": "admin-refused" } }
+  "viewer": { "shared": true, "reason": "admin-refused" },
+  "remoteUpdate": "no logon task, so nothing would start the gateway again after the update" }
 ```
 
 | Field | Values |
@@ -350,6 +351,7 @@ Fields are added over time; a client ignores ones it doesn't know.
 | `jellyfin` | `reachable`, `untested` (version outside the tested line), `version`, `token`: `ok` / `missing` / `legacy` (pre-#50 admin API key) |
 | `pairedClients`, `activeSessions` | counts only, no client names (#65) |
 | `viewer` | the calling session's Jellyfin viewer (#242): `shared: false` = the user's own; `shared: true` = the shared `streamiq-viewer` (#195 fallback), with a `reason` code: `admin-refused` (Jellyfin refused the gateway's admin sign-in), `no-admin` (the gateway has no Jellyfin admin of its own), `failed` (anything else; retried on the user's next session). The web app words it; an unknown code shows no reason. No credentials, no Jellyfin ids. The web app shows a guest-mode banner on the library and player while `shared` is true; no field (older gateway) = no banner |
+| `remoteUpdate` | `true` = `POST /streamiq/update` would start an update now (#312); else a sentence saying why not, shown as it is: not Windows, dev build, an update already running, already up to date, no logon task. No field (older gateway) = update by hand |
 
 The web gateway page caches the last response per gateway in `localStorage` and
 shows it as "as of <time>" while the gateway is offline.
@@ -379,7 +381,17 @@ session closes. Names and keys stay on
 the gateway: the API never sees or stores them. A gateway older than these answers
 `404`; the web app then says to update it.
 
-**`GET /streamiq/burst[?size=N]`** (throughput test, #90): `200`,
+**`POST /streamiq/update`** (#312, admin-only, body ignored) → `202 { "version": "1.5.0" }`: the
+gateway started a detached `gateway update` (output in `update.log` next to the binary) for the
+newer release its daily check found. That process outlives the logon task it stops: it
+downloads and checks the release, backs up the gateway, ends the task, swaps the binary and
+starts the task again (the update in `docs/install.md`). The gateway goes down a few seconds
+after the reply and comes back on its own; its heartbeat `version` is the result (no API
+change). `409 { "reason": "…" }` = nothing started, the same reasons as `remoteUpdate`
+above (one updater at a time). A failure to start the process is `500`. Windows with the
+logon task only: Linux/macOS have no service that would start the gateway again (#119, #277).
+A gateway older than this answers `404`.
+[?size=N]`** (throughput test, #90): `200`,
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
 bytes through the normal chunking and backpressure above. `size` defaults to
 4 MiB and is capped at 16 MiB; anything else (over the cap, negative, not a

@@ -351,7 +351,7 @@ func jellyfinUp(ctx context.Context, file string) error {
 	return jellyfin.Compose(ctx, file, "up", "-d")
 }
 
-// selfUpdate installs the latest release over exe (user-invoked only) and
+// selfUpdate installs the latest release over exe (the user, or a remote update: startUpdater) and
 // restarts the logon task if there is one.
 func selfUpdate(ctx context.Context, exe string) error {
 	if !service.Supported() {
@@ -410,6 +410,37 @@ func selfUpdate(ctx context.Context, exe string) error {
 	}
 	fmt.Printf("v%s and its state are kept in %s: gateway rollback goes back to it.\n", version, keep)
 	return nil
+}
+
+// startUpdater runs `gateway update` for a remote update (#312), detached so it
+// outlives the logon task it stops; its output goes to update.log next to the binary.
+func startUpdater() (wait func(), err error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(filepath.Join(filepath.Dir(exe), "update.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(f, "%s remote update from the web app\n", time.Now().Format(time.RFC3339))
+	c := exec.Command(exe, "update") // same working dir as this gateway: a relative state dir stays the same
+	c.Stdout, c.Stderr = f, f
+	service.Detach(c)
+	if err := c.Start(); err != nil {
+		f.Close()
+		return nil, err
+	}
+	slog.Info("gateway: remote update started", "pid", c.Process.Pid, "log", f.Name())
+	return func() { c.Wait(); f.Close() }, nil
+}
+
+// remoteUpdate is /streamiq/status's remoteUpdate: true, or why not.
+func remoteUpdate(r *update.Remote) any {
+	if why := r.Reason(); why != "" {
+		return why
+	}
+	return true
 }
 
 // rollback puts back the binary and state the last update replaced (#296):
@@ -540,6 +571,15 @@ func run(ctx context.Context) {
 		notice.Store(new(string))
 		newer.Store(new(string))
 		go checkUpdates(ctx, &notice, &newer)
+		remote := &update.Remote{Version: version, Supported: service.Supported(), Task: service.Installed,
+			Newer: func() string { return *newer.Load() }, Start: startUpdater}
+		jf.Update = func() (string, error) { // gateway API POST /streamiq/update (#312)
+			v, refused, err := remote.Run()
+			if refused != "" {
+				return "", tunnel.Conflict(refused)
+			}
+			return v, err
+		}
 		started := time.Now().UTC()
 		jf.Rename = func(name string) (string, error) { // gateway API POST /streamiq/name (#310)
 			n, err := st.SetName(name)
@@ -558,7 +598,8 @@ func run(ctx context.Context) {
 				},
 				// Counts only: no client names (#65).
 				"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
-				"viewer": setup.ViewerState(user), // this session's own (#242)
+				"viewer":       setup.ViewerState(user), // this session's own (#242)
+				"remoteUpdate": remoteUpdate(remote),
 			}
 		}
 		token, err := localpage.Token(stateDir, lan)

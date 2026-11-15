@@ -1,6 +1,7 @@
 // Package update tells the user when a newer gateway release exists, and on
 // Windows `gateway update` downloads, verifies and swaps the binary (#117).
-// Nothing updates in the background: only the user runs `gateway update`. An
+// Nothing updates in the background: the user runs `gateway update`, or an admin
+// starts it from the web app (Remote, #312: Windows with the logon task). An
 // update keeps the state and the binary it replaced in backups/ for
 // `gateway rollback` (#296).
 package update

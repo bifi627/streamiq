@@ -381,3 +381,12 @@ button.link {
     margin: 0;
   }
 }
+
+/* Settings leftovers until its own redesign (#229). */
+.setting {
+  display: block;
+  margin-top: var(--sp-4);
+}
+.setting + p {
+  margin: var(--sp-1) 0 0 var(--sp-6);
+}

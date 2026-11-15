@@ -188,6 +188,11 @@ export const QUALITIES = Object.keys(QUALITY) as Quality[]
 export const median = (xs: number[]) =>
   [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
 
+/** Bytes for a throughput burst lasting ~2 s at `mbps` (#259): long enough
+ * to read past the ramp-up, within 1 MiB and the gateway's 16 MiB cap. */
+export const burstSize = (mbps: number) =>
+  Math.round(Math.min(16 << 20, Math.max(1 << 20, mbps * 2.5e5)))
+
 /** Auto's MaxStreamingBitrate cap (#162): 70 % of the measured gateway →
  * client Mbps, in bps. No measurement = no cap. */
 export const autoCap = (mbps?: number) =>

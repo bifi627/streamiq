@@ -516,7 +516,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         )
         await a.getByRole('button', { name: 'Test connection' }).click()
         await expect(report).toContainText(
-          /throughput: [\d.]+ Mbps \(median of 3 × 1 MiB bursts; Auto caps at [\d.]+ Mbps\)/,
+          /throughput: [\d.]+ Mbps \(median of 3 ~2 s bursts after a warm-up; Auto caps at [\d.]+ Mbps\)/,
           { timeout: 30_000 },
         )
         expect((await end).postDataJSON().throughputKbps).toBeGreaterThan(0)

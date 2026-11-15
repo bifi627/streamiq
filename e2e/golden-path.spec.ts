@@ -134,8 +134,13 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     const gatewayCtx = await browser.newContext()
     if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
 
-    await test.step('browser A pairs; codes match on both sides', () =>
-      pair(a, gatewayCtx, gateway.pageUrl))
+    await test.step('browser A pairs; codes match on both sides', async () => {
+      const card = a.getByRole('listitem').filter({ hasText: 'Version' })
+      // Rename goes over the tunnel: not offered until this browser is paired (#329).
+      await expect(card.getByRole('button', { name: 'Rename' })).toHaveCount(0)
+      await pair(a, gatewayCtx, gateway.pageUrl)
+      await expect(card.getByRole('button', { name: 'Rename' })).toBeVisible() // no reload
+    })
 
     await test.step('admin renames the gateway over the tunnel (#310)', async () => {
       const card = a.getByRole('listitem').filter({ hasText: 'Version' })

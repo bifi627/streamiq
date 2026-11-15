@@ -22,6 +22,7 @@ export function Pairing({
   lanUrl,
   needsPair,
   onPaired,
+  onPin,
   open,
   children,
 }: {
@@ -31,6 +32,9 @@ export function Pairing({
   needsPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
+  /** Whether this browser has a stored pin for the gateway, read on mount. A
+   * failed test doesn't call it again: the pin stays stored (#329). */
+  onPin?: (pinned: boolean) => void
   /** Gateway card (#226): Open takes Pair's place once this browser is paired. */
   open?: () => void
   /** With open: more actions in Open's row (Test connection goes below). */
@@ -41,9 +45,13 @@ export function Pairing({
   // the gateway dropped (Remove on its page) only shows on a failed test.
   const [pinned, setPinned] = useState<boolean | null>(null)
   useEffect(() => {
+    const got = (p: boolean) => {
+      setPinned(p)
+      onPin?.(p)
+    }
     getPin(gatewayId).then(
-      (p) => setPinned(!!p),
-      () => setPinned(false),
+      (p) => got(!!p),
+      () => got(false),
     )
   }, [gatewayId])
 

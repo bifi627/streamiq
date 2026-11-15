@@ -204,7 +204,9 @@ login. Back it up once, and again after you pair a new browser:
     gateway backup D:\keep\gw.zip  # or name the file
 
 Run the `gateway` in the install dir; it works while the gateway runs. The page login (`page-token`, `page-link`) is left out: the
-restored gateway makes a new one.
+restored gateway makes a new one. If you run Jellyfin with `gateway jellyfin up`, the
+backup also holds its `jellyfin-compose.yml` (your media folders and the Jellyfin
+version).
 
 **The backup is a secret and not encrypted.** Whoever has the file can pose as
 your gateway. Keep it like a password: not in a shared or synced folder, not in
@@ -223,7 +225,7 @@ app's address (it's also in the old install's `gateway.env`):
 - Windows (PowerShell): `$env:STREAMIQ_API_URL='…'; $env:STREAMIQ_RESTORE='.\streamiq-gateway-….zip'; irm …/install.ps1 | iex`
 
 It installs, restores the backup, then starts the gateway. No new gateway is added
-in the web app. The backup holds only `state/`, not your settings in `gateway.env`:
+in the web app. The backup holds `state/` (and `jellyfin-compose.yml`), not your settings in `gateway.env`:
 if you set more than the API URL (`STREAMIQ_ORIGIN` for a Jellyfin on another
 machine, `STREAMIQ_JELLYFIN_HWACCEL`, `STREAMIQ_PAGE_PORT`, …), keep a copy of the
 old `gateway.env` with the backup. Copy those lines into the new install's
@@ -237,6 +239,12 @@ it (files the backup doesn't have are removed).
 
 Either way the gateway comes back with its old name and ID, and paired browsers
 open it without a new pairing code.
+
+Restore puts the backup's `jellyfin-compose.yml` next to the binary only if there is
+none yet: an existing one is never replaced, not even with `--force` (it says which).
+**On a new machine, check the media folder paths in `jellyfin-compose.yml`** (each
+media folder's `source:`) before `gateway jellyfin up`: the old machine's
+folders may not exist there.
 
 Not in the backup: `gateway.env` (see above) and Jellyfin's own data (libraries,
 watch history, its users).

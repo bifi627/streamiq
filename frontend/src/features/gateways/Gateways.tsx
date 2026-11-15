@@ -425,6 +425,7 @@ function PairedClients({
   const [open, setOpen] = useState(false)
   const [list, setList] = useState<Client[] | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const summary = useRef<HTMLElement>(null)
   const live = open && g.online && !unpaired
   useEffect(() => {
     if (!live) return
@@ -460,16 +461,20 @@ function PairedClients({
       return
     try {
       await removeClient(g.id, c.keyFp)
-      if (c.self) return onRemovedSelf()
-      setList((l) => l && l.filter((x) => x.keyFp !== c.keyFp))
+      if (c.self) onRemovedSelf()
     } catch (x) {
-      setMsg(clientsMessage(toAppError(x)))
+      const e = toAppError(x)
+      // 404: not paired anymore (removed elsewhere): drop the row all the same.
+      if (e.context.status !== 404) return setMsg(clientsMessage(e))
     }
+    if (!c.self) setList((l) => l && l.filter((x) => x.keyFp !== c.keyFp))
+    // The focused Remove is gone: keep the D-pad's place (#226), as Rename does.
+    summary.current?.focus()
   }
 
   return (
     <details onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>Paired clients</summary>
+      <summary ref={summary}>Paired clients</summary>
       {note && <p role="status">{note}</p>}
       {shown?.length === 0 && <p>No paired clients.</p>}
       {!!shown?.length && (

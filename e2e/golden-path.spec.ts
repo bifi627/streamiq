@@ -699,6 +699,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         .getByRole('button', { name: 'Remove' })
         .click()
       await expect(clients).toHaveCount(1)
+      const summary = card.getByText('Paired clients', { exact: true })
+      await expect(summary).toBeFocused() // the D-pad keeps its place (#226)
       // The gateway closed B's PeerConnection; B must pair again.
       await movies.click()
       await expect(
@@ -717,6 +719,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         card.getByText('This browser was removed: pair it again.'),
       ).toBeVisible()
+      await expect(summary).toBeFocused()
       await pair(a, gatewayCtx, gateway.pageUrl)
       await expect(clients).toHaveCount(1) // the list reloads once paired
       await expect(card.getByRole('button', { name: 'Open' })).toBeVisible()

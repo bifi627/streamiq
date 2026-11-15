@@ -214,7 +214,7 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 	case u.Path == NamePath && method == "POST" && j.Rename != nil:
 		return rename(j.Rename, rq.Body)
 	case u.Path == ClientsRemovePath && method == "POST" && j.Clients != nil:
-		return removeClient(j.Clients, rq.Body)
+		return removeClient(j.Clients, rq.Body, who.Key)
 	case method != "GET":
 	case u.Path == BurstPath:
 		return burst(u.Query().Get("size"))
@@ -293,17 +293,24 @@ func clients(st *pairing.Store, self string) (int, map[string]string, io.ReadClo
 	return okJSON(out)
 }
 
-// removeClient answers first and removes after the reply is delivered
-// (afterReply): removing the calling client closes this very session, which
-// would swallow the reply. Until then the removed client keeps its sessions;
-// the browser closes the channel at once, at worst EOFGrace.
-func removeClient(st *pairing.Store, body string) (int, map[string]string, io.ReadCloser, error) {
+// removeClient removes another client at once (its sessions closed, a failed
+// save is 500). The calling client itself is removed only after the reply is
+// delivered (afterReply): its removal closes this very session, which would
+// swallow the reply. The browser closes the channel at once, at worst EOFGrace;
+// a failed save is then only logged (the in-memory allowlist refuses it anyway).
+func removeClient(st *pairing.Store, body, self string) (int, map[string]string, io.ReadCloser, error) {
 	var in struct{ KeyFp string }
 	if json.Unmarshal([]byte(body), &in) != nil || in.KeyFp == "" {
 		return http.StatusBadRequest, nil, nil, errors.New("gateway API: remove client: bad body")
 	}
 	if !st.Allowed(in.KeyFp) {
 		return http.StatusNotFound, nil, nil, errors.New("gateway API: remove client: not paired")
+	}
+	if in.KeyFp != self {
+		if err := st.Remove(in.KeyFp); err != nil {
+			return 0, nil, nil, fmt.Errorf("gateway API: remove client: %w", err)
+		}
+		return okJSON(struct{}{})
 	}
 	status, hdr, body2, err := okJSON(struct{}{})
 	return status, hdr, afterReply{body2, func() {

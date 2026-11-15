@@ -371,10 +371,11 @@ answers `404`; the web app then says to update it.
 **`GET /streamiq/clients`** (#311, admin-only) → `200`
 `[{ "keyFp": "…", "name": "Pixel 8 · Chrome", "addedAt": "2026-11-01T10:00:00Z", "self": true }]`:
 the allowlist (`allowlist.json`); `self` = the calling session's client key.
-**`POST /streamiq/clients/remove`** (#311, admin-only) `{ "keyFp": "…" }` → `200 {}`, then
-the Remove above; unknown key `404`. The removal runs once the reply is delivered (the
-browser closed the request channel, at most `EOFGrace` 10 s later), so a browser that
-removes itself still gets its `200` before its session closes. Names and keys stay on
+**`POST /streamiq/clients/remove`** (#311, admin-only) `{ "keyFp": "…" }` → the Remove above, then
+`200 {}`; unknown key `404`, a failed save of `allowlist.json` `500`. The calling
+browser's own key is removed only once the reply is delivered (the browser closed the
+request channel, at most `EOFGrace` 10 s later), so it still gets its `200` before its
+session closes. Names and keys stay on
 the gateway: the API never sees or stores them. A gateway older than these answers
 `404`; the web app then says to update it.
 

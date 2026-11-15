@@ -530,8 +530,9 @@ func TestRename(t *testing.T) {
 }
 
 // GET /streamiq/clients + POST /streamiq/clients/remove (#311): admin-only, the
-// list marks the caller's own key, remove 404s an unknown key, and removes
-// (closing that key's sessions via OnRemove) only after the reply is delivered.
+// list marks the caller's own key, remove 404s an unknown key, removes another
+// client at once (closing its sessions via OnRemove) and the caller's own key
+// only after the reply is delivered.
 func TestClients(t *testing.T) {
 	j, _ := fakeJellyfin(t)
 	dir := t.TempDir()
@@ -575,12 +576,18 @@ func TestClients(t *testing.T) {
 	if s, _, _ := call(Admin, "POST", ClientsRemovePath, `nope`); s != http.StatusBadRequest {
 		t.Errorf("bad body: %d, want 400", s)
 	}
+	// Another client: gone at once, its sessions closed.
 	s, _, rc := call(Admin, "POST", ClientsRemovePath, `{"keyFp":"bb"}`)
-	if s != 200 || !store.Allowed("bb") || len(dropped) != 0 {
-		t.Fatalf("remove: %d, before the reply is out: allowed=%v dropped=%v", s, store.Allowed("bb"), dropped)
+	if _, deferred := rc.(afterReply); s != 200 || deferred || store.Allowed("bb") || !slices.Equal(dropped, []string{"bb"}) {
+		t.Fatalf("remove other: %d deferred=%v allowed=%v dropped=%v", s, deferred, store.Allowed("bb"), dropped)
+	}
+	// The caller itself (Key "aa"): only after the reply is delivered.
+	s, _, rc = call(Admin, "POST", ClientsRemovePath, `{"keyFp":"aa"}`)
+	if s != 200 || !store.Allowed("aa") || len(dropped) != 1 {
+		t.Fatalf("remove self: %d, before the reply is out: allowed=%v dropped=%v", s, store.Allowed("aa"), dropped)
 	}
 	rc.(afterReply).after() // handleReq: once the reply is delivered
-	if store.Allowed("bb") || !slices.Equal(dropped, []string{"bb"}) || !store.Allowed("aa") {
-		t.Fatalf("after: allowed bb=%v aa=%v, dropped=%v", store.Allowed("bb"), store.Allowed("aa"), dropped)
+	if store.Allowed("aa") || !slices.Equal(dropped, []string{"bb", "aa"}) {
+		t.Fatalf("after: allowed aa=%v, dropped=%v", store.Allowed("aa"), dropped)
 	}
 }

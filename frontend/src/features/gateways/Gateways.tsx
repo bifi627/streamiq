@@ -10,7 +10,6 @@ import {
 } from './api'
 import { Pairing } from '../pairing/Pairing'
 import { share } from '../pairing/connect'
-import { getPin } from '../pairing/store'
 import {
   ADMIN_ONLY,
   AppError,
@@ -68,27 +67,15 @@ export function Gateways() {
   const navigate = useNavigate()
   // Gateways this browser holds a pin for: Rename goes over the tunnel, so it
   // shows only there (#329). A stale pin keeps it: the rename's error says so.
+  // Each card's Pairing reports it (onPin, onPaired).
   const [pinned, setPinned] = useState<ReadonlySet<string>>(new Set())
-  const ids = gateways?.map((g) => g.id).join() ?? ''
-  useEffect(() => {
-    let gone = false
-    Promise.all(
-      ids
-        .split(',')
-        .filter(Boolean)
-        .map((id) =>
-          getPin(id).then(
-            (p) => (p ? id : ''),
-            () => '',
-          ),
-        ),
-    ).then((r) => {
-      if (!gone) setPinned(new Set(r.filter(Boolean)))
+  const pin = (id: string, p: boolean) =>
+    setPinned((s) => {
+      const n = new Set(s)
+      if (p) n.add(id)
+      else n.delete(id)
+      return n
     })
-    return () => {
-      gone = true
-    }
-  }, [ids])
 
   useEffect(() => {
     const load = () =>
@@ -240,7 +227,8 @@ export function Gateways() {
                 <Pairing
                   gatewayId={d.id}
                   lanUrl={d.lanUrl}
-                  onPaired={() => setPinned((s) => new Set(s).add(d.id))}
+                  onPin={(p) => pin(d.id, p)}
+                  onPaired={() => pin(d.id, true)}
                   open={() =>
                     navigate({
                       to: '/g/$gatewayId',

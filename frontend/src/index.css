@@ -416,6 +416,169 @@ button.link {
   }
 }
 
+/* Gateways list (#225): one card per gateway. */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+.head h1 {
+  margin: 0;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.card h2,
+.card > p {
+  margin: 0;
+}
+/* Adding a gateway means a command on a NAS/PC: not a TV's job. */
+html.tv .no-tv {
+  display: none;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  gap: var(--sp-4);
+  margin: 0 0 var(--sp-6);
+  padding: 0;
+  list-style: none;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  align-self: stretch;
+}
+.card-head h2 {
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  align-self: stretch;
+}
+.actions a {
+  display: flex;
+  align-items: center;
+  min-height: var(--target);
+}
+.actions .end {
+  margin-left: auto;
+}
+.notice {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: 10px;
+  background: #2a2416;
+  color: var(--relayed);
+  font-size: 0.875rem;
+}
+.card details {
+  align-self: stretch;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.card summary {
+  display: list-item; /* keeps the marker */
+  width: fit-content; /* arrow keys aim at its text, not the card's width */
+  padding: var(--sp-2) 0;
+  cursor: pointer;
+}
+.card details ul {
+  margin: 0;
+  padding-left: var(--sp-5);
+}
+.install {
+  align-items: stretch;
+  margin-bottom: var(--sp-5);
+}
+.cmd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.install pre {
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  font:
+    0.8125rem/1.5 ui-monospace,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all; /* one click selects the whole command */
+}
+
+/* ErrorView: moved out of inline styles (#225), same look until its redesign. */
+.err {
+  color: crimson;
+}
+.err.loud {
+  padding: 0.5rem;
+  background: crimson;
+  color: white;
+}
+.err > p:first-child {
+  margin: 0.5rem 0;
+}
+.err > .err-detail {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.uncaught {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+}
+
+/* Library: moved out of inline styles (#225), same look until its redesign. */
+.lib-top {
+  display: flex;
+  justify-content: space-between;
+}
+.seek {
+  width: 100%;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+.tile {
+  width: 100%;
+  text-align: left;
+}
+.poster {
+  aspect-ratio: 2 / 3; /* Chrome 88+: Chrome 87 shows no box until the image loads */
+  background: #ddd;
+}
+.poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* Settings leftovers until its own redesign (#229). */
 .setting {
   display: block;

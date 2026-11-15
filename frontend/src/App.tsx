@@ -24,7 +24,7 @@ import { auth } from './firebase'
 import { getMe, takeNotice, type Me } from './api'
 import { AppError, toAppError } from './errors'
 import { ErrorView, UncaughtErrors } from './ErrorView'
-import { Gateways } from './features/gateways/Gateways'
+import { Gateways, Home } from './features/gateways/Gateways'
 import {
   GatewayLibrary,
   ItemPage,
@@ -331,9 +331,7 @@ function Shell() {
           Stream<span>IQ</span>
         </span>
         <nav className="nav" aria-label="Main" onKeyDown={arrowFocus}>
-          <Link to="/" activeOptions={{ exact: true }}>
-            Gateways
-          </Link>
+          <Link to="/gateways">Gateways</Link>
           {libraryId && (
             <Link to="/g/$gatewayId" params={{ gatewayId: libraryId }}>
               Library
@@ -394,7 +392,7 @@ const rootRoute = createRootRoute({
   component: Shell,
   notFoundComponent: () => (
     <p>
-      Page not found. <Link to="/">Go to your gateways</Link>
+      Page not found. <Link to="/gateways">Go to your gateways</Link>
     </p>
   ),
 })
@@ -434,6 +432,11 @@ const routeTree = rootRoute.addChildren([
   createRoute({
     getParentRoute: () => rootRoute,
     path: '/',
+    component: Home,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'gateways',
     component: Gateways,
   }),
   createRoute({

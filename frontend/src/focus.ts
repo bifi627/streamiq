@@ -34,7 +34,7 @@ export function nearest(from: Box, boxes: Box[], key: string) {
 }
 
 const focusable =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  'a[href], summary, button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 // Left/right leave a one-line field only from its caret's end on that side
 // (no selection); fields without a caret API (email) keep them.

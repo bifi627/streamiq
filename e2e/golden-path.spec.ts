@@ -129,8 +129,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
   let gateway = await startGateway(stateDir, env)
   try {
     await expect(
-      a.getByRole('listitem').filter({ hasText: '●' }),
-    ).toContainText('online')
+      a.getByRole('listitem').filter({ hasText: 'Version' }),
+    ).toContainText('Online')
     const gatewayCtx = await browser.newContext()
     if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
 
@@ -512,7 +512,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         a.getByRole('menuitemradio', { name: /^Source/ }),
       ).toContainText('faster than your connection, may stutter')
       await a.reload() // drops the patch; the next session measures again
-      await a.goto(process.env.E2E_APP_URL!)
+      await a.goto(process.env.E2E_APP_URL! + '/gateways')
     })
 
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
@@ -556,7 +556,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await run(/relay forced: yes[\s\S]*path: relayed \(TURN\)/)
       await a.getByLabel('Force relay (TURN)', { exact: true }).uncheck()
       await expect(report).not.toContainText(email())
-      await a.goto(process.env.E2E_APP_URL!)
+      await a.goto(process.env.E2E_APP_URL! + '/gateways')
     })
 
     await test.step('pin + key survive a reload (IndexedDB)', async () => {
@@ -683,7 +683,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
           /storage: (persist\(\) (granted|denied)|already persistent)/,
         ),
       ).toBeVisible()
-      await a.goto(app)
+      await a.goto(app) // one gateway: home is its library (#225)
+      await expect(a).toHaveURL(`${app}/g/${id}`)
+      await a.getByRole('link', { name: 'Gateways', exact: true }).click()
       await expect(a.getByRole('heading', { name: 'Gateways' })).toBeVisible()
     })
 

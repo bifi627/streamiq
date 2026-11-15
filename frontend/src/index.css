@@ -1,6 +1,7 @@
 /* Design tokens + base styles (#93, #201): direction E, "calm", dark only.
-   Plain CSS that Chrome 87 (webOS TV) understands: no nesting, :has, :is,
-   :where, container queries or aspect-ratio. Sizes in rem: TV mode raises the
+   Chrome 87 (webOS TV): the build (Lightning CSS, cssTarget in vite.config.ts)
+   lowers syntax like nesting, but can't polyfill :has, :where, container
+   queries or aspect-ratio; :not() with a list is 88+, so chain them. Sizes in rem: TV mode raises the
    root size and everything scales with it. */
 :root {
   --bg: #0f0f11;

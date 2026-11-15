@@ -34,7 +34,8 @@ Then:
 1. **Patches + safe minors, all stacks together** — one wave, one verify.
 2. **Majors, one at a time**, ordered least → most blast radius: CI/build
    tooling < test infra < build chain (Vite/TS/Go toolchain) < frameworks
-   (ASP.NET/EF/React/Pion). Pause and confirm before starting each major.
+   (ASP.NET/EF/React/Pion). Pause and confirm before starting each major (AskUserQuestion: start it / skip /
+   stop).
    Workflow pattern: user says "continue with X" → do X → summarize → wait.
 
 **Lockstep groups** — bump together, never split:
@@ -134,14 +135,14 @@ Use a HEREDOC for the message so multi-line formatting survives.
 
 If a bump fails verify and bisect isolates it to one package: **revert that
 one package only**, keep the rest of the wave. Park it as a `tech-debt` issue
-(propose it first, see CLAUDE.md "Tracking") with:
+(propose it first, see CLAUDE.md "Tracking"; ask with AskUserQuestion) with:
 
 - exact failing scenario (test name + symptom)
 - bisect range to narrow next attempt
 - why the rest of the wave was worth keeping
 
 Exact-pinned packages listed there are deliberate regression holds — before
-widening one back to `^`, check the entry and confirm with the user.
+widening one back to `^`, check the entry and confirm with the user (AskUserQuestion).
 
 ## Tool reminders
 

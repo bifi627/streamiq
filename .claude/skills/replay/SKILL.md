@@ -30,7 +30,7 @@ Run in order. Phases 1, 3, 4, 5 are **in-session** (you, the orchestrator). Phas
 - **Watermark.** Read `memory/.replay-state.json` (`{ "processed": [<sessionId>…], "last_run": <iso> }`). Absent → first run, everything pending.
 - **Pending** = transcripts whose `sessionId` (the filename) isn't in `processed`, **excluding the currently-active session** — in practice the most-recently-modified `.jsonl`, which is the one *this* run is writing. Never mine it.
 - **Nothing pending?** If `pending` is empty, report "no new sessions since the last replay" and **stop** — no extraction, no spend. (This is the steady-state outcome once you've replayed recently.)
-- **Batch guard.** Count pending. If **> 10** (default; the threshold is the "more than expected" line), STOP and ask before spending anything:
+- **Batch guard.** Count pending. If **> 10** (default; the threshold is the "more than expected" line), STOP and ask with AskUserQuestion before spending anything:
   `Found N pending sessions (~K tokens reduced). → [a] mine all (in waves) · [b] most-recent M · [c] date cutoff · [d] cancel`.
   ≤ 10 → proceed silently. First run (all pending) is just this guard firing.
 
@@ -60,7 +60,7 @@ Tag every op (see the table below): **auto** (stage, show in summary), **ask** (
 ### 5. APPLY (in-session, guided, git-agnostic)
 
 1. **Stage.** Build `memory.dream/` = a copy of `memory/` with the **auto** ops applied. (Ephemeral; this is the non-destructive output.)
-2. **Review.** Show the auto ops as a summary diff (`N adds · M updates · K deletes`, one line each). Present the **ask** items in batches of ≤4 — each with its candidate, verbatim evidence, and the existing memory it touches — and let the user keep / edit / reject.
+2. **Review.** Show the auto ops as a summary diff (`N adds · M updates · K deletes`, one line each). Present the **ask** items with AskUserQuestion in batches of ≤4 (one question each) — each with its candidate, verbatim evidence, and the existing memory it touches — and let the user keep / edit / reject.
 3. **Apply** (only after approval), in order:
    - **Back up:** `cp -r memory memory.backup-<timestamp>` (the git-agnostic revert path — do this even if the store is under git).
    - Apply auto + confirmed-ask ops to live `memory/` (write/edit/delete files).

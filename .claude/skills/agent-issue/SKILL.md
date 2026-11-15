@@ -34,7 +34,7 @@ thread, approves anything.
 5. Another thread on the same issue: the T3 tool `t3_thread_list` with
    `titleContains: "#N "` (with the trailing space) and `settled: false` (a deferred
    tool: load it with ToolSearch). One exists besides this one → tell the owner which
-   and ask before going on.
+   and ask (AskUserQuestion: go on here / stop) before going on.
 
 ## 2. Dispatch
 
@@ -60,8 +60,10 @@ It writes no code itself.
   a deferred tool: load it with ToolSearch). Skip it in a thread that has other work,
   or if the tool isn't there.
 - Order: the parent's `Order:` line, else its numbered list. None stated, or an open
-  sub-issue is missing from it → ask the owner.
-- All sub-issues closed → tell the owner and ask whether to close N; stop.
+  sub-issue is missing from it → ask the owner (AskUserQuestion, the proposed order as
+  the first option).
+- All sub-issues closed → tell the owner and ask with AskUserQuestion whether to
+  close N; stop.
 - Otherwise take the open sub-issues one at a time, in order:
   1. It already has an open PR (from an earlier run of this group) → start no worker;
      go to step 4 with that PR.
@@ -80,7 +82,7 @@ It writes no code itself.
      sub-issue instead; stop.
   4. Hand over: give the owner the PR link, its review verdict and its CI status
      (`gh pr checks <pr>`) here; CI red → send the worker back to fix it first (`t3_thread_send`). A draft
-     waiting for a device test: ask the owner whether to wait for it or go on with the
+     waiting for a device test: ask the owner with AskUserQuestion whether to wait for it or go on with the
      next sub-issue that doesn't build on it. Then end your turn. Do not link or watch
      the PR from this thread: a linked PR settles the thread when it merges, and
      nothing wakes a thread on a merge. The owner says here when it is merged; check
@@ -89,5 +91,5 @@ It writes no code itself.
   5. After the merge, before the next sub-issue: if the merged PR touched what that one
      builds on, run `refine-issue` on it (its "already drafted" check).
 - A spike that kills a sub-issue: close it as *not planned* with the result, propose
-  the replacement here (create it after the owner agrees), and update the parent's
+  the replacement here and ask with AskUserQuestion (create it after the owner agrees), and update the parent's
   list and order.

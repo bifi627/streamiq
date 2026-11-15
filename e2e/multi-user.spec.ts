@@ -5,7 +5,16 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { invite, newPage, pair, signIn, signUp, videoTime } from './helpers.ts'
+import {
+  invite,
+  keepPcs,
+  newPage,
+  pair,
+  signIn,
+  signUp,
+  videoTime,
+  viaTunnel,
+} from './helpers.ts'
 import { jellyfinAdminGet } from './jellyfin.ts'
 import { startGateway } from './stack.ts'
 
@@ -58,14 +67,28 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
     // Each in their own browser (own client key), each paired.
     const open = async (user: typeof A) => {
       const p = await newPage(browser) // own client key
+      await keepPcs(p)
       await p.goto(app() + '/gateways')
       await signIn(p, user, A.tenantId)
       await pair(p, gatewayCtx, gateway.pageUrl)
       await p.getByRole('button', { name: 'Open' }).click()
+      await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible() // a live session
       return p
     }
     const a = await open(A)
     const b = await open(B)
+
+    await test.step('paired clients are admin-only over the tunnel (#311, #256)', async () => {
+      const list = await viaTunnel(a, '/streamiq/clients')
+      expect(list.status).toBe(200)
+      const clients: { self: boolean }[] = JSON.parse(list.body)
+      expect(clients.map((c) => c.self).sort()).toEqual([false, true])
+      expect((await viaTunnel(b, '/streamiq/clients')).status).toBe(403)
+      const remove = await viaTunnel(b, '/streamiq/clients/remove', {
+        keyFp: 'x',
+      })
+      expect(remove.status).toBe(403)
+    })
 
     await test.step('A and B play to different positions: one Jellyfin viewer each (#195)', async () => {
       await playTo(a, 5)

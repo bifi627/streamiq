@@ -83,5 +83,29 @@ export async function renameGateway(id: string, name: string) {
   }
 }
 
+// Paired clients (#311), gateway API over the shared session: the list and
+// the allowlist live on the gateway only, the API never sees them.
+export type Client = {
+  keyFp: string
+  name: string
+  addedAt: string
+  self: boolean
+}
+
+async function viaTunnel<T>(id: string, url: string, body?: unknown) {
+  const { session, release } = share(id)
+  try {
+    return await tunnelJson<T>((await session).pc, url, body)
+  } finally {
+    release()
+  }
+}
+
+export const listClients = (id: string) =>
+  viaTunnel<Client[]>(id, '/streamiq/clients')
+
+export const removeClient = (id: string, keyFp: string) =>
+  viaTunnel(id, '/streamiq/clients/remove', { keyFp })
+
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })

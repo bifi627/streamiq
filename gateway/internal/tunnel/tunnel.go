@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v4"
+
+	"streamiq/gateway/internal/pairing"
 )
 
 const (
@@ -113,7 +115,9 @@ func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session, slots chan struct{})
 // frames still in flight on a remote close, #71/#72).
 func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 	end := `{"eof":true}`
+	after := func() {}
 	defer func() {
+		defer after() // afterReply: once the browser has the reply and closed the channel
 		if err := d.SendText(end); err == nil {
 			select {
 			case <-who.Closed:
@@ -124,6 +128,9 @@ func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 	}()
 
 	status, hdr, body, err := proxy(j, raw, who)
+	if a, ok := body.(afterReply); ok {
+		after = a.after
+	}
 	if err != nil {
 		log.Printf("gateway: tunnel: %v", err)
 		if status == 0 {
@@ -193,7 +200,8 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 
 // gatewayAPI answers /streamiq/* (docs/protocol.md, "Gateway API"): the gateway
 // itself, never Jellyfin, and without a Jellyfin token. Only an exact, unencoded
-// path matches (GET, or POST on the screen endpoints and /streamiq/name);
+// path matches (GET, or POST on the screen endpoints, /streamiq/name and
+// /streamiq/clients/remove);
 // anything else under the prefix is 404.
 func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[string]string, io.ReadCloser, error) {
 	method := rq.Method
@@ -205,9 +213,13 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 		return screenAPI(method, u.Path, rq.Body, who)
 	case u.Path == NamePath && method == "POST" && j.Rename != nil:
 		return rename(j.Rename, rq.Body)
+	case u.Path == ClientsRemovePath && method == "POST" && j.Clients != nil:
+		return removeClient(j.Clients, rq.Body, who.Key)
 	case method != "GET":
 	case u.Path == BurstPath:
 		return burst(u.Query().Get("size"))
+	case u.Path == ClientsPath && j.Clients != nil:
+		return clients(j.Clients, who.Key)
 	case u.Path == StatusPath && j.Status != nil:
 		b, err := json.Marshal(j.Status(who.User))
 		if err != nil {
@@ -231,7 +243,11 @@ const (
 // A sync.Map so tests can mark a path while tunnel goroutines read it.
 var AdminOnly sync.Map // path -> true
 
-func init() { AdminOnly.Store(NamePath, true) }
+func init() {
+	for _, p := range []string{NamePath, ClientsPath, ClientsRemovePath} {
+		AdminOnly.Store(p, true)
+	}
+}
 
 // NamePath renames the gateway (#310): POST {"name": "…"} → 200 {"name": stored}.
 // The gateway owns its name; the heartbeat tells the API.
@@ -253,6 +269,69 @@ func rename(set func(string) (string, error), body string) (int, map[string]stri
 		return 0, nil, nil, err
 	}
 	b, _ := json.Marshal(map[string]string{"name": name})
+	hdr := map[string]string{"Content-Type": "application/json", "Content-Length": strconv.Itoa(len(b)), "Cache-Control": "no-store"}
+	return http.StatusOK, hdr, io.NopCloser(bytes.NewReader(b)), nil
+}
+
+// ClientsPath lists the paired clients (#311): GET → [{keyFp, name, addedAt, self}],
+// self = the calling session's client key. ClientsRemovePath removes one: POST
+// {"keyFp": "…"} → 200 {}, unknown → 404. The allowlist lives on the gateway only.
+const (
+	ClientsPath       = "/streamiq/clients"
+	ClientsRemovePath = "/streamiq/clients/remove"
+)
+
+func clients(st *pairing.Store, self string) (int, map[string]string, io.ReadCloser, error) {
+	type client struct {
+		pairing.Paired
+		Self bool `json:"self"`
+	}
+	out := []client{}
+	for _, p := range st.Paired() {
+		out = append(out, client{p, p.KeyFp == self})
+	}
+	return okJSON(out)
+}
+
+// removeClient removes another client at once (its sessions closed, a failed
+// save is 500). The calling client itself is removed only after the reply is
+// delivered (afterReply): its removal closes this very session, which would
+// swallow the reply. The browser closes the channel at once, at worst EOFGrace;
+// a failed save is then only logged (the in-memory allowlist refuses it anyway).
+func removeClient(st *pairing.Store, body, self string) (int, map[string]string, io.ReadCloser, error) {
+	var in struct{ KeyFp string }
+	if json.Unmarshal([]byte(body), &in) != nil || in.KeyFp == "" {
+		return http.StatusBadRequest, nil, nil, errors.New("gateway API: remove client: bad body")
+	}
+	if !st.Allowed(in.KeyFp) {
+		return http.StatusNotFound, nil, nil, errors.New("gateway API: remove client: not paired")
+	}
+	if in.KeyFp != self {
+		if err := st.Remove(in.KeyFp); err != nil {
+			return 0, nil, nil, fmt.Errorf("gateway API: remove client: %w", err)
+		}
+		return okJSON(struct{}{})
+	}
+	status, hdr, body2, err := okJSON(struct{}{})
+	return status, hdr, afterReply{body2, func() {
+		if err := st.Remove(in.KeyFp); err != nil {
+			log.Printf("gateway: remove client: %v", err) // the in-memory allowlist refuses it anyway
+		}
+	}}, err
+}
+
+// afterReply is a response body whose after runs once the reply is delivered
+// (handleReq, after the channel closes).
+type afterReply struct {
+	io.ReadCloser
+	after func()
+}
+
+func okJSON(v any) (int, map[string]string, io.ReadCloser, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return 0, nil, nil, err
+	}
 	hdr := map[string]string{"Content-Type": "application/json", "Content-Length": strconv.Itoa(len(b)), "Cache-Control": "no-store"}
 	return http.StatusOK, hdr, io.NopCloser(bytes.NewReader(b)), nil
 }

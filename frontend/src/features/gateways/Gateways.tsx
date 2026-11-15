@@ -2,17 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 import {
   createEnrollmentToken,
   getGateways,
+  listClients,
+  removeClient,
   removeGateway,
   renameGateway,
+  type Client,
   type Gateway,
   type GatewayStatus,
   type Install,
 } from './api'
 import { Pairing } from '../pairing/Pairing'
-import { share } from '../pairing/connect'
+import { dropShared, share } from '../pairing/connect'
+import { deletePin } from '../pairing/store'
 import {
   ADMIN_ONLY,
   AppError,
+  describe,
   renameMessage,
   isKind,
   toAppError,
@@ -76,6 +81,14 @@ export function Gateways() {
       else n.delete(id)
       return n
     })
+  // Gateways this browser removed itself from (#311): Pair shows again.
+  const [unpaired, setUnpaired] = useState<ReadonlySet<string>>(new Set())
+  async function removedSelf(id: string) {
+    await deletePin(id).catch(() => {}) // a stale pin would only fail later
+    dropShared(id) // the gateway closed it anyway
+    pin(id, false)
+    setUnpaired((s) => new Set(s).add(id))
+  }
 
   useEffect(() => {
     const load = () =>
@@ -224,8 +237,16 @@ export function Gateways() {
                 <Pairing
                   gatewayId={d.id}
                   lanUrl={d.lanUrl}
+                  needsPair={unpaired.has(d.id)}
                   onPin={(p) => pin(d.id, p)}
-                  onPaired={() => pin(d.id, true)}
+                  onPaired={() => {
+                    pin(d.id, true)
+                    setUnpaired((s) => {
+                      const n = new Set(s)
+                      n.delete(d.id)
+                      return n
+                    })
+                  }}
                   open={() =>
                     navigate({
                       to: '/g/$gatewayId',
@@ -248,6 +269,13 @@ export function Gateways() {
                 )
               )}
               <StatusDetails g={d} />
+              {admin && (
+                <PairedClients
+                  g={d}
+                  unpaired={unpaired.has(d.id)}
+                  onRemovedSelf={() => removedSelf(d.id)}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -381,6 +409,100 @@ function StatusDetails({ g }: { g: Gateway }) {
     </details>
   )
 }
+
+// Admin-only (#311): the gateway's paired clients over the shared tunnel
+// session, loaded each time the section opens. Removing one ends its sessions;
+// removing this browser closes the tunnel, and the card offers Pair again.
+function PairedClients({
+  g,
+  unpaired,
+  onRemovedSelf,
+}: {
+  g: Gateway
+  unpaired: boolean
+  onRemovedSelf: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [list, setList] = useState<Client[] | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+  const summary = useRef<HTMLElement>(null)
+  const live = open && g.online && !unpaired
+  useEffect(() => {
+    if (!live) return
+    let on = true
+    listClients(g.id)
+      .then((l) => {
+        if (!on) return
+        setList(l)
+        setMsg(null)
+      })
+      .catch((x) => {
+        if (on) setMsg(clientsMessage(toAppError(x)))
+      })
+    return () => {
+      on = false
+    }
+  }, [live, g.id])
+  const note = !g.online
+    ? 'Gateway offline: the list comes from it.'
+    : unpaired
+      ? 'This browser was removed: pair it again.'
+      : (msg ?? (list ? null : 'loading…'))
+  const shown = g.online && !unpaired ? list : null
+
+  async function remove(c: Client) {
+    if (
+      !confirm(
+        c.self
+          ? 'Remove this browser? It must pair again to use this gateway.'
+          : `Remove "${c.name}"? Its streams stop and it must pair again.`,
+      )
+    )
+      return
+    try {
+      await removeClient(g.id, c.keyFp)
+      if (c.self) onRemovedSelf()
+    } catch (x) {
+      const e = toAppError(x)
+      // 404: not paired anymore (removed elsewhere): drop the row all the same.
+      if (e.context.status !== 404) return setMsg(clientsMessage(e))
+    }
+    if (!c.self) setList((l) => l && l.filter((x) => x.keyFp !== c.keyFp))
+    // The focused Remove is gone: keep the D-pad's place (#226), as Rename does.
+    summary.current?.focus()
+  }
+
+  return (
+    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary ref={summary}>Paired clients</summary>
+      {note && <p role="status">{note}</p>}
+      {shown?.length === 0 && <p>No paired clients.</p>}
+      {!!shown?.length && (
+        <ul className="clients">
+          {shown.map((c) => (
+            <li key={c.keyFp}>
+              <span>
+                {c.name}
+                {c.self && <b> (this browser)</b>} · paired{' '}
+                {new Date(c.addedAt).toLocaleDateString()}
+              </span>
+              <button type="button" className="link" onClick={() => remove(c)}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
+  )
+}
+
+const clientsMessage = (e: AppError) =>
+  isKind(e, 'not-paired')
+    ? 'Pair this browser to see them.'
+    : e.context.status === 404
+      ? 'This gateway is too old to list them: update it.'
+      : describe(e).message
 
 const transcodingText: Record<string, string> = {
   nvenc: 'GPU (nvenc)',

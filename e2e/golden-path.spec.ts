@@ -15,11 +15,13 @@ import {
 } from '@playwright/test'
 import {
   gatewayTab,
+  keepPcs,
   newPage,
   pair,
   password,
   tunnelOk,
   videoTime,
+  viaTunnel,
 } from './helpers.ts'
 import { startGateway } from './stack.ts'
 
@@ -55,54 +57,6 @@ const pitch = (p: Page) =>
     return (
       (bins.indexOf(Math.max(...bins)) * v.an.context.sampleRate) / v.an.fftSize
     )
-  })
-
-/**
- * A raw tunnel request from page p's open session (docs/protocol.md framing).
- * Needs keepPcs(p).
- */
-const viaTunnel = (p: Page, url: string, body?: object) =>
-  p.evaluate(
-    ([url, body]) =>
-      new Promise<string>((resolve, reject) => {
-        const pcs = (window as { pcs?: RTCPeerConnection[] }).pcs!
-        const pc = pcs.findLast((x) => x.connectionState === 'connected')!
-        const dc = pc.createDataChannel(`req:${url}`)
-        dc.binaryType = 'arraybuffer'
-        let out = ''
-        dc.onopen = () =>
-          dc.send(
-            JSON.stringify({
-              method: body ? 'POST' : 'GET',
-              url,
-              headers: {},
-              ...(body && { body: JSON.stringify(body) }),
-            }),
-          )
-        dc.onmessage = (e) => {
-          if (typeof e.data !== 'string')
-            out += new TextDecoder().decode(e.data)
-          else if (JSON.parse(e.data).eof) {
-            dc.onclose = null
-            dc.close()
-            resolve(out)
-          }
-        }
-        dc.onclose = () => reject(new Error(`closed: ${url}`))
-      }),
-    [url, body] as const,
-  )
-const keepPcs = (p: Page) =>
-  p.addInitScript(() => {
-    const P = RTCPeerConnection
-    const w = window as { pcs?: RTCPeerConnection[] }
-    w.pcs = []
-    window.RTCPeerConnection = class extends P {
-      constructor(c?: RTCConfiguration) {
-        super(c)
-        w.pcs!.push(this)
-      }
-    } as typeof P
   })
 
 test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', async ({
@@ -536,9 +490,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.keyboard.press('Escape')
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await both((p) => expect(p.getByText('Screen closed.')).toBeVisible())
-      expect(JSON.parse(await viaTunnel(phone, '/streamiq/screens'))).toEqual(
-        [],
-      )
+      expect(
+        JSON.parse((await viaTunnel(phone, '/streamiq/screens')).body),
+      ).toEqual([])
       await phone
         .getByRole('alert')
         .getByRole('link', { name: 'Library' })
@@ -722,6 +676,53 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(b.locator('pre')).toContainText(
         /paired: no\s+failed at connect .*not paired/,
       )
+    })
+
+    await test.step('Paired clients on the card (#311): remove B → its stream stops; remove A itself → Pair again', async () => {
+      const b = await signIn(browser, false, '/gateways')
+      await pair(b, gatewayCtx, gateway.pageUrl)
+      await b.getByRole('button', { name: 'Open' }).click()
+      const movies = b.getByRole('button', { name: /Movies/ })
+      await expect(movies).toBeVisible() // B's live session
+      const card = a.locator('li.card')
+      await card.getByText('Paired clients', { exact: true }).click()
+      const clients = card.locator('.clients li')
+      await expect(clients).toHaveCount(2)
+      const self = clients.filter({ hasText: '(this browser)' })
+      await expect(self).toHaveCount(1)
+      await expect(self).toContainText(
+        `paired ${await a.evaluate(() => new Date().toLocaleDateString())}`,
+      )
+      a.once('dialog', (d) => d.accept())
+      await clients
+        .filter({ hasNotText: '(this browser)' })
+        .getByRole('button', { name: 'Remove' })
+        .click()
+      await expect(clients).toHaveCount(1)
+      const summary = card.getByText('Paired clients', { exact: true })
+      await expect(summary).toBeFocused() // the D-pad keeps its place (#226)
+      // The gateway closed B's PeerConnection; B must pair again.
+      await movies.click()
+      await expect(
+        b.locator('[role=alert][data-kind="tunnel-lost"]'),
+      ).toBeVisible()
+      await b.getByRole('link', { name: '← Gateways' }).click()
+      await b.getByRole('button', { name: 'Test connection' }).click()
+      await expect(
+        b.getByText('this browser is not paired with the gateway'),
+      ).toBeVisible()
+      await b.context().close()
+
+      // A removes itself: the reply still arrives, then the card offers Pair.
+      a.once('dialog', (d) => d.accept())
+      await self.getByRole('button', { name: 'Remove' }).click()
+      await expect(
+        card.getByText('This browser was removed: pair it again.'),
+      ).toBeVisible()
+      await expect(summary).toBeFocused()
+      await pair(a, gatewayCtx, gateway.pageUrl)
+      await expect(clients).toHaveCount(1) // the list reloads once paired
+      await expect(card.getByRole('button', { name: 'Open' })).toBeVisible()
     })
 
     await test.step('new gateway certificate → red warning → re-pair', async () => {

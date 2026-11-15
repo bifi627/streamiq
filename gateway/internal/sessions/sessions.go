@@ -181,7 +181,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
 			s.serveAuth(id, user, pc, d, &authed)
 		case d.Label() != "auth" && authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Name: func() string { return s.name(id) }}, slots)
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Key: s.key(id), Name: func() string { return s.name(id) }}, slots)
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`; a second `auth`: never
 		}
@@ -198,11 +198,16 @@ func (s *Sessions) authorize(user string, authed *atomic.Bool) {
 	authed.Store(true)
 }
 
+// key is the client key fp the session authed with.
+func (s *Sessions) key(session string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.keys[session]
+}
+
 // name is the session's client pairing name (allowlist entry for its key).
 func (s *Sessions) name(session string) string {
-	s.mu.Lock()
-	fp := s.keys[session]
-	s.mu.Unlock()
+	fp := s.key(session)
 	for _, p := range s.Store.Paired() {
 		if p.KeyFp == fp {
 			return p.Name

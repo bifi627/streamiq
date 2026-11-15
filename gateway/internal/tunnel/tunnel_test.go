@@ -8,12 +8,17 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pion/webrtc/v4"
+
+	"streamiq/gateway/internal/pairing"
 )
 
 const (
@@ -521,5 +526,68 @@ func TestRename(t *testing.T) {
 	j.Rename = func(string) (string, error) { return "", fmt.Errorf("disk full") }
 	if st, _ := call(Admin, `{"name":"x"}`); st != http.StatusInternalServerError {
 		t.Fatalf("failing hook: %d, want 500", st)
+	}
+}
+
+// GET /streamiq/clients + POST /streamiq/clients/remove (#311): admin-only, the
+// list marks the caller's own key, remove 404s an unknown key, removes another
+// client at once (closing its sessions via OnRemove) and the caller's own key
+// only after the reply is delivered.
+func TestClients(t *testing.T) {
+	j, _ := fakeJellyfin(t)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[
+		{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z"},
+		{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z"}]`), 0o600)
+	store, err := pairing.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dropped []string
+	store.OnRemove = func(fp string) { dropped = append(dropped, fp) }
+	call := func(role, method, path, body string) (int, string, io.ReadCloser) {
+		raw, _ := json.Marshal(tunnelReq{Method: method, URL: path, Body: body})
+		status, _, rc, _ := proxy(j, raw, Session{Role: role, Key: "aa"})
+		if rc == nil {
+			return status, "", nil
+		}
+		b, _ := io.ReadAll(rc)
+		return status, string(b), rc
+	}
+	if s, _, _ := call(Admin, "GET", ClientsPath, ""); s != http.StatusNotFound {
+		t.Fatalf("no store: %d, want 404", s)
+	}
+	j.Clients = store
+	for _, role := range []string{Member, ""} {
+		for _, c := range [][2]string{{"GET", ClientsPath}, {"POST", ClientsRemovePath}} {
+			if s, _, _ := call(role, c[0], c[1], `{"keyFp":"bb"}`); s != http.StatusForbidden {
+				t.Errorf("%q %s %s: %d, want 403", role, c[0], c[1], s)
+			}
+		}
+	}
+	s, list, _ := call(Admin, "GET", ClientsPath, "")
+	want := `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true},{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z","self":false}]`
+	if s != 200 || list != want {
+		t.Fatalf("list: %d %s", s, list)
+	}
+	if s, _, _ := call(Admin, "POST", ClientsRemovePath, `{"keyFp":"zz"}`); s != http.StatusNotFound {
+		t.Errorf("unknown key: %d, want 404", s)
+	}
+	if s, _, _ := call(Admin, "POST", ClientsRemovePath, `nope`); s != http.StatusBadRequest {
+		t.Errorf("bad body: %d, want 400", s)
+	}
+	// Another client: gone at once, its sessions closed.
+	s, _, rc := call(Admin, "POST", ClientsRemovePath, `{"keyFp":"bb"}`)
+	if _, deferred := rc.(afterReply); s != 200 || deferred || store.Allowed("bb") || !slices.Equal(dropped, []string{"bb"}) {
+		t.Fatalf("remove other: %d deferred=%v allowed=%v dropped=%v", s, deferred, store.Allowed("bb"), dropped)
+	}
+	// The caller itself (Key "aa"): only after the reply is delivered.
+	s, _, rc = call(Admin, "POST", ClientsRemovePath, `{"keyFp":"aa"}`)
+	if s != 200 || !store.Allowed("aa") || len(dropped) != 1 {
+		t.Fatalf("remove self: %d, before the reply is out: allowed=%v dropped=%v", s, store.Allowed("aa"), dropped)
+	}
+	rc.(afterReply).after() // handleReq: once the reply is delivered
+	if store.Allowed("aa") || !slices.Equal(dropped, []string{"bb", "aa"}) {
+		t.Fatalf("after: allowed aa=%v, dropped=%v", store.Allowed("aa"), dropped)
 	}
 }

@@ -12,7 +12,7 @@ import { useHousehold } from '../households/household'
 type Test = { lines: string[]; failed?: string }
 
 export function DiagnosticsPage() {
-  useSyncExternalStore(subscribe, snapshot) // Force relay checkbox
+  useSyncExternalStore(subscribe, snapshot) // Force relay checkbox, cpu/memory lines
   const [caps, setCaps] = useState('probing…')
   const [gateways, setGateways] = useState<Gateway[]>([])
   const [gatewayId, setGatewayId] = useState('')
@@ -86,6 +86,9 @@ export function DiagnosticsPage() {
     `browser: ${navigator.userAgent}`,
     `screen: ${screen.width}x${screen.height} @${devicePixelRatio}x, window ${innerWidth}x${innerHeight}`,
     `codecs: ${caps}`,
+    ...(diag.cpu ? [`cpu: ${diag.cpu}`] : []),
+    ...(diag.memory ? [`memory: ${diag.memory}`] : []),
+    ...(diag.lastRun ? [diag.lastRun] : []),
     ...(test
       ? [
           `gateway: ${gw?.name ?? gatewayId} (${gw?.version ?? '?'})`,

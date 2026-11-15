@@ -328,10 +328,12 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect
         .poll(() => pitch(a), { timeout: 30_000 })
         .toBeCloseTo(880, -2)
+      // Newest first: this load's decision, then the pick before it. Video
+      // may transcode (the mkv has no bitrate); the audio is copied.
       await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
-          /audio: default not decodable, stream (\d+) instead[\s\S]*jellyfin: video remux \(h264\) · audio copy \(aac 1ch, stream \1\)/,
+          /jellyfin: video \w+ \(h264\) · audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: default not decodable, stream \1 instead/,
         ),
       ).toBeVisible()
       await a.getByRole('button', { name: 'Hide diagnostics' }).click()

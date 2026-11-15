@@ -56,6 +56,10 @@ export function upNext(episodes: Item[]) {
   )
 }
 
+/** A tile opens the player, not a page: a movie has its page (#204) with
+ * Play / Resume. The Resume spot plays at once regardless. */
+export const playsAtOnce = (i: Item) => playable(i) && i.Type !== 'Movie'
+
 /** Opens in the player, not as a listing. */
 export const playable = (i: Item) =>
   !i.IsFolder && i.Type !== 'Series' && i.Type !== 'Season'

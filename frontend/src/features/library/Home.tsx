@@ -8,7 +8,13 @@ import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { backdrop, load, primary, Tunnel, type Art } from './art'
-import { clock, playable, TICKS_PER_SECOND, type Item } from './items'
+import {
+  clock,
+  playable,
+  playsAtOnce,
+  TICKS_PER_SECOND,
+  type Item,
+} from './items'
 
 type Page = { Items: Item[] }
 type Lists = { resume: Item[]; recent: Item[]; views: Item[] }
@@ -54,6 +60,14 @@ export function Home() {
   const open = (i: Item) =>
     navigate({
       to: playable(i)
+        ? '/g/$gatewayId/play/$itemId'
+        : '/g/$gatewayId/i/$itemId',
+      params: { gatewayId, itemId: i.Id },
+    })
+  // Recently added + Libraries: a movie opens its page (#204).
+  const pick = (i: Item) =>
+    navigate({
+      to: playsAtOnce(i)
         ? '/g/$gatewayId/play/$itemId'
         : '/g/$gatewayId/i/$itemId',
       params: { gatewayId, itemId: i.Id },
@@ -127,7 +141,7 @@ export function Home() {
             item={i}
             art={primary(i)}
             first={!spot && n === 0}
-            onOpen={open}
+            onOpen={pick}
           />
         ))}
       </Row>
@@ -139,7 +153,7 @@ export function Home() {
             art={primary(i)}
             wide
             first={!spot && !lists.recent.length && n === 0}
-            onOpen={open}
+            onOpen={pick}
           />
         ))}
       </Row>

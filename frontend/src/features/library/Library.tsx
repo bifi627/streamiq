@@ -36,6 +36,7 @@ import {
   clock,
   isBack,
   playable,
+  playsAtOnce,
   subtitleTracks,
   TICKS_PER_SECOND,
   upNext,
@@ -778,13 +779,11 @@ function Browse({ item }: { item: Item }) {
       </Link>
     </>
   )
-  // A movie opens its page (#204), other playables play.
   const open = (i: Item) =>
     navigate({
-      to:
-        playable(i) && i.Type !== 'Movie'
-          ? '/g/$gatewayId/play/$itemId'
-          : '/g/$gatewayId/i/$itemId',
+      to: playsAtOnce(i)
+        ? '/g/$gatewayId/play/$itemId'
+        : '/g/$gatewayId/i/$itemId',
       params: { gatewayId, itemId: i.Id },
     })
 

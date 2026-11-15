@@ -44,6 +44,7 @@ import {
   type Item,
 } from './items'
 import { Privacy } from './Privacy'
+import { ICON, Icon } from './Controls'
 import { arrowFocus } from '../../focus'
 import { Tunnel, backdrop, primary } from './art'
 import { Artwork, minutes, Watched } from './Home'
@@ -60,6 +61,9 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   // The player has its own badge in its overlay (#205).
   const playing = useRouterState({
     select: (r) => r.location.pathname.includes('/play/'),
+  })
+  const screenMode = useRouterState({
+    select: (r) => r.location.pathname.endsWith('/screen'),
   })
 
   useEffect(() => {
@@ -91,9 +95,11 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         <Link to="/gateways">← Gateways</Link>
         <span className="lib-actions">
           {session && !playing && <Privacy pc={session.pc} />}
-          <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
-            Use as screen
-          </Link>
+          {!screenMode && (
+            <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
+              Use as screen
+            </Link>
+          )}
         </span>
       </p>
       {err && (
@@ -489,7 +495,7 @@ export function ScreenPage() {
       )}
       {play ? (
         <>
-          <p>
+          <p className="muted">
             <small>📱 Controlled from your phone</small>
           </p>
           <Player
@@ -505,15 +511,21 @@ export function ScreenPage() {
         </>
       ) : (
         !ended && (
-          <>
+          // Read from the couch (#227): big, centered, one action.
+          <div className="screen-wait">
+            <Icon d={ICON.tv} />
             <h2>Screen: {name}</h2>
-            <p>
-              Open StreamIQ on your phone → Play on <b>{name}</b>
-            </p>
+            <ol>
+              <li>Open StreamIQ on your phone</li>
+              <li>Pick something to watch</li>
+              <li>
+                Play on <b>{name}</b>
+              </li>
+            </ol>
             <button type="button" autoFocus onClick={leave}>
-              Back
+              Leave
             </button>
-          </>
+          </div>
         )
       )}
     </>
@@ -553,30 +565,39 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
     )
   }
   return (
-    <div>
-      <button type="button" onClick={toggle} aria-expanded={open}>
+    // A secondary action under the tile (#227): outlined, not filled.
+    <div className="play-on">
+      <button
+        type="button"
+        className="secondary"
+        onClick={toggle}
+        aria-expanded={open}
+      >
+        <Icon d={ICON.cast} />
         Play on…
       </button>
       {open &&
         screens &&
         (screens.length ? (
-          screens.map((s) => (
-            <p key={s.id}>
-              <button type="button" onClick={() => send(s)}>
-                {s.name}
-              </button>{' '}
-              {s.state?.itemId && (
-                <Link
-                  to="/g/$gatewayId/remote/$screenId"
-                  params={{ gatewayId, screenId: s.id }}
-                >
-                  Remote
-                </Link>
-              )}
-            </p>
-          ))
+          <ul>
+            {screens.map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => send(s)}>
+                  {s.name}
+                </button>
+                {s.state?.itemId && (
+                  <Link
+                    to="/g/$gatewayId/remote/$screenId"
+                    params={{ gatewayId, screenId: s.id }}
+                  >
+                    Remote
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
         ) : (
-          <p>
+          <p className="muted">
             <small>
               No screen open. On the TV, open this gateway in StreamIQ and
               choose “Use as screen”.
@@ -679,13 +700,19 @@ export function RemotePage({ screenId }: { screenId: string }) {
     [pc, screenId],
   )
 
-  if (screen === undefined) return <p>{down || 'Connecting to the screen…'}</p>
+  if (screen === undefined)
+    return <p className="remote">{down || 'Connecting to the screen…'}</p>
   const library = (
     <Link to="/g/$gatewayId" params={{ gatewayId }}>
       Library
     </Link>
   )
-  if (!screen) return <p role="alert">Screen closed. {library}</p>
+  if (!screen)
+    return (
+      <p role="alert" className="remote">
+        Screen closed. {library}
+      </p>
+    )
   const pos = (st?.positionTicks ?? 0) / TICKS_PER_SECOND
   const dur = (st?.durationTicks ?? 0) / TICKS_PER_SECOND
   const seek = (t: number) => {
@@ -697,49 +724,60 @@ export function RemotePage({ screenId }: { screenId: string }) {
   }
   const audio = audioTracks(item?.MediaStreams)
   const subs = subtitleTracks(item?.MediaStreams)
+  const art = item && (backdrop(item) ?? primary(item))
+  // Phone first (#227): one column, the keys low enough for a thumb.
   return (
-    <>
-      <h2>Remote: {screen.name}</h2>
+    <div className="remote">
+      <h2>
+        <Icon d={ICON.tv} />
+        Remote: {screen.name}
+      </h2>
       {!st?.itemId ? (
         <p>Nothing playing. {library}</p>
       ) : (
         <>
+          {art && <Artwork art={art} width={780} className="art remote-art" />}
           <h3>{item?.Name}</h3>
-          <p>
-            <input
-              type="range"
-              aria-label="Position"
-              min={0}
-              max={Math.max(dur, 1)}
-              step={1}
-              value={drag ?? pos}
-              onChange={(e) => seek(Number(e.target.value))}
-              className="seek"
-            />
-            <small>
-              {clock(drag ?? pos)} / {clock(dur)}
-            </small>
-          </p>
-          <p>
+          <input
+            type="range"
+            aria-label="Position"
+            min={0}
+            max={Math.max(dur, 1)}
+            step={1}
+            value={drag ?? pos}
+            onChange={(e) => seek(Number(e.target.value))}
+            className="seek"
+          />
+          <small className="remote-time">
+            {clock(drag ?? pos)} / {clock(dur)}
+          </small>
+          <div className="remote-keys">
             <button type="button" onClick={() => seek((drag ?? pos) - 10)}>
               −10 s
-            </button>{' '}
+            </button>
             <button
               type="button"
+              className="primary"
+              aria-label={st.paused ? 'Play' : 'Pause'}
               onClick={() => send({ type: st.paused ? 'resume' : 'pause' })}
             >
-              {st.paused ? 'Play' : 'Pause'}
-            </button>{' '}
+              <Icon d={st.paused ? ICON.play : ICON.pause} />
+            </button>
             <button type="button" onClick={() => seek((drag ?? pos) + 10)}>
               +10 s
-            </button>{' '}
-            <button type="button" onClick={() => send({ type: 'stop' })}>
-              Stop
             </button>
-          </p>
+          </div>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => send({ type: 'stop' })}
+          >
+            <Icon d={ICON.stop} />
+            Stop
+          </button>
           {audio.length > 1 && (
             <label>
-              Audio{' '}
+              Audio
               <select
                 value={String(st.audio ?? '')}
                 onChange={(e) =>
@@ -754,10 +792,10 @@ export function RemotePage({ screenId }: { screenId: string }) {
                 ))}
               </select>
             </label>
-          )}{' '}
+          )}
           {subs.length > 1 && (
             <label>
-              Subtitles{' '}
+              Subtitles
               <select
                 value={String(st.subtitle ?? -1)}
                 onChange={(e) =>
@@ -779,7 +817,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
           <small>{down || msg}</small>
         </p>
       )}
-    </>
+    </div>
   )
 }
 

@@ -258,6 +258,9 @@ Copy `.env.example` only to override.
 - **Done means:** `scripts/check.sh` ran and its output was read; the changed flow was
   actually driven (curl / UI / test output shown); docs invalidated by the change updated
   in the same diff. "It should work" is not evidence.
+- **Questions to the owner go through `AskUserQuestion`** (2–4 options, your pick first),
+  not a question at the end of a chat message; context goes in chat before it. Plain chat
+  only when the tool isn't there.
 - **Unit of work:** sized for human review (one reviewable PR), not session capacity.
   No drive-by fixes — unrelated improvements become new tasks.
 - **Never satisfy a check by weakening it.** Diffs touching tests, lint config, or CI

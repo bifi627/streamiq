@@ -26,7 +26,8 @@ you run in; a worker started by an orchestrator reports there.
 - Stop and say why if the issue is closed, is not authored by `bifi627`, still has
   `needs-spec`, or has no acceptance criteria: an unapproved spec is `refine-issue`'s
   job.
-- Stop and ask the owner if any of these holds:
+- Stop and ask the owner (AskUserQuestion: go on / stop, naming what holds) if any of
+  these holds:
   - the issue names a blocker that is still open;
   - a merged PR already references it (it may be open on purpose);
   - none of its criteria is a change to the repo (a hardware run, a decision);
@@ -57,7 +58,8 @@ you run in; a worker started by an orchestrator reports there.
   `bash scripts/check.sh` run and read, changed flow actually driven, docs updated in
   the same diff).
 - If blocked or the spec turns out to be wrong: stop, comment on the issue what's
-  unclear, and ask the owner in the thread.
+  unclear, and ask the owner in the thread
+  with AskUserQuestion (the options you see, your pick first).
 
 ## 3. Review
 

@@ -2,6 +2,7 @@
 // integration layer). Real browser → broker → gateway → Jellyfin: onboard, pair,
 // install check, browse, play, resume, re-pair, re-pair after an evicted key,
 // remove (kills open sessions).
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -155,6 +156,39 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       gateway = await startGateway(stateDir, env)
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       await expect(gatewayPage.getByText('StreamIQ: connected')).toBeVisible() // back on the broker
+      await gatewayPage.close()
+      await a.getByRole('link', { name: '← Gateways' }).click()
+      await a.getByRole('button', { name: 'Open' }).click()
+      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
+    })
+
+    await test.step('backup → wiped state → restore: same gateway, no new pairing (#52)', async () => {
+      const zip = path.join(
+        os.tmpdir(),
+        `streamiq-e2e-backup-${Date.now()}.zip`,
+      )
+      // A free page port: the CLI's "is it running?" check must not hit an installed gateway.
+      const cli = (...args: string[]) => {
+        const r = spawnSync(process.env.E2E_GATEWAY_BIN!, args, {
+          env: {
+            ...process.env,
+            STREAMIQ_STATE_DIR: stateDir,
+            STREAMIQ_PAGE_PORT: new URL(gateway.pageUrl).port,
+          },
+          encoding: 'utf8',
+        })
+        expect(r.status, r.stdout + r.stderr).toBe(0)
+        return r.stdout
+      }
+      expect(cli('backup', zip)).toContain('NOT encrypted') // while it runs
+      await gateway.stop()
+      for (const f of fs.readdirSync(stateDir))
+        fs.rmSync(path.join(stateDir, f))
+      cli('restore', zip)
+      fs.rmSync(zip)
+      gateway = await startGateway(stateDir, env)
+      const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
+      await expect(gatewayPage.getByText('StreamIQ: connected')).toBeVisible()
       await gatewayPage.close()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Open' }).click()

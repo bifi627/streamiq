@@ -84,7 +84,9 @@ export function Pairing({
       }
     } catch (e) {
       const err = toAppError(e)
-      if (err.kind === 'not-paired') setPinned(false) // Retry keeps Pair, not Open
+      // No usable pin: Pair stays, not Open, through a retest or a refused pairing.
+      if (err.kind === 'not-paired' || err.kind === 'pin-mismatch')
+        setPinned(false)
       setS({ step: 'failed', err })
     }
   }

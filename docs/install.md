@@ -322,8 +322,10 @@ paired sees **Update to v…** on the gateway's card on the Gateways page. It ru
 update as above, started by the gateway itself; the card shows *Updating* until the gateway
 is back on the new version (its output is in `update.log` in the install dir). Without the
 logon task (`gateway service install`, once at home) the card says so instead: nothing would
-start the gateway again. If the gateway isn't back after about 2 minutes, the card says so:
-at home, check `update.log` and run [`gateway rollback`](#roll-back-an-update).
+start the gateway again. If after about 2 minutes the gateway still runs the old version, the
+update failed (or is still backing up): `update.log` says which; don't roll back, nothing
+changed. If it isn't back at all, check `update.log` at home and run
+[`gateway rollback`](#roll-back-an-update).
 Linux / macOS: by hand as above for now.
 
 Your settings and paired browsers stay. Nothing updates without you (or an admin in the web app) starting it.

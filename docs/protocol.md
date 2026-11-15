@@ -390,8 +390,11 @@ after the reply and comes back on its own; its heartbeat `version` is the result
 change). `409 { "reason": "…" }` = nothing started, the same reasons as `remoteUpdate`
 above (one updater at a time). A failure to start the process is `500`. Windows with the
 logon task only: Linux/macOS have no service that would start the gateway again (#119, #277).
+The updater installs the latest release when it runs, which can be newer than the
+`version` in the reply (the daily check's); the web app counts any other version as done.
 A gateway older than this answers `404`.
-[?size=N]`** (throughput test, #90): `200`,
+
+**`GET /streamiq/burst[?size=N]`** (throughput test, #90): `200`,
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
 bytes through the normal chunking and backpressure above. `size` defaults to
 4 MiB and is capped at 16 MiB; anything else (over the cap, negative, not a

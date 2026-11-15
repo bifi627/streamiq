@@ -297,16 +297,22 @@ const UPDATE_WAIT = 2 * 60_000
 // The heartbeat's newer release (g.update). An admin whose browser is paired
 // gets Update to v… over the tunnel (#312) when the gateway's status says it
 // can (Windows with the logon task), else the reason and how to update by hand.
-// After 202: Updating until the list reports the new version; not back on it
-// within UPDATE_WAIT: says so and names gateway rollback.
+// After 202: Updating until the list shows it online on another version than
+// before (the updater installs the latest release, maybe newer than the one
+// named). Not there within UPDATE_WAIT: still on the old version = the update
+// hasn't happened (failed, or still backing up: update.log); offline = it broke
+// mid-way, and gateway rollback brings back the old version.
 function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
   const [remote, setRemote] = useState<true | string | null>(null) // null = not known
-  const [updating, setUpdating] = useState<string | null>(null) // target version
+  // The target, and the version before the click.
+  const [updating, setUpdating] = useState<{
+    to: string
+    from: string | null
+  } | null>(null)
   const [late, setLate] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const status = useRef<HTMLParagraphElement>(null)
-  // Updating until the list shows it back online on the target version.
-  const active = updating !== null && !(g.online && g.version === updating)
+  const active = updating !== null && !(g.online && g.version !== updating.from)
 
   useEffect(() => {
     if (!canUpdate || !g.update || active) return
@@ -342,7 +348,7 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
       if ('reason' in r) setRemote(r.reason)
       else {
         setLate(false)
-        setUpdating(r.version)
+        setUpdating({ to: r.version, from: g.version })
       }
     } catch (e) {
       setMsg(describe(toAppError(e)).message)
@@ -352,14 +358,20 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
   if (active)
     return (
       <p className="notice" role="status" tabIndex={-1} ref={status}>
-        {late ? (
+        {!late ? (
+          `Updating to v${updating!.to}… The gateway is offline for a moment.`
+        ) : g.online ? (
           <>
-            The update to v{updating} didn't finish: the gateway isn't back on
-            it. At home, run <code>gateway rollback</code> to go back (see{' '}
-            <code>update.log</code> next to the gateway and docs/install.md).
+            The update to v{updating!.to} hasn't happened: the gateway still
+            runs v{g.version}. It failed or is still backing up: see{' '}
+            <code>update.log</code> next to the gateway, at home.
           </>
         ) : (
-          `Updating to v${updating}… The gateway is offline for a moment.`
+          <>
+            The update to v{updating!.to} didn't finish: the gateway isn't back.
+            At home, see <code>update.log</code> next to the gateway, and run{' '}
+            <code>gateway rollback</code> to go back (docs/install.md).
+          </>
         )}
       </p>
     )

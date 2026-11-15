@@ -1,6 +1,9 @@
 package update
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // Each refusal reason, then one start; a second Run while the updater runs is
 // refused and starts nothing, and it is possible again once the updater exits.
@@ -36,7 +39,10 @@ func TestRemote(t *testing.T) {
 		t.Fatalf("second Run: %q starts=%d", why, starts)
 	}
 	close(exited) // the updater failed: the gateway still runs, it may try again
-	for r.Reason() != "" {
+	for end := time.Now().Add(5 * time.Second); r.Reason() != ""; time.Sleep(time.Millisecond) {
+		if time.Now().After(end) {
+			t.Fatalf("still %q after the updater exited", r.Reason())
+		}
 	}
 	if _, why, _ := r.Run(); why != "" || starts != 2 {
 		t.Fatalf("after exit: %q starts=%d", why, starts)

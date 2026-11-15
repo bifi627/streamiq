@@ -305,7 +305,11 @@ function GatewayName({
         if (e2) setError(e2)
         else setDraft(null)
       }}
-      onKeyDown={(e) => isBack(e.nativeEvent) && setDraft(null)}
+      onKeyDown={(e) => {
+        if (!isBack(e.nativeEvent)) return
+        e.preventDefault() // else the browser's own Back runs too (webOS remote)
+        setDraft(null)
+      }}
     >
       <input
         aria-label="Gateway name"

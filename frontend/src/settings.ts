@@ -55,3 +55,31 @@ export function setQuality(q: Quality) {
     /* not saved: this playback only */
   }
 }
+
+/** TV mode (#201): larger root size + 5 % safe-area padding (index.css
+ * `html.tv`). Manual only, no TV detection. */
+const TV_KEY = 'streamiq.settings.tv'
+export const tvOn = () => flag(TV_KEY)
+export function setTv(on: boolean) {
+  setFlag(TV_KEY, on)
+  applyTv()
+}
+export const applyTv = () =>
+  document.documentElement.classList.toggle('tv', tvOn())
+
+/** The last opened gateway (#201): the nav's Library link outside its routes. */
+const LAST_GATEWAY_KEY = 'streamiq.lastGateway'
+export function lastGateway() {
+  try {
+    return localStorage.getItem(LAST_GATEWAY_KEY)
+  } catch {
+    return null
+  }
+}
+export function setLastGateway(id: string) {
+  try {
+    localStorage.setItem(LAST_GATEWAY_KEY, id)
+  } catch {
+    /* not saved: the link shows with one gateway only */
+  }
+}

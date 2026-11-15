@@ -1,111 +1,282 @@
+/* Design tokens + base styles (#93, #201): direction E, "calm", dark only.
+   Chrome 87 (webOS TV): the build (Lightning CSS, cssTarget in vite.config.ts)
+   lowers syntax like nesting, but can't polyfill :has, :where, container
+   queries or aspect-ratio; :not() with a list is 88+, so chain them. Sizes in rem: TV mode raises the
+   root size and everything scales with it. */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --bg: #0f0f11;
+  --surface: #18181b;
+  --surface-2: #212126;
+  --text: #ededef;
+  --text-muted: #a9a9b0;
+  --accent: #7aa7ff;
+  --direct: #34d3a0;
+  --relayed: #f5b941;
+  --border: #2e2e33;
+  --link: #9dbbff;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* type: title 34 / section 20 / body 16 / meta 13 (px at the default root) */
+  --fs-title: 2.125rem;
+  --fs-section: 1.25rem;
+  --fs-body: 1rem;
+  --fs-meta: 0.8125rem;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
+  /* spacing 4 / 8 / 12 / 16 / 24 / 32 / 48 */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+
+  --radius: 12px;
+  --target: 2.75rem; /* 44 px touch/remote target */
+  --font: system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  color-scheme: dark;
+  font: 100%/1.5 var(--font);
   color: var(--text);
   background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+/* TV mode (Settings, per device): larger root + 5 % safe-area padding. */
+html.tv {
+  font-size: 150%;
+}
+html.tv body {
+  padding: 5vh 5vw;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+* {
   box-sizing: border-box;
 }
-
 body {
   margin: 0;
+  background: var(--bg);
+  min-height: 100vh;
 }
 
 h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+h2,
+h3 {
+  margin: 0 0 var(--sp-3);
+  line-height: 1.2;
 }
-
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: -0.5px;
 }
 h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
+  font-size: var(--fs-section);
+  font-weight: 600;
 }
 p {
-  margin: 0;
+  margin: 0 0 var(--sp-3);
+}
+a {
+  color: var(--link);
+}
+small,
+.meta {
+  font-size: var(--fs-meta);
+}
+.muted {
+  color: var(--text-muted);
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+/* Pill buttons; .primary = the one accent-filled action. */
+button {
+  min-height: var(--target);
+  padding: 0 var(--sp-4);
+  border: 0;
+  /* half the target: a pill at one line, a rounded card when taller */
+  border-radius: 1.375rem;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 500 var(--fs-body) var(--font);
+  cursor: pointer;
+}
+button:hover {
+  background: #2a2a30;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* Labelled inputs: text fields and selects, not checkboxes or sliders. */
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+  min-height: var(--target);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: var(--fs-body) var(--font);
+}
+input[type='checkbox'],
+input[type='radio'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  vertical-align: middle;
+}
+
+/* The one focus style: 3 px ring, never a scale (no relayout on weak TVs).
+   On accent-filled buttons the ring is the text color. */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.primary:focus-visible {
+  outline-color: var(--text);
+}
+
+/* App shell */
+.shell {
+  max-width: 80rem; /* 1280 px, scales in TV mode */
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-7);
+}
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4) var(--sp-6);
+  margin-bottom: var(--sp-6);
+}
+.wordmark {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.wordmark span {
+  color: var(--accent);
+}
+.nav {
+  display: flex;
+  gap: var(--sp-2);
+}
+.nav a {
+  display: flex;
+  align-items: center;
+  min-height: var(--target);
+  padding: 0 var(--sp-5);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+.nav a:hover {
+  color: var(--text);
+}
+.nav a[data-status='active'] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+}
+.grow {
+  flex: 1;
+}
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-1);
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 2rem;
+  padding: 0 var(--sp-3);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.875rem;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.dot.online {
+  background: var(--direct);
+}
+
+/* Phone: the nav becomes a bottom bar. */
+@media (max-width: 600px) {
+  .shell {
+    padding: var(--sp-4) var(--sp-4) 5.5rem;
+  }
+  .top {
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+  }
+  .wordmark {
+    font-size: 1.375rem;
+  }
+  .status .meta {
+    display: none;
+  }
+  .nav {
+    position: fixed;
+    z-index: 10;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    gap: 0;
+    padding: var(--sp-1) var(--sp-2) var(--sp-3);
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .nav a {
+    flex: 1;
+    justify-content: center;
+    min-height: 3.25rem;
+    padding: 0;
+    border-radius: 0;
+    font-size: var(--fs-meta);
+    font-weight: 600;
+  }
+  .nav a[data-status='active'] {
+    background: transparent;
+    color: var(--text);
+    box-shadow: inset 0 3px var(--accent);
+  }
+}
+
+/* Settings / sign-in leftovers until their own redesign (#202, #229). */
+.stack {
+  display: grid;
+  gap: var(--sp-2);
+}
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.signin {
+  max-width: 20rem;
+  margin: 4rem auto;
+  padding: 0 var(--sp-4);
+}
+.error {
+  color: #ff8a8a;
+}
+.setting {
+  display: block;
+  margin-top: var(--sp-4);
+}
+.setting + p {
+  margin: var(--sp-1) 0 0 var(--sp-6);
 }

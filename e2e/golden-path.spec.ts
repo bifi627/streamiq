@@ -173,12 +173,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         a.getByText(/end-to-end encrypted · direct · StreamIQ carried 0 bytes/),
       ).toBeVisible() // same host: host candidates, no relay
       // Device profile (#115): probe + Jellyfin's decision in the diagnostics.
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
+      // Diagnostics panel: on once in Settings, the flag persists (#201).
+      await a.getByRole('link', { name: 'Settings' }).click()
+      await a.getByLabel('Diagnostics panel').check()
+      await a.getByRole('button', { name: 'Back' }).click() // player remounts
       await expect(a.getByText(/probe: h264 .* L\d/)).toBeVisible()
       await expect(
         a.getByText(/jellyfin: video remux \(h264\) · audio copy/),
       ).toBeVisible()
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.goBack() // leaving the player saves the position
       await a.goBack() // browser history: folder → library home
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
@@ -193,19 +195,17 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
       // Compatible mode (#113): Settings view → next playback uses the
       // restricted profile; an H.264 + AAC file still remuxes.
-      await a.getByRole('button', { name: 'Settings' }).click()
+      await a.getByRole('link', { name: 'Settings' }).click()
       await a.getByLabel('Compatible mode').check()
       await a.getByRole('button', { name: 'Back' }).click() // player remounts
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
           // newest first: this playback's decision, after its mode line
           /jellyfin: video remux \(h264\) · audio copy[\s\S]*compatible mode: on/,
         ),
       ).toBeVisible()
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
-      await a.getByRole('button', { name: 'Settings' }).click()
+      await a.getByRole('link', { name: 'Settings' }).click()
       await a.getByLabel('Compatible mode').uncheck()
       await a.getByRole('button', { name: 'Back' }).click()
       // Quality (#108, #161): the picker says what plays and hides rungs that
@@ -224,14 +224,12 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         /^Source360p, [\d.,]+ Mbps$/, // the clip's size + bitrate
       ])
       await a.getByRole('menuitemradio', { name: /^Source/ }).click()
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
           /jellyfin: video remux \(h264\)[\s\S]*quality: Source \(no limit\)[\s\S]*quality: switch to Source @([3-9]|[1-9]\d)\./, // reloaded at the playhead
         ),
       ).toBeVisible()
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // and plays on there
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.reload()
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a
@@ -264,13 +262,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect
         .poll(() => pitch(a), { timeout: 30_000 })
         .toBeCloseTo(880, -2)
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
           /jellyfin: video remux \(h264\) · audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: switch to stream \1 @\d/,
         ),
       ).toBeVisible()
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       // Subtitles (#136): off at first; the sidecar .srt's cue shows once
       // picked, at its own time (0–30 s; was shifted by seconds after a
       // mid-clip reload, #269), and goes away with Off.
@@ -330,13 +326,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         .toBeCloseTo(880, -2)
       // Newest first: this load's decision, then the pick before it. Video
       // may transcode (the mkv has no bitrate); the audio is copied.
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
           /jellyfin: video \w+ \(h264\) · audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: default not decodable, stream \1 instead/,
         ),
       ).toBeVisible()
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       // The audio menu shows it as the one playing.
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a.getByRole('menuitem', { name: /^Audio/ }).click()
@@ -433,7 +427,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       expect(JSON.parse(await viaTunnel(phone, '/streamiq/screens'))).toEqual(
         [],
       )
-      await phone.getByRole('link', { name: 'Library' }).click()
+      await phone
+        .getByRole('alert')
+        .getByRole('link', { name: 'Library' })
+        .click() // not the nav's (#201)
       await phone.getByRole('button', { name: /Movies/ }).click()
       await phone.getByRole('button', { name: 'Play on…' }).first().click()
       await expect(phone.getByText(/No screen open/)).toBeVisible()
@@ -463,14 +460,12 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(1)
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
           // newest first: Jellyfin's decision, the limit, Auto's pick
           /jellyfin: video transcode[\s\S]*quality: Auto \(≤480p, 0\.07 Mbps\)[\s\S]*auto: link ~0\.1 Mbps \(stored hint\) → cap 0\.1 Mbps, source [\d.]+ Mbps → 480p/,
         ),
       ).toBeVisible()
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.getByRole('button', { name: 'Playback options' }).click()
       await a
         .getByRole('menuitem', {
@@ -486,7 +481,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
 
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
     await test.step('diagnostics panel: force relay → tunnel works, panel logs it', async () => {
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await a.getByLabel('Force relay (TURN) on next connect').check()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(
@@ -499,11 +493,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       ).toBeVisible()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByLabel('Force relay (TURN) on next connect').uncheck()
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
     })
 
     await test.step('diagnostics page (#90): direct vs relayed, burst throughput, report', async () => {
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await a
         .getByRole('link', { name: 'Client info + connection test' })
         .click()
@@ -528,7 +520,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await run(/relay forced: yes[\s\S]*path: relayed \(TURN\)/)
       await a.getByLabel('Force relay (TURN)', { exact: true }).uncheck()
       await expect(report).not.toContainText(email())
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.goto(process.env.E2E_APP_URL!)
     })
 
@@ -651,13 +642,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(0)
       // The pairing asked for persistent storage; the result is in the log.
-      await a.getByRole('button', { name: 'Diagnostics' }).click()
       await expect(
         a.getByText(
           /storage: (persist\(\) (granted|denied)|already persistent)/,
         ),
       ).toBeVisible()
-      await a.getByRole('button', { name: 'Hide diagnostics' }).click()
       await a.goto(app)
       await expect(a.getByRole('heading', { name: 'Gateways' })).toBeVisible()
     })

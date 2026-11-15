@@ -7,6 +7,7 @@ import { connect } from '../pairing/connect'
 import { isKind } from '../../errors'
 import { getGateways, type Gateway } from '../gateways/api'
 import { describe, probe } from '../library/profile'
+import { useHousehold } from '../households/household'
 
 type Test = { lines: string[]; failed?: string }
 
@@ -18,6 +19,7 @@ export function DiagnosticsPage() {
   const [test, setTest] = useState<Test | null>(null)
   const [running, setRunning] = useState(false)
   const [copied, setCopied] = useState('')
+  const { me } = useHousehold()
 
   useEffect(() => {
     probe()
@@ -105,6 +107,7 @@ export function DiagnosticsPage() {
   return (
     <section>
       <h2>Diagnostics</h2>
+      <p className="muted meta">tenant {me?.tenantId}</p>
       <p>
         <label>
           Gateway{' '}

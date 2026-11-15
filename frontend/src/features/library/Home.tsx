@@ -16,7 +16,7 @@ type Lists = { resume: Item[]; recent: Item[]; views: Item[] }
 const RECENT =
   '/Items?sortBy=DateCreated&sortOrder=Descending&recursive=true&includeItemTypes=Movie,Series&limit=16'
 
-const minutes = new Intl.NumberFormat(undefined, {
+export const minutes = new Intl.NumberFormat(undefined, {
   style: 'unit',
   unit: 'minute',
   unitDisplay: 'short',
@@ -189,7 +189,7 @@ function Pick({
   )
 }
 
-function Watched({ item }: { item: Item }) {
+export function Watched({ item }: { item: Item }) {
   const pos = (item.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND
   const dur = (item.RunTimeTicks ?? 0) / TICKS_PER_SECOND
   return (

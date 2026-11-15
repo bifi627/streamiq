@@ -38,19 +38,16 @@ import {
   playable,
   subtitleTracks,
   TICKS_PER_SECOND,
+  upNext,
   type Item,
 } from './items'
 import { pairInfo, type PairInfo } from '../../stats'
 import { arrowFocus } from '../../focus'
-import { Tunnel, primary } from './art'
-import { Artwork } from './Home'
+import { Tunnel, backdrop, primary } from './art'
+import { Artwork, minutes, Watched } from './Home'
 export { Home as LibraryHome } from './Home'
 
 type Page = { Items: Item[] }
-type View =
-  | { kind: 'folder'; item: Item }
-  | { kind: 'series'; item: Item }
-  | { kind: 'season'; item: Item }
 
 // Layout route: the gateway's shared tunnel (#152), held while navigating inside
 // it; leaving releases it (closed 30 s later unless reused).
@@ -122,32 +119,203 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   )
 }
 
-// Folder / series / season by Jellyfin item ID, so a reload or deep link restores it.
+// Folder / series / movie by Jellyfin item ID, so a reload or deep link
+// restores it. A season opens its series' page on that season's tab (#204).
 export function ItemPage({ itemId }: { itemId: string }) {
   const { pc } = useContext(Tunnel)
-  const [item, setItem] = useState<Item | null>(null)
+  const [shown, setShown] = useState<{ item: Item; season?: string } | null>(
+    null,
+  )
   const [err, setErr] = useState<AppError | null>(null)
   useEffect(() => {
-    tunnelJson<Item>(pc, `/Items/${itemId}`).then(setItem, (e) =>
-      setErr(toAppError(e)),
-    )
+    tunnelJson<Item>(pc, `/Items/${itemId}`)
+      .then((i) =>
+        i.Type === 'Season' && i.SeriesId
+          ? tunnelJson<Item>(pc, `/Items/${i.SeriesId}`).then((s) => ({
+              item: s,
+              season: i.Id,
+            }))
+          : { item: i },
+      )
+      .then(setShown, (e) => setErr(toAppError(e)))
   }, [pc, itemId])
-  const view = useMemo<View | null>(
-    () =>
-      item && {
-        kind:
-          item.Type === 'Series'
-            ? 'series'
-            : item.Type === 'Season'
-              ? 'season'
-              : 'folder',
-        item,
-      },
-    [item],
-  )
   if (err) return <ErrorView error={err} />
-  if (!view) return <p>Loading…</p>
-  return <Browse view={view} />
+  if (!shown) return <p>Loading…</p>
+  const { item, season } = shown
+  if (item.Type === 'Series' || item.Type === 'Movie')
+    return <Title item={item} season={season} />
+  return <Browse item={item} />
+}
+
+const seasonName = (s: Item) =>
+  s.Name || (s.IndexNumber != null ? `Season ${s.IndexNumber}` : 'Season')
+
+// Series / movie page (#204): the left column (poster, title, meta, overview,
+// the one primary button); a series adds season tabs + its episodes, a movie
+// its backdrop. The primary button takes first focus (one OK press plays);
+// nothing moves focus after that, on re-renders or tab changes.
+function Title({ item, season }: { item: Item; season?: string }) {
+  const { gatewayId, pc } = useContext(Tunnel)
+  const navigate = useNavigate()
+  const router = useRouter()
+  const canGoBack = useCanGoBack()
+  const series = item.Type === 'Series'
+  const [lists, setLists] = useState<{ seasons: Item[]; episodes: Item[] }>()
+  const [err, setErr] = useState<AppError | null>(null)
+  const [tab, setTab] = useState(season)
+  useEffect(() => {
+    if (!series) return
+    const get = (url: string) => tunnelJson<Page>(pc, url).then((p) => p.Items)
+    // ponytail: every episode in one request; per season if huge shows lag.
+    Promise.all([
+      get(`/Shows/${item.Id}/Seasons`),
+      get(`/Shows/${item.Id}/Episodes`),
+    ]).then(
+      ([seasons, episodes]) => setLists({ seasons, episodes }),
+      (e) => setErr(toAppError(e)),
+    )
+  }, [pc, item.Id, series])
+
+  const play = (i: Item) =>
+    navigate({
+      to: '/g/$gatewayId/play/$itemId',
+      params: { gatewayId, itemId: i.Id },
+    })
+  const back = () =>
+    canGoBack
+      ? router.history.back()
+      : navigate({ to: '/g/$gatewayId', params: { gatewayId } })
+  const next = series ? lists && upNext(lists.episodes) : item
+  const resumes =
+    !!next &&
+    !next.UserData?.Played &&
+    (next.UserData?.PlaybackPositionTicks ?? 0) > 0
+  const where =
+    next && series
+      ? ` S${next.ParentIndexNumber ?? '?'} · E${next.IndexNumber ?? '?'}`
+      : ''
+  const shown = tab ?? next?.SeasonId ?? lists?.seasons[0]?.Id
+  const count = lists?.seasons.length
+  const meta = [
+    item.ProductionYear,
+    series
+      ? count && `${count} ${count === 1 ? 'season' : 'seasons'}`
+      : item.RunTimeTicks &&
+        minutes.format(Math.round(item.RunTimeTicks / TICKS_PER_SECOND / 60)),
+    item.Genres?.[0],
+  ].filter(Boolean)
+
+  return (
+    <div className="title">
+      <div className="title-side">
+        <button type="button" className="back" onClick={back}>
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+          Back
+        </button>
+        <Artwork art={primary(item)} width={360} className="title-poster" />
+        <h1>{item.Name}</h1>
+        {meta.length > 0 && <p className="muted">{meta.join(' · ')}</p>}
+        {item.Overview && <p className="overview">{item.Overview}</p>}
+        {next && (
+          <>
+            <button
+              type="button"
+              className="primary"
+              autoFocus
+              onClick={() => play(next)}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M7 4v16l13-8z" />
+              </svg>
+              {resumes ? 'Resume' : 'Play'}
+              {where}
+            </button>
+            <PlayOn pc={pc} item={next} />
+          </>
+        )}
+      </div>
+      {series ? (
+        <div className="title-main">
+          {err && <ErrorView error={err} />}
+          {!lists && !err && <p>Loading…</p>}
+          {lists && lists.seasons.length > 0 && (
+            <div role="tablist" aria-label="Seasons" className="seasons">
+              {lists.seasons.map((s) => (
+                <button
+                  key={s.Id}
+                  type="button"
+                  role="tab"
+                  id={`tab-${s.Id}`}
+                  aria-selected={s.Id === shown}
+                  aria-controls="episodes"
+                  tabIndex={s.Id === shown ? 0 : -1}
+                  onClick={() => setTab(s.Id)}
+                  onFocus={() => setTab(s.Id)}
+                >
+                  {seasonName(s)}
+                </button>
+              ))}
+            </div>
+          )}
+          {lists && (
+            <ul
+              id="episodes"
+              role="tabpanel"
+              aria-labelledby={`tab-${shown}`}
+              className="episodes"
+            >
+              {lists.episodes
+                .filter((e) => e.SeasonId === shown)
+                .map((e) => (
+                  <li key={e.Id}>
+                    <Episode item={e} onPlay={play} />
+                  </li>
+                ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <Artwork art={backdrop(item)} width={1280} className="title-backdrop" />
+      )}
+    </div>
+  )
+}
+
+function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
+  const pos = item.UserData?.PlaybackPositionTicks ?? 0
+  const state = item.UserData?.Played
+    ? 'Watched'
+    : pos > 0 && item.RunTimeTicks
+      ? `${minutes.format(Math.max(1, Math.round((item.RunTimeTicks - pos) / TICKS_PER_SECOND / 60)))} left`
+      : ''
+  return (
+    <button type="button" className="episode" onClick={() => onPlay(item)}>
+      <span className="still">
+        <Artwork art={primary(item)} width={352} className="still-art" />
+        {pos > 0 && !item.UserData?.Played && <Watched item={item} />}
+      </span>
+      <span className="ep-text">
+        <b>
+          {item.IndexNumber != null && `${item.IndexNumber}. `}
+          {item.Name}
+        </b>
+        {!!item.RunTimeTicks && (
+          <small className="muted">
+            {minutes.format(
+              Math.round(item.RunTimeTicks / TICKS_PER_SECOND / 60),
+            )}
+          </small>
+        )}
+      </span>
+      {state && (
+        <small className={item.UserData?.Played ? 'muted' : 'ep-left'}>
+          {state}
+        </small>
+      )}
+    </button>
+  )
 }
 
 // Player route: leaving it any way unmounts the Player, whose cleanup saves the
@@ -592,11 +760,10 @@ export function RemotePage({ screenId }: { screenId: string }) {
   )
 }
 
-// Breadcrumbs from the item itself + the listing.
-function Browse({ view }: { view: View }) {
+// A folder: breadcrumbs from the item itself + the listing.
+function Browse({ item }: { item: Item }) {
   const { gatewayId, pc } = useContext(Tunnel)
   const navigate = useNavigate()
-  const item = view.item
   const crumb = (itemId: string, name: string) => (
     <>
       {' / '}
@@ -605,11 +772,13 @@ function Browse({ view }: { view: View }) {
       </Link>
     </>
   )
+  // A movie opens its page (#204), other playables play.
   const open = (i: Item) =>
     navigate({
-      to: playable(i)
-        ? '/g/$gatewayId/play/$itemId'
-        : '/g/$gatewayId/i/$itemId',
+      to:
+        playable(i) && i.Type !== 'Movie'
+          ? '/g/$gatewayId/play/$itemId'
+          : '/g/$gatewayId/i/$itemId',
       params: { gatewayId, itemId: i.Id },
     })
 
@@ -624,77 +793,53 @@ function Browse({ view }: { view: View }) {
           crumb(item.SeriesId, item.SeriesName ?? 'Series')}
         {crumb(item.Id, item.Name)}
       </p>
-      <Listing pc={pc} view={view} onOpen={open} />
+      <Listing pc={pc} item={item} onOpen={open} />
     </>
   )
 }
 
 function Listing({
   pc,
-  view,
+  item,
   onOpen,
 }: {
   pc: RTCPeerConnection
-  view: View
+  item: Item
   onOpen: (i: Item) => void
 }) {
-  const [rows, setRows] = useState<[string, Item[]][] | null>(null)
+  const [items, setItems] = useState<Item[] | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
 
   useEffect(() => {
-    const get = (url: string) => tunnelJson<Page>(pc, url).then((p) => p.Items)
-    const load: Promise<[string, Item[]][]> =
-      view.kind === 'series'
-        ? get(`/Shows/${view.item.Id}/Seasons`).then((s) => [['Seasons', s]])
-        : view.kind === 'season'
-          ? get(
-              `/Shows/${view.item.SeriesId}/Episodes?seasonId=${view.item.Id}`,
-            ).then((e) => [['Episodes', e]])
-          : get(`/Items?parentId=${view.item.Id}&sortBy=SortName`).then((i) => [
-              ['', i],
-            ])
-    load.then(setRows, (e) => setErr(toAppError(e)))
-  }, [pc, view])
+    tunnelJson<Page>(pc, `/Items?parentId=${item.Id}&sortBy=SortName`).then(
+      (p) => setItems(p.Items),
+      (e) => setErr(toAppError(e)),
+    )
+  }, [pc, item.Id])
 
   if (err) return <ErrorView error={err} />
-  if (!rows) return <p>Loading…</p>
+  if (!items) return <p>Loading…</p>
   return (
     <>
-      {rows.map(
-        ([title, items]) =>
-          (items.length > 0 || title === '') && (
-            <div key={title}>
-              {title && <h3>{title}</h3>}
-              {items.length === 0 && <p>Nothing here.</p>}
-              <ul className="tiles">
-                {items.map((i) => (
-                  <li key={i.Id}>
-                    <button
-                      type="button"
-                      onClick={() => onOpen(i)}
-                      className="tile"
-                    >
-                      <Artwork
-                        art={primary(i)}
-                        width={280}
-                        className="poster"
-                      />
-                      <div>
-                        {i.IndexNumber != null &&
-                          i.Type === 'Episode' &&
-                          `${i.IndexNumber}. `}
-                        {i.Name}
-                        {i.ProductionYear && ` (${i.ProductionYear})`}
-                      </div>
-                      <small>{label(i)}</small>
-                    </button>
-                    {playable(i) && <PlayOn pc={pc} item={i} />}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ),
-      )}
+      {items.length === 0 && <p>Nothing here.</p>}
+      <ul className="tiles">
+        {items.map((i) => (
+          <li key={i.Id}>
+            <button type="button" onClick={() => onOpen(i)} className="tile">
+              <Artwork art={primary(i)} width={280} className="poster" />
+              <div>
+                {i.IndexNumber != null &&
+                  i.Type === 'Episode' &&
+                  `${i.IndexNumber}. `}
+                {i.Name}
+                {i.ProductionYear && ` (${i.ProductionYear})`}
+              </div>
+              <small>{label(i)}</small>
+            </button>
+            {playable(i) && <PlayOn pc={pc} item={i} />}
+          </li>
+        ))}
+      </ul>
     </>
   )
 }

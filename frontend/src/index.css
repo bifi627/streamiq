@@ -835,6 +835,150 @@ progress::-moz-progress-bar {
   }
 }
 
+/* Series / movie page (#204): left column + season tabs and episodes; a
+   movie shows its backdrop on the right. Phone: the column stacks on top. */
+.title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-6);
+}
+.title-side {
+  flex: none;
+  width: 27.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-6);
+  border-radius: 16px;
+  background: #141416;
+}
+.title-side h1 {
+  margin: 0;
+  font-size: var(--fs-title);
+  letter-spacing: -0.5px;
+}
+.title-side p {
+  margin: 0;
+}
+.overview {
+  color: #cfcfd4;
+}
+.title-side button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.title-side button.primary {
+  padding: 0 var(--sp-5);
+  font-weight: 600;
+}
+.title-side svg {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+}
+.back svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.title-poster {
+  width: 11.25rem;
+  height: 16.875rem;
+  border-radius: var(--radius);
+}
+.title-main,
+.title-backdrop {
+  flex: 1;
+  min-width: 0;
+}
+.title-backdrop {
+  height: 22rem;
+  border-radius: 16px;
+}
+.seasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.seasons [aria-selected='true'] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+}
+.episodes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.episode {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  padding: var(--sp-2);
+  border-radius: var(--radius);
+  background: none;
+  text-align: left;
+}
+.episode:hover,
+.episode:focus-visible {
+  background: var(--surface);
+}
+.still {
+  position: relative;
+  flex: none;
+}
+.still-art {
+  width: 11rem;
+  height: 6.1875rem;
+  border-radius: 8px;
+}
+.still > progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+.ep-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  flex: 1;
+  min-width: 0;
+}
+.ep-left {
+  color: var(--accent);
+}
+@media (max-width: 40rem) {
+  .title {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .title-side {
+    width: auto;
+    padding: var(--sp-4);
+  }
+  .title-poster {
+    width: 8rem;
+    height: 12rem;
+  }
+  .title-backdrop {
+    flex: none;
+    height: 12rem;
+  }
+  .still-art {
+    width: 8rem;
+    height: 4.5rem;
+  }
+}
+
 /* Settings leftovers until its own redesign (#229). */
 .setting {
   display: block;

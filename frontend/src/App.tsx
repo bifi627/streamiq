@@ -17,6 +17,7 @@ import {
   RouterProvider,
   useCanGoBack,
   useNavigate,
+  useParams,
   useRouter,
 } from '@tanstack/react-router'
 import { auth } from './firebase'
@@ -33,7 +34,16 @@ import {
   ScreenPage,
 } from './features/library/Library'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
-import { compatibleOn, rawOn, setCompatible, setRaw } from './settings'
+import {
+  compatibleOn,
+  rawOn,
+  setCompatible,
+  setRaw,
+  setTv,
+  tvOn,
+} from './settings'
+import { arrowFocus } from './focus'
+import { getGateways, type Gateway } from './features/gateways/api'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
 import {
@@ -85,9 +95,7 @@ function SignIn() {
   }
 
   return (
-    <main
-      style={{ maxWidth: 320, margin: '4rem auto', display: 'grid', gap: 8 }}
-    >
+    <main className="signin stack">
       <h1>StreamIQ</h1>
       <input
         placeholder="email"
@@ -100,7 +108,7 @@ function SignIn() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="buttons">
         <button type="button" onClick={() => go('in')}>
           Sign in
         </button>
@@ -111,7 +119,7 @@ function SignIn() {
       <button type="button" onClick={google}>
         Continue with Google
       </button>
-      {err && <p style={{ color: 'crimson' }}>{err}</p>}
+      {err && <p className="error">{err}</p>}
     </main>
   )
 }
@@ -124,6 +132,7 @@ function Settings() {
   const navigate = useNavigate()
   const [compatible, setOn] = useState(compatibleOn)
   const [raw, setRawOn] = useState(rawOn)
+  const [tv, setTvOn] = useState(tvOn)
   return (
     <section>
       <button
@@ -137,8 +146,8 @@ function Settings() {
         Back
       </button>
       <h2>Settings</h2>
-      <p style={{ color: '#888' }}>These apply to this device only.</p>
-      <label>
+      <p className="muted">These apply to this device only.</p>
+      <label className="setting">
         <input
           type="checkbox"
           autoFocus
@@ -150,11 +159,11 @@ function Settings() {
         />{' '}
         Compatible mode
       </label>
-      <p style={{ color: '#888', margin: '4px 0 0 24px' }}>
+      <p className="muted">
         For old TVs: plays everything in the safest format, costs more work on
         your home PC.
       </p>
-      <label style={{ display: 'block', marginTop: 12 }}>
+      <label className="setting">
         <input
           type="checkbox"
           checked={raw}
@@ -165,9 +174,33 @@ function Settings() {
         />{' '}
         Raw quality option (plays original streams, may not play on this device)
       </label>
-      <p style={{ color: '#888', margin: '4px 0 0 24px' }}>
+      <p className="muted">
         Adds Raw to the player's quality menu: no check of what this device can
         decode.
+      </p>
+      <label className="setting">
+        <input
+          type="checkbox"
+          checked={tv}
+          onChange={(e) => {
+            setTv(e.target.checked)
+            setTvOn(e.target.checked)
+          }}
+        />{' '}
+        TV mode
+      </label>
+      <p className="muted">
+        Larger text and a margin for TVs that crop the picture edges.
+      </p>
+      <DiagnosticsToggle />
+      <p className="muted">
+        Connection details on every page, to report a problem.
+      </p>
+      <p className="setting">
+        {auth.currentUser?.email}{' '}
+        <button type="button" onClick={() => signOut(auth)}>
+          Sign out
+        </button>
       </p>
     </section>
   )
@@ -176,7 +209,6 @@ function Settings() {
 // Root layout; only mounted while signed in (App gates the whole router). Loads
 // /me once per page load and hands it to every view (HouseholdContext).
 function Shell() {
-  const navigate = useNavigate()
   const [me, setMe] = useState<Me | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   // "You're no longer a member of …" after authed() dropped a lost household.
@@ -193,61 +225,83 @@ function Shell() {
     return () => removeEventListener('storage', onStorage)
   }, [])
 
+  // Gateway routes: that gateway's status chip and library link. Fetched once
+  // per gateway. ponytail: online is as of opening, poll if it needs to be live.
+  const { gatewayId } = useParams({ strict: false })
+  const [gateways, setGateways] = useState<Gateway[]>([])
+  const gateway = gateways.find((g) => g.id === gatewayId)
+  useEffect(() => {
+    if (gatewayId)
+      getGateways()
+        .then(setGateways)
+        .catch(() => {}) // the library shows the error
+  }, [gatewayId])
+
   return (
-    <main style={{ maxWidth: 960, margin: '2rem auto', padding: '0 1rem' }}>
-      <header
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
-          justifyContent: 'space-between',
-        }}
-      >
-        <span>
-          {auth.currentUser?.email}
-          {me && me.memberships.length > 1 && (
-            <>
-              {' · '}
-              <select
-                aria-label="Household"
-                value={me.tenantId}
-                onChange={(e) => switchHousehold(e.target.value)}
-              >
-                {me.memberships.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {householdLabel(m)} ({m.role})
-                  </option>
-                ))}
-              </select>
-            </>
+    <div className="shell">
+      <header className="top">
+        <span className="wordmark">
+          Stream<span>IQ</span>
+        </span>
+        <nav className="nav" aria-label="Main" onKeyDown={arrowFocus}>
+          <Link to="/" activeOptions={{ exact: true }}>
+            Gateways
+          </Link>
+          {gatewayId && (
+            <Link
+              to="/g/$gatewayId"
+              params={{ gatewayId }}
+              activeOptions={{ exact: true }}
+            >
+              Library
+            </Link>
           )}
-        </span>
-        <span style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => navigate({ to: '/settings' })}>
-            Settings
-          </button>
-          <DiagnosticsToggle />
-          <button type="button" onClick={() => signOut(auth)}>
-            Sign out
-          </button>
-        </span>
+          <Link to="/settings">Settings</Link>
+        </nav>
+        <span className="grow" />
+        {me && me.memberships.length > 1 && (
+          <select
+            aria-label="Household"
+            value={me.tenantId}
+            onChange={(e) => switchHousehold(e.target.value)}
+          >
+            {me.memberships.map((m) => (
+              <option key={m.id} value={m.id}>
+                {householdLabel(m)} ({m.role})
+              </option>
+            ))}
+          </select>
+        )}
+        {gatewayId && (
+          <div className="status">
+            <span className="chip">
+              <span
+                className={gateway?.online ? 'dot online' : 'dot'}
+                aria-label={gateway?.online ? 'online' : 'offline'}
+              />
+              {gateway?.name ?? 'Gateway'}
+            </span>
+            <span className="meta muted">Your files stay on your hardware</span>
+          </div>
+        )}
       </header>
-      <Diagnostics />
-      <UncaughtErrors />
-      {notice && (
-        <p role="status">
-          {notice}{' '}
-          <button type="button" onClick={() => setNotice(null)}>
-            OK
-          </button>
-        </p>
-      )}
-      {err && <ErrorView error={err} />}
-      <p style={{ color: '#888', fontSize: 12 }}>tenant {me?.tenantId}</p>
-      <HouseholdContext.Provider value={me}>
-        <Outlet />
-      </HouseholdContext.Provider>
-    </main>
+      <main>
+        <Diagnostics />
+        <UncaughtErrors />
+        {notice && (
+          <p role="status">
+            {notice}{' '}
+            <button type="button" onClick={() => setNotice(null)}>
+              OK
+            </button>
+          </p>
+        )}
+        {err && <ErrorView error={err} />}
+        <HouseholdContext.Provider value={me}>
+          <Outlet />
+        </HouseholdContext.Provider>
+      </main>
+    </div>
   )
 }
 

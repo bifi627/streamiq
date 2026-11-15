@@ -104,6 +104,9 @@ foreign or missing household), on which `authed()` (`api.ts`) drops the choice a
 leaves, an admin removes and promotes/demotes; a household always keeps an admin (`409`; the
 check runs under a lock on the tenant row). A user left with no household gets a fresh one
 (`UserProvisioner`).
+**UI design pass (#93):** tokens + base styles (dark, pill buttons, one 3 px `:focus-visible` ring)
+in `frontend/src/index.css`, CSS that Chrome 87 / webOS reads; shell nav, gateway chip, per-device **TV mode**
+(`settings.ts`, `html.tv`). D-pad = arrow keys: `onKeyDown={arrowFocus}` (`frontend/src/focus.ts`) on a container.
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,

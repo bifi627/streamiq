@@ -94,12 +94,14 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
         })
       await expect(resume(/0:0[5-9]/)).toBeVisible() // A's, over A's open tunnel
       await a.evaluate(() => ((window as { mark?: 1 }).mark = 1))
+      await a.getByRole('link', { name: 'Settings' }).click() // sign out lives there (#201)
       await a.getByRole('button', { name: 'Sign out' }).click()
       await expect(a.getByPlaceholder('email')).toBeVisible()
       expect(
         await a.evaluate(() => (window as { mark?: 1 }).mark),
       ).toBeUndefined() // reloaded
-      await signIn(a, B, A.tenantId) // same URL: the gateway's library home
+      await signIn(a, B, A.tenantId) // same URL: Settings (#201)
+      await a.goBack() // the gateway's library home, freshly loaded
       await expect(resume(/0:1[5-9]/)).toBeVisible()
     })
   } finally {

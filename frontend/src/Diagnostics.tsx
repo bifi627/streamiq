@@ -2,14 +2,18 @@ import { useSyncExternalStore } from 'react'
 import { Link } from '@tanstack/react-router'
 import { debugOn, diag, relayOn, setFlag, snapshot, subscribe } from './diag'
 
-/** Header button: a TV remote can reach it, unlike the URL bar. */
+/** Settings checkbox: a TV remote can reach it, unlike the URL bar. */
 export function DiagnosticsToggle() {
   useSyncExternalStore(subscribe, snapshot)
-  const on = debugOn()
   return (
-    <button type="button" onClick={() => setFlag('debug', !on)}>
-      {on ? 'Hide diagnostics' : 'Diagnostics'}
-    </button>
+    <label className="setting">
+      <input
+        type="checkbox"
+        checked={debugOn()}
+        onChange={(e) => setFlag('debug', e.target.checked)}
+      />{' '}
+      Diagnostics panel
+    </label>
   )
 }
 

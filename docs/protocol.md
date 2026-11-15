@@ -101,6 +101,11 @@ through it (`1008 "gateway revoked"`). Another tenant's or an already revoked
 gateway → `404`. A gateway that authenticated just before the revoke is closed
 at its next heartbeat. Re-adding the box = re-enroll (`docs/install.md`).
 
+**`PATCH /api/gateways/{id} {name}`** (Firebase Bearer, household admin; a member gets
+`403`) → `204`: sets the gateway's name as `GET /api/gateways` shows it; online or not,
+the gateway itself never learns it. `name` is trimmed, 1–100 chars, else `400`. Another
+tenant's, an unknown or a revoked gateway → `404`.
+
 **Rate limits.** `/api/broker/ws`, `/api/gateways/ws`, `/api/gateways/enroll` and the
 `POST`s that create a connection record, an invite or an enrollment token share a
 budget of 120 new requests per client IP per minute; over it → `429` (for a

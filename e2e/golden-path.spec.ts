@@ -133,16 +133,20 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     ).toContainText('Online')
     await test.step('admin renames the gateway inline (#310)', async () => {
       const card = a.getByRole('listitem').filter({ hasText: 'Version' })
-      await card.getByRole('button', { name: 'Rename' }).click()
+      const renameBtn = card.getByRole('button', { name: 'Rename' })
+      const input = card.getByRole('textbox', { name: 'Gateway name' })
+      const heading = card.getByRole('heading', { level: 2 })
+      const before = await heading.textContent()
+      await renameBtn.click()
+      await input.fill('discarded')
       await a.keyboard.press('Escape') // cancels
-      await card.getByRole('button', { name: 'Rename' }).click()
-      await card
-        .getByRole('textbox', { name: 'Gateway name' })
-        .fill('  Living room NAS  ')
+      await expect(heading).toHaveText(before!)
+      await expect(renameBtn).toBeFocused() // D-pad keeps its place
+      await a.keyboard.press('Enter') // reopens from the keyboard
+      await input.fill('  Living room NAS  ')
       await a.keyboard.press('Enter') // saves
-      await expect(card.getByRole('heading', { level: 2 })).toHaveText(
-        'Living room NAS',
-      )
+      await expect(heading).toHaveText('Living room NAS')
+      await expect(renameBtn).toBeFocused()
       await a.reload() // from the API, not just local state
       await expect(
         a.getByRole('heading', { level: 2, name: 'Living room NAS' }),

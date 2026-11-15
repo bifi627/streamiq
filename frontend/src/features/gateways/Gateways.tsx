@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   createEnrollmentToken,
   getGateways,
@@ -255,12 +255,25 @@ function GatewayName({
   rename?: (name: string) => Promise<boolean>
 }) {
   const [draft, setDraft] = useState<string | null>(null) // null = not editing
+  const renameBtn = useRef<HTMLButtonElement>(null)
+  const edited = useRef(false)
+  // Closing the form unmounts the focused control: focus Rename again, or the
+  // D-pad (arrowFocus on the section) loses its place, as in Pairing (#226).
+  useEffect(() => {
+    if (draft === null && edited.current) renameBtn.current?.focus()
+    edited.current = draft !== null
+  }, [draft])
   if (draft === null)
     return (
       <div className="name">
         <h2>{name}</h2>
         {rename && (
-          <button type="button" className="link" onClick={() => setDraft(name)}>
+          <button
+            ref={renameBtn}
+            type="button"
+            className="link"
+            onClick={() => setDraft(name)}
+          >
             Rename
           </button>
         )}

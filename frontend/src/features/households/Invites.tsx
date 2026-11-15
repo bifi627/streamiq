@@ -22,9 +22,7 @@ export function Invites() {
     id: string
     url: string
     expiresAt: string
-  } | null>(
-    null,
-  )
+  } | null>(null)
   const [copied, setCopied] = useState(false)
   const [err, setErr] = useState<AppError | null>(null)
   const [loaded, setLoaded] = useState(false) // "No open invites" only after a load

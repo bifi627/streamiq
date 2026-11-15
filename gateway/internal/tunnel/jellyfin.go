@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"sync/atomic"
+
+	"streamiq/gateway/internal/pairing"
 )
 
 // Jellyfin is the tunnel's only origin, plus the policy that keeps a paired
@@ -32,6 +34,9 @@ type Jellyfin struct {
 	// Rename is POST /streamiq/name (#310): stores the trimmed name and returns
 	// it; ErrBadRequest = out of bounds. nil = the endpoint 404s.
 	Rename func(name string) (string, error)
+	// Clients is the pairing allowlist behind GET /streamiq/clients and POST
+	// /streamiq/clients/remove (#311). nil = both 404.
+	Clients *pairing.Store
 	// Viewer is a StreamIQ user's own token and Jellyfin user id; "" = none, use
 	// the shared one (SetKey). nil = everyone shares it.
 	Viewer func(user string) (key, userID string)

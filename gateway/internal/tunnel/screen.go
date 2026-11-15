@@ -32,6 +32,7 @@ type Session struct {
 	ID     string
 	User   string // the user's users.id, from the broker's offer: picks their Jellyfin viewer (#195)
 	Role   string // the user's role in this gateway's household, from the broker's offer: Admin | Member
+	Key    string // the client key fp the session authed with (which device)
 	Name   func() string
 	Closed <-chan struct{}
 }

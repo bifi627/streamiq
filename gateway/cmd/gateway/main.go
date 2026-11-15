@@ -534,6 +534,7 @@ func run(ctx context.Context) {
 				setup.EnsureViewer(ctx, user)
 			}}
 		store.OnRemove = sess.Drop // removing a browser ends its open sessions
+		jf.Clients = store         // gateway API /streamiq/clients (#311)
 		var lastBeat atomic.Int64
 		var notice, newer atomic.Pointer[string]
 		notice.Store(new(string))

@@ -121,7 +121,8 @@ can take a while for big collections.
    **Approve** only if both codes match.
 3. **Open** the gateway, browse your libraries and play. The player shows whether the connection is
    direct or relayed. Each browser (phone, laptop, …) is paired once; remove
-   browsers on the local gateway page.
+   browsers on the local gateway page, or (household admins) under **Paired clients** on
+   the gateway's card in the web app.
 
 ## GPU transcoding (optional)
 

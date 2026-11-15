@@ -514,6 +514,14 @@ html.tv .no-tv {
   margin: 0;
   padding-left: var(--sp-5);
 }
+/* paired clients (#311): name · date, Remove at the end of the line */
+.card .clients li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
 .install {
   align-items: stretch;
   margin-bottom: var(--sp-5);

@@ -289,6 +289,7 @@ export async function connect(
  * Diagnostics and Pairing call connect() for a fresh one. */
 const shared = sharer((id) => connect(id), relayOn)
 export const share = shared.share
+export const dropShared = shared.drop
 
 const kbps = (mbps?: number) => (mbps ? Math.round(mbps * 1000) : null)
 

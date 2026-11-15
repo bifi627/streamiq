@@ -122,3 +122,56 @@ export async function pair(app: Page, ctx: BrowserContext, gatewayUrl: string) {
   await request.getByRole('button', { name: 'Approve' }).click()
   await tunnelOk(app)
 }
+
+/**
+ * A raw tunnel request from page p's open session (docs/protocol.md framing):
+ * the head's status and the body as text. Needs keepPcs(p).
+ */
+export const viaTunnel = (p: Page, url: string, body?: object) =>
+  p.evaluate(
+    ([url, body]) =>
+      new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const pcs = (window as { pcs?: RTCPeerConnection[] }).pcs!
+        const pc = pcs.findLast((x) => x.connectionState === 'connected')!
+        const dc = pc.createDataChannel(`req:${url}`)
+        dc.binaryType = 'arraybuffer'
+        let out = ''
+        let status = 0
+        dc.onopen = () =>
+          dc.send(
+            JSON.stringify({
+              method: body ? 'POST' : 'GET',
+              url,
+              headers: {},
+              ...(body && { body: JSON.stringify(body) }),
+            }),
+          )
+        dc.onmessage = (e) => {
+          if (typeof e.data !== 'string')
+            out += new TextDecoder().decode(e.data)
+          else {
+            const m = JSON.parse(e.data)
+            if (m.status) status = m.status
+            if (m.eof) {
+              dc.onclose = null
+              dc.close()
+              resolve({ status, body: out })
+            }
+          }
+        }
+        dc.onclose = () => reject(new Error(`closed: ${url}`))
+      }),
+    [url, body] as const,
+  )
+export const keepPcs = (p: Page) =>
+  p.addInitScript(() => {
+    const P = RTCPeerConnection
+    const w = window as { pcs?: RTCPeerConnection[] }
+    w.pcs = []
+    window.RTCPeerConnection = class extends P {
+      constructor(c?: RTCConfiguration) {
+        super(c)
+        w.pcs!.push(this)
+      }
+    } as typeof P
+  })

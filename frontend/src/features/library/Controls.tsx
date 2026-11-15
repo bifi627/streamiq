@@ -433,7 +433,7 @@ export function Controls({
             <button
               type="button"
               className="skip"
-            aria-label="Rewind 10 seconds"
+              aria-label="Rewind 10 seconds"
               onClick={() => ui.seek(-SKIP)}
             >
               −10
@@ -441,7 +441,7 @@ export function Controls({
             <button
               type="button"
               className="skip"
-            aria-label="Forward 10 seconds"
+              aria-label="Forward 10 seconds"
               onClick={() => ui.seek(SKIP)}
             >
               +10

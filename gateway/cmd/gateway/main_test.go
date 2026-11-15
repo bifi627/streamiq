@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -20,4 +21,12 @@ func TestLoadEnvFile(t *testing.T) {
 		t.Errorf("STREAMIQ_T_B = %q, want from-env (real env wins)", got)
 	}
 	loadEnvFile(filepath.Join(t.TempDir(), "missing")) // no-op, no panic
+}
+
+// install.sh / install.ps1 look for this line in `gateway -h` to know the
+// installed binary can back itself up before an update (#296).
+func TestUsageListsBackup(t *testing.T) {
+	if !strings.Contains(usage, "\n  backup ") {
+		t.Fatal("usage lost its '  backup ' line: the installers' pre-update backup check reads it")
+	}
 }

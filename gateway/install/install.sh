@@ -33,9 +33,28 @@ if command -v sha256sum >/dev/null 2>&1; then sum="sha256sum"; else sum="shasum 
 }
 
 mkdir -p "$DIR/state"
+# Update: the installed (old) binary backs up its own state first, and is kept
+# next to it, for `gateway rollback` (#296). No backup, no update. A gateway
+# older than `gateway backup` (#52) can't: it's replaced without one.
+keep=
+if [ -x "$DIR/gateway" ] && "$DIR/gateway" -h 2>/dev/null | grep -q '^  backup '; then
+  ver=$("$DIR/gateway" version 2>/dev/null) || ver=unknown
+  keep="$DIR/backups/$(date +%Y%m%d-%H%M%S)-$ver"
+  mkdir -p "$keep" # umask 077: 0700
+  "$DIR/gateway" backup "$keep/state.zip" >/dev/null || {
+    rm -rf "$keep"
+    echo "StreamIQ: backing up the installed gateway failed, nothing changed" >&2
+    exit 1
+  }
+elif [ -f "$DIR/gateway" ]; then
+  echo "StreamIQ: the installed gateway can't back itself up; updating without a rollback point" >&2
+fi
 pkill -f "^$DIR/gateway$" 2>/dev/null && sleep 1 || true # running copy (update)
+[ -n "$keep" ] && mv "$DIR/gateway" "$keep/gateway"
 chmod +x "$tmp/$bin"
 mv "$tmp/$bin" "$DIR/gateway"
+# The last 3 updates' backups stay (as gateway update keeps them).
+[ -d "$DIR/backups" ] && ls -1 "$DIR/backups" | sort -r | tail -n +4 | while read -r d; do rm -rf "${DIR:?}/backups/$d"; done
 
 if [ ! -f "$DIR/gateway.env" ]; then
   {

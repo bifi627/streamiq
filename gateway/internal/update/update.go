@@ -1,6 +1,8 @@
 // Package update tells the user when a newer gateway release exists, and on
 // Windows `gateway update` downloads, verifies and swaps the binary (#117).
-// Nothing updates in the background: only the user runs `gateway update`.
+// Nothing updates in the background: only the user runs `gateway update`. An
+// update keeps the state and the binary it replaced in backups/ for
+// `gateway rollback` (#296).
 package update
 
 import (
@@ -14,9 +16,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // LatestURL is GitHub's latest *non-prerelease* release. ponytail: assumes
@@ -176,20 +181,79 @@ func get(ctx context.Context, url string) (io.ReadCloser, error) {
 	return res.Body, nil
 }
 
-// Swap puts newPath in place of exe. Windows can't overwrite a running exe but
-// can rename it, so exe moves aside to exe.old first (removed by the next
-// update, once nothing runs from it). If the move-in fails, exe is restored.
-func Swap(exe, newPath string) error {
-	old := exe + ".old"
-	if err := os.Remove(old); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove %s: %w", old, err)
+// Swap puts in at exe and moves exe to out (replacing a file there). Windows
+// can't overwrite a running exe but can rename it. If the move-in fails, exe is
+// put back. An update moves exe into its backup dir (#296); a rollback moves the
+// kept binary in and the current one to exe.old (removed by the next update).
+func Swap(exe, in, out string) error {
+	if err := os.Remove(out); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove %s: %w", out, err)
 	}
-	if err := os.Rename(exe, old); err != nil {
+	if err := os.Rename(exe, out); err != nil {
 		return err
 	}
-	if err := os.Rename(newPath, exe); err != nil {
-		os.Rename(old, exe)
+	if err := os.Rename(in, exe); err != nil {
+		os.Rename(out, exe)
 		return err
 	}
 	return nil
+}
+
+// Backups is the install dir's folder of pre-update backups (#296): one dir per
+// update, <time>-<version>, with the state backup (StateZip) and the binary that
+// was replaced. Unencrypted secrets, like any gateway backup: 0700.
+const (
+	Backups  = "backups"
+	StateZip = "state.zip"
+	keep     = 3 // install.sh and install.ps1 keep as many
+)
+
+// BackupDir makes the dir for one update's backup of version.
+func BackupDir(install, version string, now time.Time) (string, error) {
+	d := filepath.Join(install, Backups, now.Format("20060102-150405")+"-"+version)
+	if err := os.MkdirAll(filepath.Dir(d), 0o700); err != nil {
+		return "", err
+	}
+	return d, os.Mkdir(d, 0o700)
+}
+
+// Prune removes all but the newest keep backup dirs (names sort by time).
+func Prune(install string) error {
+	es, err := os.ReadDir(filepath.Join(install, Backups)) // sorted by name
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	var dirs []string
+	for _, e := range es {
+		if e.IsDir() {
+			dirs = append(dirs, e.Name())
+		}
+	}
+	for _, d := range dirs[:max(0, len(dirs)-keep)] {
+		if err := os.RemoveAll(filepath.Join(install, Backups, d)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Previous is the newest backup dir that holds both a binary named bin and its
+// state backup, and the version it names ("1.4.0", or "unknown").
+func Previous(install, bin string) (dir, version string, err error) {
+	es, err := os.ReadDir(filepath.Join(install, Backups))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", "", err
+	}
+	for _, e := range slices.Backward(es) {
+		d := filepath.Join(install, Backups, e.Name())
+		_, e1 := os.Stat(filepath.Join(d, bin))
+		_, e2 := os.Stat(filepath.Join(d, StateZip))
+		if e.IsDir() && e1 == nil && e2 == nil {
+			_, v, _ := strings.Cut(e.Name()[min(len(e.Name()), len("20060102-150405")):], "-")
+			return d, v, nil
+		}
+	}
+	return "", "", fmt.Errorf("no previous version kept in %s (it is made by an update, since #296)", filepath.Join(install, Backups))
 }

@@ -126,15 +126,15 @@ func main() {
 		if len(os.Args) == 3 {
 			file = os.Args[2]
 		}
-		err = backupState(file)
+		err = backupState(file, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
 	case cmd == "restore" && len(os.Args) == 3 && !strings.HasPrefix(os.Args[2], "-"):
-		err = restoreState(os.Args[2], false)
+		err = restoreState(os.Args[2], filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), false)
 	case cmd == "restore" && len(os.Args) == 4 && slices.Contains(os.Args[2:], "--force"):
 		file := os.Args[2]
 		if file == "--force" {
 			file = os.Args[3]
 		}
-		err = restoreState(file, true)
+		err = restoreState(file, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), true)
 	case cmd == "status":
 		link, _ := os.ReadFile(filepath.Join(stateDir(), "page-link"))
 		err = localpage.PrintStatus(ctx, os.Stdout, pagePort(), strings.TrimSpace(string(link)))
@@ -160,9 +160,11 @@ const usage = `usage: gateway [command] [-h]
   reset-identity             new certificate + empty paired-browser list: every browser pairs
                              again (after a leak; docs/install.md). Refuses while the gateway runs.
   backup [file]              write the state dir (identity, credential, paired browsers, Jellyfin
-                             login) to one zip; works while the gateway runs. NOT encrypted.
+                             login) and jellyfin-compose.yml to one zip; works while the gateway
+                             runs. NOT encrypted.
   restore [--force] <file>   put a backup back into the state dir. Refuses while the gateway runs,
-                             and over an existing gateway unless --force.
+                             and over an existing gateway unless --force. Writes jellyfin-compose.yml
+                             only if there is none (never over one, not even with --force).
 
 Config: gateway.env next to the binary (see docs/install.md).`
 
@@ -219,14 +221,14 @@ func resetIdentity() error {
 }
 
 // backupState writes the backup zip (0600, never over an existing file).
-func backupState(file string) error {
+func backupState(file, compose string) error {
 	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if errors.Is(err, os.ErrExist) {
 		return fmt.Errorf("%s already exists: name another file (gateway backup <file>)", file)
 	} else if err != nil {
 		return err
 	}
-	err = backup.Write(stateDir(), f)
+	err = backup.Write(stateDir(), compose, f)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
@@ -247,16 +249,25 @@ func backupState(file string) error {
 	return nil
 }
 
-// restoreState unpacks a backup into the state dir.
-func restoreState(file string, force bool) error {
+// restoreState unpacks a backup into the state dir (and its compose file next to the binary).
+func restoreState(file, compose string, force bool) error {
 	if err := notRunning(); err != nil {
 		return err
 	}
-	if err := backup.Restore(file, stateDir(), force); err != nil {
+	did, err := backup.Restore(file, stateDir(), compose, force)
+	if err != nil {
 		return err
 	}
 	abs, _ := filepath.Abs(stateDir())
 	fmt.Printf("Restored the gateway into %s.\n", abs)
+	switch did {
+	case backup.ComposeWritten:
+		fmt.Printf("Wrote %s from the backup.\n", compose)
+		fmt.Println("On a new machine its media folder paths may be wrong: check them before gateway jellyfin up.")
+	case backup.ComposeKept:
+		fmt.Printf("Kept the existing %s (the backup's copy is not used).\n", compose)
+		fmt.Println("On a new machine check its media folder paths before gateway jellyfin up.")
+	}
 	fmt.Println("Start it (gateway service install, or gateway run): it comes back as the same gateway, paired browsers included.")
 	return nil
 }

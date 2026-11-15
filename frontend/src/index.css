@@ -686,6 +686,194 @@ html.tv .no-tv {
 .seek {
   width: 100%;
 }
+
+/* A secondary action (#227): outlined, quieter than a filled pill. */
+button.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+}
+button.secondary:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.secondary svg,
+.remote svg,
+.screen-wait svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: currentColor;
+  flex: none;
+}
+
+/* Play on… (#180, #227): the screens drop down as a list. The gap only
+   under a tile; episode rows and the title side space it themselves. */
+.tiles .play-on {
+  margin-top: var(--sp-2);
+}
+.play-on > button {
+  width: 100%;
+}
+.play-on ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  list-style: none;
+}
+.play-on li {
+  display: flex;
+  flex-wrap: wrap; /* a narrow tile puts Remote under the name */
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+}
+.play-on li button {
+  flex: 1 1 8rem;
+  padding-top: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  text-align: left;
+}
+.play-on li a {
+  display: flex;
+  align-items: center;
+  min-height: var(--target);
+  padding: 0 var(--sp-2);
+}
+.play-on p {
+  margin: var(--sp-2) 0 0;
+}
+
+/* Phone remote (#181, #227): phone-first, one column; the keys sit low. It
+   is no TV view, so aspect-ratio and accent-color are fine here. */
+.remote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: 28rem;
+  margin: 0 auto;
+}
+.remote h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  font-weight: 500;
+}
+.remote h3 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+.remote-art {
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+}
+.remote .seek {
+  min-height: var(--target);
+  margin: 0;
+  accent-color: var(--accent);
+}
+.remote-time {
+  margin-top: calc(-1 * var(--sp-4));
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.remote-keys {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+}
+.remote-keys button {
+  width: 4rem;
+  height: 4rem;
+  padding: 0;
+  border-radius: 50%;
+}
+.remote-keys .primary {
+  width: 5rem;
+  height: 5rem;
+}
+.remote-keys .primary svg {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+.remote > .secondary {
+  width: 100%;
+}
+.remote label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+}
+
+/* Screen mode, waiting (#180, #227): read from the couch, so big and
+   centered; TV mode scales it up with the root size. */
+.screen-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+  min-height: 60vh;
+  text-align: center;
+}
+.screen-wait > svg {
+  width: 4rem;
+  height: 4rem;
+  color: var(--accent);
+}
+.screen-wait h2 {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+.screen-wait ol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+  color: var(--text-muted);
+  font-size: var(--fs-section);
+  list-style: none;
+  text-align: left;
+}
+.screen-wait li {
+  counter-increment: step;
+}
+.screen-wait li::before {
+  content: counter(step);
+  display: inline-flex;
+  margin-right: var(--sp-3);
+  vertical-align: middle;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.screen-wait b {
+  color: var(--text);
+}
+.screen-wait button {
+  min-width: 10rem;
+}
 .tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

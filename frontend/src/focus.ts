@@ -2,8 +2,9 @@
 // onKeyDown={arrowFocus} on a container (nav, list, grid): an arrow moves focus
 // to the nearest focusable element inside it in that direction. Enter is the
 // browser's own on links and buttons (Enter in a form's field submits it).
-// Selects, textareas, sliders, number fields and radios keep their arrows; other
-// one-line fields: up/down leave them, left/right only past the caret's end (#202).
+// Selects, textareas, number fields and radios keep their arrows; other one-line
+// fields and sliders: up/down leave them, left/right only past a text caret's end
+// (#202; a slider has no caret, so it keeps left/right: the remote's seek, #227).
 import type { KeyboardEvent } from 'react'
 
 type Box = { left: number; top: number; right: number; bottom: number }
@@ -54,9 +55,7 @@ export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
     e.metaKey ||
     e.shiftKey || // browser shortcuts
     e.defaultPrevented || // an inner container moved already
-    from.matches(
-      'select, textarea, input[type=range], input[type=number], input[type=radio]',
-    ) ||
+    from.matches('select, textarea, input[type=number], input[type=radio]') ||
     (from instanceof HTMLInputElement && !caretAtEdge(from, e.key))
   )
     return

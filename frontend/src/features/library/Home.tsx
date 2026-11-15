@@ -194,6 +194,7 @@ function Pick({
       >
         <Artwork
           art={art}
+          card={item}
           width={wide ? 416 : 248}
           className={wide ? 'frame' : 'cover'}
         />
@@ -216,13 +217,16 @@ export function Watched({ item }: { item: Item }) {
   )
 }
 
-/** An image box (size from `className`); loads the image when it scrolls into view. */
+/** An image box (size from `className`); loads the image when it scrolls into view.
+ *  With `card`, a box with no image to show (none, or it failed) is a title card (#323). */
 export function Artwork({
   art,
+  card,
   width,
   className,
 }: {
   art: Art | null
+  card?: Item
   width: number
   className: string
 }) {
@@ -231,6 +235,7 @@ export function Artwork({
   const { id, type, tag } = art ?? {}
   const key = `${id}/${type}/${tag}/${width}`
   const [got, setGot] = useState<{ key: string; url: string } | null>(null)
+  const [failed, setFailed] = useState('')
   useEffect(() => {
     const el = box.current
     if (!id || !type || !tag || !el) return
@@ -242,11 +247,12 @@ export function Artwork({
         seen.disconnect()
         load(pc, gatewayId, { id, type, tag }, width).then(
           (b) => {
-            if (gone || !b) return
+            if (gone) return
+            if (!b) return setFailed(key)
             url = URL.createObjectURL(b)
             setGot({ key, url })
           },
-          () => {},
+          () => !gone && setFailed(key),
         )
       },
       { rootMargin: '100px' },
@@ -258,9 +264,31 @@ export function Artwork({
       if (url) URL.revokeObjectURL(url)
     }
   }, [pc, gatewayId, id, type, tag, width, key])
+  if (card && (!art || failed === key))
+    return (
+      <div
+        ref={box}
+        className={`art ${className} title-card`}
+        style={{ background: tint(card.Name) }}
+      >
+        <span aria-hidden="true">
+          {card.Name}
+          {card.ProductionYear && ` (${card.ProductionYear})`}
+        </span>
+      </div>
+    )
   return (
     <div ref={box} className={`art ${className}`}>
       {art && got?.key === key && <img src={got.url} alt="" />}
     </div>
   )
+}
+
+/** A muted colour per title: the same name always gets the same one. */
+function tint(name: string) {
+  let h = 0
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360
+  // * 137: names one letter apart land far apart, not 1° apart.
+  // ponytail: lightness 22% keeps --text above 4.5:1 on every hue
+  return `hsl(${(h * 137) % 360}, 35%, 22%)`
 }

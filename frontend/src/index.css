@@ -1026,6 +1026,32 @@ button.secondary:hover {
   height: 100%;
   object-fit: cover;
 }
+/* No image to show (#323): the title on a tint (inline style, Home.tsx tint()).
+   min-height: Chrome 87 ignores .poster's aspect-ratio. */
+.title-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 6rem;
+  padding: 0.5rem;
+  color: var(--text);
+  text-align: center;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.title-card span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+/* Episode stills are short (4.5rem on a phone): two lines, no min-height. */
+.still-art.title-card {
+  min-height: 0;
+}
+.still-art.title-card span {
+  -webkit-line-clamp: 2;
+}
 .home {
   display: flex;
   flex-direction: column;

@@ -36,8 +36,10 @@ import {
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 import {
   compatibleOn,
+  lastGateway,
   rawOn,
   setCompatible,
+  setLastGateway,
   setRaw,
   setTv,
   tvOn,
@@ -225,17 +227,22 @@ function Shell() {
     return () => removeEventListener('storage', onStorage)
   }, [])
 
-  // Gateway routes: that gateway's status chip and library link. Fetched once
-  // per gateway. ponytail: online is as of opening, poll if it needs to be live.
+  // Gateway routes: that gateway's status chip. The Library link stays on other
+  // routes too: the last opened gateway (per device), else the only one.
+  // Fetched on entering/leaving a gateway. ponytail: online is as of then,
+  // poll if it needs to be live.
   const { gatewayId } = useParams({ strict: false })
   const [gateways, setGateways] = useState<Gateway[]>([])
   const gateway = gateways.find((g) => g.id === gatewayId)
   useEffect(() => {
-    if (gatewayId)
-      getGateways()
-        .then(setGateways)
-        .catch(() => {}) // the library shows the error
+    if (gatewayId) setLastGateway(gatewayId)
+    getGateways()
+      .then(setGateways)
+      .catch(() => {}) // the Gateways list / library show their own errors
   }, [gatewayId])
+  const last = gateways.find((g) => g.id === lastGateway()) // gone = removed, or another household
+  const libraryId =
+    gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)
 
   return (
     <div className="shell">
@@ -247,12 +254,8 @@ function Shell() {
           <Link to="/" activeOptions={{ exact: true }}>
             Gateways
           </Link>
-          {gatewayId && (
-            <Link
-              to="/g/$gatewayId"
-              params={{ gatewayId }}
-              activeOptions={{ exact: true }}
-            >
+          {libraryId && (
+            <Link to="/g/$gatewayId" params={{ gatewayId: libraryId }}>
               Library
             </Link>
           )}

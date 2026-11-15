@@ -200,8 +200,8 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 
 // gatewayAPI answers /streamiq/* (docs/protocol.md, "Gateway API"): the gateway
 // itself, never Jellyfin, and without a Jellyfin token. Only an exact, unencoded
-// path matches (GET, or POST on the screen endpoints, /streamiq/name and
-// /streamiq/clients/remove);
+// path matches (GET, or POST on the screen endpoints, /streamiq/name,
+// /streamiq/clients/remove and /streamiq/update);
 // anything else under the prefix is 404.
 func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[string]string, io.ReadCloser, error) {
 	method := rq.Method
@@ -215,6 +215,8 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 		return rename(j.Rename, rq.Body)
 	case u.Path == ClientsRemovePath && method == "POST" && j.Clients != nil:
 		return removeClient(j.Clients, rq.Body, who.Key)
+	case u.Path == UpdatePath && method == "POST" && j.Update != nil:
+		return startUpdate(j.Update)
 	case method != "GET":
 	case u.Path == BurstPath:
 		return burst(u.Query().Get("size"))
@@ -244,7 +246,7 @@ const (
 var AdminOnly sync.Map // path -> true
 
 func init() {
-	for _, p := range []string{NamePath, ClientsPath, ClientsRemovePath} {
+	for _, p := range []string{NamePath, ClientsPath, ClientsRemovePath, UpdatePath} {
 		AdminOnly.Store(p, true)
 	}
 }
@@ -327,13 +329,35 @@ type afterReply struct {
 	after func()
 }
 
-func okJSON(v any) (int, map[string]string, io.ReadCloser, error) {
+// UpdatePath starts a gateway update (#312): POST → 202 {"version": target}, the
+// gateway goes down for the swap right after; refused → 409 {"reason": "…"}.
+const UpdatePath = "/streamiq/update"
+
+// Conflict from a gateway API hook (Jellyfin.Update) answers 409 {"reason": text}.
+type Conflict string
+
+func (c Conflict) Error() string { return string(c) }
+
+func startUpdate(start func() (string, error)) (int, map[string]string, io.ReadCloser, error) {
+	v, err := start()
+	if c, ok := errors.AsType[Conflict](err); ok {
+		return replyJSON(http.StatusConflict, map[string]string{"reason": string(c)})
+	}
+	if err != nil {
+		return 0, nil, nil, fmt.Errorf("gateway API: update: %w", err)
+	}
+	return replyJSON(http.StatusAccepted, map[string]string{"version": v})
+}
+
+func okJSON(v any) (int, map[string]string, io.ReadCloser, error) { return replyJSON(http.StatusOK, v) }
+
+func replyJSON(status int, v any) (int, map[string]string, io.ReadCloser, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return 0, nil, nil, err
 	}
 	hdr := map[string]string{"Content-Type": "application/json", "Content-Length": strconv.Itoa(len(b)), "Cache-Control": "no-store"}
-	return http.StatusOK, hdr, io.NopCloser(bytes.NewReader(b)), nil
+	return status, hdr, io.NopCloser(bytes.NewReader(b)), nil
 }
 
 // isGatewayAPI: the prefix is matched case-insensitively, like Jellyfin's

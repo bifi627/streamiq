@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"streamiq/gateway/internal/update"
 )
 
 func TestLoadEnvFile(t *testing.T) {
@@ -28,5 +30,18 @@ func TestLoadEnvFile(t *testing.T) {
 func TestUsageListsBackup(t *testing.T) {
 	if !strings.Contains(usage, "\n  backup ") {
 		t.Fatal("usage lost its '  backup ' line: the installers' pre-update backup check reads it")
+	}
+}
+
+// /streamiq/status's remoteUpdate (#312): true when possible, else the reason.
+func TestRemoteUpdateStatus(t *testing.T) {
+	r := &update.Remote{Version: "1.4.0", Supported: true, Task: func() bool { return true },
+		Newer: func() string { return "1.5.0" }}
+	if got := remoteUpdate(r); got != true {
+		t.Fatalf("possible: %v, want true", got)
+	}
+	r.Task = func() bool { return false }
+	if got, ok := remoteUpdate(r).(string); !ok || !strings.HasPrefix(got, "no logon task") {
+		t.Fatalf("no task: %v, want the reason", remoteUpdate(r))
 	}
 }

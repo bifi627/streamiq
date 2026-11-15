@@ -10,6 +10,7 @@ import {
   type Gateway,
   type GatewayStatus,
   type Install,
+  updateGateway,
 } from './api'
 import { Pairing } from '../pairing/Pairing'
 import { dropShared, share } from '../pairing/connect'
@@ -27,6 +28,7 @@ import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../focus'
+import { updated, type Started } from './update'
 
 // `/` (#225): straight into the library when the household has exactly one
 // gateway, else the list. History replace both ways, so Back doesn't bounce.
@@ -198,7 +200,7 @@ export function Gateways() {
       {!!gateways?.length && (
         <ul className="cards">
           {gateways.map((d) => (
-            <li key={d.id} className="card">
+            <li key={d.id} className="card" data-gateway={d.id}>
               <div className="card-head">
                 <GatewayName
                   name={d.name ?? 'gateway'}
@@ -221,13 +223,10 @@ export function Gateways() {
                   Update required: rerun the install command on the gateway.
                 </p>
               ) : (
-                d.update && (
-                  <p className="notice">
-                    Update available: {d.update}. Run <code>install.sh</code>{' '}
-                    (Linux/macOS) or <code>gateway update</code> (Windows) on
-                    the gateway.
-                  </p>
-                )
+                <UpdateNotice
+                  g={d}
+                  canUpdate={admin && d.online && pinned.has(d.id)}
+                />
               )}
               {d.online ? (
                 // Pair this browser stands where Open is until it's paired (#226).
@@ -278,6 +277,132 @@ export function Gateways() {
         </ul>
       )}
     </section>
+  )
+}
+
+// How long the card waits for the gateway to come back on the new version
+// before it says the update didn't finish (#312).
+const UPDATE_WAIT = 2 * 60_000
+
+// The heartbeat's newer release (g.update). An admin whose browser is paired
+// gets Update to v… over the tunnel (#312) when the gateway's status says it
+// can (Windows with the logon task), else the reason and how to update by hand.
+// After 202: Updating until the list shows it online on another version than
+// before (the updater installs the latest release, maybe newer than the one
+// named). Not there within UPDATE_WAIT: still on the old version = the update
+// hasn't happened (failed, or still backing up: update.log); offline = it broke
+// mid-way, and gateway rollback brings back the old version.
+function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
+  const [remote, setRemote] = useState<true | string | null>(null) // null = not known
+  const [updating, setUpdating] = useState<Started | null>(null)
+  const [late, setLate] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const status = useRef<HTMLParagraphElement>(null)
+  // Done: forget it, or the gateway going offline later reads as this update
+  // again (and its rollback advice). Set during render, as React suggests.
+  if (updating && updated(updating, g)) setUpdating(null)
+  const active = updating !== null
+
+  useEffect(() => {
+    if (!canUpdate || !g.update || active) return
+    let on = true
+    const { session, release } = share(g.id)
+    session
+      .then((x) => tunnelJson<GatewayStatus>(x.pc, '/streamiq/status'))
+      .then((s) => on && setRemote(s.remoteUpdate ?? null))
+      .catch(() => {}) // the notice by hand stays
+      .finally(release)
+    return () => {
+      on = false
+    }
+  }, [canUpdate, g.id, g.update, active])
+
+  useEffect(() => {
+    if (!active) return
+    status.current?.focus() // the focused button is gone: keep the D-pad's place
+    const t = setTimeout(() => setLate(true), UPDATE_WAIT)
+    return () => clearTimeout(t)
+  }, [active])
+
+  // An update started here can unmount the focused control (the button on a
+  // 409, the Updating line once done): focus then falls to <body>, outside the
+  // D-pad container. Put it on the card's Status, which always renders (#226,
+  // as Pairing does). Only on this notice's own state changes, not the poll.
+  const keep = useRef(false)
+  useEffect(() => {
+    const lost =
+      !document.activeElement || document.activeElement === document.body
+    if (!keep.current || !lost) return
+    document
+      .querySelector<HTMLElement>(`[data-gateway="${g.id}"] summary`)
+      ?.focus()
+    keep.current = false
+  }, [g.id, active, remote, g.update])
+
+  async function start(target: string) {
+    if (
+      !confirm(
+        `Update "${g.name ?? 'gateway'}" to v${target}? It restarts: offline for a moment, open streams stop.`,
+      )
+    )
+      return
+    setMsg(null)
+    keep.current = true
+    try {
+      const r = await updateGateway(g.id)
+      if ('reason' in r) setRemote(r.reason)
+      else {
+        setLate(false)
+        setUpdating({ to: r.version, from: g.version })
+      }
+    } catch (e) {
+      setMsg(describe(toAppError(e)).message)
+    }
+  }
+
+  if (active)
+    return (
+      <p className="notice" role="status" tabIndex={-1} ref={status}>
+        {!late ? (
+          `Updating to v${updating!.to}… The gateway is offline for a moment.`
+        ) : g.online ? (
+          <>
+            The update to v{updating!.to} hasn't happened: the gateway still
+            runs v{g.version}. It failed or is still backing up: see{' '}
+            <code>update.log</code> next to the gateway, at home.
+          </>
+        ) : (
+          <>
+            The update to v{updating!.to} didn't finish: the gateway isn't back.
+            At home, see <code>update.log</code> next to the gateway, and run{' '}
+            <code>gateway rollback</code> to go back (docs/install.md).
+          </>
+        )}
+      </p>
+    )
+  if (!g.update) return null
+  return (
+    <p className="notice">
+      Update available: {g.update}.{' '}
+      {canUpdate && remote === true ? (
+        <button type="button" onClick={() => start(g.update!)}>
+          Update to v{g.update}
+        </button>
+      ) : canUpdate && typeof remote === 'string' ? (
+        <>
+          Can't update from here: {remote}. Run <code>install.sh</code> on the
+          gateway (Linux/macOS); on Windows run{' '}
+          <code>gateway service install</code> once at home, then update from
+          here.
+        </>
+      ) : (
+        <>
+          Run <code>install.sh</code> (Linux/macOS) or{' '}
+          <code>gateway update</code> (Windows) on the gateway.
+        </>
+      )}
+      {msg && <span role="alert"> {msg}</span>}
+    </p>
   )
 }
 

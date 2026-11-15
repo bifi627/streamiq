@@ -37,6 +37,10 @@ type Jellyfin struct {
 	// Clients is the pairing allowlist behind GET /streamiq/clients and POST
 	// /streamiq/clients/remove (#311). nil = both 404.
 	Clients *pairing.Store
+	// Update is POST /streamiq/update (#312): starts the updater and returns the
+	// version it installs; a Conflict error = refused (409, its text the reason).
+	// nil = the endpoint 404s.
+	Update func() (string, error)
 	// Viewer is a StreamIQ user's own token and Jellyfin user id; "" = none, use
 	// the shared one (SetKey). nil = everyone shares it.
 	Viewer func(user string) (key, userID string)

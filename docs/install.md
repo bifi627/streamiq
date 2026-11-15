@@ -317,7 +317,18 @@ that command:
 - Linux / macOS: `curl -fsSL https://github.com/bifi627/streamiq/releases/latest/download/install.sh | sh`
   stops the running gateway, swaps the binary and starts it again.
 
-Your settings and paired browsers stay. Nothing updates without you running it.
+**From the web app (Windows, with the logon task):** a household admin whose browser is
+paired sees **Update to v…** on the gateway's card on the Gateways page. It runs the same
+update as above, started by the gateway itself; the card shows *Updating* until the gateway
+is back on the new version (its output is in `update.log` in the install dir). Without the
+logon task (`gateway service install`, once at home) the card says so instead: nothing would
+start the gateway again. If after about 2 minutes the gateway still runs the old version, the
+update failed (or is still backing up): `update.log` says which; don't roll back, nothing
+changed. If it isn't back at all, check `update.log` at home and run
+[`gateway rollback`](#roll-back-an-update).
+Linux / macOS: by hand as above for now.
+
+Your settings and paired browsers stay. Nothing updates without you (or an admin in the web app) starting it.
 Before it replaces anything, an update backs up the gateway with the installed
 version and keeps that version's binary: see [Roll back an update](#roll-back-an-update).
 If that backup fails, the update stops and nothing changes.

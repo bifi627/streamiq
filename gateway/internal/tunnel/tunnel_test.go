@@ -591,3 +591,40 @@ func TestClients(t *testing.T) {
 		t.Fatalf("after: allowed aa=%v, dropped=%v", store.Allowed("aa"), dropped)
 	}
 }
+
+// POST /streamiq/update (#312): admin-only, 202 with the target version, a
+// Conflict from the hook is 409 with its reason, any other error 500, no hook 404.
+func TestUpdate(t *testing.T) {
+	j, _ := fakeJellyfin(t)
+	call := func(role string) (int, string) {
+		raw, _ := json.Marshal(tunnelReq{Method: "POST", URL: UpdatePath})
+		status, _, rc, _ := proxy(j, raw, Session{Role: role})
+		if rc == nil {
+			return status, ""
+		}
+		defer rc.Close()
+		b, _ := io.ReadAll(rc)
+		return status, string(b)
+	}
+	if st, _ := call(Admin); st != http.StatusNotFound {
+		t.Fatalf("no hook: %d, want 404", st)
+	}
+	started := 0
+	j.Update = func() (string, error) { started++; return "1.5.0", nil }
+	for _, role := range []string{Member, ""} {
+		if st, _ := call(role); st != http.StatusForbidden || started != 0 {
+			t.Fatalf("%q: %d started=%d, want 403 and nothing started", role, st, started)
+		}
+	}
+	if st, body := call(Admin); st != http.StatusAccepted || body != `{"version":"1.5.0"}` || started != 1 {
+		t.Fatalf("admin: %d %s started=%d", st, body, started)
+	}
+	j.Update = func() (string, error) { return "", Conflict("already up to date") }
+	if st, body := call(Admin); st != http.StatusConflict || body != `{"reason":"already up to date"}` {
+		t.Fatalf("refused: %d %s", st, body)
+	}
+	j.Update = func() (string, error) { return "", fmt.Errorf("exec: access denied") }
+	if st, _ := call(Admin); st != http.StatusInternalServerError {
+		t.Fatalf("failing start: %d, want 500", st)
+	}
+}

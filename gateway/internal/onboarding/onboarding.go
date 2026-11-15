@@ -18,7 +18,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
+	"unicode"
+	"unicode/utf16"
 
 	"github.com/coder/websocket"
 )
@@ -45,8 +46,10 @@ type State struct {
 	renamed chan struct{} // one pending signal: send a heartbeat now
 }
 
-// ErrBadName: a name must be 1–100 characters after trimming (as at enrollment).
-var ErrBadName = errors.New("name must be 1-100 characters")
+// ErrBadName: a name must be 1–100 characters after trimming, counted in UTF-16
+// units like the API (an emoji is 2), and without control characters (Postgres
+// text refuses NUL).
+var ErrBadName = errors.New("name must be 1-100 characters, no control characters")
 
 // CurrentName is the gateway's name now.
 func (s *State) CurrentName() string {
@@ -59,7 +62,7 @@ func (s *State) CurrentName() string {
 // RunControl for an early heartbeat, so the API mirrors it at once.
 func (s *State) SetName(name string) (string, error) {
 	name = strings.TrimSpace(name)
-	if n := utf8.RuneCountInString(name); n < 1 || n > 100 {
+	if n := len(utf16.Encode([]rune(name))); n < 1 || n > 100 || strings.ContainsFunc(name, unicode.IsControl) {
 		return "", ErrBadName
 	}
 	s.mu.Lock()

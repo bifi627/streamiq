@@ -187,8 +187,8 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 
 // gatewayAPI answers /streamiq/* (docs/protocol.md, "Gateway API"): the gateway
 // itself, never Jellyfin, and without a Jellyfin token. Only an exact, unencoded
-// path matches (GET, or POST on the screen endpoints); anything else under the
-// prefix is 404.
+// path matches (GET, or POST on the screen endpoints and /streamiq/name);
+// anything else under the prefix is 404.
 func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[string]string, io.ReadCloser, error) {
 	method := rq.Method
 	switch {

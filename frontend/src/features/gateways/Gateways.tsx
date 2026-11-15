@@ -10,7 +10,14 @@ import {
 } from './api'
 import { Pairing } from '../pairing/Pairing'
 import { share } from '../pairing/connect'
-import { ADMIN_ONLY, AppError, isKind, toAppError } from '../../errors'
+import {
+  ADMIN_ONLY,
+  AppError,
+  describe,
+  isKind,
+  toAppError,
+} from '../../errors'
+import { isBack } from '../library/items'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
@@ -98,11 +105,9 @@ export function Gateways() {
       return null
     } catch (x) {
       const e = toAppError(x)
-      return isKind(e, 'not-paired')
-        ? 'Pair this browser to rename the gateway.'
-        : e.context.status === 404
-          ? 'This gateway is too old to rename: update it.'
-          : `Rename failed (${e.message}).`
+      return e.context.status === 404
+        ? 'This gateway is too old to rename: update it.'
+        : describe(e).message
     }
   }
 
@@ -252,7 +257,7 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
 )
 
 // The name, plus an inline Rename for an admin while the gateway is online
-// (#310). Enter saves (form submit), Escape cancels; the section's arrowFocus
+// (#310). Enter saves (form submit), Escape / the remote's Back cancels; arrowFocus
 // reaches the controls.
 function GatewayName({
   name,
@@ -300,7 +305,7 @@ function GatewayName({
         if (e2) setError(e2)
         else setDraft(null)
       }}
-      onKeyDown={(e) => e.key === 'Escape' && setDraft(null)}
+      onKeyDown={(e) => isBack(e.nativeEvent) && setDraft(null)}
     >
       <input
         aria-label="Gateway name"

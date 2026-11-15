@@ -119,13 +119,15 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, bad := range []string{"", "   ", strings.Repeat("x", 101)} {
+	for _, bad := range []string{"", "   ", strings.Repeat("x", 101), "a\x00b", "a\nb", strings.Repeat("😀", 51)} {
 		if _, err := st.SetName(bad); !errors.Is(err, ErrBadName) {
 			t.Fatalf("SetName(%q) = %v, want ErrBadName", bad, err)
 		}
 	}
-	if n, err := st.SetName(strings.Repeat("é", 100)); err != nil || n != strings.Repeat("é", 100) {
-		t.Fatalf("100 chars: %q, %v", n, err)
+	for _, ok := range []string{strings.Repeat("é", 100), strings.Repeat("😀", 50)} { // 100 UTF-16 units
+		if n, err := st.SetName(ok); err != nil || n != ok {
+			t.Fatalf("100 units: %q, %v", n, err)
+		}
 	}
 
 	beats := make(chan string, 4)

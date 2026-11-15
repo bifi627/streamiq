@@ -38,8 +38,8 @@ Liveness plus what the gateway owns and the API mirrors (#140, #310); a gateway 
 early, right after its name changes, not just every 30 s. The API sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null) and
-`protocol` (below), and `name` (#310: trimmed, cut to 100 chars; missing or blank = an
-older gateway, the stored name stays), and ignores any other field. The gateway owns
+`protocol` (below), and `name` (#310: trimmed, cut to 100 UTF-16 units, never inside a
+surrogate pair; missing, blank or with a control character = the stored name stays), and ignores any other field. The gateway owns
 its name; the API never writes it after enrollment. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
 `version`, `update` and `upgradeRequired`; everything richer comes from the gateway itself over the
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
@@ -320,8 +320,8 @@ key redaction in text responses (below).
 Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
-exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints)
-matches an endpoint; anything else under the prefix (unknown path, other method,
+exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints and
+`/streamiq/name`) matches an endpoint; anything else under the prefix (unknown path, other method,
 percent-encoded) is `404`. A `body` over 64 KB is `413`. Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
@@ -357,7 +357,8 @@ gateway older than this endpoint answers `404`; the web gateway page then says
 to update it.
 
 **`POST /streamiq/name`** (#310, admin-only) `{ "name": "Living room NAS" }` → `200`
-`{ "name": "<stored>" }`. The name is trimmed, 1–100 characters (the enrollment bound),
+`{ "name": "<stored>" }`. The name is trimmed, 1–100 characters counted in UTF-16
+units like the API (the enrollment bound; an emoji counts 2), no control characters,
 else `400`. The gateway writes it to `state/gateway.json` (atomically) and uses it at
 once (local page, backup file names, logs), then sends an early heartbeat so
 `GET /api/gateways` shows it within a second. A gateway older than this endpoint

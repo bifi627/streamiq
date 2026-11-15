@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { connect } from './connect'
 import { getPin } from './store'
 import { AppError, toAppError } from '../../errors'
@@ -22,6 +22,8 @@ export function Pairing({
   lanUrl,
   needsPair,
   onPaired,
+  open,
+  children,
 }: {
   gatewayId: string
   lanUrl: string | null
@@ -29,6 +31,10 @@ export function Pairing({
   needsPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
+  /** Gateway card (#226): Open takes Pair's place once this browser is paired. */
+  open?: () => void
+  /** With open: more actions in Open's row (Test connection goes below). */
+  children?: ReactNode
 }) {
   const [s, setS] = useState<State>({ step: 'idle' })
   // Pair shows while this browser has no pin for the gateway. ponytail: a pin
@@ -94,29 +100,37 @@ export function Pairing({
     'gateway page'
   )
 
+  const test = (
+    <button
+      ref={testBtn}
+      type="button"
+      aria-disabled={busy}
+      onClick={() => run(false)}
+    >
+      Test connection
+    </button>
+  )
+
   return (
     // arrowFocus here too: in the library it renders outside any D-pad container.
     <div className="pairing" ref={root} onKeyDown={arrowFocus}>
       <div className="actions">
-        {showPair && (
+        {/* One element for both: React keeps the DOM node, so focus stays put
+            when Pair turns into Open. */}
+        {(showPair || open) && (
           <button
             type="button"
             className="primary"
-            aria-disabled={busy}
-            onClick={() => run(true)}
+            aria-disabled={showPair && busy}
+            onClick={showPair ? () => run(true) : open}
           >
-            Pair this browser
+            {showPair ? 'Pair this browser' : 'Open'}
           </button>
         )}
-        <button
-          ref={testBtn}
-          type="button"
-          aria-disabled={busy}
-          onClick={() => run(false)}
-        >
-          Test connection
-        </button>
+        {open ? children : test}
       </div>
+      {/* The card's row is full (Gateway page, Remove): Test goes below. */}
+      {open && <div className="actions">{test}</div>}
       {s.step === 'connecting' && (
         <p className="pair-state" role="status">
           <span className="dot" />

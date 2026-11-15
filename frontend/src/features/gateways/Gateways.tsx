@@ -179,37 +179,32 @@ export function Gateways() {
                   </p>
                 )
               )}
-              <div className="actions">
-                {d.online && (
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={() =>
-                      navigate({
-                        to: '/g/$gatewayId',
-                        params: { gatewayId: d.id },
-                      })
-                    }
-                  >
-                    Open
-                  </button>
-                )}
-                {d.online && d.lanUrl && (
-                  <a href={d.lanUrl} target="_blank" rel="noreferrer">
-                    Gateway page
-                  </a>
-                )}
-                {admin && (
-                  <button
-                    type="button"
-                    className="end"
-                    onClick={() => remove(d)}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-              {d.online && <Pairing gatewayId={d.id} lanUrl={d.lanUrl} />}
+              {d.online ? (
+                // Pair this browser stands where Open is until it's paired (#226).
+                <Pairing
+                  gatewayId={d.id}
+                  lanUrl={d.lanUrl}
+                  open={() =>
+                    navigate({
+                      to: '/g/$gatewayId',
+                      params: { gatewayId: d.id },
+                    })
+                  }
+                >
+                  {d.lanUrl && (
+                    <a href={d.lanUrl} target="_blank" rel="noreferrer">
+                      Gateway page
+                    </a>
+                  )}
+                  {admin && <RemoveButton onClick={() => remove(d)} />}
+                </Pairing>
+              ) : (
+                admin && (
+                  <div className="actions">
+                    <RemoveButton onClick={() => remove(d)} />
+                  </div>
+                )
+              )}
               <StatusDetails g={d} />
             </li>
           ))}
@@ -226,6 +221,12 @@ export function Gateways() {
     </section>
   )
 }
+
+const RemoveButton = ({ onClick }: { onClick: () => void }) => (
+  <button type="button" className="end" onClick={onClick}>
+    Remove
+  </button>
+)
 
 const tokenText = {
   ok: 'token set',

@@ -527,6 +527,64 @@ html.tv .no-tv {
   user-select: all; /* one click selects the whole command */
 }
 
+/* Pairing (#226): actions, then one state box: waiting (code) or OK; failed = ErrorView. */
+.pairing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  align-self: stretch;
+}
+.pair-state {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-weight: 600;
+}
+.dot.waiting {
+  background: var(--relayed);
+}
+.pair-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text); /* in the library it sits inside ErrorView's red text */
+}
+.pair-box p {
+  margin: 0;
+}
+.pair-box.ok {
+  border-color: var(--direct);
+}
+/* readable from a couch: 48 px, 72 px in TV mode */
+.pair-code {
+  font:
+    700 3rem/1 ui-monospace,
+    Consolas,
+    monospace;
+  letter-spacing: 0.15em;
+  font-variant-numeric: tabular-nums;
+}
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0;
+  font-size: 0.875rem;
+}
+.facts dt {
+  color: var(--text-muted);
+}
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* ErrorView: moved out of inline styles (#225), same look until its redesign. */
 .err {
   color: crimson;

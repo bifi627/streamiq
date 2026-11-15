@@ -115,10 +115,11 @@ can take a while for big collections.
 
 ## 5. Pair a browser and watch
 
-1. In the web app: **Gateways → Open** on your gateway, then **Pair this browser**.
+1. In the web app: **Gateways**, then **Pair this browser** on your gateway's card
+   (it stands where **Open** is until this browser is paired).
 2. The browser shows a code. The local gateway page shows a pairing request with a code.
    **Approve** only if both codes match.
-3. Browse your libraries and play. The player shows whether the connection is
+3. **Open** the gateway, browse your libraries and play. The player shows whether the connection is
    direct or relayed. Each browser (phone, laptop, …) is paired once; remove
    browsers on the local gateway page.
 

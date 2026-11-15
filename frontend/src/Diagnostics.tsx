@@ -40,6 +40,8 @@ export function Diagnostics() {
         peer: <b>{diag.pc || 'no session'}</b> · channels in flight:{' '}
         <b>{diag.inFlight}</b> (peak {diag.peak})
       </div>
+      {diag.cpu && <div>cpu: {diag.cpu}</div>}
+      {diag.memory && <div>memory: {diag.memory}</div>}
       {diag.media && <div>video: {diag.media}</div>}
       {diag.sb && <div>hls: {diag.sb}</div>}
       <label>

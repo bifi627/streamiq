@@ -60,6 +60,7 @@ import {
   audioCodecs,
   autoAudio,
   autoCap,
+  autoQuality,
   effective,
   decision,
   describe,
@@ -229,7 +230,7 @@ export function Player({
       const saver = dataSaverOn() // #291: caps Auto only (effective)
       const eff = effective(q, mbps, bitrate, saver)
       const cap = q === 'Auto' ? autoCap(mbps) : undefined
-      setLink({ mbps, auto: eff, saver })
+      setLink({ mbps, auto: autoQuality(mbps, bitrate, saver), saver }) // Auto's pick, also while a rung is picked
       if (q === 'Auto' && (mbps || saver))
         event(
           `auto: link ${mbps ? `~${mbps.toFixed(1)} Mbps${speed?.fresh() ? '' : ' (stored hint)'} → cap ${(cap! / 1e6).toFixed(1)} Mbps` : 'unknown'}, source ${bitrate ? `${(bitrate / 1e6).toFixed(1)} Mbps` : '?'}${saver ? ', data saver on' : ''} → ${eff === 'Auto' ? 'no limit (fits)' : eff}`,

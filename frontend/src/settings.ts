@@ -80,15 +80,14 @@ export function setDataSaver(mode: SaverMode) {
     /* not saved: stays Automatic */
   }
 }
-export const dataSaverOn = () =>
-  saverOn(
-    dataSaver(),
-    (
-      navigator as Navigator & {
-        connection?: { saveData?: boolean; type?: string }
-      }
-    ).connection,
-  )
+/** The browser's network hint (Network Information API; Chromium only). */
+export const netInfo = () =>
+  (
+    navigator as Navigator & {
+      connection?: { saveData?: boolean; type?: string }
+    }
+  ).connection
+export const dataSaverOn = () => saverOn(dataSaver(), netInfo())
 
 /** TV mode (#201): larger root size + 5 % safe-area padding (index.css
  * `html.tv`). Manual only, no TV detection. */

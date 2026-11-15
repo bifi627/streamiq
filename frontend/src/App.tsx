@@ -39,6 +39,7 @@ import {
   dataSaver,
   dataSaverOn,
   lastGateway,
+  netInfo,
   rawOn,
   setCompatible,
   setDataSaver,
@@ -267,7 +268,12 @@ function Settings() {
       <p className="muted">
         {dataSaverOn() ? 'On now' : 'Off now'}: Auto quality stays at 480p and
         the speed test uses ~3 MB instead of up to ~50 MB. Automatic turns it on
-        on mobile data or when the browser asks to save data.
+        on mobile data or when the browser asks to save data. This browser
+        reports:{' '}
+        {netInfo()
+          ? `connection ${netInfo()!.type ?? 'unknown'}, save data ${netInfo()!.saveData ? 'on' : 'off'}`
+          : 'nothing (no Network Information API)'}
+        .
       </p>
       <label className="setting">
         <input

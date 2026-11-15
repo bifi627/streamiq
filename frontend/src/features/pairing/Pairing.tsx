@@ -41,8 +41,18 @@ export function Pairing({
     )
   }, [gatewayId])
 
-  const pairBtn = useRef<HTMLButtonElement>(null)
+  const root = useRef<HTMLDivElement>(null)
   const testBtn = useRef<HTMLButtonElement>(null)
+  // A run can unmount the focused control (Pair once paired or refused, the
+  // error's Retry): focus then falls to <body>, outside every D-pad container.
+  // Put it on Test connection, which always renders (#226).
+  const hadFocus = useRef(false)
+  useEffect(() => {
+    const lost =
+      !document.activeElement || document.activeElement === document.body
+    if (hadFocus.current && lost) testBtn.current?.focus()
+    hadFocus.current = !!root.current?.contains(document.activeElement)
+  })
   const busy = s.step === 'connecting' || s.step === 'code'
   async function run(pair: boolean) {
     if (busy) return
@@ -52,11 +62,7 @@ export function Pairing({
         gatewayId,
         pair ? (code) => setS({ step: 'code', code }) : undefined,
       )
-      if (pair) {
-        // Pair goes away now: keep the D-pad's focus on the card (#226).
-        if (document.activeElement === pairBtn.current) testBtn.current?.focus()
-        setPinned(true)
-      }
+      if (pair) setPinned(true)
       try {
         const [info, stats] = await Promise.all([
           tunnelJson<Info>(x.pc, '/System/Info/Public'),
@@ -90,11 +96,10 @@ export function Pairing({
 
   return (
     // arrowFocus here too: in the library it renders outside any D-pad container.
-    <div className="pairing" onKeyDown={arrowFocus}>
+    <div className="pairing" ref={root} onKeyDown={arrowFocus}>
       <div className="actions">
         {showPair && (
           <button
-            ref={pairBtn}
             type="button"
             className="primary"
             aria-disabled={busy}

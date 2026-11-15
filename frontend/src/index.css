@@ -553,6 +553,7 @@ html.tv .no-tv {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg);
+  color: var(--text); /* in the library it sits inside ErrorView's red text */
 }
 .pair-box p {
   margin: 0;

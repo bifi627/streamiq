@@ -42,6 +42,29 @@ Run the code-review skill WITHOUT posting: `/code-review <level> <target>
 empty (empty = the working-tree diff, which is empty once everything is pushed). No
 `--comment`, no `--fix`. Collect its findings.
 
+**Follow-up review** (a build's fix round): instead of the above, when ALL of this
+holds; if any doesn't, or you can't tell, run the full review above.
+
+- The PR's build thread started you. The owner's `agent` label or request always gets
+  the full review.
+- The PR has an earlier agent review. The last one, as one JSON line
+  `["<sha>","<body>"]` (its commit and its whole body):
+  `gh api --paginate repos/bifi627/streamiq/pulls/N/reviews --jq '.[]|select(.body|contains("**Agent review**"))|[.commit_id,.body]|@json' | tail -1`
+- That body says nothing of a finding "sent to owner privately" or of "more, see the
+  T3 thread": such a finding has no GitHub thread, so only a full review finds it again.
+- Only fix commits came after it. `<head>` = the PR's `headRefOid` from `gh pr view`
+  (never `FETCH_HEAD`: any other fetch in the checkout rewrites it). After
+  `git fetch -q origin pull/N/head`: `git merge-base --is-ancestor <sha> <head>` holds
+  (not after a rebase) and `git rev-list --merges <sha>..<head>` prints nothing (not
+  after `main` was merged in).
+
+Then do NOT run `/code-review`: it would review the whole PR again and return its
+minimum of new candidates every round. Read `git diff <sha>..<head>` yourself, with
+the files around it: did these commits fix what they were for, and did they break
+anything? Your findings are what these commits introduced or left unfixed; the level
+you report is `delta`, the candidates the number you found (0 is a normal result).
+Sections 1, 2 (for the merge-risk floor), 4, 5 and 6 are the same, over the whole PR.
+
 ## 4. Triage
 
 Each finding into exactly one bucket. Be strict; the default is LOW.
@@ -106,7 +129,10 @@ Return, in this order:
 5. BLOCKER / SPEC findings, one per item: `[blocker]` or `[spec]` (+ `security`
    if so), `path:line` (or `path` for a file-level / cross-cutting one), the
    defect, and the one-sentence failure scenario.
-6. LOW findings, one line each: at most the 5 most worth a look, then "+k more LOW,
-   not listed".
+6. LOW findings, one line each, at most 5: only those a user would notice (wrong
+   behavior, a visible glitch) AND that you confirmed by reading the code. Cleanups,
+   style, naming, duplication, speculative edge cases and anything you didn't confirm
+   are never listed, only counted: "+k more LOW, not listed". None qualifies → "no LOW
+   worth listing", which is a normal result.
 
 No praise, no summary of what the change does.

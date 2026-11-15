@@ -24,8 +24,9 @@ to the PR branch.
 Two ways in. **Own thread:** the label started it, or the owner asked. **Subagent of
 the PR's build thread** (`build-issue` section 3): skip steps 3 and 4 of section 1 (the
 build thread already is the PR's thread), and "the thread" below means your final
-report to it. Whoever started you, the review is the same: take nothing about the
-change from the caller beyond the PR number.
+report to it. Take nothing about the change from the caller beyond the PR number.
+Whoever started you, the review is the same, with one exception that `agent-review`
+section 3 decides, not the caller: a build's fix round gets its follow-up review.
 
 ## 1. Read
 
@@ -52,7 +53,8 @@ change from the caller beyond the PR number.
 
 Review and triage with the `agent-review` skill on PR N (`/agent-review N`): the spec
 from the linked issues, answers to what the PR body asks reviewers to check, the level,
-`/code-review` without posting, BLOCKER / SPEC / LOW triage, the cap of 5, the
+`/code-review` without posting (or its follow-up review instead), BLOCKER / SPEC / LOW
+triage, the cap of 5, the
 `security` marking. Use its findings for the steps below; if it says more than 5
 qualified, write "+k more, see the T3 thread" in the review body.
 

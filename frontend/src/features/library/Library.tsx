@@ -251,8 +251,7 @@ function Title({ item, season }: { item: Item; season?: string }) {
                   aria-selected={s.Id === shown}
                   aria-controls="episodes"
                   tabIndex={s.Id === shown ? 0 : -1}
-                  onClick={() => setTab(s.Id)}
-                  onFocus={() => setTab(s.Id)}
+                  onClick={() => setTab(s.Id)} // Enter: passing over a tab doesn't switch
                 >
                   {seasonName(s)}
                 </button>
@@ -277,7 +276,13 @@ function Title({ item, season }: { item: Item; season?: string }) {
           )}
         </div>
       ) : (
-        <Artwork art={backdrop(item)} width={1280} className="title-backdrop" />
+        backdrop(item) && (
+          <Artwork
+            art={backdrop(item)}
+            width={1280}
+            className="title-backdrop"
+          />
+        )
       )}
     </div>
   )

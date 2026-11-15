@@ -1,5 +1,6 @@
-/* Player control bar (#91). Plain CSS that Chrome 87 (webOS TV) understands:
-   no nesting, :is/:where/:has, container queries or accent-color. */
+/* Player control bar (#91) in the tokens (#205). Plain CSS that Chrome 87
+   (webOS TV) understands: no nesting, :is/:where/:has, container queries,
+   accent-color or inset. Sizes in rem: TV mode scales them. */
 .player {
   position: relative;
   background: black;
@@ -8,41 +9,64 @@
 .player video {
   display: block;
   width: 100%;
+  max-height: 65vh; /* under the TV-mode shell the bar stays on screen; pillarboxed */
 }
 .player:fullscreen video {
   height: 100%;
+  max-height: none;
 }
 .player[data-idle='true'] {
   cursor: none;
 }
 
+/* The overlay: covers the picture, top row + bottom rows. Only its controls
+   take pointer events; a click in its gaps lands on the picture. */
 .player .bar {
-  font-size: 12px;
   position: absolute;
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 24px 12px 8px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
-  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-4) 5%;
+  background: linear-gradient(
+    rgba(0, 0, 0, 0.7),
+    transparent 30%,
+    transparent 60%,
+    rgba(0, 0, 0, 0.85)
+  );
+  color: var(--text);
+  font-size: var(--fs-meta);
   text-align: left;
   transition: opacity 0.3s;
+  pointer-events: none;
+}
+.player .bar button,
+.player .bar input,
+.player .bar .popover,
+.player .bar .explain {
+  pointer-events: auto;
 }
 .player .bar[data-shown='false'] {
   opacity: 0;
 }
 /* Touch: a hidden bar lets taps through to the picture, which shows it. */
 @media (pointer: coarse) {
-  .player .bar[data-shown='false'] {
+  .player .bar[data-shown='false'] button,
+  .player .bar[data-shown='false'] input {
     pointer-events: none;
   }
+}
+.player .bottom {
+  position: relative; /* the popover's anchor */
 }
 
 .player .row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-2);
 }
 .player .row input[data-seek] {
   flex: 1;
@@ -50,102 +74,227 @@
 }
 .player .time {
   font-variant-numeric: tabular-nums;
-  padding: 0 8px;
+  padding: 0 var(--sp-2);
 }
 .player .spacer {
   flex: 1;
 }
 .player .volume {
-  width: 90px;
+  width: 5.5rem;
+}
+
+/* Top row: Back, title (S · E line), privacy badge. */
+.player .top {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+.player .now {
+  flex: 1;
+  min-width: 0;
+}
+.player .now h2 {
+  margin: 0;
+  font-size: var(--fs-section);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player .now p {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: #cfcfd4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player .bar button,
 .player .bar input {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: var(--target);
+  min-height: var(--target);
   margin: 0;
-  border-radius: 8px;
 }
 .player .bar button {
-  border: 0;
-  padding: 0 8px;
-  background: transparent;
-  color: white;
-  font: inherit;
-  font-weight: 600;
+  padding: 0 var(--sp-3);
+  border-radius: 1.375rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  font: 500 var(--fs-meta) var(--font);
   cursor: pointer;
 }
 .player .bar button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.22);
+}
+/* play / pause: the one filled control */
+.player .bar .play {
+  min-width: 3.5rem;
+  min-height: 3.5rem;
+  border-radius: 1.75rem;
+  background: var(--text);
+  color: var(--bg);
+}
+.player .bar .next {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4);
 }
 .player .bar svg {
-  width: 28px;
-  height: 28px;
+  width: 1.5rem;
+  height: 1.5rem;
   fill: currentColor;
   vertical-align: middle;
 }
-/* Couch-distance focus: thick ring + fill (D-pad never clicks, so :focus). */
+
+/* The privacy badge keeps its own colors (index.css). */
+.player .bar .badge {
+  min-height: 2.25rem;
+  margin-top: 0.25rem;
+  padding: 0 var(--sp-3) 0 var(--sp-2);
+  background: rgba(15, 15, 17, 0.6);
+  color: var(--c);
+  font-weight: 600;
+}
+.player .bar .badge svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+}
+.player .bar .explain {
+  font-size: var(--fs-meta);
+}
+
+/* Sliders: track + accent fill (--p, set inline) + white thumb. */
+.player .bar input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border-radius: 0;
+}
+.player .bar input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--p, 0%),
+    rgba(255, 255, 255, 0.25) var(--p, 0%)
+  );
+}
+.player .bar input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: white;
+}
+.player .bar input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.player .bar input[type='range']::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.player .bar input[type='range']::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: white;
+}
+
+/* Couch-distance focus: the one 3 px accent ring + a lighter fill (D-pad
+   never clicks, and clicks don't focus here, so :focus). */
 .player .bar button:focus,
 .player .bar input:focus {
-  outline: 4px solid white;
-  outline-offset: 2px;
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
 }
 .player .bar button:focus {
   background: rgba(255, 255, 255, 0.3);
 }
-/* Quality popover (#108): floats above the quality button, over the picture. */
+.player .bar .play:focus {
+  background: var(--text);
+}
+
+/* Settings popover (#108, #153): floats above the gear, over the picture. */
 .player .popover {
   position: absolute;
-  right: 60px;
-  bottom: calc(100% - 16px); /* above the seek row */
-  min-width: 200px;
-  padding: 6px 0;
-  background: rgba(28, 28, 28, 0.92);
-  border-radius: 12px;
+  right: 3.75rem;
+  bottom: calc(100% - 1rem); /* above the seek row */
+  min-width: 12.5rem;
+  padding: var(--sp-2) 0;
+  background: rgba(24, 24, 27, 0.95);
+  border-radius: var(--radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 /* An options page's header: goes back to the main page. */
 .player .bar .popover .heading {
-  color: #aaa;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
 }
 .player .bar .popover button {
   display: flex;
   align-items: center;
   width: 100%;
   border-radius: 0;
-  padding: 0 16px;
+  padding: 0 var(--sp-4);
+  background: transparent;
   text-align: left;
   font-weight: 500;
 }
+.player .bar .popover button:focus {
+  background: var(--surface-2);
+  outline-offset: -3px;
+}
 .player .popover .check {
-  width: 24px;
-  color: #8ab4f8;
+  width: 1.5rem;
+  color: var(--accent);
 }
 .player .popover small {
-  font-size: 11px;
+  font-size: 0.6875rem;
   margin-left: auto;
-  padding-left: 16px;
-  color: #999;
-}
-.player .bar .popover button:focus {
-  outline-offset: -4px;
+  padding-left: var(--sp-4);
+  color: var(--text-muted);
 }
 .player .bar .popover button:disabled {
   opacity: 0.5;
   cursor: default;
 }
+
 /* Portrait phones: one button row (no volume slider: phones have hardware
-   keys; mute stays), and the settings popover sits over the controls,
-   compact, so it fits the short player. */
+   keys; mute stays; no ±10: drag the seek bar), a compact popover over the controls, so it fits the
+   short player; the badge shows its icon only. */
 @media (orientation: portrait) {
+  .player .bar {
+    padding: var(--sp-2) var(--sp-3);
+  }
   .player .volume {
     display: none;
   }
   .player .popover {
-    bottom: 8px;
+    bottom: var(--sp-2);
   }
   .player .bar .popover button {
-    min-height: 36px;
+    min-height: 2.25rem;
+  }
+  .player .bar .play {
+    min-width: var(--target);
+    min-height: var(--target);
+  }
+  .player .row {
+    gap: var(--sp-1);
+  }
+  .player .badge-text,
+  .player .next span,
+  .player .skip {
+    display: none;
+  }
+  .player .bar .next {
+    padding: 0 var(--sp-3);
   }
 }

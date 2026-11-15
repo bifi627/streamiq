@@ -15,6 +15,7 @@ import {
   useCanGoBack,
   useNavigate,
   useRouter,
+  useRouterState,
 } from '@tanstack/react-router'
 import { browserName, share, type Session } from '../pairing/connect'
 import { Pairing } from '../pairing/Pairing'
@@ -42,7 +43,7 @@ import {
   upNext,
   type Item,
 } from './items'
-import { pairInfo, type PairInfo } from '../../stats'
+import { Privacy } from './Privacy'
 import { arrowFocus } from '../../focus'
 import { Tunnel, backdrop, primary } from './art'
 import { Artwork, minutes, Watched } from './Home'
@@ -56,6 +57,10 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [session, setSession] = useState<Session | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   const [attempt, setAttempt] = useState(0) // bumped after an inline re-pair
+  // The player has its own badge in its overlay (#205).
+  const playing = useRouterState({
+    select: (r) => r.location.pathname.includes('/play/'),
+  })
 
   useEffect(() => {
     const { session, release } = share(gatewayId)
@@ -84,9 +89,12 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
     >
       <p className="lib-top">
         <Link to="/gateways">← Gateways</Link>
-        <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
-          Use as screen
-        </Link>
+        <span className="lib-actions">
+          {session && !playing && <Privacy pc={session.pc} />}
+          <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
+            Use as screen
+          </Link>
+        </span>
       </p>
       {err && (
         <ErrorView
@@ -111,7 +119,6 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         <Tunnel.Provider
           value={{ gatewayId, pc: session.pc, speed: session.speed() }}
         >
-          <Privacy pc={session.pc} />
           <Guest pc={session.pc} />
           <Outlet />
         </Tunnel.Provider>
@@ -346,7 +353,16 @@ export function PlayerPage({ itemId }: { itemId: string }) {
         : { to: '/g/$gatewayId', params: { gatewayId }, replace: true },
     )
   }
-  return <Player pc={pc} speed={speed} itemId={itemId} onExit={back} />
+  // Next episode (#205): replaces this entry, so Back still leaves the player.
+  const next = (i: Item) =>
+    navigate({
+      to: '/g/$gatewayId/play/$itemId',
+      params: { gatewayId, itemId: i.Id },
+      replace: true,
+    })
+  return (
+    <Player pc={pc} speed={speed} itemId={itemId} onExit={back} onNext={next} />
+  )
 }
 
 // Screen mode (#180, docs/protocol.md "Screens"): this device holds GET
@@ -846,37 +862,6 @@ function Listing({
         ))}
       </ul>
     </>
-  )
-}
-
-// Privacy indicator: what StreamIQ can see of this stream, from the live selected
-// candidate pair. Either way the tunnel is DTLS end to end (pinned both ways).
-function Privacy({ pc }: { pc: RTCPeerConnection }) {
-  const [p, setP] = useState<PairInfo | null>(null)
-  useEffect(() => {
-    const poll = () =>
-      pc.getStats().then(
-        (s) => setP(pairInfo(s)),
-        () => {},
-      )
-    poll()
-    const t = setInterval(poll, 2000)
-    return () => clearInterval(t)
-  }, [pc])
-  if (!p) return null
-  const mb = ((p.bytesReceived + p.bytesSent) / 1e6).toLocaleString(undefined, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })
-  return (
-    <p>
-      <small>
-        🔒{' '}
-        {p.relay
-          ? `relayed (encrypted, StreamIQ cannot decrypt) · ${mb} MB relayed`
-          : 'end-to-end encrypted · direct · StreamIQ carried 0 bytes'}
-      </small>
-    </p>
   )
 }
 

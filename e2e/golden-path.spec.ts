@@ -237,8 +237,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(3)
+      // Privacy badge (#205) in the player's overlay; a click shows its line.
+      await a.getByRole('button', { name: 'Direct from home' }).click()
       await expect(
-        a.getByText(/end-to-end encrypted · direct · StreamIQ carried 0 bytes/),
+        a.getByText(/end-to-end encrypted · StreamIQ carried 0 bytes/),
       ).toBeVisible() // same host: host candidates, no relay
       // Device profile (#115): probe + Jellyfin's decision in the diagnostics.
       // Diagnostics panel: on once in Settings, the flag persists (#201).
@@ -589,9 +591,12 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await test.step('diagnostics panel: force relay → tunnel works, panel logs it', async () => {
       await a.getByLabel('Force relay (TURN) on next connect').check()
       await a.getByRole('button', { name: 'Open' }).click()
+      await a
+        .getByRole('button', { name: 'Relayed · encrypted' })
+        .click({ timeout: 30_000 })
       await expect(
-        a.getByText(/relayed \(encrypted, StreamIQ cannot decrypt\)/),
-      ).toBeVisible({ timeout: 30_000 })
+        a.getByText(/encrypted relay that can't see it · [\d.,]+ MB relayed/),
+      ).toBeVisible()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible() // a tunnel request made it
       await expect(a.getByText('peer: connected / connected')).toBeVisible()
       await expect(

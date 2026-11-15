@@ -56,6 +56,7 @@ import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import { Controls } from './Controls'
+import { Privacy } from './Privacy'
 import {
   audioCodecs,
   autoAudio,
@@ -137,6 +138,7 @@ export function Player({
   remote,
   onState,
   onExit,
+  onNext,
 }: {
   pc: RTCPeerConnection
   speed?: Speed
@@ -147,6 +149,8 @@ export function Player({
   /** Playback state for the screen (#181). Read through a ref. */
   onState?: (s: ScreenState) => void
   onExit: (item: Item | null) => void
+  /** Plays another item; unset (screen mode) = no "Next episode". */
+  onNext?: (item: Item) => void
 }) {
   const [item, setItem] = useState<Item | null>(null)
   const [blocked, setBlocked] = useState(false)
@@ -173,6 +177,16 @@ export function Player({
   const [subs, setSubs] = useState<ReturnType<typeof subtitleTracks>>([])
   const [subtitle, setSubtitle] = useState('-1')
   const pickSub = useRef<(index: number) => void>(() => {})
+  // Next episode (#205): the series' episode after this one, if any.
+  const [next, setNext] = useState<Item>()
+  const series = onNext && item?.Type === 'Episode' ? item.SeriesId : undefined
+  useEffect(() => {
+    if (!series) return
+    tunnelJson<{ Items: Item[] }>(pc, `/Shows/${series}/Episodes`).then(
+      (p) => setNext(p.Items[p.Items.findIndex((e) => e.Id === itemId) + 1]),
+      () => {}, // ponytail: no list = no button
+    )
+  }, [pc, series, itemId])
   const stateRef = useRef(onState)
   useEffect(() => {
     stateRef.current = onState
@@ -590,7 +604,6 @@ export function Player({
 
   return (
     <div>
-      <h3>{item?.Name}</h3>
       <Controls
         video={video}
         duration={(item?.RunTimeTicks ?? 0) / TICKS_PER_SECOND}
@@ -670,6 +683,21 @@ export function Player({
             : []),
         ]}
         onBack={() => onExit(item)}
+        onNext={next && onNext && (() => onNext(next))}
+        top={
+          <>
+            <hgroup className="now">
+              <h2>{item?.SeriesName ?? item?.Name}</h2>
+              {item?.SeriesName && (
+                <p>
+                  S{item.ParentIndexNumber ?? '?'} · E{item.IndexNumber ?? '?'}{' '}
+                  {item.Name}
+                </p>
+              )}
+            </hgroup>
+            <Privacy pc={pc} />
+          </>
+        }
       >
         <video ref={video} />
       </Controls>

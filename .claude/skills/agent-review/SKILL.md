@@ -47,9 +47,9 @@ holds; if any doesn't, or you can't tell, run the full review above.
 
 - The PR's build thread started you. The owner's `agent` label or request always gets
   the full review.
-- The PR has an earlier agent review. The last one:
-  `gh api --paginate repos/bifi627/streamiq/pulls/N/reviews --jq '.[]|select(.body|contains("**Agent review**"))|.commit_id' | tail -1`
-  prints its commit `<sha>`; read its body the same way (`.body`).
+- The PR has an earlier agent review. The last one, as one JSON line
+  `["<sha>","<body>"]` (its commit and its whole body):
+  `gh api --paginate repos/bifi627/streamiq/pulls/N/reviews --jq '.[]|select(.body|contains("**Agent review**"))|[.commit_id,.body]|@json' | tail -1`
 - That body says nothing of a finding "sent to owner privately" or of "more, see the
   T3 thread": such a finding has no GitHub thread, so only a full review finds it again.
 - Only fix commits came after it. `<head>` = the PR's `headRefOid` from `gh pr view`

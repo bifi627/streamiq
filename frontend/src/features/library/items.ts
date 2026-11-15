@@ -12,7 +12,11 @@ export type Item = {
   RunTimeTicks?: number
   ProductionYear?: number
   IndexNumber?: number
+  ParentIndexNumber?: number
   ImageTags?: { Primary?: string }
+  BackdropImageTags?: string[]
+  ParentBackdropItemId?: string
+  ParentBackdropImageTags?: string[]
   UserData?: { PlaybackPositionTicks?: number; Played?: boolean }
   MediaSources?: {
     Id?: string
@@ -32,6 +36,10 @@ export type Item = {
     IsTextSubtitleStream?: boolean
   }[]
 }
+
+/** Opens in the player, not as a listing. */
+export const playable = (i: Item) =>
+  !i.IsFolder && i.Type !== 'Series' && i.Type !== 'Season'
 
 type Stream = NonNullable<Item['MediaStreams']>[number]
 

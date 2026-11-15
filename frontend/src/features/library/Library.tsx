@@ -2,7 +2,6 @@
 // not pretty: the UI is refactored later. Routes (App.tsx): /g/$gatewayId owns the
 // tunnel; its children (home, /i/$itemId) render through <Outlet /> and share it.
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -36,28 +35,22 @@ import {
   audioTracks,
   clock,
   isBack,
+  playable,
   subtitleTracks,
   TICKS_PER_SECOND,
   type Item,
 } from './items'
 import { pairInfo, type PairInfo } from '../../stats'
-import type { Speed } from '../../speed'
+import { arrowFocus } from '../../focus'
+import { Tunnel, primary } from './art'
+import { Artwork } from './Home'
+export { Home as LibraryHome } from './Home'
 
 type Page = { Items: Item[] }
 type View =
-  | { kind: 'home' }
   | { kind: 'folder'; item: Item }
   | { kind: 'series'; item: Item }
   | { kind: 'season'; item: Item }
-
-const playable = (i: Item) =>
-  !i.IsFolder && i.Type !== 'Series' && i.Type !== 'Season'
-
-const Tunnel = createContext<{
-  gatewayId: string
-  pc: RTCPeerConnection
-  speed?: Speed
-}>(null!)
 
 // Layout route: the gateway's shared tunnel (#152), held while navigating inside
 // it; leaving releases it (closed 30 s later unless reused).
@@ -84,7 +77,13 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   }, [gatewayId, attempt])
 
   return (
-    <section>
+    // D-pad (#203): the whole library, the not-paired block included; the
+    // player moves its own focus (Controls.tsx).
+    <section
+      onKeyDown={(e) =>
+        !(e.target as Element).closest('.player') && arrowFocus(e)
+      }
+    >
       <p className="lib-top">
         <Link to="/gateways">← Gateways</Link>
         <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
@@ -122,9 +121,6 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
     </section>
   )
 }
-
-export const LibraryHome = () => <Browse view={HOME} />
-const HOME: View = { kind: 'home' }
 
 // Folder / series / season by Jellyfin item ID, so a reload or deep link restores it.
 export function ItemPage({ itemId }: { itemId: string }) {
@@ -600,7 +596,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
 function Browse({ view }: { view: View }) {
   const { gatewayId, pc } = useContext(Tunnel)
   const navigate = useNavigate()
-  const item = view.kind === 'home' ? null : view.item
+  const item = view.item
   const crumb = (itemId: string, name: string) => (
     <>
       {' / '}
@@ -623,10 +619,10 @@ function Browse({ view }: { view: View }) {
         <Link to="/g/$gatewayId" params={{ gatewayId }}>
           Library
         </Link>
-        {item?.SeriesId &&
+        {item.SeriesId &&
           item.SeriesId !== item.Id &&
           crumb(item.SeriesId, item.SeriesName ?? 'Series')}
-        {item && crumb(item.Id, item.Name)}
+        {crumb(item.Id, item.Name)}
       </p>
       <Listing pc={pc} view={view} onOpen={open} />
     </>
@@ -648,23 +644,15 @@ function Listing({
   useEffect(() => {
     const get = (url: string) => tunnelJson<Page>(pc, url).then((p) => p.Items)
     const load: Promise<[string, Item[]][]> =
-      view.kind === 'home'
-        ? Promise.all([
-            get('/UserItems/Resume?mediaTypes=Video&limit=12'),
-            get('/UserViews'),
-          ]).then(([resume, views]) => [
-            ['Continue watching', resume],
-            ['Libraries', views],
-          ])
-        : view.kind === 'series'
-          ? get(`/Shows/${view.item.Id}/Seasons`).then((s) => [['Seasons', s]])
-          : view.kind === 'season'
-            ? get(
-                `/Shows/${view.item.SeriesId}/Episodes?seasonId=${view.item.Id}`,
-              ).then((e) => [['Episodes', e]])
-            : get(`/Items?parentId=${view.item.Id}&sortBy=SortName`).then(
-                (i) => [['', i]],
-              )
+      view.kind === 'series'
+        ? get(`/Shows/${view.item.Id}/Seasons`).then((s) => [['Seasons', s]])
+        : view.kind === 'season'
+          ? get(
+              `/Shows/${view.item.SeriesId}/Episodes?seasonId=${view.item.Id}`,
+            ).then((e) => [['Episodes', e]])
+          : get(`/Items?parentId=${view.item.Id}&sortBy=SortName`).then((i) => [
+              ['', i],
+            ])
     load.then(setRows, (e) => setErr(toAppError(e)))
   }, [pc, view])
 
@@ -686,7 +674,11 @@ function Listing({
                       onClick={() => onOpen(i)}
                       className="tile"
                     >
-                      <Poster pc={pc} item={i} />
+                      <Artwork
+                        art={primary(i)}
+                        width={280}
+                        className="poster"
+                      />
                       <div>
                         {i.IndexNumber != null &&
                           i.Type === 'Episode' &&
@@ -763,49 +755,4 @@ function label(i: Item) {
   const pos = i.UserData?.PlaybackPositionTicks ?? 0
   if (i.UserData?.Played) return 'Watched'
   return pos > 0 ? `Resume ${clock(pos / TICKS_PER_SECOND)}` : 'Play'
-}
-
-// Posters come through the tunnel too, as blob URLs. ponytail: at most 4 image
-// channels in flight; lazy-load with IntersectionObserver if big libraries hurt.
-let active = 0
-const waiting: (() => void)[] = []
-async function limited<T>(fn: () => Promise<T>) {
-  if (active >= 4) await new Promise<void>((r) => waiting.push(r))
-  active++
-  try {
-    return await fn()
-  } finally {
-    active--
-    waiting.shift()?.()
-  }
-}
-
-function Poster({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
-  const [src, setSrc] = useState<string | null>(null)
-  const tag = item.ImageTags?.Primary
-  useEffect(() => {
-    if (!tag) return
-    let url: string | null = null
-    let gone = false
-    limited(() =>
-      tunnelFetch(
-        pc,
-        `/Items/${item.Id}/Images/Primary?maxWidth=280&tag=${tag}`,
-      ),
-    ).then(
-      (r) => {
-        if (gone || r.status !== 200) return
-        url = URL.createObjectURL(
-          new Blob([r.body], { type: r.headers['Content-Type'] }),
-        )
-        setSrc(url)
-      },
-      () => {},
-    )
-    return () => {
-      gone = true
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [pc, item.Id, tag])
-  return <div className="poster">{src && <img src={src} alt="" />}</div>
 }

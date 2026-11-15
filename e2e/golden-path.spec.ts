@@ -221,10 +221,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.goBack() // browser history: folder → library home
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.reload()
-      const resume = a.getByRole('button', {
-        name: /streamiq e2e clip.*Resume 0:0[3-9]/,
-      })
-      await resume.click() // "Continue watching" row
+      // The Resume spot (#203): the saved position, then its Resume button.
+      await expect(
+        a.getByRole('progressbar', { name: /streamiq e2e clip/ }),
+      ).toHaveAttribute('aria-valuetext', /^0:0[3-9] of/)
+      await a.getByRole('button', { name: 'Resume' }).click()
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // starts there, not at 0
       await expect(a).toHaveURL(/\/play\/[^/]+$/) // the player has its own route
       await a.reload() // player deep link: tunnel → item by ID → saved position

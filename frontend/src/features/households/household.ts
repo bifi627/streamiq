@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import { setHousehold, type Me } from '../../api'
+import { clearArt } from '../library/art'
 export { householdLabel } from '../../api'
 
 // The one /me of this page load (Shell fetches it) and the household it acts in.
@@ -20,5 +21,5 @@ export function useHousehold() {
 // ponytail: full reload, swap in-place (reset context + caches) if it feels slow.
 export function switchHousehold(id: string | null) {
   setHousehold(id)
-  location.replace('/')
+  clearArt().finally(() => location.replace('/'))
 }

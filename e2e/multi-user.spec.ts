@@ -88,11 +88,12 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
     })
 
     await test.step("A signs out, B signs in on A's tab: reload, B's resume", async () => {
+      // The Resume spot's progress (#203): the saved position.
       const resume = (re: RegExp) =>
-        a.getByRole('button', {
-          name: new RegExp(`streamiq e2e clip.*Resume ${re.source}`),
-        })
-      await expect(resume(/0:0[5-9]/)).toBeVisible() // A's, over A's open tunnel
+        expect(
+          a.getByRole('progressbar', { name: /streamiq e2e clip/ }),
+        ).toHaveAttribute('aria-valuetext', new RegExp(`^${re.source} of`))
+      await resume(/0:0[5-9]/) // A's, over A's open tunnel
       await a.evaluate(() => ((window as { mark?: 1 }).mark = 1))
       await a.getByRole('link', { name: 'Settings' }).click() // sign out lives there (#201)
       await a.getByRole('button', { name: 'Sign out' }).click()
@@ -102,7 +103,7 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
       ).toBeUndefined() // reloaded
       await signIn(a, B, A.tenantId) // same URL: Settings (#201)
       await a.goBack() // the gateway's library home, freshly loaded
-      await expect(resume(/0:1[5-9]/)).toBeVisible()
+      await resume(/0:1[5-9]/)
     })
   } finally {
     await gateway.stop()

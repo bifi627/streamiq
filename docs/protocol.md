@@ -32,12 +32,15 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 1 }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 1, "name": "Living room NAS" }
 ```
-Liveness only (#140). The API sets `last_seen_at = now`, `lan_url` (http/https only,
+Liveness plus what the gateway owns and the API mirrors (#140, #310); a gateway sends one
+early, right after its name changes, not just every 30 s. The API sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null) and
-`protocol` (below), and ignores any other field. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
+`protocol` (below), and `name` (#310: trimmed, cut to 100 chars; missing or blank = an
+older gateway, the stored name stays), and ignores any other field. The gateway owns
+its name; the API never writes it after enrollment. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
 `version`, `update` and `upgradeRequired`; everything richer comes from the gateway itself over the
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
@@ -100,11 +103,6 @@ broker closes its control socket (`1008 "revoked"`) and every browser session
 through it (`1008 "gateway revoked"`). Another tenant's or an already revoked
 gateway → `404`. A gateway that authenticated just before the revoke is closed
 at its next heartbeat. Re-adding the box = re-enroll (`docs/install.md`).
-
-**`PATCH /api/gateways/{id} {name}`** (Firebase Bearer, household admin; a member gets
-`403`) → `204`: sets the gateway's name as `GET /api/gateways` shows it; online or not,
-the gateway itself never learns it. `name` is trimmed, 1–100 chars, else `400`. Another
-tenant's, an unknown or a revoked gateway → `404`.
 
 **Rate limits.** `/api/broker/ws`, `/api/gateways/ws`, `/api/gateways/enroll` and the
 `POST`s that create a connection record, an invite or an enrollment token share a
@@ -328,8 +326,8 @@ percent-encoded) is `404`. A `body` over 64 KB is `413`. Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (`tunnel.AdminOnly`, exact
-path, any method): a session whose role isn't `admin` gets `403`. None is yet; #89
-decides per endpoint. Code: `gateway/internal/tunnel/tunnel.go`.
+path, any method): a session whose role isn't `admin` gets `403`: `/streamiq/name`
+so far; #89 decides per endpoint. Code: `gateway/internal/tunnel/tunnel.go`.
 
 **`GET /streamiq/status`** (#146, #140): `200`, JSON, built on each request.
 Fields are added over time; a client ignores ones it doesn't know.
@@ -357,6 +355,13 @@ fall back to the CPU silently (a broken GPU setup fails playback), and
 Jellyfin's `/Sessions` can't tell more to the viewer token (spike on #86). A
 gateway older than this endpoint answers `404`; the web gateway page then says
 to update it.
+
+**`POST /streamiq/name`** (#310, admin-only) `{ "name": "Living room NAS" }` → `200`
+`{ "name": "<stored>" }`. The name is trimmed, 1–100 characters (the enrollment bound),
+else `400`. The gateway writes it to `state/gateway.json` (atomically) and uses it at
+once (local page, backup file names, logs), then sends an early heartbeat so
+`GET /api/gateways` shows it within a second. A gateway older than this endpoint
+answers `404`; the web app then says to update it.
 
 **`GET /streamiq/burst[?size=N]`** (throughput test, #90): `200`,
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated

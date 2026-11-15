@@ -298,8 +298,9 @@ gateway) has its own backups: **Dashboard → Backups**.
 | Previous binaries + their state, for [`gateway rollback`](#roll-back-an-update) | `backups\` (the last 3 updates) | `backups/` |
 
 `STREAMIQ_DIR` overrides the install dir. Set `STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` on
-the first install to change the gateway's name or page port. A household admin can rename
-the gateway later on the web app's Gateways page (**Rename**).
+the first install to change the gateway's name or page port. `STREAMIQ_NAME` sets only the
+first name: later, a household admin renames the gateway on the web app's Gateways page
+(**Rename**, while it is online), and the gateway keeps that name in `state/gateway.json`.
 
 ## Update
 

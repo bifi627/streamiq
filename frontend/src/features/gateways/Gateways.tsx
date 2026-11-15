@@ -87,16 +87,22 @@ export function Gateways() {
     }
   }
 
+  // null = renamed; else the error to show in the form.
   async function rename(d: Gateway, name: string) {
     try {
-      await renameGateway(d.id, name)
+      const stored = await renameGateway(d.id, name)
       setGateways(
-        (gs) => gs && gs.map((g) => (g.id === d.id ? { ...g, name } : g)),
+        (gs) =>
+          gs && gs.map((g) => (g.id === d.id ? { ...g, name: stored } : g)),
       )
-      return true
-    } catch (e) {
-      setErr(toAppError(e))
-      return false
+      return null
+    } catch (x) {
+      const e = toAppError(x)
+      return isKind(e, 'not-paired')
+        ? 'Pair this browser to rename the gateway.'
+        : e.context.status === 404
+          ? 'This gateway is too old to rename: update it.'
+          : `Rename failed (${e.message}).`
     }
   }
 
@@ -173,7 +179,7 @@ export function Gateways() {
               <div className="card-head">
                 <GatewayName
                   name={d.name ?? 'gateway'}
-                  rename={admin ? (n) => rename(d, n) : undefined}
+                  rename={admin && d.online ? (n) => rename(d, n) : undefined}
                 />
                 <span className="chip">
                   <span className={d.online ? 'dot online' : 'dot'} />
@@ -245,16 +251,18 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 )
 
-// The name, plus an inline Rename for an admin (#310). Enter saves (form
-// submit), Escape cancels; the section's arrowFocus reaches the controls.
+// The name, plus an inline Rename for an admin while the gateway is online
+// (#310). Enter saves (form submit), Escape cancels; the section's arrowFocus
+// reaches the controls.
 function GatewayName({
   name,
   rename,
 }: {
   name: string
-  rename?: (name: string) => Promise<boolean>
+  rename?: (name: string) => Promise<string | null>
 }) {
   const [draft, setDraft] = useState<string | null>(null) // null = not editing
+  const [error, setError] = useState<string | null>(null)
   const renameBtn = useRef<HTMLButtonElement>(null)
   const edited = useRef(false)
   // Closing the form unmounts the focused control: focus Rename again, or the
@@ -263,7 +271,8 @@ function GatewayName({
     if (draft === null && edited.current) renameBtn.current?.focus()
     edited.current = draft !== null
   }, [draft])
-  if (draft === null)
+  // !rename: went offline mid-edit, so the name only.
+  if (draft === null || !rename)
     return (
       <div className="name">
         <h2>{name}</h2>
@@ -272,7 +281,10 @@ function GatewayName({
             ref={renameBtn}
             type="button"
             className="link"
-            onClick={() => setDraft(name)}
+            onClick={() => {
+              setDraft(name)
+              setError(null)
+            }}
           >
             Rename
           </button>
@@ -284,14 +296,19 @@ function GatewayName({
       className="name"
       onSubmit={async (e) => {
         e.preventDefault()
-        if (await rename!(draft.trim())) setDraft(null)
+        const e2 = await rename(draft.trim())
+        if (e2) setError(e2)
+        else setDraft(null)
       }}
       onKeyDown={(e) => e.key === 'Escape' && setDraft(null)}
     >
       <input
         aria-label="Gateway name"
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setError(null)
+        }}
         maxLength={100}
         required
         pattern=".*\S.*"
@@ -303,6 +320,11 @@ function GatewayName({
       <button type="button" onClick={() => setDraft(null)}>
         Cancel
       </button>
+      {error && (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      )}
     </form>
   )
 }

@@ -40,6 +40,18 @@ Feature: Gateway onboarding
     Then "alice@home.test" sees "nas" with update "1.6.0"
     And "alice@home.test" sees no "jellyfin" or "pairedClients" or "status" on "nas"
 
+  # #310: the gateway owns its name; an older gateway sends none and changes nothing.
+  Scenario Outline: A heartbeat's name renames the gateway
+    Given "alice@home.test" has an enrolled gateway "nas"
+    When gateway "nas" heartbeats with name "<sent>"
+    Then "alice@home.test" sees 1 gateway named "<stored>"
+
+    Examples:
+      | sent              | stored      |
+      | "  Living room  " | Living room |
+      | ""                | nas         |
+      | none              | nas         |
+
   Scenario Outline: A gateway below the minimum protocol is refused and listed as update required
     Given "alice@home.test" has an enrolled gateway "nas"
     When gateway "nas" heartbeats with protocol "<protocol>"

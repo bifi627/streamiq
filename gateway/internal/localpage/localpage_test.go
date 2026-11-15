@@ -62,7 +62,7 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 		Reachable, HasKey, NeedsLogin, Untested, LegacyKey, Managed bool
 		Version, Tested, Err, User, Viewer, PasswordFile, HWAccel   string
 	}{Reachable: true, HasKey: true, Managed: true, User: "streamiq", Viewer: "streamiq-viewer", PasswordFile: "/home/u/state/jellyfin.json"}
-	h := Handler(Config{LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
+	h := Handler(Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "password in <code>/home/u/state/jellyfin.json</code>") ||
@@ -93,7 +93,7 @@ func TestStatusJSON(t *testing.T) {
 		Reachable, HasKey bool
 		Version           string
 	}{true, true, "10.11.2"}
-	h := Handler(Config{Name: "nas", Version: "1.0.0", LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
+	h := Handler(Config{Name: func() string { return "nas" }, Version: "1.0.0", LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
 
 	r := httptest.NewRequest("GET", "/status.json", nil)
 	r.RemoteAddr = "192.168.1.30:5555"

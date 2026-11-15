@@ -131,7 +131,13 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await expect(
       a.getByRole('listitem').filter({ hasText: 'Version' }),
     ).toContainText('Online')
-    await test.step('admin renames the gateway inline (#310)', async () => {
+    const gatewayCtx = await browser.newContext()
+    if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
+
+    await test.step('browser A pairs; codes match on both sides', () =>
+      pair(a, gatewayCtx, gateway.pageUrl))
+
+    await test.step('admin renames the gateway over the tunnel (#310)', async () => {
       const card = a.getByRole('listitem').filter({ hasText: 'Version' })
       const renameBtn = card.getByRole('button', { name: 'Rename' })
       const input = card.getByRole('textbox', { name: 'Gateway name' })
@@ -147,16 +153,20 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.keyboard.press('Enter') // saves
       await expect(heading).toHaveText('Living room NAS')
       await expect(renameBtn).toBeFocused()
-      await a.reload() // from the API, not just local state
+      // The gateway owns it: its local page shows it at once, and the API
+      // learns it from the early heartbeat (a reload reads the list again).
+      const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
+      await expect(
+        gatewayPage.getByRole('heading', {
+          name: 'StreamIQ gateway · Living room NAS',
+        }),
+      ).toBeVisible()
+      await gatewayPage.close()
+      await a.reload()
       await expect(
         a.getByRole('heading', { level: 2, name: 'Living room NAS' }),
       ).toBeVisible()
     })
-    const gatewayCtx = await browser.newContext()
-    if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
-
-    await test.step('browser A pairs; codes match on both sides', () =>
-      pair(a, gatewayCtx, gateway.pageUrl))
 
     await test.step('library → back → library within 30 s: one shared session (#152)', async () => {
       let rows = 0 // connection telemetry: one POST per session attempt

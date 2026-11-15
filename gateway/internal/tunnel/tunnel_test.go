@@ -472,3 +472,48 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 		}
 	}
 }
+
+// POST /streamiq/name (#310): admin-only, answers the stored name, a hook's
+// ErrBadRequest (or a bad body) is 400, and without the hook it 404s.
+func TestRename(t *testing.T) {
+	j, _ := fakeJellyfin(t)
+	stored := ""
+	call := func(role, body string) (int, string) {
+		raw, _ := json.Marshal(tunnelReq{Method: "POST", URL: NamePath, Body: body})
+		status, _, rc, _ := proxy(j, raw, Session{Role: role})
+		if rc == nil {
+			return status, ""
+		}
+		defer rc.Close()
+		b, _ := io.ReadAll(rc)
+		return status, string(b)
+	}
+	if st, _ := call(Admin, `{"name":"x"}`); st != http.StatusNotFound {
+		t.Fatalf("no hook: %d, want 404", st)
+	}
+	j.Rename = func(n string) (string, error) {
+		if n = strings.TrimSpace(n); n == "" {
+			return "", ErrBadRequest
+		}
+		stored = n
+		return n, nil
+	}
+	for _, c := range []struct {
+		role, body string
+		want       int
+		reply      string
+	}{
+		{Admin, `{"name":"  Living room  "}`, 200, `{"name":"Living room"}`},
+		{Member, `{"name":"hijack"}`, http.StatusForbidden, ""},
+		{"", `{"name":"hijack"}`, http.StatusForbidden, ""},
+		{Admin, `{"name":"   "}`, http.StatusBadRequest, ""},
+		{Admin, `not json`, http.StatusBadRequest, ""},
+	} {
+		if st, reply := call(c.role, c.body); st != c.want || reply != c.reply {
+			t.Errorf("%q %s: %d %s, want %d %s", c.role, c.body, st, reply, c.want, c.reply)
+		}
+	}
+	if stored != "Living room" {
+		t.Fatalf("stored %q", stored)
+	}
+}

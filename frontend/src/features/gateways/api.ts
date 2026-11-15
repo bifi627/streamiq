@@ -1,4 +1,6 @@
 import { authed } from '../../api'
+import { share } from '../pairing/connect'
+import { tunnelJson } from '../../tunnel'
 
 export type Gateway = {
   id: string
@@ -66,8 +68,20 @@ export const getGateways = () => authed<Gateway[]>('/gateways')
 export const removeGateway = (id: string) =>
   authed(`/gateways/${id}`, { method: 'DELETE' })
 
-export const renameGateway = (id: string, name: string) =>
-  authed(`/gateways/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+// Gateway API POST /streamiq/name (#310) over the shared session (#152): the
+// gateway owns its name and answers the stored one; the API learns it from the
+// heartbeat.
+export async function renameGateway(id: string, name: string) {
+  const { session, release } = share(id)
+  try {
+    const x = await session
+    return (
+      await tunnelJson<{ name: string }>(x.pc, '/streamiq/name', { name })
+    ).name
+  } finally {
+    release()
+  }
+}
 
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })

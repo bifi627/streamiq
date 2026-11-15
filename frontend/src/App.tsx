@@ -49,6 +49,7 @@ import {
   tvOn,
 } from './settings'
 import { arrowFocus } from './focus'
+import { clearArt } from './features/library/art'
 import { getGateways, type Gateway } from './features/gateways/api'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
@@ -522,8 +523,10 @@ export default function App() {
     let was: User | null = null
     return onAuthStateChanged(auth, (u) => {
       // Signed out or another account: reload, so no open tunnel outlives the
-      // account (the gateway plays it as that user's Jellyfin viewer, #195).
-      if (was && was.uid !== u?.uid) return location.reload()
+      // account (the gateway plays it as that user's Jellyfin viewer, #195);
+      // the artwork caches go with it (#203).
+      if (was && was.uid !== u?.uid)
+        return void clearArt().finally(() => location.reload())
       was = u
       setUser(u)
       setReady(true)

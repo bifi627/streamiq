@@ -637,6 +637,204 @@ html.tv .no-tv {
   object-fit: cover;
 }
 
+/* Library home (#203). Fixed rem boxes, not aspect-ratio (Chrome 87): an
+   artwork's placeholder keeps its size until the image arrives. */
+.art {
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+.resume {
+  display: flex;
+  gap: var(--sp-5);
+}
+.spot {
+  position: relative;
+  flex: 1.6;
+  min-width: 0;
+  min-height: 17rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.spot-art {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+.spot-art::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(
+    to top,
+    rgba(15, 15, 17, 0.95),
+    rgba(15, 15, 17, 0.55) 55%,
+    rgba(15, 15, 17, 0.1)
+  );
+}
+.spot-body {
+  position: relative;
+  padding: var(--sp-5) var(--sp-5) var(--sp-6);
+}
+.kicker {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.spot-title {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.spot-meta {
+  color: #cfcfd4;
+}
+.spot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin: var(--sp-4) 0 0;
+}
+.spot-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-5);
+}
+.spot-actions svg {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+}
+.spot > progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+progress {
+  display: block;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+}
+progress::-webkit-progress-bar {
+  background: rgba(255, 255, 255, 0.2);
+}
+progress::-webkit-progress-value {
+  background: var(--accent);
+}
+progress::-moz-progress-bar {
+  background: var(--accent);
+}
+.more {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.side {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+}
+.side .thumb {
+  flex: none;
+  width: 7.75rem;
+  height: 4.375rem;
+  border-radius: 8px;
+}
+.side > span {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  flex: 1;
+}
+.side b,
+.pick > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shelf ul {
+  display: flex;
+  gap: var(--sp-4);
+  margin: 0 -6px;
+  padding: 6px; /* room for the focus ring inside the scroller */
+  overflow-x: auto;
+  list-style: none;
+}
+.pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 7.75rem;
+  padding: 0;
+  border-radius: 10px;
+  background: none;
+  text-align: left;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+.pick:hover {
+  background: none;
+}
+.pick .cover {
+  width: 7.75rem;
+  height: 11.625rem;
+  border-radius: 10px;
+}
+.pick.wide,
+.pick .frame {
+  width: 13rem;
+}
+.pick .frame {
+  height: 7.3125rem;
+  border-radius: 10px;
+}
+@media (max-width: 40rem) {
+  .resume {
+    flex-direction: column;
+  }
+  .spot {
+    min-height: 15rem;
+  }
+}
+
 /* Settings leftovers until its own redesign (#229). */
 .setting {
   display: block;

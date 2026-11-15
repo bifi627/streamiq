@@ -87,7 +87,7 @@ func Restore(path, dir string, force bool) error {
 	for _, f := range zr.File {
 		n := f.Name
 		// Flat names only: no directories, no zip-slip.
-		if !filepath.IsLocal(n) || filepath.Base(n) != n || strings.ContainsAny(n, `/\:`) || f.FileInfo().IsDir() {
+		if n == "." || !filepath.IsLocal(n) || filepath.Base(n) != n || strings.ContainsAny(n, `/\:`) || f.FileInfo().IsDir() {
 			return fmt.Errorf("%s: not a gateway backup (entry %q)", path, n)
 		}
 		names = append(names, n)
@@ -128,6 +128,13 @@ func Restore(path, dir string, force bool) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	// Every write goes through root: the OS refuses a path that leaves dir (.., symlinks),
+	// a second guard behind the name check above.
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	if force { // the old gateway's files the backup doesn't have (e.g. its allowlist.json) go
 		old, err := os.ReadDir(dir)
 		if err != nil {
@@ -135,18 +142,17 @@ func Restore(path, dir string, force bool) error {
 		}
 		for _, e := range old {
 			if _, ok := files[e.Name()]; !ok && e.Type().IsRegular() && !slices.Contains(skip, e.Name()) {
-				if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+				if err := root.Remove(e.Name()); err != nil {
 					return err
 				}
 			}
 		}
 	}
 	for n, b := range files {
-		p := filepath.Join(dir, n)
-		if err := os.WriteFile(p, b, 0o600); err != nil {
+		if err := root.WriteFile(n, b, 0o600); err != nil {
 			return err
 		}
-		if err := os.Chmod(p, 0o600); err != nil { // WriteFile keeps an existing file's mode
+		if err := root.Chmod(n, 0o600); err != nil { // WriteFile keeps an existing file's mode
 			return err
 		}
 	}

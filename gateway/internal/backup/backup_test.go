@@ -105,7 +105,7 @@ func TestRefusesExistingWithoutForce(t *testing.T) {
 }
 
 func TestRejectsBadEntries(t *testing.T) {
-	for _, bad := range []string{"../evil", "sub/x", `sub\x`, "/abs", "C:x", "dir/", ".."} {
+	for _, bad := range []string{"../evil", "sub/x", `sub\x`, "/abs", "C:x", "dir/", "..", "."} {
 		dst := filepath.Join(t.TempDir(), "state")
 		if err := Restore(zipOf(t, "cert.pem", "gateway.json", bad), dst, false); err == nil {
 			t.Errorf("%q: accepted", bad)

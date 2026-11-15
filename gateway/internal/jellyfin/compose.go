@@ -1,6 +1,7 @@
 package jellyfin
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -52,13 +53,32 @@ func Upgrade(ctx context.Context, file string) (bool, error) {
 
 // Compose runs `docker compose -f file args…` with its output on the terminal.
 func Compose(ctx context.Context, file string, args ...string) error {
+	if err := haveCompose(ctx); err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", file}, args...)...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+// composeQuiet is Compose with the output in the error only.
+func composeQuiet(ctx context.Context, file string, args ...string) error {
+	if err := haveCompose(ctx); err != nil {
+		return err
+	}
+	out, err := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", file}, args...)...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker compose %s: %w: %s", args[0], err, bytes.TrimSpace(out))
+	}
+	return nil
+}
+
+func haveCompose(ctx context.Context) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return errors.New("Docker not found: install Docker Desktop (Windows, macOS) or Docker Engine (Linux), then retry")
 	}
 	if exec.CommandContext(ctx, "docker", "compose", "version").Run() != nil {
 		return errors.New("Docker Compose v2 (`docker compose`) not found: update Docker Desktop, or install the docker-compose-plugin package")
 	}
-	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", file}, args...)...)
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	return cmd.Run()
+	return nil
 }

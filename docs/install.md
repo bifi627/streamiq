@@ -193,6 +193,8 @@ Whoever has a copy of `state/` can pose as your gateway. Replace its identity:
    paired browser is removed. Start the gateway (`gateway service install`).
 4. Open StreamIQ on each browser: it shows a pairing code, approve it on the
    local gateway page.
+5. A leaked backup with Jellyfin's data also holds the password hashes of
+   Jellyfin's users: change the passwords of Jellyfin users you made yourself.
 
 ## Back up and restore the gateway
 
@@ -206,7 +208,12 @@ login. Back it up once, and again after you pair a new browser:
 Run the `gateway` in the install dir; it works while the gateway runs. The page login (`page-token`, `page-link`) is left out: the
 restored gateway makes a new one. If you run Jellyfin with `gateway jellyfin up`, the
 backup also holds its `jellyfin-compose.yml` (your media folders and the Jellyfin
-version).
+version) and Jellyfin's database: its users, libraries, watch history and resume
+points (Jellyfin's own backup, made through its API; not posters, images, trickplay
+or subtitles). The gateway includes Jellyfin only if it set that Jellyfin up, the
+compose file is next to it and Jellyfin keeps its data in the `jellyfin-config`
+folder beside it; otherwise, or if Jellyfin is unreachable or refuses the gateway's
+admin password, the backup holds the gateway alone and `gateway backup` says why.
 
 **The backup is a secret and not encrypted.** Whoever has the file can pose as
 your gateway. Keep it like a password: not in a shared or synced folder, not in
@@ -246,13 +253,37 @@ none yet: an existing one is never replaced, not even with `--force` (it says wh
 media folder's `source:`) before `gateway jellyfin up`: the old machine's
 folders may not exist there.
 
-Not in the backup: `gateway.env` (see above) and Jellyfin's own data (libraries,
-watch history, its users).
-Against the same Jellyfin the restored login just works. On a fresh Jellyfin
-(wizard not done) the gateway sets it up again by itself, as in
-[3. Connect Jellyfin](#3-connect-jellyfin); add your libraries again. A different
-Jellyfin that is already set up refuses the old login: the local gateway page asks
-you to **Connect Jellyfin**.
+Not in the backup: `gateway.env` (see above). `gateway restore` and the installer
+leave Jellyfin's data in the zip: `gateway jellyfin restore <file>` puts it back.
+
+**Jellyfin onto a new machine**, in this order:
+
+1. Install with `STREAMIQ_RESTORE` (above).
+2. Stop the gateway (Windows: `gateway service uninstall`; Linux / macOS: stop the
+   `gateway run` process).
+3. Fix the media folder paths in `jellyfin-compose.yml`.
+4. `gateway jellyfin up`
+5. `gateway jellyfin restore <file>`: it replaces whatever users, libraries and
+   watch state this Jellyfin has, completes its setup wizard first if needed, and
+   warns if the backup comes from another Jellyfin version. When Jellyfin is back
+   and accepts the backup's admin password, it puts the backup's Jellyfin login into
+   `state/`. If that fails, the login is unchanged and Jellyfin's log says why
+   (`docker compose -f jellyfin-compose.yml logs jellyfin`).
+6. Start the gateway (`gateway service install`, or as in [Start on boot](#start-on-boot)).
+   It signs in to the restored Jellyfin by itself, and household members find their
+   resume points again.
+7. Only then `gateway jellyfin upgrade`, if you want a newer Jellyfin.
+
+Posters and images come back with a library scan (Jellyfin: **Dashboard →
+Libraries → Scan All Libraries**). Restore refuses while the gateway runs: it would
+overwrite the login the restore puts back.
+
+Without Jellyfin's data in the backup, on a fresh Jellyfin (wizard not done) the
+gateway sets it up again by itself, as in [3. Connect Jellyfin](#3-connect-jellyfin);
+add your libraries again. Against the same Jellyfin the restored login just works.
+A different Jellyfin that is already set up refuses the old login: the local
+gateway page asks you to **Connect Jellyfin**. Your own Jellyfin (not set up by the
+gateway) has its own backups: **Dashboard → Backups**.
 
 ## Where things live
 

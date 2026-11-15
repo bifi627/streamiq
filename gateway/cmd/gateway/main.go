@@ -7,13 +7,15 @@
 //	sessions    brokered browser sessions: auth channel, gated tunnel
 //	localpage   the gateway's status page on the home LAN (approve / remove browsers)
 //	jellyfin    non-admin Jellyfin viewer token without manual steps; transcoding settings; version check;
-//	            `gateway jellyfin up|upgrade` (Docker compose); `gateway jellyfin login` (repair, #241)
+//	            `gateway jellyfin up|upgrade` (Docker compose); `gateway jellyfin login` (repair, #241);
+//	            `gateway jellyfin restore` (Jellyfin's backup API, #298)
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
 //	update      "newer release available" notice; `gateway update` swaps the binary
 //	service     Windows logon task (`gateway service install|uninstall`)
-//	backup      `gateway backup` / `gateway restore`: the state dir + jellyfin-compose.yml as one zip (#52, #297)
+//	backup      `gateway backup` / `gateway restore`: the state dir + jellyfin-compose.yml + Jellyfin's
+//	            database as one zip (#52, #297, #298)
 //
-// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade|login | reset-identity |
+// Commands: gateway [run] | service install|uninstall | update | status | jellyfin up|upgrade|login|restore <file> | reset-identity |
 // backup [file] | restore [--force] <file>.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
@@ -113,12 +115,12 @@ func main() {
 			fmt.Println()
 			os.Exit(130)
 		}()
-		setup := &jellyfin.Setup{Client: &http.Client{Timeout: time.Minute}, URL: origin(),
-			StateDir: stateDir(), OnKey: func(string, string) {}}
-		err = jellyfin.LoginCLI(ctx, setup, os.Stdin, os.Stdout, func() (string, error) { return jellyfin.ReadPassword(os.Stdin) })
+		err = jellyfin.LoginCLI(ctx, jellyfinSetup(), os.Stdin, os.Stdout, func() (string, error) { return jellyfin.ReadPassword(os.Stdin) })
 		if errors.Is(err, jellyfin.ErrInterrupted) {
 			os.Exit(130)
 		}
+	case cmd == "jellyfin" && len(os.Args) == 4 && os.Args[2] == "restore" && !strings.HasPrefix(os.Args[3], "-"):
+		err = jellyfinRestore(ctx, os.Args[3], filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
 	case cmd == "reset-identity":
 		err = resetIdentity()
 	case cmd == "backup" && (len(os.Args) == 2 || len(os.Args) == 3 && !strings.HasPrefix(os.Args[2], "-")):
@@ -126,7 +128,7 @@ func main() {
 		if len(os.Args) == 3 {
 			file = os.Args[2]
 		}
-		err = backupState(file, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
+		err = backupState(ctx, file, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
 	case cmd == "restore" && len(os.Args) == 3 && !strings.HasPrefix(os.Args[2], "-"):
 		err = restoreState(os.Args[2], filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), false)
 	case cmd == "restore" && len(os.Args) == 4 && slices.Contains(os.Args[2:], "--force"):
@@ -157,14 +159,18 @@ const usage = `usage: gateway [command] [-h]
   jellyfin upgrade           pin jellyfin-compose.yml to the tested Jellyfin and restart it
   jellyfin login             sign in with a Jellyfin admin to repair the gateway's access
                              (as the local gateway page does; docs/install.md)
+  jellyfin restore <file>    put the Jellyfin data of a gateway backup back into the Jellyfin the
+                             gateway set up (users, libraries, watch state). Replaces what it has.
+                             Refuses while the gateway runs; docs/install.md for the order.
   reset-identity             new certificate + empty paired-browser list: every browser pairs
                              again (after a leak; docs/install.md). Refuses while the gateway runs.
   backup [file]              write the state dir (identity, credential, paired browsers, Jellyfin
-                             login) and jellyfin-compose.yml to one zip; works while the gateway
-                             runs. NOT encrypted.
+                             login), jellyfin-compose.yml and, for the Jellyfin the gateway set up,
+                             Jellyfin's database to one zip; works while the gateway runs. NOT encrypted.
   restore [--force] <file>   put a backup back into the state dir. Refuses while the gateway runs,
                              and over an existing gateway unless --force. Writes jellyfin-compose.yml
                              only if there is none (never over one, not even with --force).
+                             Jellyfin's data stays in the zip: gateway jellyfin restore.
 
 Config: gateway.env next to the binary (see docs/install.md).`
 
@@ -220,15 +226,25 @@ func resetIdentity() error {
 	return nil
 }
 
-// backupState writes the backup zip (0600, never over an existing file).
-func backupState(file, compose string) error {
+func jellyfinSetup() *jellyfin.Setup {
+	return &jellyfin.Setup{Client: &http.Client{}, URL: origin(), // timeouts per request (Backup/Create: long)
+		StateDir: stateDir(), OnKey: func(string, string) {}}
+}
+
+// backupState writes the backup zip (0600, never over an existing file), with
+// Jellyfin's database when the gateway set Jellyfin up; else it says why not.
+func backupState(ctx context.Context, file, compose string) error {
 	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if errors.Is(err, os.ErrExist) {
 		return fmt.Errorf("%s already exists: name another file (gateway backup <file>)", file)
 	} else if err != nil {
 		return err
 	}
-	err = backup.Write(stateDir(), compose, f)
+	archive, remove, jerr := jellyfinSetup().CreateBackup(ctx, compose)
+	if remove != nil {
+		defer remove()
+	}
+	err = backup.Write(stateDir(), compose, archive, f)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
@@ -237,7 +253,13 @@ func backupState(file, compose string) error {
 		return err
 	}
 	abs, _ := filepath.Abs(file)
-	fmt.Printf("Wrote %s.\n\n", abs)
+	fmt.Printf("Wrote %s.\n", abs)
+	if jerr != nil {
+		fmt.Println("!! Jellyfin's data (users, libraries, watch state) is NOT in it:", jerr)
+	} else {
+		fmt.Println("It includes Jellyfin's database (users, libraries, watch state): gateway jellyfin restore puts it back.")
+	}
+	fmt.Println()
 	fmt.Println("!! This file is NOT encrypted. Whoever has it can pose as your gateway.")
 	fmt.Println("!! Keep it like a password: not in a shared or synced folder, not in email.")
 	fmt.Println("!! If it leaks: docs/install.md, \"If the gateway or a backup of its state may have leaked\".")
@@ -246,6 +268,9 @@ func backupState(file, compose string) error {
 	fmt.Println("(two copies fight over the connection), then:")
 	fmt.Printf("  new machine:  the install command with STREAMIQ_API_URL and STREAMIQ_RESTORE=%s, no enroll token\n", filepath.Base(file))
 	fmt.Printf("  same install: stop the gateway, run gateway restore %s, start it again\n", filepath.Base(file))
+	if jerr == nil {
+		fmt.Printf("  Jellyfin:     with the gateway stopped, gateway jellyfin restore %s (the order is in docs/install.md)\n", filepath.Base(file))
+	}
 	return nil
 }
 
@@ -270,6 +295,24 @@ func restoreState(file, compose string, force bool) error {
 	}
 	fmt.Println("Start it (gateway service install, or gateway run): it comes back as the same gateway, paired browsers included.")
 	return nil
+}
+
+// jellyfinRestore puts a backup's Jellyfin data back into the managed Jellyfin.
+func jellyfinRestore(ctx context.Context, file, compose string) error {
+	if err := notRunning(); err != nil {
+		return err
+	}
+	tmp, err := os.MkdirTemp("", "streamiq-restore-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	archive := filepath.Join(tmp, "jellyfin-backup.zip")
+	creds, err := backup.ExtractJellyfin(file, archive)
+	if err != nil {
+		return err
+	}
+	return jellyfin.RestoreCLI(ctx, jellyfinSetup(), compose, archive, creds, os.Stdout)
 }
 
 // jellyfinUp downloads the release's compose file next to the binary unless the

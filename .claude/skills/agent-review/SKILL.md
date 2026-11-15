@@ -29,9 +29,10 @@ something (e.g. a `## For the reviewer` list): answer each point.
 ## 2. Level
 
 `bash scripts/review-level.sh <PR number>` (no number = the current branch vs
-`origin/main`) prints it: `xhigh`, `high` or `low`. Use what it prints; don't judge
-the level yourself. The rule (the crown-jewel paths, what counts as docs only) lives
-in that script and nowhere else. The level is only the `/code-review` argument: your
+`origin/main`) prints three words: the level (`xhigh`, `high` or `low`), the merge-risk
+floor (0–10, section 5) and the rule that set it (e.g. `crown-jewel`). Use the level it prints; don't judge it yourself. Both rules
+(the crown-jewel paths, what counts as docs only, the floors) live in that script and
+nowhere else. The level is only the `/code-review` argument: your
 own reading of the spec and the triage below are the same at every level.
 
 ## 3. Review
@@ -71,18 +72,41 @@ say "+k more".
 **Security-sensitive** (exploitable now): mark it `security`. It never goes on
 GitHub; the caller gives the details to the owner only in its T3 thread.
 
-## 5. Output
+## 5. Merge risk
+
+Only when no BLOCKER/SPEC is left (the change would be `ready to merge`): how much the
+owner should test before merging, 0–10. Start at the script's floor; never go below it.
+Go higher, with the reason, for each of these the diff shows:
+
+- **Blast radius:** tenant isolation, auth, pairing, the protocol or every page, rather
+  than one screen.
+- **Hard to undo:** a migration that drops or rewrites data, a state dir / `gateway.env` /
+  CLI change, anything the gateway's auto-release ships to installed gateways (a frontend
+  or API redeploy is easy to undo).
+- **Untested behavior:** no e2e / Reqnroll / xUnit / Go test drives the changed behavior.
+- **Unflagged device check:** it can only really be checked on a TV, a phone, cellular
+  or relay, but neither the PR nor its issue has a `device:*` label. (With the label,
+  the PR stays a draft until the owner's device test: that gate covers it, no raise.)
+
+Bands: 0–1 = merge without a second look · 2–4 = skim the diff · 5–7 = drive the named
+flows yourself (`dev.ps1` or `/preview`) · 8–10 = test deeply on the named flows and
+devices, merge when you can watch the gateway release. From 5 up, name the concrete
+flows to test (e.g. "accept an invite into a second household, then open its gateway").
+
+## 6. Output
 
 Return, in this order:
 
 1. Level used, and the counts: findings `/code-review` returned, then how many you
    sorted into BLOCKER, SPEC and LOW (all of them, not only the listed ones).
-2. Acceptance criteria: `all met` or `not met — <which>`.
-3. Answers to what the PR body asked reviewers to check (if anything).
-4. BLOCKER / SPEC findings, one per item: `[blocker]` or `[spec]` (+ `security`
+2. Merge risk (when section 5 applies): `<n>/10 (floor <f>: <the script's rule>) — <reason
+   for going higher, if any>; test: <flows>` (no `test:` part below 5).
+3. Acceptance criteria: `all met` or `not met — <which>`.
+4. Answers to what the PR body asked reviewers to check (if anything).
+5. BLOCKER / SPEC findings, one per item: `[blocker]` or `[spec]` (+ `security`
    if so), `path:line` (or `path` for a file-level / cross-cutting one), the
    defect, and the one-sentence failure scenario.
-5. LOW findings, one line each: at most the 5 most worth a look, then "+k more LOW,
+6. LOW findings, one line each: at most the 5 most worth a look, then "+k more LOW,
    not listed".
 
 No praise, no summary of what the change does.

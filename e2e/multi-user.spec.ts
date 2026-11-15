@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { invite, pair, signIn, signUp, videoTime } from './helpers.ts'
+import { invite, newPage, pair, signIn, signUp, videoTime } from './helpers.ts'
 import { jellyfinAdminGet } from './jellyfin.ts'
 import { startGateway } from './stack.ts'
 
@@ -57,7 +57,7 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
 
     // Each in their own browser (own client key), each paired.
     const open = async (user: typeof A) => {
-      const p = await (await browser.newContext()).newPage()
+      const p = await newPage(browser) // own client key
       await p.goto(app() + '/gateways')
       await signIn(p, user, A.tenantId)
       await pair(p, gatewayCtx, gateway.pageUrl)

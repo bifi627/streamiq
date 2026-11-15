@@ -1,6 +1,11 @@
 // Shared by the specs: accounts + households over the API (emulator sign-up as in
 // preview.ts, the #191 invite flow), and browser steps (sign in, pair, play).
-import { expect, type BrowserContext, type Page } from '@playwright/test'
+import {
+  expect,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test'
 
 export const password = 'e2e-password'
 
@@ -70,6 +75,17 @@ export async function signIn(page: Page, user: User, household?: string) {
   await page.getByLabel('Email').fill(user.email)
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()
+}
+
+/** A new browser (own client key) whose playbacks save from the first second:
+ * the player's 60 s click-through guard (#330) off unless a step sets it. */
+export async function newPage(browser: Browser) {
+  const ctx = await browser.newContext()
+  await ctx.addInitScript(() => {
+    if (localStorage.getItem('streamiq.watchMin') === null)
+      localStorage.setItem('streamiq.watchMin', '0')
+  })
+  return ctx.newPage()
 }
 
 export const videoTime = (p: Page) =>

@@ -13,14 +13,21 @@ import {
   type Page,
   type Request,
 } from '@playwright/test'
-import { gatewayTab, pair, password, tunnelOk, videoTime } from './helpers.ts'
+import {
+  gatewayTab,
+  newPage,
+  pair,
+  password,
+  tunnelOk,
+  videoTime,
+} from './helpers.ts'
 import { startGateway } from './stack.ts'
 
 // One account per repeat: the Auth emulator lives for the whole run.
 const email = () => `e2e-${test.info().repeatEachIndex}@streamiq.test`
 
 async function signIn(browser: Browser, create = false, path = '/') {
-  const page = await (await browser.newContext()).newPage() // own IndexedDB = own client key
+  const page = await newPage(browser) // own IndexedDB = own client key
   await page.goto(process.env.E2E_APP_URL! + path)
   if (create)
     await page.getByRole('button', { name: 'Create an account' }).click()
@@ -415,9 +422,35 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(
         a.getByRole('menuitemradio', { name: /AAC mono/, checked: true }),
       ).toBeVisible()
+      await expect.poll(() => videoTime(a)).toBeGreaterThan(2) // saves whole seconds
       await a.goBack() // player → movie page
       await a.goBack() // movie page → folder
       await a.goBack() // folder → library home
+      // Continue watching is newest first (#330): this one, played after the
+      // clip, though the clip sorts first by name.
+      const spot = a.locator('.spot h2')
+      // The exit save is fire-and-forget: a reload can close the tunnel first.
+      await expect(async () => {
+        await a.reload()
+        await expect(spot).toHaveText('streamiq e2e mp2 default', {
+          timeout: 3000,
+        })
+      }).toPass()
+      // The click-through guard (#330): a playback shorter than 60 s saves
+      // nothing, so the clip doesn't move up.
+      await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '60'))
+      await a.getByRole('button', { name: /Movies/ }).click()
+      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
+      await expect
+        .poll(() => videoTime(a), { timeout: 30_000 })
+        .toBeGreaterThan(5)
+      await a.goBack() // player → movie page (saves nothing)
+      await a.goBack() // movie page → folder
+      await a.goBack() // folder → library home
+      await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '0'))
+      await a.reload()
+      await expect(spot).toHaveText('streamiq e2e mp2 default')
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 

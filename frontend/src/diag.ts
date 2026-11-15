@@ -148,6 +148,17 @@ export const debugOn = () => q().has('debug') || flag('debug')
 export const relayOn = () => q().has('relay') || flag('relay')
 /** ?fail=<n>: the first n player loads look stuck (forces the #238 escalation). */
 export const failLoads = () => Number(q().get('fail')) || 0
+/** Seconds a playback must really play before it saves anything (#330);
+ * localStorage `streamiq.watchMin` overrides it (e2e: 0). */
+export function watchMin() {
+  try {
+    const s = localStorage.getItem('streamiq.watchMin')
+    if (s !== null) return Number(s)
+  } catch {
+    /* ignore */
+  }
+  return 60
+}
 
 // Errors nobody caught would otherwise vanish on a TV.
 addEventListener('error', (e) => event(`error: ${e.message}`))

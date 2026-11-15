@@ -3,7 +3,10 @@
 // the TranscodingUrl it returns via the tunnel loader.
 // Resume: start at Jellyfin's saved position; report it every 10 s, on pause
 // and on exit, straight to the viewer's UserData (/Sessions/Playing* is not
-// on the gateway allowlist).
+// on the gateway allowlist), with LastPlayedDate (Continue watching sorts by
+// it) and Played: false (a partial rewatch is in progress again), #330. Only
+// once this playback has really played watchMin() (60 s): clicking through
+// saves nothing.
 // Fallback (#81): some devices (webOS TV, Chrome 87) drop stream-copied video
 // after a seek/resume. When video appends stop covering the playhead, reload
 // there with a video transcode for the rest of this playback.
@@ -44,7 +47,15 @@ import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import Hls from 'hls.js'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
-import { changed, diag, event, failLoads, ranges, watchVideo } from '../../diag'
+import {
+  changed,
+  diag,
+  event,
+  failLoads,
+  ranges,
+  watchMin,
+  watchVideo,
+} from '../../diag'
 import {
   compatibleOn,
   dataSaverOn,
@@ -197,13 +208,26 @@ export function Player({
     let h: Hls | null = null
     let gone = false
     let lastSaved = -1
+    let played = 0 // seconds really played: playhead steps, not seeks or pauses
+    let lastT = -Infinity
+    const min = watchMin()
+    const onTime = () => {
+      const t = v.currentTime
+      if (!v.seeking && t > lastT && t - lastT < 1) played += t - lastT
+      lastT = t
+    }
     const save = (body: object) =>
       tunnelJson(pc, `/UserItems/${itemId}/UserData`, body).catch(() => {})
     const report = () => {
       const t = Math.floor(v.currentTime)
-      if (h && t > 0 && t !== lastSaved) {
+      // Not after the end: its `pause` comes before `ended` (Played: true).
+      if (h && t > 0 && t !== lastSaved && played >= min && !v.ended) {
         lastSaved = t
-        save({ PlaybackPositionTicks: t * TICKS_PER_SECOND })
+        save({
+          PlaybackPositionTicks: t * TICKS_PER_SECOND,
+          Played: false,
+          LastPlayedDate: new Date().toISOString(),
+        })
       }
     }
 
@@ -580,6 +604,7 @@ export function Player({
     const changes = ['play', 'pause', 'seeked', 'ended']
     changes.forEach((e) => v.addEventListener(e, emit))
     v.addEventListener('play', onPlay)
+    v.addEventListener('timeupdate', onTime)
     v.addEventListener('pause', report)
     v.addEventListener('seeked', report)
     v.addEventListener('ended', ended)
@@ -593,6 +618,7 @@ export function Player({
       changes.forEach((e) => v.removeEventListener(e, emit))
       report()
       v.removeEventListener('play', onPlay)
+      v.removeEventListener('timeupdate', onTime)
       v.removeEventListener('pause', report)
       v.removeEventListener('seeked', report)
       v.removeEventListener('ended', ended)

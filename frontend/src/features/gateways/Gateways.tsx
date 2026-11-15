@@ -285,10 +285,9 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 )
 
-// The name, plus an inline Rename for an admin while the gateway is online
-// and this browser is paired with it
-// (#310). Enter saves (form submit), Escape / the remote's Back cancels; arrowFocus
-// reaches the controls.
+// The name, plus an inline Rename for an admin while the gateway is online and
+// this browser is paired with it (#310, #329). Enter saves (form submit),
+// Escape / the remote's Back cancels; arrowFocus reaches the controls.
 function GatewayName({
   name,
   rename,

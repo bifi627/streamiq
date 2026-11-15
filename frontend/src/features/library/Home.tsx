@@ -271,7 +271,7 @@ export function Artwork({
         className={`art ${className} title-card`}
         style={{ background: tint(card.Name) }}
       >
-        <span>
+        <span aria-hidden="true">
           {card.Name}
           {card.ProductionYear && ` (${card.ProductionYear})`}
         </span>
@@ -285,9 +285,10 @@ export function Artwork({
 }
 
 /** A muted colour per title: the same name always gets the same one. */
-export function tint(name: string) {
+function tint(name: string) {
   let h = 0
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360
+  // * 137: names one letter apart land far apart, not 1° apart.
   // ponytail: lightness 22% keeps --text above 4.5:1 on every hue
-  return `hsl(${h}, 35%, 22%)`
+  return `hsl(${(h * 137) % 360}, 35%, 22%)`
 }

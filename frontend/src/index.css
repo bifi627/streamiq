@@ -934,6 +934,13 @@ button.secondary:hover {
   -webkit-line-clamp: 4;
   overflow: hidden;
 }
+/* Episode stills are short (4.5rem on a phone): two lines, no min-height. */
+.still-art.title-card {
+  min-height: 0;
+}
+.still-art.title-card span {
+  -webkit-line-clamp: 2;
+}
 .home {
   display: flex;
   flex-direction: column;

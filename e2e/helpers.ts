@@ -52,16 +52,6 @@ export async function signUp(email: string): Promise<User> {
   }
 }
 
-/** admin invites member into admin's own household; member accepts (#191). */
-export async function invite(admin: User, member: User) {
-  const { token } = await admin.api('/invites', { method: 'POST' })
-  await member.api('/invites/accept', {
-    method: 'POST',
-    body: JSON.stringify({ token }),
-  })
-  return token as string
-}
-
 /**
  * Signs user in on page (at its current URL), acting in household (what /join or
  * the switcher stores on the device; unset = the user's oldest).

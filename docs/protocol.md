@@ -168,7 +168,7 @@ per session (several browsers at once).
   compromised API alone gets nothing without a paired device. The role is fixed for the session: a demoted admin keeps it until the
   session ends (like a removed membership, #192).
 
-## ICE servers + connection telemetry (MVP item 5)
+## ICE servers + tunnel telemetry (MVP item 5)
 
 **ICE servers come per session, in the broker's `ready`** (there is no
 free-standing TURN endpoint; item 6). Prod: Cloudflare `generate-ice-servers`
@@ -187,13 +187,13 @@ gateway stays on its own config (STUN, optional `STREAMIQ_ICE_*`): the browser's
 relay candidate is enough, as the e2e's forced-relay step shows.
 
 **Telemetry**: once the tunnel is up the browser reads the selected candidate
-pair from `getStats()` and calls `POST /api/connections`
+pair from `getStats()` and calls `POST /api/tunnels`
 `{gatewayId, relay, ipv6, localCandidateType, remoteCandidateType, protocol}` →
-`{id}`; on close, `PATCH /api/connections/{id}` `{bytesReceived, bytesSent,
-throughputKbps}` (stamps `EndedAt`; `throughputKbps` = the session's last burst
-measurement, below, or null). Rows live in `connection_sessions` (tenant-owned, global filter;
+`{id}`; on close, `PATCH /api/tunnels/{id}` `{bytesReceived, bytesSent,
+throughputKbps}` (stamps `EndedAt`; `throughputKbps` = the tunnel's last burst
+measurement, below, or null). Rows live in `tunnels` (tenant-owned, global filter;
 another tenant's gateway or row → `404`). A closed tab skips the PATCH.
-A failed attempt (ICE `failed`, pin mismatch, unpaired, broker or gateway
+A failed tunnel (ICE `failed`, pin mismatch, unpaired, broker or gateway
 closed, refused) posts `{gatewayId, failure}` instead: candidate fields null,
 `failure` = the reason (≤ 64 chars). Rate queries: `failure IS NULL` = up.
 `relay` = either selected candidate is a relay. Chrome can report a relayed
@@ -407,12 +407,12 @@ A gateway older than this answers `404`.
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
 bytes through the normal chunking and backpressure above. `size` defaults to
 4 MiB and is capped at 16 MiB; anything else (over the cap, negative, not a
-number) is `400`. Streaming sessions (library, `/diagnostics`) time a
+number) is `400`. Streaming pages (library, `/diagnostics`) time a
 `size=1048576` warm-up burst (dropped: mostly ramp-up, #259), then 3 bursts
 sized to last ~2 s at the previous read (1–16 MiB), in the background once
 up and again on a `navigator.connection` `change`, and keep the median (Mbps): the player's Auto
 quality caps `MaxStreamingBitrate` at 70 % of it (#162). The last value is a
-localStorage hint per gateway + direct/relay + connection type; the session's
+localStorage hint per gateway + direct/relay + connection type; the tunnel's
 own measurement goes to telemetry (`throughputKbps`). With the client's data
 saver on (#291) a run is just 3 `size=1048576` bursts (no warm-up, ~3 MB), not
 kept as the hint, and Auto stays at 480p.
@@ -421,7 +421,7 @@ kept as the hint, and Auto stays at 480p.
 
 A TV in screen mode is remote-controlled by a phone on the **same gateway**: the
 gateway relays the commands, so no backend is involved and what's watched never
-reaches the API. Both devices are paired clients with their own tunnel session.
+reaches the API. Both devices are paired clients with their own tunnel.
 Code: `gateway/internal/tunnel/screen.go`; TS types: `frontend/src/features/gateways/api.ts`.
 
 - **Opt-in is structural.** A screen exists only while a session holds its
@@ -430,7 +430,7 @@ Code: `gateway/internal/tunnel/screen.go`; TS types: `frontend/src/features/gate
   session that never opened a screen can't be reached.
 - **Screen id**: random per screen (`crypto/rand.Text()`, 26 chars, base32), not
   the client key; a reconnect gets a new id. No keep-alive on the held response:
-  an idle tunnel session survives 60 min direct and relayed (#178).
+  an idle tunnel survives 60 min direct and relayed (#178).
 - **Who controls: the whole household** (#245, decided). Any paired client of the
   gateway, whichever user is signed in, lists and controls every open screen; there
   is no per-user or role filter. A shared living-room TV is the point of the remote.

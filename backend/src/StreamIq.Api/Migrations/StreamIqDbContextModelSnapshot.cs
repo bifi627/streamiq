@@ -45,62 +45,6 @@ namespace StreamIq.Api.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("StreamIq.Api.Data.ConnectionSession", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<long?>("BytesReceived")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("BytesSent")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<DateTimeOffset?>("EndedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Failure")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("GatewayId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("Ipv6")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("LocalCandidateType")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Protocol")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Relay")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("RemoteCandidateType")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("ThroughputKbps")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GatewayId");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("connection_sessions", (string)null);
-                });
-
             modelBuilder.Entity("StreamIq.Api.Data.EnrollmentToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -268,19 +212,60 @@ namespace StreamIq.Api.Migrations
                     b.ToTable("tenants", (string)null);
                 });
 
-            modelBuilder.Entity("StreamIq.Api.Data.ConnectionSession", b =>
+            modelBuilder.Entity("StreamIq.Api.Data.Tunnel", b =>
                 {
-                    b.HasOne("StreamIq.Api.Data.Gateway", null)
-                        .WithMany()
-                        .HasForeignKey("GatewayId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
-                    b.HasOne("StreamIq.Api.Data.Tenant", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<long?>("BytesReceived")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("BytesSent")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Failure")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("GatewayId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Ipv6")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LocalCandidateType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Protocol")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Relay")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RemoteCandidateType")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ThroughputKbps")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatewayId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("tunnels", (string)null);
                 });
 
             modelBuilder.Entity("StreamIq.Api.Data.EnrollmentToken", b =>
@@ -326,6 +311,21 @@ namespace StreamIq.Api.Migrations
                     b.HasOne("StreamIq.Api.Data.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("StreamIq.Api.Data.Tunnel", b =>
+                {
+                    b.HasOne("StreamIq.Api.Data.Gateway", null)
+                        .WithMany()
+                        .HasForeignKey("GatewayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StreamIq.Api.Data.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

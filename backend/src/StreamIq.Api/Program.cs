@@ -8,13 +8,13 @@ using StreamIq.Api;
 using StreamIq.Api.Auth;
 using StreamIq.Api.Data;
 using StreamIq.Api.Features.Broker;
-using StreamIq.Api.Features.Connections;
 using StreamIq.Api.Features.Gateways;
 using StreamIq.Api.Features.Household;
 using StreamIq.Api.Features.Invites;
 using StreamIq.Api.Features.Me;
 using StreamIq.Api.Features.Members;
 using StreamIq.Api.Features.Onboarding;
+using StreamIq.Api.Features.Tunnels;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -180,8 +180,8 @@ CreateEnrollmentToken.Map(api);
 Enroll.Map(api);
 GatewaySocket.Map(api);
 BrowserSocket.Map(api);
-StartConnection.Map(api);
-EndConnection.Map(api);
+StartTunnel.Map(api);
+EndTunnel.Map(api);
 CreateInvite.Map(api);
 ListInvites.Map(api);
 RevokeInvite.Map(api);

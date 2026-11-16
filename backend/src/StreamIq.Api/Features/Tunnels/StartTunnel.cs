@@ -2,24 +2,24 @@ using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using StreamIq.Api.Data;
 
-namespace StreamIq.Api.Features.Connections;
+namespace StreamIq.Api.Features.Tunnels;
 
-/// Connection telemetry, start: the client reports the selected ICE candidate
-/// pair once the tunnel is up, or a failed attempt with its reason. Only the caller's own gateways (global filter).
-public static class StartConnection
+/// Tunnel telemetry, start: the client reports the selected ICE candidate
+/// pair once the tunnel is up, or a failed tunnel with its reason. Only the caller's own gateways (global filter).
+public static class StartTunnel
 {
     public record Request(Guid GatewayId, bool Relay, bool Ipv6, string? LocalCandidateType,
         string? RemoteCandidateType, string? Protocol, string? Failure = null);
 
     public static void Map(IEndpointRouteBuilder app)
     {
-        app.MapPost("/connections", async (Request rq, ClaimsPrincipal user, StreamIqDbContext db, CancellationToken ct) =>
+        app.MapPost("/tunnels", async (Request rq, ClaimsPrincipal user, StreamIqDbContext db, CancellationToken ct) =>
         {
             if (!await db.Gateways.AnyAsync(g => g.Id == rq.GatewayId, ct))
             {
                 return Results.NotFound();
             }
-            var row = new ConnectionSession
+            var row = new Tunnel
             {
                 TenantId = Guid.Parse(user.FindFirstValue("tenant_id") ?? throw new InvalidOperationException("authenticated principal without tenant_id")),
                 GatewayId = rq.GatewayId,
@@ -30,7 +30,7 @@ public static class StartConnection
                 Protocol = Clip(rq.Protocol),
                 Failure = Clip(rq.Failure, 64),
             };
-            db.ConnectionSessions.Add(row);
+            db.Tunnels.Add(row);
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { row.Id });
         }).RequireAuthorization().RequireRateLimiting("signaling");

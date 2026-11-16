@@ -15,7 +15,7 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
     public DbSet<Gateway> Gateways => Set<Gateway>();
     public DbSet<EnrollmentToken> EnrollmentTokens => Set<EnrollmentToken>();
     public DbSet<Invite> Invites => Set<Invite>();
-    public DbSet<ConnectionSession> ConnectionSessions => Set<ConnectionSession>();
+    public DbSet<Tunnel> Tunnels => Set<Tunnel>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -61,9 +61,9 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
 
-        b.Entity<ConnectionSession>(e =>
+        b.Entity<Tunnel>(e =>
         {
-            e.ToTable("connection_sessions");
+            e.ToTable("tunnels");
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
 
@@ -75,8 +75,8 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
         b.Entity<EnrollmentToken>().HasOne<Tenant>().WithMany().HasForeignKey(t => t.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Invite>().HasOne<Tenant>().WithMany().HasForeignKey(i => i.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Invite>().HasOne<AppUser>().WithMany().HasForeignKey(i => i.CreatedBy).OnDelete(DeleteBehavior.SetNull);
-        b.Entity<ConnectionSession>().HasOne<Tenant>().WithMany().HasForeignKey(c => c.TenantId).OnDelete(DeleteBehavior.Cascade);
-        b.Entity<ConnectionSession>().HasOne<Gateway>().WithMany().HasForeignKey(c => c.GatewayId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Tunnel>().HasOne<Tenant>().WithMany().HasForeignKey(c => c.TenantId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Tunnel>().HasOne<Gateway>().WithMany().HasForeignKey(c => c.GatewayId).OnDelete(DeleteBehavior.Cascade);
 
         // ONE place: apply the tenant filter to every ITenantOwned entity. A
         // strongly-typed generic lambda referencing the instance property is the

@@ -5,7 +5,7 @@ namespace StreamIq.Api.Features.Gateways;
 
 /// Remove a gateway: its credential stops working immediately, its live control
 /// socket and every session through it are closed. ponytail: revoked = credential
-/// hash nulled, row kept, so its connection telemetry survives (rows cascade on a
+/// hash nulled, row kept, so its tunnel rows survive (rows cascade on a
 /// gateway delete). Re-adding the box = delete its state/gateway.json and re-enroll.
 public static class RevokeGateway
 {

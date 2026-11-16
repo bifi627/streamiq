@@ -1,7 +1,7 @@
 # Database backup & recovery
 
 The control plane's Postgres runs on Railway. It holds tenants, users, gateway credential
-hashes + DTLS pins, enrollment tokens, and connection telemetry. **Media never touches it.**
+hashes + DTLS pins, enrollment tokens, and tunnel telemetry. **Media never touches it.**
 Credentials for everything below: `docs/tools.md`.
 
 ## What exists

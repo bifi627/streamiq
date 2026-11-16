@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { browserName, connect } from './connect'
 import { clientKey, getPin } from './store'
 import { AppError, renameMessage, toAppError } from '../../errors'
-import { renameClient } from '../gateways/api'
+import { listClients, renameClient } from '../gateways/api'
 import { isBack } from '../library/items'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
@@ -203,7 +203,7 @@ export function Pairing({
 }
 
 // Once, right after pairing (#365): name this client, prefilled with the name it
-// paired with. Skip keeps that name; renaming later is on the gateway's Paired
+// paired with (shown only while that is still the auto name). Skip keeps that name; renaming later is on the gateway's Paired
 // clients list. The gateway owns the name: POST /streamiq/clients/rename.
 function NamePrompt({
   gatewayId,
@@ -212,8 +212,19 @@ function NamePrompt({
   gatewayId: string
   onDone: () => void
 }) {
-  const [draft, setDraft] = useState<string | null>(browserName) // null = done
+  const [draft, setDraft] = useState<string | null>(null) // null = no prompt
   const [error, setError] = useState<string | null>(null)
+  // Only while the gateway still holds the auto name: a re-pair of a client
+  // the user already named (pin mismatch, new gateway cert) keeps that name.
+  useEffect(() => {
+    listClients(gatewayId).then(
+      (l) => {
+        const me = l.find((c) => c.self)
+        if (me?.name === browserName()) setDraft(me.name)
+      },
+      () => {}, // no prompt; Rename on the Paired clients list still works
+    )
+  }, [gatewayId])
   const done = () => {
     onDone() // while the form still has focus to give away
     setDraft(null)

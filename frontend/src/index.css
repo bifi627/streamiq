@@ -518,6 +518,7 @@ html.tv .no-tv {
 }
 /* paired clients (#311): name · date, Remove at the end of the line */
 .card .clients li {
+  overflow-wrap: anywhere; /* a long name without spaces (#365) */
   display: flex;
   flex-wrap: wrap;
   align-items: center;

@@ -165,7 +165,7 @@ func CleanName(name string) (string, error) {
 }
 
 // Rename gives a paired client a new name (#365) and saves the allowlist; a
-// failed save keeps the old name. Open sessions keep the name they started with.
+// failed save keeps the old name. An open screen keeps the name it opened with.
 func (s *Store) Rename(keyFp, name string) (string, error) {
 	name, err := CleanName(name)
 	if err != nil {

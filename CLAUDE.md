@@ -22,10 +22,10 @@ removed, or changed (new env secret, new image, new cloud service).
 
 ## Current state
 
-**Where we are (2026-11-08):** the core works end to end with auth, tenancy,
-pairing and TURN: streaming over the tunnel is proven on mobile (cellular) and on a
-TV browser. What's weak: **gateway setup and management are clunky**, and the
-**whole UI is only functional** (no design pass yet). Open work: `gh issue list`.
+**Where we are:** the core works end to end with auth, tenancy, pairing and TURN:
+streaming over the tunnel is proven on mobile (cellular) and on a TV browser, and the
+UI design pass (#93) is done. What's weak and what's next live on GitHub, not here:
+the current milestone and the `p1`/`p2` issues (`gh issue list`).
 The paragraphs below record what is built ("item N" = the original MVP build order).
 
 **POC (2026-07-08, GO).** Proven: cellular→home connectivity (86%

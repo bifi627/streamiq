@@ -47,7 +47,7 @@ import { Privacy } from './Privacy'
 import { ICON, Icon } from './Controls'
 import { arrowFocus } from '../../focus'
 import { tvOn } from '../../settings'
-import { Tunnel, backdrop, primary, useTunnelQuery } from './art'
+import { Tunnel, backdrop, current, primary, useTunnelQuery } from './art'
 import { Artwork, minutes, Watched } from './Home'
 export { Home as LibraryHome } from './Home'
 
@@ -164,7 +164,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
     )
   const { item, season } = shown
   if (item.Type === 'Series' || item.Type === 'Movie')
-    return <Title item={item} season={season} />
+    return <Title item={item} season={season} updatedAt={it.dataUpdatedAt} />
   return <Browse item={item} />
 }
 
@@ -184,8 +184,17 @@ const seasonName = (s: Item) =>
 // Series / movie page (#204): the left column (poster, title, meta, overview,
 // the one primary button); a series adds season tabs + its episodes, a movie
 // its backdrop. The primary button takes first focus (one OK press plays);
-// nothing moves focus after that, on re-renders or tab changes.
-function Title({ item, season }: { item: Item; season?: string }) {
+// nothing moves focus after that, on re-renders or tab changes. Data from
+// before the last playback doesn't drive it: it waits for the refetch (#378).
+function Title({
+  item,
+  season,
+  updatedAt,
+}: {
+  item: Item
+  season?: string
+  updatedAt: number
+}) {
   const { gatewayId, pc } = useContext(Tunnel)
   const navigate = useNavigate()
   const router = useRouter()
@@ -214,6 +223,7 @@ function Title({ item, season }: { item: Item; season?: string }) {
       ? router.history.back()
       : navigate({ to: '/g/$gatewayId', params: { gatewayId } })
   const next = series ? lists && upNext(lists.episodes) : item
+  const ready = current(gatewayId, series ? es.dataUpdatedAt : updatedAt)
   const resumes =
     !!next &&
     !next.UserData?.Played &&
@@ -252,7 +262,7 @@ function Title({ item, season }: { item: Item; season?: string }) {
         <h1>{item.Name}</h1>
         {meta.length > 0 && <p className="muted">{meta.join(' · ')}</p>}
         {item.Overview && <p className="overview">{item.Overview}</p>}
-        {next && (
+        {next && ready && (
           <>
             <button
               type="button"

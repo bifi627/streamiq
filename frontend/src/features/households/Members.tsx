@@ -44,7 +44,7 @@ export function Members() {
     refocus.current = null
     const rows = list.current?.children ?? []
     rows[Math.min(i, rows.length - 1)]?.querySelector('button')?.focus()
-  }, [members])
+  }, [q.data])
 
   const acting = useMutation({
     mutationFn: (a: { m: Member; init: RequestInit; path?: string }) =>

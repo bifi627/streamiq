@@ -26,6 +26,18 @@ const puts = new Map<string, number>()
 const store = () =>
   typeof caches === 'undefined' || artCleared() ? null : caches
 
+/** Playback per gateway (#378): when it started (cached data from before may
+ * predate its progress) and, once the player is left, its exit save, which
+ * every read for that gateway waits for. Player.tsx sets it. */
+export const playback = new Map<
+  string,
+  { at: number; saved?: Promise<unknown> }
+>()
+
+/** Whether a query's data is newer than the gateway's last playback start. */
+export const current = (gatewayId: string, dataUpdatedAt: number) =>
+  dataUpdatedAt > (playback.get(gatewayId)?.at ?? 0)
+
 /** A library read over the tunnel (#360), cached per gateway: keyed by
  * gatewayId, not pc (a reconnect keeps the data), the current pc fetches it.
  * Fresh 5 min, then shown at once and refetched. url null = not yet. */
@@ -33,7 +45,10 @@ export function useTunnelQuery<T>(url: string | null) {
   const { gatewayId, pc } = useContext(Tunnel)
   return useQuery({
     queryKey: ['tunnel', gatewayId, url],
-    queryFn: () => tunnelJson<T>(pc, url!),
+    queryFn: async () => {
+      await playback.get(gatewayId)?.saved // else it reads the old progress
+      return tunnelJson<T>(pc, url!)
+    },
     enabled: url !== null,
     staleTime: 5 * 60_000,
     gcTime: Infinity, // ponytail: kept until reload; KBs per screen. A cap if a TV tab grows

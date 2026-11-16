@@ -616,7 +616,9 @@ func run(ctx context.Context, compose string) {
 				Name: st.CurrentName, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
 				LastBeat: &lastBeat, Update: &notice, Store: store,
 				Jellyfin: func() any { return setup.View() }, Login: setup.Login,
-				Offline: func() string { return jellyfin.Offline(compose) },
+				Offline:     func() string { return jellyfin.Offline(compose) },
+				Libraries:   func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
+				MakeOffline: setup.MakeOffline, SetExtras: setup.SetExtras,
 			})
 			log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
 		}()

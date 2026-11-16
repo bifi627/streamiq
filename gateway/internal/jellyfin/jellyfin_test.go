@@ -34,17 +34,23 @@ type fake struct {
 	loggedOut []string       // users whose session was logged out
 	enc       map[string]any // /System/Configuration/encoding
 	encPosts  int
-	news      int    // POST /Users/New
-	booting   bool   // a starting Jellyfin: 503 to /Users/Me (and the wizard reported not done)
-	info      []int  // next /System/Info/Public status codes (then 200)
-	signIns   int    // POST /Users/AuthenticateByName
-	backups   int    // POST /Backup/Create
-	restored  string // POST /Backup/Restore's ArchiveFileName
+	news      int            // POST /Users/New
+	booting   bool           // a starting Jellyfin: 503 to /Users/Me (and the wizard reported not done)
+	info      []int          // next /System/Info/Public status codes (then 200)
+	signIns   int            // POST /Users/AuthenticateByName
+	backups   int            // POST /Backup/Create
+	restored  string         // POST /Backup/Restore's ArchiveFileName
+	cfg       map[string]any // /System/Configuration
+	cfgPosts  int
+	libs      []map[string]any // /Library/VirtualFolders
+	libPosts  int
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
 	f := &fake{wizard: wizardDone, users: map[string]*fakeUser{}, tokens: map[string]string{}, keys: map[string]bool{},
-		enc: map[string]any{"HardwareAccelerationType": "none", "EnableThrottling": false, "EncoderPreset": "auto", "QsvDevice": "keep me"}}
+		enc: map[string]any{"HardwareAccelerationType": "none", "EnableThrottling": false, "EncoderPreset": "auto", "QsvDevice": "keep me"},
+		cfg: map[string]any{"ServerName": "keep me", "PluginRepositories": []any{map[string]any{"Name": "Jellyfin Stable"}},
+			"MetadataOptions": []any{map[string]any{"ItemType": "Movie", "DisabledMetadataFetchers": []any{}}}}}
 	if wizardDone {
 		f.users["me"] = &fakeUser{id: "id-me", pw: "pw", admin: true} // the user's own admin
 	}
@@ -196,6 +202,50 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		f.enc = e
 		f.encPosts++
+	case "GET /System/Configuration":
+		if !admin {
+			deny(401)
+			return
+		}
+		json.NewEncoder(w).Encode(f.cfg)
+	case "POST /System/Configuration":
+		var c map[string]any
+		json.NewDecoder(r.Body).Decode(&c)
+		if !admin || c["ServerName"] == nil { // the whole object goes back
+			deny(400)
+			return
+		}
+		f.cfg = c
+		f.cfgPosts++
+	case "GET /Library/VirtualFolders":
+		if !admin {
+			deny(401)
+			return
+		}
+		json.NewEncoder(w).Encode(f.libs)
+	case "GET /Libraries/AvailableOptions":
+		types := map[string][]string{"movies": {"Movie"}, "": {"Movie", "Series", "Season", "Episode"}}[r.URL.Query().Get("LibraryContentType")]
+		var to []map[string]any
+		for _, t := range types {
+			to = append(to, map[string]any{"Type": t, "MetadataFetchers": []any{map[string]any{"Name": "TheMovieDb"}}})
+		}
+		json.NewEncoder(w).Encode(map[string]any{"TypeOptions": to})
+	case "POST /Library/VirtualFolders/LibraryOptions":
+		var b struct {
+			Id             string
+			LibraryOptions map[string]any
+		}
+		json.NewDecoder(r.Body).Decode(&b)
+		if !admin || b.LibraryOptions["SeasonZeroDisplayName"] == nil { // the whole object goes back
+			deny(400)
+			return
+		}
+		for _, l := range f.libs {
+			if l["ItemId"] == b.Id {
+				l["LibraryOptions"] = b.LibraryOptions
+			}
+		}
+		f.libPosts++
 	case "POST /Backup/Create":
 		var o struct{ Database, Metadata, Trickplay, Subtitles bool }
 		json.NewDecoder(r.Body).Decode(&o)
@@ -537,6 +587,9 @@ func TestUserJellyfinUntouched(t *testing.T) {
 	s.poll(context.Background())
 	if _, n := f.encoding(); n != 0 || s.View().Managed || s.View().Err != "" || s.View().Transcoding() != "unmanaged" {
 		t.Fatalf("configured a user's Jellyfin: %d posts, view %+v", n, s.View())
+	}
+	if f.cfgPosts != 0 {
+		t.Fatalf("changed a user's server config: %v", f.cfg)
 	}
 }
 

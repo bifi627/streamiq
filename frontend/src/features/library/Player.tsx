@@ -67,7 +67,7 @@ import {
 import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
-import { Tunnel } from './art'
+import { Tunnel, playback } from './art'
 import { Controls } from './Controls'
 import { Privacy } from './Privacy'
 import {
@@ -233,6 +233,10 @@ export function Player({
       if (!v.seeking && t > lastT && t - lastT < 1) played += t - lastT
       lastT = t
     }
+    const at = Date.now()
+    playback.set(gatewayId, { at })
+    // A read still in flight predates this playback: drop its result (#378).
+    void queryClient.cancelQueries({ queryKey: ['tunnel', gatewayId] })
     let saving: Promise<unknown> = Promise.resolve()
     const save = (body: object) =>
       (saving = tunnelJson(pc, `/UserItems/${itemId}/UserData`, body).catch(
@@ -637,10 +641,9 @@ export function Player({
       clearInterval(state)
       changes.forEach((e) => v.removeEventListener(e, emit))
       report()
-      // After the exit save: the pages left behind show this progress (#360).
-      void saving.then(() =>
-        queryClient.invalidateQueries({ queryKey: ['tunnel', gatewayId] }),
-      )
+      // The pages left behind refetch, after the exit save (#360, #378).
+      playback.set(gatewayId, { at, saved: saving })
+      void queryClient.invalidateQueries({ queryKey: ['tunnel', gatewayId] })
       v.removeEventListener('play', onPlay)
       v.removeEventListener('timeupdate', onTime)
       v.removeEventListener('pause', report)

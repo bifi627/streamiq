@@ -457,8 +457,26 @@ test(
         await a.getByRole('button', { name: 'Open' }).click()
         await a.getByRole('button', { name: /Shows/ }).click()
         await a.getByRole('button', { name: /StreamIQ Test Series/ }).click()
-        await a.getByRole('button', { name: /S01E02/ }).click()
         const now = (ep: string) => a.locator('.now p', { hasText: ep })
+        // Finished episode → back (#378): the first primary button shown already
+        // names the next one (no stale "S1 · E1"), and OK at once plays it.
+        const primary = a.locator('button.primary')
+        await expect(primary).toBeFocused()
+        expect(await primary.textContent()).toContain('S1 · E1')
+        await a.keyboard.press('Enter')
+        await expect(now('S1 · E1')).toBeVisible()
+        await expect
+          .poll(() => videoTime(a), { timeout: 30_000 })
+          .toBeGreaterThan(0)
+        await a.evaluate(() => {
+          const v = document.querySelector('video')!
+          v.currentTime = v.duration - 0.5
+        })
+        await a.waitForFunction(() => document.querySelector('video')!.ended)
+        await a.goBack()
+        await expect(primary).toBeFocused()
+        expect(await primary.textContent()).toContain('S1 · E2')
+        await a.keyboard.press('Enter')
         await expect(now('S1 · E2')).toBeVisible()
         // Season 1's last episode leads to season 2's first.
         await a.getByRole('button', { name: 'Next episode' }).click()

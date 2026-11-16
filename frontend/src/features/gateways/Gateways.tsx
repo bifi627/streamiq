@@ -200,7 +200,7 @@ export function Gateways() {
           ))}
         </ul>
       )}
-      {gateways?.length === 0 && !err && (
+      {gateways?.length === 0 && (
         <State
           icon="gateway"
           title="No gateways yet."

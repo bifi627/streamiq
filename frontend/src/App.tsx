@@ -413,12 +413,17 @@ function Shell() {
   const gateway = gateways.find((g) => g.id === gatewayId)
   useEffect(() => {
     if (gatewayId) setLastGateway(gatewayId)
+    let gone = false // an older gateway's answer must not land on this one
     getGateways()
       .then((g) => {
+        if (gone) return
         setGateways(g)
         setFetched({ for: gatewayId, ok: true })
       })
-      .catch(() => setFetched({ for: gatewayId, ok: false })) // the Gateways list / library show their own errors
+      .catch(() => !gone && setFetched({ for: gatewayId, ok: false })) // the Gateways list / library show their own errors
+    return () => {
+      gone = true
+    }
   }, [gatewayId])
   const dot =
     fetched?.for !== gatewayId

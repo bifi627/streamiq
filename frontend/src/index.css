@@ -794,6 +794,9 @@ html.tv .no-tv {
     opacity: 0.5;
   }
 }
+.dot.loading {
+  animation: ph 1.2s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
   .ph,
   .dot.loading {
@@ -836,9 +839,6 @@ html.tv .no-tv {
 .ph.poster {
   min-height: 13rem; /* Chrome 87: no aspect-ratio */
   background: var(--surface-2);
-}
-.dot.loading {
-  animation: ph 1.2s ease-in-out infinite;
 }
 .dot.failed {
   background: none;

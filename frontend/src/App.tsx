@@ -57,6 +57,7 @@ import { Join } from './features/households/Invites'
 import { Household } from './features/households/HouseholdPage'
 import {
   HouseholdContext,
+  SetMeContext,
   householdLabel,
   switchHousehold,
 } from './features/households/household'
@@ -498,7 +499,9 @@ function Shell() {
         )}
         {err && <ErrorView error={err} />}
         <HouseholdContext.Provider value={me}>
-          <Outlet />
+          <SetMeContext.Provider value={setMe}>
+            <Outlet />
+          </SetMeContext.Provider>
         </HouseholdContext.Provider>
       </main>
       <Diagnostics />

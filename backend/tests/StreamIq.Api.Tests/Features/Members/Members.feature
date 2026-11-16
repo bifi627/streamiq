@@ -85,3 +85,24 @@ Feature: Members
     When "bob@home.test" removes "bob@home.test" from the household of "alice@home.test"
     Then the answer is 204
     And "bob@home.test" is admin of exactly one new household
+
+  Scenario: An admin names the household; members see the name, can't change it
+    When "alice@home.test" names the household of "alice@home.test" "  The Smiths  "
+    Then the answer is 200
+    And "bob@home.test" sees the household of "alice@home.test" named "The Smiths"
+    When "bob@home.test" names the household of "alice@home.test" "Bob's"
+    Then the answer is 403
+    And "alice@home.test" sees the household of "alice@home.test" named "The Smiths"
+
+  Scenario: A household name is required and at most 100 characters
+    When "alice@home.test" names the household of "alice@home.test" "   "
+    Then the answer is 400
+    When "alice@home.test" names the household of "alice@home.test" a 101-character name
+    Then the answer is 400
+    When "alice@home.test" names the household of "alice@home.test" a 100-character name
+    Then the answer is 200
+
+  Scenario: Another household can't be named
+    When "alice@home.test" names the household of "dave@home.test" "Mine now"
+    Then the answer is 404
+    And "dave@home.test" sees the household of "dave@home.test" unnamed

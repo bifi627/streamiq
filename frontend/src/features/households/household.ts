@@ -6,6 +6,8 @@ export { householdLabel } from '../../api'
 // The one /me of this page load (Shell fetches it) and the household it acts in.
 // null until /me is in.
 export const HouseholdContext = createContext<Me | null>(null)
+// Shell's setter, for a change made on this page (a household rename, #384).
+export const SetMeContext = createContext<(me: Me) => void>(() => {})
 
 export function useHousehold() {
   const me = useContext(HouseholdContext)

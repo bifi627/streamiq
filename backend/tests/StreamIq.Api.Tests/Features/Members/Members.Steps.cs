@@ -69,6 +69,33 @@ public partial class MembersSteps(IntegrationFixture fx)
         _last = await Send(email, HttpMethod.Put, $"/api/members/{id}/role", await HouseholdOf(owner), new { role });
     }
 
+    [When("\"(.*)\" names the household of \"(.*)\" \"(.*)\"")]
+    public async Task WhenNames(string email, string owner, string name)
+    {
+        _last?.Dispose();
+        _last = await Send(email, HttpMethod.Put, "/api/households/current/name", await HouseholdOf(owner), new { name });
+    }
+
+    [When(@"""(.*)"" names the household of ""(.*)"" a (\d+)-character name")]
+    public Task WhenNamesLong(string email, string owner, int length)
+    {
+        return WhenNames(email, owner, new string('x', length));
+    }
+
+    [Then("\"(.*)\" sees the household of \"(.*)\" named \"(.*)\"")]
+    public async Task ThenNamed(string email, string owner, string? name)
+    {
+        var h = await HouseholdOf(owner);
+        var m = (await Me(email, h)).GetProperty("memberships").EnumerateArray().Single(m => m.GetProperty("id").GetGuid() == h);
+        Assert.Equal(name, m.GetProperty("name").GetString());
+    }
+
+    [Then("\"(.*)\" sees the household of \"(.*)\" unnamed")]
+    public Task ThenUnnamed(string email, string owner)
+    {
+        return ThenNamed(email, owner, null);
+    }
+
     [When("\"(.*)\" and \"(.*)\" demote each other at once in the household of \"(.*)\"")]
     public async Task WhenRace(string a, string b, string owner)
     {

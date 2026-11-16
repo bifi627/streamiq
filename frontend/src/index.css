@@ -464,9 +464,10 @@ html.tv .no-tv {
 .card-head h2 {
   overflow-wrap: anywhere;
 }
-/* name + Rename, or the inline rename form (#310, #365) */
+/* name + Rename, or the inline rename form (#310, #365, #384) */
 .card-head .name,
-.card .clients .name {
+.card .clients .name,
+.household .head .name {
   display: flex;
   flex: 1;
   flex-wrap: wrap;
@@ -475,7 +476,8 @@ html.tv .no-tv {
   min-width: 0;
 }
 .card-head .name input,
-.card .clients .name input {
+.card .clients .name input,
+.household .head .name input {
   flex: 1;
   min-width: 10rem;
 }

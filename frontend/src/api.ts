@@ -97,6 +97,12 @@ export type Membership = {
   role: 'admin' | 'member'
 }
 export type Me = { userId: string; tenantId: string; memberships: Membership[] }
+// Admin only (#384); the stored (trimmed) name comes back.
+export const renameHousehold = (name: string) =>
+  authed<{ name: string }>('/households/current/name', {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  }).then((r) => r.name)
 // Shell calls it once per sign-in: forget the previous user's household first (sign
 // out + in again doesn't reload the page).
 export function getMe() {

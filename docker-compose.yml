@@ -56,7 +56,7 @@ services:
     # host-reachable, so coturn must advertise the published (mapped) address or
     # the relayed candidate is a black hole. Dev-only; both POC peers are on the
     # host. Real relay in the field is Cloudflare TURN, not this.
-    image: coturn/coturn:4.18.0
+    image: coturn/coturn:4.19.1
     profiles: ["relay"]
     command: >-
       turnserver -n --use-auth-secret --static-auth-secret=dev --realm streamiq.dev

@@ -35,7 +35,7 @@
     <!-- Task 2: Firebase ID-token verification (VerifyIdTokenAsync). Same call
          path in dev (emulator) and prod (real issuer) — the only .NET option
          honoring the no-auth-bypass rule. -->
-    <PackageReference Include="FirebaseAdmin" Version="3.7.0" />
+    <PackageReference Include="FirebaseAdmin" Version="3.7.1" />
   </ItemGroup>
 
 </Project>

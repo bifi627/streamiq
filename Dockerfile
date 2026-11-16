@@ -4,7 +4,7 @@
 # Railway service Root Directory = repo root (build context needs backend/ + frontend/).
 # Base tags float at patch level on purpose — they pick up security updates.
 
-FROM node:24-alpine AS web
+FROM node:26-alpine AS web
 WORKDIR /web
 # Public-by-design Firebase web config, baked into the bundle at build time.
 # Railway passes same-named service variables as build args.

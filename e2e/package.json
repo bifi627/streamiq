@@ -7,9 +7,9 @@
     "preview": "node preview.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
-    "@types/node": "^24.19.2",
-    "testcontainers": "^12.0.0"
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^26.6.6",
+    "testcontainers": "^12.2.1"
   },
   "overrides": {
     "glob": "^14.0.2",

@@ -7,7 +7,7 @@ import { pairInfo } from '../../stats'
 import { dataSaverOn } from '../../settings'
 import { connect } from '../pairing/connect'
 import { isKind } from '../../errors'
-import { getGateways, type Gateway } from '../gateways/api'
+import { useGateways } from '../gateways/api'
 import { describe, probe } from '../library/profile'
 import { useHousehold } from '../households/household'
 
@@ -16,8 +16,10 @@ type Test = { lines: string[]; failed?: string }
 export function DiagnosticsPage() {
   useSyncExternalStore(subscribe, snapshot) // Force relay checkbox, cpu/memory lines
   const [caps, setCaps] = useState('probing…')
-  const [gateways, setGateways] = useState<Gateway[]>([])
-  const [gatewayId, setGatewayId] = useState('')
+  const gateways = useGateways().data ?? []
+  const [picked, setGatewayId] = useState('')
+  const gatewayId =
+    picked || ((gateways.find((g) => g.online) ?? gateways[0])?.id ?? '')
   const [test, setTest] = useState<Test | null>(null)
   const [running, setRunning] = useState(false)
   const [copied, setCopied] = useState('')
@@ -29,12 +31,6 @@ export function DiagnosticsPage() {
       .catch((e) =>
         setCaps(`probe failed: ${e instanceof Error ? e.message : e}`),
       )
-    getGateways()
-      .then((gs) => {
-        setGateways(gs)
-        setGatewayId((gs.find((g) => g.online) ?? gs[0])?.id ?? '')
-      })
-      .catch(() => {})
   }, [])
 
   async function run() {

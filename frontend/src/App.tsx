@@ -50,7 +50,8 @@ import {
 } from './settings'
 import { arrowFocus } from './focus'
 import { clearArtThen } from './leave'
-import { getGateways, type Gateway } from './features/gateways/api'
+import { useGateways } from './features/gateways/api'
+import { useQueryClient } from '@tanstack/react-query'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
 import { Household } from './features/households/HouseholdPage'
@@ -403,36 +404,27 @@ function Shell() {
 
   // Gateway routes: that gateway's status chip. The Library link stays on other
   // routes too: the last opened gateway (per device), else the only one.
-  // Fetched on entering/leaving a gateway. ponytail: online is as of then,
+  // Refetched on entering/leaving a gateway. ponytail: online is as of then,
   // poll if it needs to be live.
   const { gatewayId } = useParams({ strict: false })
-  const [gateways, setGateways] = useState<Gateway[]>([])
-  // The chip's dot (#206): loading / failed are not "offline". Keyed by the
-  // gateway it was fetched for: another one is loading until its answer.
-  const [fetched, setFetched] = useState<{ for?: string; ok: boolean }>()
+  const q = useGateways()
+  const qc = useQueryClient()
+  const gateways = q.data ?? []
   const gateway = gateways.find((g) => g.id === gatewayId)
   useEffect(() => {
     if (gatewayId) setLastGateway(gatewayId)
-    let gone = false // an older gateway's answer must not land on this one
-    getGateways()
-      .then((g) => {
-        if (gone) return
-        setGateways(g)
-        setFetched({ for: gatewayId, ok: true })
-      })
-      .catch(() => !gone && setFetched({ for: gatewayId, ok: false })) // the Gateways list / library show their own errors
-    return () => {
-      gone = true
-    }
-  }, [gatewayId])
-  const dot =
-    fetched?.for !== gatewayId
-      ? 'loading'
-      : !fetched?.ok
-        ? 'failed'
-        : gateway?.online
-          ? 'online'
-          : 'offline'
+    // cancelRefetch false: joins the mount's fetch instead of a second one.
+    void qc.refetchQueries({ queryKey: ['gateways'] }, { cancelRefetch: false })
+  }, [gatewayId, qc])
+  // The chip's dot (#206): loading / failed are not "offline". The Gateways
+  // list / library show their own errors.
+  const dot = q.isPending
+    ? 'loading'
+    : q.isError
+      ? 'failed'
+      : gateway?.online
+        ? 'online'
+        : 'offline'
   const last = gateways.find((g) => g.id === lastGateway()) // gone = removed, or another household
   const libraryId =
     gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)

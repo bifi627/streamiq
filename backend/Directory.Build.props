@@ -10,6 +10,6 @@
   <ItemGroup>
     <!-- Flags every null-forgiving `!` without a `// ! <why>` justification comment
          (NX0001-4; severities in /.editorconfig). Analyzer only, nothing ships. -->
-    <PackageReference Include="Nullable.Extended.Analyzer" Version="1.18.0" PrivateAssets="all" />
+    <PackageReference Include="Nullable.Extended.Analyzer" Version="1.19.0" PrivateAssets="all" />
   </ItemGroup>
 </Project>

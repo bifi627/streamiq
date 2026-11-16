@@ -127,7 +127,8 @@ export function Pairing({
   )
 
   return (
-    // arrowFocus here too: in the library it renders outside any D-pad container.
+    // arrowFocus here too: an arrow moves within the pairing block first; the
+    // page's container (library, Gateways) takes it from there.
     <div className="pairing" ref={root} onKeyDown={arrowFocus}>
       <div className="actions">
         {/* One element for both: React keeps the DOM node, so focus stays put

@@ -533,19 +533,25 @@ html.tv .no-tv {
   gap: var(--sp-3);
   margin-bottom: var(--sp-2);
 }
-.install pre {
+/* Copyable text (install command, invite link): no clipboard API on plain
+   http, so one click selects all of it. */
+.install pre,
+.invite-link pre {
   margin: 0;
-  padding: var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
   font:
-    0.8125rem/1.5 ui-monospace,
+    0.875rem/1.5 ui-monospace,
     Consolas,
     monospace;
   white-space: pre-wrap;
   word-break: break-all;
-  user-select: all; /* one click selects the whole command */
+  user-select: all;
+}
+.install pre {
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 0.8125rem;
 }
 
 /* Pairing (#226): actions, then one state box: waiting (code) or OK; failed = ErrorView. */
@@ -682,16 +688,6 @@ html.tv .no-tv {
 /* right-aligned: under Invite someone, so the D-pad's Down lands on them */
 .invite-link .actions {
   justify-content: flex-end;
-}
-.invite-link pre {
-  margin: 0;
-  font:
-    0.875rem/1.5 ui-monospace,
-    Consolas,
-    monospace;
-  white-space: pre-wrap;
-  word-break: break-all;
-  user-select: all; /* no clipboard API on plain http: one click selects it */
 }
 /* /join: one centered card, Join the primary action. */
 .join {

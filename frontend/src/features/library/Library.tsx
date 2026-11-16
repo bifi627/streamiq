@@ -46,11 +46,9 @@ import {
 import { Privacy } from './Privacy'
 import { ICON, Icon } from './Controls'
 import { arrowFocus } from '../../focus'
-import { Tunnel, backdrop, primary } from './art'
+import { Tunnel, backdrop, items as getItems, primary } from './art'
 import { Artwork, minutes, Watched } from './Home'
 export { Home as LibraryHome } from './Home'
-
-type Page = { Items: Item[] }
 
 // Layout route: the gateway's shared tunnel (#152), held while navigating inside
 // it; leaving releases it (closed 30 s later unless reused).
@@ -179,11 +177,10 @@ function Title({ item, season }: { item: Item; season?: string }) {
   const [tab, setTab] = useState(season)
   useEffect(() => {
     if (!series) return
-    const get = (url: string) => tunnelJson<Page>(pc, url).then((p) => p.Items)
     // ponytail: every episode in one request; per season if huge shows lag.
     Promise.all([
-      get(`/Shows/${item.Id}/Seasons`),
-      get(`/Shows/${item.Id}/Episodes`),
+      getItems(pc, `/Shows/${item.Id}/Seasons`),
+      getItems(pc, `/Shows/${item.Id}/Episodes`),
     ]).then(
       ([seasons, episodes]) => setLists({ seasons, episodes }),
       (e) => setErr(toAppError(e)),
@@ -886,8 +883,8 @@ function Listing({
   const [err, setErr] = useState<AppError | null>(null)
 
   useEffect(() => {
-    tunnelJson<Page>(pc, `/Items?parentId=${item.Id}&sortBy=SortName`).then(
-      (p) => setItems(p.Items),
+    getItems(pc, `/Items?parentId=${item.Id}&sortBy=SortName`).then(
+      setItems,
       (e) => setErr(toAppError(e)),
     )
   }, [pc, item.Id])

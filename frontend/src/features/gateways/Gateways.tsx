@@ -24,6 +24,7 @@ import {
 } from '../../errors'
 import { isBack } from '../library/items'
 import { ErrorView } from '../../ErrorView'
+import { copyText } from '../../clipboard'
 import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
 import { useHousehold } from '../households/household'
@@ -142,12 +143,8 @@ export function Gateways() {
 
   // No clipboard API on plain http (a LAN address): a click on the command
   // selects all of it instead (CSS user-select: all).
-  function copy(label: string, cmd: string) {
-    navigator.clipboard
-      ?.writeText(cmd)
-      .then(() => setCopied(label))
-      .catch(() => {})
-  }
+  const copy = (label: string, cmd: string) =>
+    copyText(cmd).then((ok) => ok && setCopied(label))
 
   return (
     <section className="gateways" onKeyDown={arrowFocus}>

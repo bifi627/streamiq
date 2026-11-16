@@ -6,8 +6,7 @@ import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
-import { tunnelJson } from '../../tunnel'
-import { backdrop, load, primary, Tunnel, type Art } from './art'
+import { backdrop, items, load, primary, Tunnel, type Art } from './art'
 import {
   clock,
   playable,
@@ -16,8 +15,9 @@ import {
   type Item,
 } from './items'
 
-type Page = { Items: Item[] }
-type Lists = { resume: Item[]; recent: Item[]; views: Item[] }
+// Each row loads on its own (#317): one that fails shows its error, the others stay.
+type Shelf = Item[] | AppError
+type Lists = { resume: Shelf; recent: Shelf; views: Shelf }
 
 const RECENT =
   '/Items?sortBy=DateCreated&sortOrder=Descending&recursive=true&includeItemTypes=Movie,Series&limit=16'
@@ -44,17 +44,15 @@ export function Home() {
   const { gatewayId, pc } = useContext(Tunnel)
   const navigate = useNavigate()
   const [lists, setLists] = useState<Lists | null>(null)
-  const [err, setErr] = useState<AppError | null>(null)
   useEffect(() => {
-    const get = (url: string) => tunnelJson<Page>(pc, url).then((p) => p.Items)
+    // All settled before the home shows: first focus lands as before (#203).
+    const get = (url: string) =>
+      items(pc, url).catch((e: unknown) => toAppError(e))
     Promise.all([
       get('/UserItems/Resume?mediaTypes=Video&limit=4'),
       get(RECENT),
       get('/UserViews'),
-    ]).then(
-      ([resume, recent, views]) => setLists({ resume, recent, views }),
-      (e) => setErr(toAppError(e)),
-    )
+    ]).then(([resume, recent, views]) => setLists({ resume, recent, views }))
   }, [pc])
 
   const open = (i: Item) =>
@@ -78,11 +76,13 @@ export function Home() {
       params: { gatewayId, itemId: (i.SeasonId ?? i.SeriesId)! },
     })
 
-  if (err) return <ErrorView error={err} />
   if (!lists) return <p>Loading…</p>
-  const [spot, ...more] = lists.resume
+  const ok = (r: Shelf) => (r instanceof AppError ? [] : r)
+  const [spot, ...more] = ok(lists.resume)
+  const recent = ok(lists.recent)
   return (
     <div className="home">
+      {lists.resume instanceof AppError && <ErrorView error={lists.resume} />}
       {spot && (
         <div className="resume">
           <article className="spot">
@@ -134,8 +134,8 @@ export function Home() {
           )}
         </div>
       )}
-      <Row title="Recently added">
-        {lists.recent.map((i, n) => (
+      <Row title="Recently added" error={lists.recent}>
+        {recent.map((i, n) => (
           <Pick
             key={i.Id}
             item={i}
@@ -145,14 +145,14 @@ export function Home() {
           />
         ))}
       </Row>
-      <Row title="Libraries">
-        {lists.views.map((i, n) => (
+      <Row title="Libraries" error={lists.views}>
+        {ok(lists.views).map((i, n) => (
           <Pick
             key={i.Id}
             item={i}
             art={primary(i)}
             wide
-            first={!spot && !lists.recent.length && n === 0}
+            first={!spot && !recent.length && n === 0}
             onOpen={pick}
           />
         ))}
@@ -161,12 +161,21 @@ export function Home() {
   )
 }
 
-function Row({ title, children }: { title: string; children: ReactNode[] }) {
-  if (!children.length) return null
+function Row({
+  title,
+  error,
+  children,
+}: {
+  title: string
+  error: Shelf
+  children: ReactNode[]
+}) {
+  const failed = error instanceof AppError
+  if (!failed && !children.length) return null
   return (
     <section className="shelf">
       <h2>{title}</h2>
-      <ul>{children}</ul>
+      {failed ? <ErrorView error={error} /> : <ul>{children}</ul>}
     </section>
   )
 }
@@ -211,7 +220,7 @@ export function Watched({ item }: { item: Item }) {
     <progress
       max={Math.max(dur, 1)}
       value={pos}
-      aria-label={`${item.Name} watched`}
+      aria-label={`${[item.SeriesName, item.Name].filter(Boolean).join(', ')} watched`}
       aria-valuetext={`${clock(pos)} of ${clock(dur)}`}
     />
   )

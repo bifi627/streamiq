@@ -4,7 +4,8 @@
 // keeps its size (index.css `.art`) until the image arrives.
 import { createContext } from 'react'
 import type { Item } from './items'
-import { tunnelFetch } from '../../tunnel'
+import { tunnelFetch, tunnelJson } from '../../tunnel'
+import { ART_PREFIX, artCleared } from '../../leave'
 import type { Speed } from '../../speed'
 
 // The gateway's shared tunnel session (Library.tsx GatewayLibrary).
@@ -16,22 +17,17 @@ export const Tunnel = createContext<{
 
 export type Art = { id: string; type: 'Primary' | 'Backdrop'; tag: string }
 
-const PREFIX = 'streamiq-art-'
 const CAP = 500 // ponytail: entry cap per gateway, oldest out first; a byte budget if images grow
+const TRIM_EVERY = 50 // puts between cap checks (+ the first): up to 49 over CAP
+const puts = new Map<string, number>()
 // Cache API: secure contexts only (https, localhost); without it, no cache.
-const store = () => (typeof caches === 'undefined' ? null : caches)
+// None either once a sign-out or household switch cleared them (leave.ts).
+const store = () =>
+  typeof caches === 'undefined' || artCleared() ? null : caches
 
-/** Deletes every gateway's artwork cache: on sign-out and a household switch. */
-export async function clearArt() {
-  const c = store()
-  if (!c) return
-  try {
-    const names = (await c.keys()).filter((k) => k.startsWith(PREFIX))
-    await Promise.all(names.map((k) => c.delete(k)))
-  } catch {
-    /* storage blocked: nothing was cached either */
-  }
-}
+/** A page of Jellyfin items over the tunnel. */
+export const items = (pc: RTCPeerConnection, url: string) =>
+  tunnelJson<{ Items: Item[] }>(pc, url).then((p) => p.Items)
 
 // ponytail: at most 4 image channels in flight.
 let active = 0
@@ -56,7 +52,7 @@ export async function load(
   // Keyed by item + image type + size + Jellyfin's image tag (a new image = a new tag).
   const key = `/art/${a.id}/${a.type}/${width}/${a.tag}`
   const cache = await store()
-    ?.open(PREFIX + gatewayId)
+    ?.open(ART_PREFIX + gatewayId)
     .catch(() => undefined)
   const hit = await cache?.match(key).catch(() => undefined)
   if (hit) return hit.blob()
@@ -68,17 +64,22 @@ export async function load(
   )
   if (r.status !== 200) return null
   const blob = new Blob([r.body], { type: r.headers['Content-Type'] })
-  cache
-    ?.put(key, new Response(blob))
-    .then(() => cache.keys())
-    .then((keys) =>
-      Promise.all(
-        keys
-          .slice(0, Math.max(0, keys.length - CAP))
-          .map((k) => cache.delete(k)),
-      ),
-    )
-    .catch(() => {}) // full or blocked: shown anyway, just not kept
+  if (cache && !artCleared()) {
+    const n = (puts.get(gatewayId) ?? 0) + 1
+    puts.set(gatewayId, n)
+    cache
+      .put(key, new Response(blob))
+      .then(async () => {
+        if (n > 1 && n % TRIM_EVERY) return // and once per page load
+        const keys = await cache.keys()
+        await Promise.all(
+          keys
+            .slice(0, Math.max(0, keys.length - CAP))
+            .map((k) => cache.delete(k)),
+        )
+      })
+      .catch(() => {}) // full or blocked: shown anyway, just not kept
+  }
   return blob
 }
 

@@ -49,7 +49,7 @@ import {
   tvOn,
 } from './settings'
 import { arrowFocus } from './focus'
-import { clearArt } from './features/library/art'
+import { clearArtThen } from './leave'
 import { getGateways, type Gateway } from './features/gateways/api'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
@@ -603,7 +603,7 @@ export default function App() {
       // account (the gateway plays it as that user's Jellyfin viewer, #195);
       // the artwork caches go with it (#203).
       if (was && was.uid !== u?.uid)
-        return void clearArt().finally(() => location.reload())
+        return clearArtThen(() => location.reload())
       was = u
       setUser(u)
       setReady(true)

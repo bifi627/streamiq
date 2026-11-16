@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { authed } from '../../api'
+import { copyText } from '../../clipboard'
 import { switchHousehold } from './household'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
@@ -70,10 +71,7 @@ export function Invites() {
 
   // No clipboard API on plain http (a LAN address): the link selects on click.
   const copy = (url: string) =>
-    navigator.clipboard
-      ?.writeText(url)
-      .then(() => setCopied(true))
-      .catch(() => {})
+    copyText(url).then((ok) => ok && setCopied(true))
   const share = (url: string) =>
     navigator
       .share({ title: 'Join my StreamIQ household', url })

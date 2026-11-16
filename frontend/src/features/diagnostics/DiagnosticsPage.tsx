@@ -2,6 +2,7 @@
 // gateway is, as a report to paste into a support request. No email, no IPs.
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { diag, relayOn, setFlag, snapshot, subscribe } from '../../diag'
+import { copyText } from '../../clipboard'
 import { pairInfo } from '../../stats'
 import { dataSaverOn } from '../../settings'
 import { connect } from '../pairing/connect'
@@ -99,14 +100,12 @@ export function DiagnosticsPage() {
       : ['connection test: not run']),
   ].join('\n')
 
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(report)
-      setCopied('Copied.')
-    } catch {
-      setCopied('Copy blocked: select the text below instead.') // insecure origin / old TV
-    }
-  }
+  const copy = async () =>
+    setCopied(
+      (await copyText(report))
+        ? 'Copied.'
+        : 'Copy blocked: select the text below instead.', // insecure origin / old TV
+    )
 
   // The tokens' page layout (#230): Settings' column of cards (.settings).
   return (

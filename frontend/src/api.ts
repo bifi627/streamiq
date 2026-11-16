@@ -1,5 +1,5 @@
 import { auth } from './firebase'
-import { clearArt } from './features/library/art'
+import { clearArtThen } from './leave'
 import { AppError, httpError } from './errors'
 
 // Prod: the API serves this bundle, so same origin. Dev: vite :5173, API :5028.
@@ -65,7 +65,7 @@ function lostHousehold(id: string): Promise<never> {
     /* no notice: the reload still lands on the default household */
   }
   setHousehold(null)
-  clearArt().finally(() =>
+  clearArtThen(() =>
     location.pathname === '/join' ? location.reload() : location.replace('/'),
   ) // the lost household's artwork goes too (#203)
   return new Promise(() => {}) // ponytail: the page is going away; callers never settle

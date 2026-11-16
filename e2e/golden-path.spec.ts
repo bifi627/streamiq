@@ -36,6 +36,11 @@ async function signIn(browser: Browser, create = false, path = '/') {
   await page
     .getByRole('button', { name: create ? 'Create account' : 'Sign in' })
     .click()
+  if (create) {
+    // A new account picks its alias first (#388): keeps the prefilled email.
+    await expect(page.getByLabel('Your name')).toHaveValue(email())
+    await page.getByRole('button', { name: 'Continue' }).click()
+  }
   if (path === '/')
     await expect(page.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   return page
@@ -132,7 +137,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
           name: 'StreamIQ gateway · Living room NAS',
         }),
       ).toBeVisible()
-      await gatewayPage.close()
       await a.reload()
       await expect(
         a.getByRole('heading', { level: 2, name: 'Living room NAS' }),
@@ -159,7 +163,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       gateway = await startGateway(stateDir, env)
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       await expect(gatewayPage.getByText('StreamIQ: connected')).toBeVisible() // back on the broker
-      await gatewayPage.close()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
@@ -192,7 +195,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       gateway = await startGateway(stateDir, env)
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       await expect(gatewayPage.getByText('StreamIQ: connected')).toBeVisible()
-      await gatewayPage.close()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
@@ -911,6 +913,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         origin: new URL(app).origin,
         storageTypes: 'indexeddb',
       })
+      // Firebase's IndexedDB poll sees the sign-in gone and the app reloads
+      // (App.tsx onAuthStateChanged). Wait for that reload to land on the
+      // sign-in form, or it aborts / overtakes the goto below (#386).
+      await expect(a.getByLabel('Email')).toBeVisible()
       await a.goto(`${app}/g/${id}`)
       await a.getByLabel('Email').fill(email())
       await a.getByLabel('Password', { exact: true }).fill(password)

@@ -235,8 +235,8 @@ export type StackOptions = {
   label?: string
   /** Give Jellyfin all NVIDIA GPUs (`--gpus all`) and turn on NVENC. */
   nvenc?: boolean
-  /** Start Jellyfin only on the first stack.jellyfin() call (the e2e run). */
-  lazyJellyfin?: boolean
+  /** No Jellyfin: the e2e's workers start their own (startJellyfin, fixtures.ts). */
+  noJellyfin?: boolean
 }
 
 // tmpfs over every VOLUME the image declares, so no run leaves an anonymous
@@ -271,11 +271,11 @@ async function emulatorImage() {
 
 /**
  * Jellyfin with the fixture media and its libraries (setupJellyfin): the slow part
- * of the stack, so the e2e starts it only when a spec asks (stack.jellyfin(n)).
+ * of the stack, so the e2e starts it only when a spec asks (fixtures.ts).
  */
-async function startJellyfin(
-  o: StackOptions,
-  labeled: (c: GenericContainer) => GenericContainer,
+export async function startJellyfin(
+  o: Partial<StackOptions> = {},
+  labeled = (c: GenericContainer) => c,
 ) {
   const jellyfinContainer = labeled(
     new GenericContainer(pin('jellyfin/jellyfin'))
@@ -370,13 +370,8 @@ export async function startStack(o: StackOptions) {
   const firebaseImage = await emulatorImage()
 
   const apiOut = path.join(o.dir, 'api')
-  // Eager (preview) or on the first jellyfin(n) call (e2e: only specs that need it).
-  const jellyfins = new Map<number, ReturnType<typeof startJellyfin>>()
-  const startJf = (n = 0) => {
-    if (!jellyfins.has(n)) jellyfins.set(n, startJellyfin(o, labeled))
-    return jellyfins.get(n)!
-  }
-  if (!o.lazyJellyfin) startJf().catch(() => {}) // rejects at its await below
+  const jellyfin = o.noJellyfin ? undefined : startJellyfin(o, labeled)
+  jellyfin?.catch(() => {}) // rejects at its await below
   const [pg, firebase, { coturn, turnPort }] = await Promise.all([
     labeled(
       new GenericContainer(pin('postgres'))
@@ -498,7 +493,7 @@ export async function startStack(o: StackOptions) {
   )
 
   await Promise.all([
-    ...jellyfins.values(), // eager: its start ran alongside everything above
+    jellyfin, // its start ran alongside everything above
     waitHttp(`${api}/healthz`, backend),
     // 127.0.0.1: Vite listens on IPv4 only. LAN: the caller trusts the
     // self-signed cert (NODE_EXTRA_CA_CERTS).
@@ -510,27 +505,13 @@ export async function startStack(o: StackOptions) {
     api,
     emulator,
     procs: [backend, vite],
-    /** Jellyfin number n + fixture media, started on first call; its URL. */
-    jellyfin: async (n = 0) => {
-      try {
-        return (await startJf(n)).url
-      } catch (e) {
-        jellyfins.delete(n) // the slot's next worker tries again
-        throw e
-      }
-    },
     async stop() {
       await Promise.all([backend.stop(), vite.stop()])
       // Ryuk reaps the containers even if this never runs (crash, Ctrl+C).
       await Promise.all([
         pg.stop(),
         firebase.stop(),
-        ...[...jellyfins.values()].map((j) =>
-          j.then(
-            (j) => j.container.stop(),
-            () => {},
-          ),
-        ),
+        jellyfin?.then((j) => j.container.stop()),
         coturn.stop(),
       ])
     },

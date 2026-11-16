@@ -1,6 +1,6 @@
 // Fixtures every spec imports `test` from (instead of @playwright/test):
-// - jellyfin: a Jellyfin for this worker slot, started on first use
-//   (global-setup.ts). Any spec that starts a gateway asks for it; a run of
+// - jellyfin: a Jellyfin for this worker, started on first use
+//   (stack.ts). Any spec that starts a gateway asks for it; a run of
 //   specs that don't never starts Jellyfin.
 // - paired: a signed-in browser paired with its own fresh gateway.
 import { test as base, type BrowserContext, type Page } from '@playwright/test'
@@ -13,6 +13,7 @@ import {
   uniqueEmail,
   type User,
 } from './helpers.ts'
+import { startJellyfin } from './stack.ts'
 
 type Paired = {
   user: User
@@ -23,20 +24,18 @@ type Paired = {
 
 export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
   jellyfin: [
-    async ({}, use, workerInfo) => {
-      // One per parallel slot, not one per run: each gateway's Jellyfin login
+    async ({}, use) => {
+      // One per worker, not one per run: each gateway's Jellyfin login
       // resets the shared streamiq-admin / streamiq-viewer passwords, so two
       // gateways alive on one Jellyfin lock each other out (HTTP 401). The
       // same holds for library state (offline / extras, scans): tests running
       // at the same time never share a Jellyfin. A test that changes it puts it
-      // back; the next test in its slot gets the same Jellyfin.
-      // parallelIndex: a restarted worker gets its slot's Jellyfin back.
-      const res = await fetch(
-        `${process.env.E2E_HARNESS_URL}/jellyfin/${workerInfo.parallelIndex}`,
-      )
-      if (!res.ok) throw new Error(`Jellyfin: ${await res.text()}`)
-      process.env.E2E_JELLYFIN_URL = await res.text() // startGateway reads it
-      await use(process.env.E2E_JELLYFIN_URL)
+      // back; the next test in its worker gets the same Jellyfin.
+      // Started here, in the worker: testcontainers shares the runner's Ryuk,
+      // which reaps it with the rest of the stack if this worker is killed.
+      const jf = await startJellyfin() // sets E2E_JELLYFIN_URL (startGateway reads it)
+      await use(jf.url)
+      await jf.container.stop()
     },
     { scope: 'worker' },
   ],

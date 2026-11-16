@@ -4,7 +4,7 @@ import { defineConfig } from '@playwright/test'
 // Firebase Auth emulator, coturn, Jellyfin; backend, Vite, and the gateway as real
 // processes — is started by global-setup.ts, not `webServer` (it needs the
 // containers' random ports, which only exist after setup runs). Jellyfin only
-// once a spec asks for it, one per worker slot (fixtures.ts).
+// once a spec asks for it, one per worker (fixtures.ts).
 //
 // Tests run in parallel on that one stack, so each is independent: own accounts
 // (uniqueEmail), own gateway. Area tags pick a slice while working on it:

@@ -145,7 +145,7 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 | `backend/` | Control plane: API + WebRTC signaling (one web app) | .NET 10, EF Core, Postgres |
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
-| `e2e/` | E2E specs on one stack, in parallel: `golden-path` (browser → broker → gateway → Jellyfin), `multi-user` (two users over the tunnel), `households` (join / switch / leave / removed, no gateway). `test` comes from `fixtures.ts` (Jellyfin per worker slot, started only when a spec needs it; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`, unique accounts (`uniqueEmail`); an area tag per test (`@golden` `@gateways` `@player` `@households`) | Playwright + testcontainers-node |
+| `e2e/` | E2E specs on one stack, in parallel: `golden-path` (browser → broker → gateway → Jellyfin), `multi-user` (two users over the tunnel), `households` (join / switch / leave / removed, no gateway). `test` comes from `fixtures.ts` (Jellyfin per worker, started only when a spec needs it; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`, unique accounts (`uniqueEmail`); an area tag per test (`@golden` `@gateways` `@player` `@households`) | Playwright + testcontainers-node |
 | `scripts/` | Dev + CI scripts (`check.sh`, `dev.ps1`, `gen-test-media.sh`, …) | bash / PowerShell |
 | `dev/firebase/` | Auth emulator config for compose | — |
 

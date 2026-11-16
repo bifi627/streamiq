@@ -39,6 +39,8 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
       await use(jf.url)
       await jf.container.stop()
     },
+    // A worker fixture has its own timeout slot (the project's 180 s), so its
+    // startup never eats into the first test's budget (#397).
     { scope: 'worker' },
   ],
   // ponytail: per test (~10 s: a gateway + one pairing). The client key is a

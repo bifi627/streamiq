@@ -137,9 +137,10 @@ export async function tunnelOk(p: Page) {
 /**
  * Opens the local gateway page in a new tab. Navigating the old tab races its
  * 3s meta refresh: whichever navigation starts second cancels the first (#149).
+ * Old tabs stay open (closed with the context): on a busy runner closing one
+ * blocked for minutes (#397), and their refreshes are harmless GETs.
  */
 export async function gatewayTab(ctx: BrowserContext, url: string) {
-  for (const p of ctx.pages()) await p.close() // drops the pending refresh
   const page = await ctx.newPage()
   await page.goto(url)
   return page

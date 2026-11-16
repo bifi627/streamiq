@@ -6,7 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { newPage, signIn, signUp, type User } from './helpers.ts'
 
 const app = () => process.env.E2E_APP_URL!
-// householdLabel() in api.ts: households have no name yet.
+// householdLabel() in api.ts: an unnamed household (none renamed yet, #384).
 const label = (u: User) => `Household …${u.tenantId.slice(-6)}`
 
 test('households: join, switch, removed while open, leave', async ({
@@ -32,6 +32,7 @@ test('households: join, switch, removed while open, leave', async ({
     await p.getByRole('link', { name: 'Household' }).click()
     await expect(p.getByRole('heading', { level: 1 })).toHaveText(label(A))
     await expect(p.getByText('You are a member')).toBeVisible()
+    await expect(p.getByRole('button', { name: 'Rename' })).toHaveCount(0) // admin only (#384)
   }
 
   await test.step('B joins A’s household through an invite link (#191)', async () => {
@@ -74,5 +75,14 @@ test('households: join, switch, removed while open, leave', async ({
     expect(
       (await A.api<{ userId: string }[]>('/members')).map((m) => m.userId),
     ).toEqual([A.userId])
+  })
+
+  await test.step('B, an admin, renames its household (#384)', async () => {
+    await b.getByRole('button', { name: 'Rename' }).click()
+    await b.getByLabel('Household name').fill('  The B family  ')
+    await b.getByRole('button', { name: 'Save' }).click()
+    await expect(heading).toHaveText('The B family') // at once, no reload
+    await b.reload()
+    await expect(heading).toHaveText('The B family') // stored
   })
 })

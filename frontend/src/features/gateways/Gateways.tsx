@@ -436,7 +436,7 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
 // and this browser is paired with it (#310, #329), a paired client's (#365).
 // Enter saves (form submit), Escape / the remote's Back cancels; arrowFocus
 // reaches the controls. children replaces the shown name (the <h2> by default).
-function EditableName({
+export function EditableName({
   name,
   label,
   rename,

@@ -145,7 +145,7 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 | `backend/` | Control plane: API + WebRTC signaling (one web app) | .NET 10, EF Core, Postgres |
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
-| `e2e/` | E2E specs on one stack: `golden-path` (browser → broker → gateway → Jellyfin), `multi-user` (two users over the tunnel), `households` (join / switch / leave / removed, no gateway); shared helpers in `helpers.ts` | Playwright + testcontainers-node |
+| `e2e/` | E2E specs on one stack, in parallel: `golden-path` (browser → broker → gateway → Jellyfin), `multi-user` (two users over the tunnel), `households` (join / switch / leave / removed, no gateway). `test` comes from `fixtures.ts` (Jellyfin per worker slot, started only when a spec needs it; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`, unique accounts (`uniqueEmail`); an area tag per test (`@golden` `@gateways` `@player` `@households`) | Playwright + testcontainers-node |
 | `scripts/` | Dev + CI scripts (`check.sh`, `dev.ps1`, `gen-test-media.sh`, …) | bash / PowerShell |
 | `dev/firebase/` | Auth emulator config for compose | — |
 
@@ -181,7 +181,8 @@ npm run dev --prefix frontend                 # frontend
 npm run build --prefix frontend               # frontend build check
 go run ./cmd/gateway                          # gateway (from gateway/; reads gateway/gateway.env from setup-jellyfin.sh)
 go test ./...                                 # gateway tests (from gateway/)
-npm test --prefix e2e                         # E2E specs (Playwright + Chrome, Docker; ~30s)
+npm test --prefix e2e                         # E2E specs (Playwright + Chrome, Docker; ~2.5 min)
+npm test --prefix e2e -- --grep @households   # one area only (tags: playwright.config.ts); no Jellyfin unless the area needs it
 npm run preview --prefix e2e [-- status|down]  # this worktree's stack on the LAN (HTTPS) for phone/TV tests; owner: `/preview [tunnel]` / `/preview stop` (skill; docs/tools.md)
 ```
 

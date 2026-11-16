@@ -39,9 +39,11 @@ func LoadOrCreate(dir string) (*webrtc.Certificate, string, error) {
 		serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 127))
 		cert, err := webrtc.NewCertificate(key, x509.Certificate{
 			SerialNumber: serial,
-			Subject:      pkix.Name{CommonName: "streamiq-gateway"},
-			NotBefore:    time.Now().Add(-time.Hour),
-			NotAfter:     time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC),
+			// Sent in cleartext in the DTLS 1.2 handshake: the name browsers and
+			// Pion use, so it doesn't tag the flow as StreamIQ to an observer.
+			Subject:   pkix.Name{CommonName: "WebRTC"}, // self-signed: Issuer = Subject
+			NotBefore: time.Now().Add(-time.Hour),
+			NotAfter:  time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC),
 		})
 		if err != nil {
 			return nil, "", err

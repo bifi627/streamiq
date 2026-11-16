@@ -367,7 +367,6 @@ type browser struct {
 	pc   *webrtc.PeerConnection
 	auth *webrtc.DataChannel
 	in   chan map[string]any
-	reps chan Report // the gateway's tunnel reports for this session
 
 	mu    sync.Mutex                // gateway → browser signaling arrives from several goroutines
 	early []webrtc.ICECandidateInit // gateway candidates that beat the answer
@@ -383,13 +382,13 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { pc.Close() })
-	b := &browser{t: t, pc: pc, in: make(chan map[string]any, 8), reps: make(chan Report, 4)}
+	b := &browser{t: t, pc: pc, in: make(chan map[string]any, 8)}
 	// Signaling behaves like production: the gateway reads its control socket one
 	// message at a time and the browser sends the offer before any candidate
 	// (inOrder); the browser holds candidates that beat the answer (fromGateway).
 	// Without both, candidates got dropped and ICE sometimes never connected (#105).
 	var inOrder sync.Mutex
-	handle := func(m Msg) { raw, _ := json.Marshal(m); gateway.Handle(raw, b.fromGateway) }
+	handle := func(m Msg) { raw, _ := json.Marshal(m); gateway.Handle(raw, func(v any) { b.fromGateway(v.(Msg)) }) }
 	toGateway := func(m Msg) { inOrder.Lock(); defer inOrder.Unlock(); handle(m) }
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c != nil {
@@ -428,12 +427,7 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 
 // fromGateway applies the gateway's signaling like the frontend (connect.ts):
 // candidates that arrive before the answer wait for it.
-func (b *browser) fromGateway(v any) {
-	if r, ok := v.(Report); ok {
-		b.reps <- r
-		return
-	}
-	m := v.(Msg)
+func (b *browser) fromGateway(m Msg) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	switch m.Type {
@@ -667,6 +661,8 @@ func TestTunnelChannelCap(t *testing.T) {
 // The gateway reports each tunnel once when it ends (#390), read before the
 // PeerConnection closes: a paired one with its route and bytes and no failure,
 // an unpaired one with why it never got the tunnel. A second bye sends nothing.
+// Reports go on the control socket that is up, not the offer's: one made while
+// none was up is held until the next is announced.
 func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/Users" {
@@ -682,16 +678,19 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
 	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
-	bye := func(id string, b *browser) Report {
-		raw, _ := json.Marshal(Msg{Type: "bye", Session: id})
-		gateway.Handle(raw, b.fromGateway)
+	reps := make(chan Report, 4)
+	next := func() Report {
 		select {
-		case r := <-b.reps:
+		case r := <-reps:
 			return r
 		case <-time.After(10 * time.Second):
-			t.Fatal("no tunnel report after bye")
+			t.Fatal("no tunnel report")
 			return Report{}
 		}
+	}
+	bye := func(id string) {
+		raw, _ := json.Marshal(Msg{Type: "bye", Session: id})
+		gateway.Handle(raw, func(any) { t.Error("a report on the offer's socket") })
 	}
 
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -708,7 +707,10 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	if b.say(nil)["type"] != "approved" || b.fetch() != "jellyfin" {
 		t.Fatal("want a working tunnel")
 	}
-	r := bye("s1", b)
+	gateway.Handle(nil, nil) // the control socket dropped
+	bye("s1")
+	gateway.Handle(nil, func(v any) { reps <- v.(Report) }) // a new one is up
+	r := next()
 	if r.Type != "tunnel" || r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
 		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 {
 		t.Fatalf("report of a served tunnel = %+v", r)
@@ -717,13 +719,13 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	other, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	u := connect(t, gateway, "s2", other, false)
 	u.say(nil) // unpaired
-	if r := bye("s2", u); r.Failure == nil || *r.Failure != "unpaired" {
+	bye("s2")
+	if r := next(); r.Failure == nil || *r.Failure != "unpaired" {
 		t.Fatalf("report of an unpaired tunnel = %+v", r)
 	}
-	raw, _ := json.Marshal(Msg{Type: "bye", Session: "s2"})
-	gateway.Handle(raw, u.fromGateway)
+	bye("s2")
 	select {
-	case r := <-u.reps:
+	case r := <-reps:
 		t.Fatalf("second report %+v", r)
 	case <-time.After(time.Second): // also covers the Closed state callback that follows
 	}

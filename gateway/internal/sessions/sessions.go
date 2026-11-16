@@ -68,6 +68,9 @@ type Sessions struct {
 	ends  map[string]func(iceFailed bool) // session id → its one way out: report, then close (end)
 	cands map[string]*signaled            // session id → the kinds of candidate the browser signaled
 	API   *webrtc.API                     // from NewAPI; nil = Pion defaults
+
+	ctl     func(any) // the control socket that is up (RunControl's handle(nil, send)); nil = none
+	backlog []Report  // tunnel reports made while none was up, sent on the next one
 }
 
 // NewAPI builds the one WebRTC API all sessions share. Native runs need
@@ -105,7 +108,21 @@ func (s *Sessions) Active() int {
 }
 
 // Handle processes one broker message; send writes JSON to the current control socket.
+// A nil raw announces the control socket that is up (send), or that it dropped (nil send).
 func (s *Sessions) Handle(raw []byte, send func(any)) {
+	if raw == nil {
+		s.mu.Lock()
+		s.ctl = send
+		var backlog []Report
+		if send != nil {
+			backlog, s.backlog = s.backlog, nil
+		}
+		s.mu.Unlock()
+		for _, r := range backlog {
+			send(r)
+		}
+		return
+	}
 	var m Msg
 	if json.Unmarshal(raw, &m) != nil || m.Session == "" {
 		return // heartbeat acks etc.: not ours
@@ -209,7 +226,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 			// Includes a browser that refused us (pin mismatch): it hangs up before auth.
 			failure = ptr("ended before auth")
 		}
-		send(report(id, pc, &cands, failure))
+		s.report(report(id, pc, &cands, failure))
 		pc.Close()
 	}
 	s.mu.Lock()
@@ -410,6 +427,21 @@ func (s *Sessions) Drop(keyFp string) {
 	}
 	if len(victims) > 0 {
 		log.Printf("gateway: removed browser: closed %d session(s)", len(victims))
+	}
+}
+
+// report sends r on the control socket that is up now, not the one that carried the
+// offer: a tunnel often ends because that one dropped ("gateway gone"). None up = held
+// for the next. ponytail: capped; a gateway that stays offline past it, or exits, loses them.
+func (s *Sessions) report(r Report) {
+	s.mu.Lock()
+	send := s.ctl
+	if send == nil && len(s.backlog) < 1000 {
+		s.backlog = append(s.backlog, r)
+	}
+	s.mu.Unlock()
+	if send != nil {
+		send(r)
 	}
 }
 

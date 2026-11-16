@@ -43,9 +43,11 @@ Feature: Tunnel telemetry
     And gateway "nas" reports that tunnel as failed because "ice failed"
     Then the tunnel is stored as relayed with 5000 bytes sent and no failure
 
-  Scenario: A gateway cannot report another gateway's tunnel, even knowing its id
+  # Same household on purpose: the tenant filter would hide another household's row
+  # anyway, so this is what proves the gateway check itself.
+  Scenario: A gateway cannot report another gateway's tunnel, even in the same household
     Given "alice@home.test" has an online gateway "nas"
-    And "bob@home.test" has an online gateway "evil"
+    And "alice@home.test" has an online gateway "evil"
     When "alice@home.test" offers to gateway "nas"
     And gateway "nas" receives the offer
     And gateway "evil" reports that tunnel as relayed with 5000 bytes sent

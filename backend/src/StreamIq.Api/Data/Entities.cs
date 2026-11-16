@@ -88,5 +88,5 @@ public class Tunnel : ITenantOwned
     public int? ThroughputKbps { get; set; }            // the client's gateway → client measurement (#162); null = none finished
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? EndedAt { get; set; }        // the broker: the browser's signaling socket closed
-    public string? Failure { get; set; }                // null = tunnel came up and passed auth; else why not (no pair: Relay/types unset)
+    public string? Failure { get; set; }                // why it never came up / passed auth (no pair: Relay/types unset); null = it did, but only when reported (BytesSent not null)
 }

@@ -196,7 +196,8 @@ offer the broker routes:
 - **End**: the browser's broker socket closing (the `bye` path) stamps `EndedAt`; duration
   = `EndedAt - CreatedAt`.
 - **Gateway report**: when a session's PeerConnection fails or closes (any path: ICE,
-  `bye`, a removed client), the gateway sends once, read from pion before `pc.Close()`:
+  `bye`, a removed client), the gateway sends once, read from pion before `pc.Close()`, on
+the control socket that is up then (not the offer's: held until the next one if none is):
   `{type:"tunnel", session, relay, ipv6, localCandidateType, remoteCandidateType, protocol,
   bytesSent, bytesReceived, failure}`. From the gateway's side: `local` = the gateway's
   selected candidate, `remote` = the browser's, `bytesSent` = gateway → client (ICE
@@ -216,7 +217,9 @@ never connected) = candidate fields absent. `failure`:
   socket. Only the caller's own tunnel (another user's or tenant's → `404`). A closed tab
   skips it.
 
-Rate queries: `failure IS NULL` = up. `relay` = either selected candidate is a relay. The
+Rate queries: up = `"BytesSent" IS NOT NULL AND "Failure" IS NULL`; unreported (a gateway
+below protocol 2, a lost report, one that never answered the offer) = `"BytesSent" IS NULL`,
+whose `Relay`/`Failure` say nothing. `relay` = either selected candidate is a relay. The
 browser's own reading of its pair (`getStats()`; Chrome can report a relayed local candidate
 as `prflx`, only relay candidates carry `relayProtocol`, so that counts too) drives the
 player's privacy indicator (polled every 2 s) and Diagnostics, not telemetry.

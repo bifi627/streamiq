@@ -84,8 +84,10 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   }).catch((e: Error) => {
     throw new AppError('network', `${path}: ${e.message}`)
   })
-  if (res.status === 404 && h && res.headers.has('X-StreamIQ-Not-Member'))
-    return lostHousehold(h)
+  if (res.status === 404 && res.headers.has('X-StreamIQ-Not-Member'))
+    // No household at all (#387): Shell shows the no-household screen once /me
+    // is in, in place of the page that asked. ponytail: never settles, like lostHousehold.
+    return h ? lostHousehold(h) : new Promise<never>(() => {})
   if (!res.ok) throw httpError('api', res.status, path)
   return (res.status === 204 ? null : res.json()) as Promise<T>
 }
@@ -96,7 +98,15 @@ export type Membership = {
   name: string | null
   role: 'admin' | 'member'
 }
-export type Me = { userId: string; tenantId: string; memberships: Membership[] }
+// tenantId null = in no household yet (#387): memberships is empty.
+export type Me = {
+  userId: string
+  tenantId: string | null
+  memberships: Membership[]
+}
+// Any signed-in user (#387): a new household with them as its admin.
+export const createHousehold = () =>
+  authed<{ householdId: string }>('/households', { method: 'POST' })
 // Admin only (#384); the stored (trimmed) name comes back. loaded keeps it too,
 // for a later "no longer a member of …" notice.
 export const renameHousehold = (name: string) =>

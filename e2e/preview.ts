@@ -343,7 +343,7 @@ async function serve() {
       nvenc, // NVIDIA GPU on this machine → Jellyfin transcodes on it
     })
 
-    // Seed: account (the API provisions its tenant on first sign-in), then a
+    // Seed: account with its own household (sign-up makes none, #387), then a
     // gateway onboarded the way "Add gateway" does, until it is online.
     const signUp = await fetch(
       `${stack.emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
@@ -363,6 +363,7 @@ async function serve() {
       if (!r.ok) throw new Error(`${method} /api${p}: HTTP ${r.status}`)
       return r.json()
     }
+    await authed('/households', 'POST')
     const { token } = await authed('/gateways/enrollment-tokens', 'POST')
     const stateDir = path.join(dir, 'gateway-state') // fresh DB each up → fresh gateway
     fs.rmSync(stateDir, { recursive: true, force: true })

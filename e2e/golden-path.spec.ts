@@ -35,6 +35,9 @@ async function signIn(browser: Browser, create = false, path = '/') {
   await page
     .getByRole('button', { name: create ? 'Create account' : 'Sign in' })
     .click()
+  if (create)
+    // Sign-up makes no household (#387): the user creates one.
+    await page.getByRole('button', { name: 'Create a household' }).click()
   if (path === '/')
     await expect(page.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   return page

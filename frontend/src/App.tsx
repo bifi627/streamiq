@@ -16,6 +16,7 @@ import {
   Outlet,
   RouterProvider,
   useCanGoBack,
+  useLocation,
   useNavigate,
   useParams,
   useRouter,
@@ -54,7 +55,7 @@ import { useGateways } from './features/gateways/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
-import { Household } from './features/households/HouseholdPage'
+import { Household, NoHousehold } from './features/households/HouseholdPage'
 import {
   HouseholdContext,
   SetMeContext,
@@ -429,6 +430,16 @@ function Shell() {
   const last = gateways.find((g) => g.id === lastGateway()) // gone = removed, or another household
   const libraryId =
     gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)
+  // In no household (#387): only Settings and /join (the way in) still open;
+  // every other page is household-scoped, the no-household screen stands in.
+  const homeless = me !== null && me.tenantId === null
+  const { pathname } = useLocation()
+  const page =
+    homeless && pathname !== '/settings' && pathname !== '/join' ? (
+      <NoHousehold />
+    ) : (
+      <Outlet />
+    )
 
   return (
     // D-pad (#230): an arrow no page container used (its edge, or a page
@@ -445,8 +456,8 @@ function Shell() {
           Stream<span>IQ</span>
         </span>
         <nav className="nav" aria-label="Main" onKeyDown={arrowFocus}>
-          <Link to="/gateways">Gateways</Link>
-          {libraryId && (
+          {!homeless && <Link to="/gateways">Gateways</Link>}
+          {libraryId && !homeless && (
             <Link to="/g/$gatewayId" params={{ gatewayId: libraryId }}>
               Library
             </Link>
@@ -458,7 +469,7 @@ function Shell() {
         {me && me.memberships.length > 1 && (
           <select
             aria-label="Switch household"
-            value={me.tenantId}
+            value={me.tenantId ?? ''}
             onChange={(e) => switchHousehold(e.target.value)}
           >
             {me.memberships.map((m) => (
@@ -499,9 +510,7 @@ function Shell() {
         )}
         {err && <ErrorView error={err} />}
         <HouseholdContext.Provider value={me}>
-          <SetMeContext.Provider value={setMe}>
-            <Outlet />
-          </SetMeContext.Provider>
+          <SetMeContext.Provider value={setMe}>{page}</SetMeContext.Provider>
         </HouseholdContext.Provider>
       </main>
       <Diagnostics />

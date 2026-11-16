@@ -25,12 +25,13 @@ export type User = {
   email: string
   uid: string // Firebase
   userId: string // users.id
-  tenantId: string // the household made on first sign-in
+  tenantId: string // their own household (signUp makes it), '' with none
   api: <T = any>(path: string, init?: RequestInit) => Promise<T>
 }
 
-/** A new emulator account, provisioned by the API (first /me). */
-export async function signUp(email: string): Promise<User> {
+/** A new emulator account, provisioned by the API (first /me), with a household
+ * of its own as its admin (Create a household, #387) unless household is false. */
+export async function signUp(email: string, household = true): Promise<User> {
   const r = await fetch(
     `${process.env.E2E_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
     {
@@ -54,12 +55,13 @@ export async function signUp(email: string): Promise<User> {
     const text = await res.text()
     return text ? JSON.parse(text) : null
   }
+  if (household) await api('/households', { method: 'POST' })
   const me = await api('/me')
   return {
     email,
     uid: r.localId,
     userId: me.userId,
-    tenantId: me.tenantId,
+    tenantId: me.tenantId ?? '',
     api,
   }
 }

@@ -269,9 +269,14 @@ export function Gateways() {
                   }
                 >
                   {/* Every device (#248); the library shows it only in TV mode. */}
-                  <Link to="/g/$gatewayId/screen" params={{ gatewayId: d.id }}>
-                    Use as screen
-                  </Link>
+                  {!unpaired.has(d.id) && (
+                    <Link
+                      to="/g/$gatewayId/screen"
+                      params={{ gatewayId: d.id }}
+                    >
+                      Use as screen
+                    </Link>
+                  )}
                   {d.lanUrl && (
                     <a href={d.lanUrl} target="_blank" rel="noreferrer">
                       Gateway page

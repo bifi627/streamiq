@@ -58,6 +58,7 @@ export function Home() {
 // a member gets told an admin does them instead (#211).
 export function Gateways() {
   const q = useGateways(5000)
+  const qc = useQueryClient()
   const gateways = q.data ?? null // null = loading
   const role = useHousehold().current?.role
   const admin = role === 'admin'
@@ -65,14 +66,15 @@ export function Gateways() {
   const [copied, setCopied] = useState<string | null>(null)
   // An action's error, until the next successful poll (as the load error).
   const [actErr, setActErr] = useState<{ e: AppError; at: number } | null>(null)
-  const setErr = (e: AppError) => setActErr({ e, at: q.dataUpdatedAt })
+  // Tagged with the data at failure, not at click: a poll may land meanwhile.
+  const setErr = (e: AppError) =>
+    setActErr({ e, at: qc.getQueryState(['gateways'])?.dataUpdatedAt ?? 0 })
   const err = q.error
     ? toAppError(q.error)
     : actErr?.at === q.dataUpdatedAt
       ? actErr.e
       : null
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const removing = useMutation({
     mutationFn: removeGateway,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['gateways'] }),
@@ -111,8 +113,11 @@ export function Gateways() {
   // null = renamed; else the error to show in the form.
   async function rename(d: Gateway, name: string) {
     try {
-      await renameGateway(d.id, name)
-      // The gateway tells the API at once (a heartbeat on rename).
+      const stored = await renameGateway(d.id, name)
+      // Shown at once; the gateway tells the API with a heartbeat on rename.
+      qc.setQueryData<Gateway[]>(['gateways'], (gs) =>
+        gs?.map((g) => (g.id === d.id ? { ...g, name: stored } : g)),
+      )
       void qc.invalidateQueries({ queryKey: ['gateways'] })
       return null
     } catch (e) {

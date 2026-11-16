@@ -14,14 +14,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode"
-	"unicode/utf16"
 
 	"github.com/coder/websocket"
+
+	"streamiq/gateway/internal/pairing"
 )
 
 const heartbeatEvery = 30 * time.Second
@@ -46,10 +45,9 @@ type State struct {
 	renamed chan struct{} // one pending signal: send a heartbeat now
 }
 
-// ErrBadName: a name must be 1–100 characters after trimming, counted in UTF-16
-// units like the API (an emoji is 2), and without control characters (Postgres
-// text refuses NUL).
-var ErrBadName = errors.New("name must be 1-100 characters, no control characters")
+// ErrBadName: pairing.ErrBadName's rule (no control characters: Postgres text
+// refuses NUL).
+var ErrBadName = pairing.ErrBadName
 
 // CurrentName is the gateway's name now.
 func (s *State) CurrentName() string {
@@ -61,9 +59,9 @@ func (s *State) CurrentName() string {
 // SetName trims name, stores it in gateway.json (atomically) and asks
 // RunControl for an early heartbeat, so the API mirrors it at once.
 func (s *State) SetName(name string) (string, error) {
-	name = strings.TrimSpace(name)
-	if n := len(utf16.Encode([]rune(name))); n < 1 || n > 100 || strings.ContainsFunc(name, unicode.IsControl) {
-		return "", ErrBadName
+	name, err := pairing.CleanName(name)
+	if err != nil {
+		return "", err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

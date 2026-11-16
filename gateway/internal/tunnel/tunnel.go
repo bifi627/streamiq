@@ -201,7 +201,7 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 // gatewayAPI answers /streamiq/* (docs/protocol.md, "Gateway API"): the gateway
 // itself, never Jellyfin, and without a Jellyfin token. Only an exact, unencoded
 // path matches (GET, or POST on the screen endpoints, /streamiq/name,
-// /streamiq/clients/remove and /streamiq/update);
+// /streamiq/clients/remove, /streamiq/clients/rename and /streamiq/update);
 // anything else under the prefix is 404.
 func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[string]string, io.ReadCloser, error) {
 	method := rq.Method
@@ -215,6 +215,8 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 		return rename(j.Rename, rq.Body)
 	case u.Path == ClientsRemovePath && method == "POST" && j.Clients != nil:
 		return removeClient(j.Clients, rq.Body, who)
+	case u.Path == ClientsRenamePath && method == "POST" && j.Clients != nil:
+		return renameClient(j.Clients, rq.Body, who)
 	case u.Path == UpdatePath && method == "POST" && j.Update != nil:
 		return startUpdate(j.Update)
 	case method != "GET":
@@ -258,6 +260,8 @@ const NamePath = "/streamiq/name"
 // ErrBadRequest from a gateway API hook (Jellyfin.Rename) answers 400.
 var ErrBadRequest = errors.New("bad request")
 
+var errNotFound = errors.New("gateway API: not found")
+
 func rename(set func(string) (string, error), body string) (int, map[string]string, io.ReadCloser, error) {
 	var in struct{ Name string }
 	if json.Unmarshal([]byte(body), &in) != nil {
@@ -266,6 +270,9 @@ func rename(set func(string) (string, error), body string) (int, map[string]stri
 	name, err := set(in.Name)
 	if errors.Is(err, ErrBadRequest) {
 		return http.StatusBadRequest, nil, nil, err
+	}
+	if errors.Is(err, errNotFound) {
+		return http.StatusNotFound, nil, nil, err
 	}
 	if err != nil {
 		return 0, nil, nil, err
@@ -279,9 +286,12 @@ func rename(set func(string) (string, error), body string) (int, map[string]stri
 // self = the calling session's client key. ClientsRemovePath removes one: POST
 // {"keyFp": "…"} → 200 {}, unknown → 404. The allowlist lives on the gateway only.
 // A member sees and removes only its own client key (#341): any other key → 403.
+// ClientsRenamePath renames one (#365): POST {"keyFp", "name"} → 200 {"name": stored},
+// same access and 404 as remove, a bad name 400.
 const (
 	ClientsPath       = "/streamiq/clients"
 	ClientsRemovePath = "/streamiq/clients/remove"
+	ClientsRenamePath = "/streamiq/clients/rename"
 )
 
 func clients(st *pairing.Store, who Session) (int, map[string]string, io.ReadCloser, error) {
@@ -327,6 +337,26 @@ func removeClient(st *pairing.Store, body string, who Session) (int, map[string]
 			log.Printf("gateway: remove client: %v", err) // the in-memory allowlist refuses it anyway
 		}
 	}}, err
+}
+
+func renameClient(st *pairing.Store, body string, who Session) (int, map[string]string, io.ReadCloser, error) {
+	var in struct{ KeyFp, Name string }
+	if json.Unmarshal([]byte(body), &in) != nil || in.KeyFp == "" {
+		return http.StatusBadRequest, nil, nil, errors.New("gateway API: rename client: bad body")
+	}
+	if in.KeyFp != who.Key && who.Role != Admin { // before the lookup, like removeClient
+		return http.StatusForbidden, nil, nil, errors.New("gateway API: rename client: a member renames only its own")
+	}
+	return rename(func(name string) (string, error) {
+		n, err := st.Rename(in.KeyFp, name)
+		switch {
+		case errors.Is(err, pairing.ErrNotPaired):
+			return "", errNotFound
+		case errors.Is(err, pairing.ErrBadName):
+			return "", fmt.Errorf("%w: %w", ErrBadRequest, err)
+		}
+		return n, err
+	}, body)
 }
 
 // afterReply is a response body whose after runs once the reply is delivered

@@ -19,8 +19,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf16"
 
 	"streamiq/gateway/internal/identity"
 )
@@ -142,6 +145,45 @@ func (s *Store) Remove(keyFp string) error {
 		s.OnRemove(keyFp)
 	}
 	return err
+}
+
+// ErrBadName: a name must be 1–100 characters after trimming, counted in UTF-16
+// units like the API (an emoji counts 2), with no control characters. Gateway
+// (#310) and client (#365) names share the rule.
+var ErrBadName = errors.New("name must be 1-100 characters, no control characters")
+
+// ErrNotPaired: Rename of a key that isn't on the allowlist.
+var ErrNotPaired = errors.New("not paired")
+
+// CleanName trims name and checks it against ErrBadName's rule.
+func CleanName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if n := len(utf16.Encode([]rune(name))); n < 1 || n > 100 || strings.ContainsFunc(name, unicode.IsControl) {
+		return "", ErrBadName
+	}
+	return name, nil
+}
+
+// Rename gives a paired client a new name (#365) and saves the allowlist; a
+// failed save keeps the old name. Open sessions keep the name they started with.
+func (s *Store) Rename(keyFp, name string) (string, error) {
+	name, err := CleanName(name)
+	if err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.paired, func(p Paired) bool { return p.KeyFp == keyFp })
+	if i < 0 {
+		return "", ErrNotPaired
+	}
+	old := s.paired[i].Name
+	s.paired[i].Name = name
+	if err := s.save(); err != nil {
+		s.paired[i].Name = old
+		return "", err
+	}
+	return name, nil
 }
 
 // Reserve takes one of the MaxPending pairing slots. A pairing exchange holds

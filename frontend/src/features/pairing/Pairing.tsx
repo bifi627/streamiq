@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { connect } from './connect'
-import { getPin } from './store'
-import { AppError, toAppError } from '../../errors'
+import { browserName, connect } from './connect'
+import { clientKey, getPin } from './store'
+import { AppError, renameMessage, toAppError } from '../../errors'
+import { renameClient } from '../gateways/api'
+import { isBack } from '../library/items'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { pairInfo, type PairInfo } from '../../stats'
@@ -188,7 +190,80 @@ export function Pairing({
           </dl>
         </div>
       )}
+      {s.step === 'done' && s.paired && (
+        // Closing it unmounts the focused control: keep the D-pad's place (#226).
+        <NamePrompt
+          gatewayId={gatewayId}
+          onDone={() => testBtn.current?.focus()}
+        />
+      )}
       {err && <ErrorView error={err} onRetry={() => run(false)} pair={null} />}
     </div>
+  )
+}
+
+// Once, right after pairing (#365): name this client, prefilled with the name it
+// paired with. Skip keeps that name; renaming later is on the gateway's Paired
+// clients list. The gateway owns the name: POST /streamiq/clients/rename.
+function NamePrompt({
+  gatewayId,
+  onDone,
+}: {
+  gatewayId: string
+  onDone: () => void
+}) {
+  const [draft, setDraft] = useState<string | null>(browserName) // null = done
+  const [error, setError] = useState<string | null>(null)
+  const done = () => {
+    onDone() // while the form still has focus to give away
+    setDraft(null)
+  }
+  if (draft === null) return null
+  return (
+    <form
+      className="name-prompt"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        try {
+          await renameClient(gatewayId, (await clientKey()).fp, draft.trim())
+          done()
+        } catch (x) {
+          setError(renameMessage(toAppError(x)))
+        }
+      }}
+      onKeyDown={(e) => {
+        if (!isBack(e.nativeEvent)) return
+        e.preventDefault() // else the browser's own Back runs too (webOS remote)
+        done()
+      }}
+    >
+      <label>
+        Name this browser
+        <input
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value)
+            setError(null)
+          }}
+          maxLength={100}
+          required
+          pattern=".*\S.*"
+          placeholder="e.g. Living room TV"
+        />
+      </label>
+      <div className="actions">
+        <button type="submit" className="primary">
+          Save
+        </button>
+        <button type="button" onClick={done}>
+          Skip
+        </button>
+      </div>
+      {error && (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
   )
 }

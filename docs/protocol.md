@@ -323,7 +323,7 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/clients/remove` and `/streamiq/update`) matches an endpoint; anything else under the prefix (unknown path, other method,
+`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename` and `/streamiq/update`) matches an endpoint; anything else under the prefix (unknown path, other method,
 percent-encoded) is `404`. A `body` over 64 KB is `413`. A handler's own failure
 (e.g. `/streamiq/name` can't write `state/gateway.json`) is `500`, never the `502`
 that means Jellyfin is unreachable (#327). Like every
@@ -379,7 +379,15 @@ member's list holds only its own entry (#341).
 `200 {}`; a member naming any key but its own `403` (#341), unknown key `404`, a failed save of `allowlist.json` `500`. The calling
 browser's own key is removed only once the reply is delivered (the browser closed the
 request channel, at most `EOFGrace` 10 s later), so it still gets its `200` before its
-session closes. Names and keys stay on
+session closes.
+**`POST /streamiq/clients/rename`** (#365) `{ "keyFp": "…", "name": "Living room TV" }` →
+`200 { "name": "<stored>" }`, saved in `allowlist.json`. The name rules of
+`/streamiq/name` (trimmed, 1–100 UTF-16 units, no control characters, else `400`); the
+access and errors of remove (a member names only its own key, `403`; unknown key
+`404`; failed save `500`, the old name kept). An open screen keeps the name it opened
+with until it opens again. The web app offers it once right after pairing (prefilled
+with the paired name, Skip keeps it) and on the Paired clients list; a gateway older
+than this answers `404`. Names and keys stay on
 the gateway: the API never sees or stores them.
 
 **`POST /streamiq/update`** (#312, admin-only, body ignored) → `202 { "version": "1.5.0" }`: the

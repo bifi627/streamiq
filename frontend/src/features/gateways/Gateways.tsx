@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   createEnrollmentToken,
   getGateways,
   listClients,
   removeClient,
+  renameClient,
   removeGateway,
   renameGateway,
   type Client,
@@ -220,8 +221,9 @@ export function Gateways() {
           {gateways.map((d) => (
             <li key={d.id} className="card" data-gateway={d.id}>
               <div className="card-head">
-                <GatewayName
+                <EditableName
                   name={d.name ?? 'gateway'}
+                  label="Gateway name"
                   rename={
                     admin && d.online && pinned.has(d.id)
                       ? (n) => rename(d, n)
@@ -438,15 +440,20 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 )
 
-// The name, plus an inline Rename for an admin while the gateway is online and
-// this browser is paired with it (#310, #329). Enter saves (form submit),
-// Escape / the remote's Back cancels; arrowFocus reaches the controls.
-function GatewayName({
+// The name, plus an inline Rename: a gateway's for an admin while it is online
+// and this browser is paired with it (#310, #329), a paired client's (#365).
+// Enter saves (form submit), Escape / the remote's Back cancels; arrowFocus
+// reaches the controls. children replaces the shown name (the <h2> by default).
+function EditableName({
   name,
+  label,
   rename,
+  children,
 }: {
   name: string
+  label: string
   rename?: (name: string) => Promise<string | null>
+  children?: ReactNode
 }) {
   const [draft, setDraft] = useState<string | null>(null) // null = not editing
   const [error, setError] = useState<string | null>(null)
@@ -462,7 +469,7 @@ function GatewayName({
   if (draft === null || !rename)
     return (
       <div className="name">
-        <h2>{name}</h2>
+        {children ?? <h2>{name}</h2>}
         {rename && (
           <button
             ref={renameBtn}
@@ -494,7 +501,7 @@ function GatewayName({
       }}
     >
       <input
-        aria-label="Gateway name"
+        aria-label={label}
         value={draft}
         onChange={(e) => {
           setDraft(e.target.value)
@@ -550,7 +557,7 @@ function StatusDetails({ g }: { g: Gateway }) {
   )
 }
 
-// Admin-only (#311): the gateway's paired clients over the shared tunnel
+// The gateway's paired clients (#311; a member sees only its own, #341) over the shared tunnel
 // session, loaded each time the section opens. Removing one ends its sessions;
 // removing this browser closes the tunnel, and the card offers Pair again.
 function PairedClients({
@@ -590,6 +597,20 @@ function PairedClients({
       : (msg ?? (list ? null : 'loading…'))
   const shown = g.online && !unpaired ? list : null
 
+  // null = renamed (#365); else the error to show in the form.
+  async function rename(c: Client, name: string) {
+    try {
+      const stored = await renameClient(g.id, c.keyFp, name)
+      setList(
+        (l) =>
+          l && l.map((x) => (x.keyFp === c.keyFp ? { ...x, name: stored } : x)),
+      )
+      return null
+    } catch (x) {
+      return clientRenameMessage(toAppError(x))
+    }
+  }
+
   async function remove(c: Client) {
     if (
       !confirm(
@@ -621,11 +642,17 @@ function PairedClients({
         <ul className="clients">
           {shown.map((c) => (
             <li key={c.keyFp}>
-              <span>
-                {c.name}
-                {c.self && <b> (this browser)</b>} · paired{' '}
-                {new Date(c.addedAt).toLocaleDateString()}
-              </span>
+              <EditableName
+                name={c.name}
+                label="Client name"
+                rename={(n) => rename(c, n)}
+              >
+                <span>
+                  {c.name}
+                  {c.self && <b> (this browser)</b>} · paired{' '}
+                  {new Date(c.addedAt).toLocaleDateString()}
+                </span>
+              </EditableName>
               <button type="button" className="link" onClick={() => remove(c)}>
                 Remove
               </button>
@@ -636,6 +663,12 @@ function PairedClients({
     </details>
   )
 }
+
+// 404: a gateway older than #365, or the client was removed meanwhile.
+const clientRenameMessage = (e: AppError) =>
+  e.context.status === 404
+    ? 'Not renamed: update the gateway, or reopen the list if this client was removed.'
+    : renameMessage(e)
 
 const clientsMessage = (e: AppError) =>
   isKind(e, 'not-paired')

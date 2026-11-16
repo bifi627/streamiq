@@ -140,7 +140,12 @@ export function DiagnosticsPage() {
               </select>
             </label>
           ) : (
-            <span>Gateway: {gw ? (gw.name ?? gw.id) : 'none'}</span>
+            <span>
+              Gateway:{' '}
+              {gw
+                ? `${gw.name ?? gw.id}${gw.online ? '' : ' (offline)'}`
+                : 'none'}
+            </span>
           )}
           <button
             type="button"

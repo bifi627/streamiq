@@ -264,9 +264,15 @@ export function Controls({
       } else if (a.dataset.volume) {
         setVol(v, v.volume + (k === 'arrowup' ? 0.1 : -0.1))
       } else {
-        // Down from the last row: the diagnostics dock, if it's on (#230).
+        // Down from the last row: the diagnostics dock, if it's on (#230);
+        // not in fullscreen, where it isn't shown.
         const dock = document.querySelector<HTMLElement>('.dock-bar')
-        if (dock && k === 'arrowdown' && row === rows.length - 1)
+        if (
+          dock &&
+          !document.fullscreenElement &&
+          k === 'arrowdown' &&
+          row === rows.length - 1
+        )
           return dock.focus()
         const next = row + (k === 'arrowup' ? -1 : 1) + rows.length
         items(rows[next % rows.length])[0].focus()

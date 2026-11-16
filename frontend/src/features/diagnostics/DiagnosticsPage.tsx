@@ -108,59 +108,70 @@ export function DiagnosticsPage() {
     }
   }
 
+  // The tokens' page layout (#230): Settings' column of cards (.settings).
   return (
-    <section>
-      <h2>Diagnostics</h2>
-      <p className="muted meta">tenant {me?.tenantId}</p>
-      <p>
-        <label>
-          Gateway{' '}
-          <select
-            value={gatewayId}
-            onChange={(e) => setGatewayId(e.target.value)}
+    <section className="settings diagnostics">
+      <div className="head">
+        <h1>Diagnostics</h1>
+        <p className="muted">
+          What this browser can play and how it reaches your gateway, as a
+          report for a support request. No email, no IPs.
+        </p>
+        <p className="muted meta">tenant {me?.tenantId}</p>
+      </div>
+
+      <div className="card">
+        <h2>Connection test</h2>
+        <div className="actions">
+          {gateways.length > 1 ? (
+            // ponytail: a <select> keeps the D-pad's arrows (focus.ts), so
+            // only when there is a choice to make.
+            <label>
+              Gateway{' '}
+              <select
+                value={gatewayId}
+                onChange={(e) => setGatewayId(e.target.value)}
+              >
+                {gateways.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name ?? g.id} {g.online ? '' : '(offline)'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <span>Gateway: {gw ? (gw.name ?? gw.id) : 'none'}</span>
+          )}
+          <button
+            type="button"
+            className="primary"
+            autoFocus
+            disabled={!gatewayId || running}
+            onClick={run}
           >
-            {gateways.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name ?? g.id} {g.online ? '' : '(offline)'}
-              </option>
-            ))}
-          </select>
-        </label>{' '}
-        <button
-          type="button"
-          autoFocus
-          disabled={!gatewayId || running}
-          onClick={run}
-        >
-          {running ? 'Testing…' : 'Test connection'}
-        </button>{' '}
-        <label>
-          <input
-            type="checkbox"
-            checked={relayOn()}
-            onChange={(e) => setFlag('relay', e.target.checked)}
-          />{' '}
-          Force relay (TURN)
-        </label>
-      </p>
-      <p>
-        <button type="button" onClick={copy}>
-          Copy report
-        </button>{' '}
-        {copied}
-      </p>
-      <pre
-        style={{
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-          border: '1px solid #888',
-          padding: 8,
-          textAlign: 'left',
-          userSelect: 'all',
-        }}
-      >
-        {report}
-      </pre>
+            {running ? 'Testing…' : 'Test connection'}
+          </button>
+          <label>
+            <input
+              type="checkbox"
+              checked={relayOn()}
+              onChange={(e) => setFlag('relay', e.target.checked)}
+            />{' '}
+            Force relay (TURN)
+          </label>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Report</h2>
+          <button type="button" onClick={copy}>
+            Copy report
+          </button>
+        </div>
+        {copied && <p role="status">{copied}</p>}
+        <pre className="report">{report}</pre>
+      </div>
     </section>
   )
 }

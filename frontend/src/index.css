@@ -1478,3 +1478,140 @@ progress::-moz-progress-bar {
 .settings .rows li:last-child {
   padding-bottom: 0;
 }
+
+/* Diagnostics page (#230): Settings' layout (.settings), the report as a
+   selectable monospace box. */
+.diagnostics .report {
+  align-self: stretch;
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: var(--fs-meta);
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
+
+/* Diagnostics dock (#71, #230): fixed to the bottom edge, one line collapsed;
+   open, a sheet of 45 % of the screen whose parts scroll in their own boxes.
+   .dock-space holds its height in the page so nothing hides behind it. */
+.dock {
+  position: fixed;
+  z-index: 11;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font:
+    var(--fs-meta) / 1.4 Consolas,
+    'DejaVu Sans Mono',
+    monospace;
+  text-align: left;
+}
+.dock-space {
+  height: calc(var(--target) + var(--sp-4));
+}
+.dock-space.open {
+  height: calc(45vh + var(--target));
+}
+.dock-bar {
+  display: flex;
+  gap: var(--sp-3);
+  width: 100%;
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dock-bar:focus-visible {
+  outline-offset: -3px; /* the screen's edge would cut it */
+}
+.dock-bar > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock-bar > .dock-title {
+  flex: none;
+  font-weight: 700;
+}
+.dock-bar > .dock-last {
+  flex: 1 1 0;
+  color: var(--text-muted);
+}
+.dock-sheet {
+  display: grid;
+  grid-template-columns: 1fr;
+  height: 45vh;
+  overflow: auto;
+  padding: 0 var(--sp-4) var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+.dock-info {
+  padding: var(--sp-2) 0;
+  overflow-wrap: anywhere;
+}
+.dock-info label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--target);
+}
+.dock-reqs table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dock-reqs td {
+  padding: 0 var(--sp-3) 0 0;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.dock-reqs td:last-child {
+  white-space: normal;
+  word-break: break-all;
+}
+.dock-log {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Wide (desktop, TV): requests and log side by side, each scrolls alone. */
+@media (min-width: 900px) {
+  .dock-sheet {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 0 var(--sp-5);
+    overflow: hidden;
+  }
+  .dock-info {
+    grid-column: 1 / -1;
+  }
+  .dock-reqs,
+  .dock-log {
+    overflow: auto;
+  }
+}
+/* TV: inside the 5 % safe area the body pads (TV mode) */
+html.tv .dock {
+  left: 5vw;
+  right: 5vw;
+  bottom: 5vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+/* Phone: above the bottom nav (3.25rem links + its padding and border) */
+@media (max-width: 600px) {
+  .dock {
+    bottom: calc(4.25rem + 1px);
+  }
+  .dock-bar .dock-title {
+    display: none;
+  }
+}

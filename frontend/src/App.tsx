@@ -282,10 +282,10 @@ function Settings() {
               </select>
             </label>
             <p className="muted">
-              {dataSaverOn() ? 'On now' : 'Off now'}: Auto quality stays at
-              480p and the speed test uses ~3 MB instead of up to ~50 MB.
-              Automatic turns it on on mobile data or when the browser asks to
-              save data. This browser reports:{' '}
+              {dataSaverOn() ? 'On now' : 'Off now'}: Auto quality stays at 480p
+              and the speed test uses ~3 MB instead of up to ~50 MB. Automatic
+              turns it on on mobile data or when the browser asks to save data.
+              This browser reports:{' '}
               {net
                 ? `connection ${net.type ?? 'unknown'}, save data ${net.saveData ? 'on' : 'off'}`
                 : 'nothing (no Network Information API)'}

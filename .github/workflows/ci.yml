@@ -56,8 +56,9 @@ jobs:
       - run: go vet ./... && go build ./... && go test -race ./...
         working-directory: gateway
 
-  # The e2e specs (golden path, multi-user, households). Containers via testcontainers-node,
-  # backend/Vite/gateway as real processes — see e2e/global-setup.ts.
+  # The e2e specs (golden path, multi-user, households), 3 workers on one stack (no sharding:
+  # e2e/playwright.config.ts). Containers via testcontainers-node, backend/Vite/gateway as
+  # real processes — see e2e/global-setup.ts.
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20

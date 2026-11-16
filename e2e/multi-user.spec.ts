@@ -2,21 +2,19 @@
 // Household page's invite link (#345), each plays as their own Jellyfin viewer
 // (#195), and switching accounts in one tab reloads, so no open tunnel carries
 // the old user into the new one (App.tsx).
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { expect, test } from './fixtures.ts'
 import {
   keepPcs,
   newPage,
   pair,
   signIn,
   signUp,
+  uniqueEmail,
   videoTime,
   viaTunnel,
 } from './helpers.ts'
 import { jellyfinAdminGet } from './jellyfin.ts'
-import { startGateway } from './stack.ts'
 
 const app = () => process.env.E2E_APP_URL!
 
@@ -36,33 +34,15 @@ async function playTo(p: Page, sec: number) {
   await p.goBack() // folder → library home
 }
 
-test('two users: own Jellyfin viewers, account switch reloads', async ({
-  browser,
-}) => {
-  const run = test.info().repeatEachIndex
-  const A = await signUp(`e2e-multi-a-${run}@streamiq.test`)
-  const B = await signUp(`e2e-multi-b-${run}@streamiq.test`)
-
-  // A's gateway, onboarded the way "Add gateway" does (the golden path drives that UI).
-  const { token } = await A.api('/gateways/enrollment-tokens', {
-    method: 'POST',
-  })
-  const gateway = await startGateway(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'streamiq-e2e-gateway-')),
-    {
-      STREAMIQ_API_URL: process.env.E2E_API_URL!,
-      STREAMIQ_ENROLL_TOKEN: token,
-    },
-  )
-  try {
-    await expect
-      .poll(async () => (await A.api('/gateways'))[0]?.online, {
-        timeout: 60_000,
-      })
-      .toBe(true)
-    const gatewayCtx = await browser.newContext()
-    if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
-
+test(
+  'two users: own Jellyfin viewers, account switch reloads',
+  {
+    tag: ['@gateways', '@player'],
+  },
+  async ({ browser, paired }) => {
+    // A: signed in, paired with A's own gateway (fixtures.ts).
+    const { user: A, page: a, gateway, gatewayCtx } = paired
+    const B = await signUp(uniqueEmail('multi-b'))
     // Each in their own browser (own client key), each paired.
     const client = async () => {
       const p = await newPage(browser) // own client key
@@ -71,13 +51,11 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
     }
     const connect = async (p: Page) => {
       await p.goto(app() + '/gateways')
-      await pair(p, gatewayCtx, gateway.pageUrl)
+      if (p !== a) await pair(p, gatewayCtx, gateway.pageUrl)
       await p.getByRole('button', { name: 'Open' }).click()
       await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible() // a live session
     }
-    const a = await client()
-    await a.goto(app() + '/gateways')
-    await signIn(a, A)
+    await keepPcs(a) // from its next navigation on (connect)
     const b = await client()
 
     await test.step('A invites from the Household page, revokes, invites again (#228, #337)', async () => {
@@ -181,7 +159,5 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
         card.getByText('This browser was removed: pair it again.'),
       ).toBeVisible()
     })
-  } finally {
-    await gateway.stop()
-  }
-})
+  },
+)

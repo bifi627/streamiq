@@ -2,19 +2,19 @@
 // invite link (#191), the switcher (#193), leave and removal by an admin (#192),
 // and the "no longer a member" recovery while the app is open (#210). The
 // invite UI itself is driven in multi-user.spec.ts.
-import { expect, test, type Page } from '@playwright/test'
-import { newPage, signIn, signUp, type User } from './helpers.ts'
+import type { Page } from '@playwright/test'
+import { expect, test } from './fixtures.ts'
+import { newPage, signIn, signUp, uniqueEmail, type User } from './helpers.ts'
 
 const app = () => process.env.E2E_APP_URL!
 // householdLabel() in api.ts: an unnamed household (none renamed yet, #384).
 const label = (u: User) => `Household …${u.tenantId.slice(-6)}`
 
-test('households: join, switch, removed while open, leave', async ({
+test('households: join, switch, removed while open, leave @households', async ({
   browser,
 }) => {
-  const run = test.info().repeatEachIndex
-  const A = await signUp(`e2e-house-a-${run}@streamiq.test`)
-  const B = await signUp(`e2e-house-b-${run}@streamiq.test`)
+  const A = await signUp(uniqueEmail('house-a'))
+  const B = await signUp(uniqueEmail('house-b'))
   const b = await newPage(browser)
   await b.goto(app() + '/household')
   await signIn(b, B)

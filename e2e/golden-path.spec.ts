@@ -6,13 +6,8 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {
-  expect,
-  test,
-  type Browser,
-  type Page,
-  type Request,
-} from '@playwright/test'
+import type { Browser, Page, Request } from '@playwright/test'
+import { expect, test } from './fixtures.ts'
 import {
   gatewayTab,
   keepPcs,
@@ -20,13 +15,15 @@ import {
   pair,
   password,
   tunnelOk,
+  uniqueEmail,
   videoTime,
   viaTunnel,
 } from './helpers.ts'
 import { startGateway } from './stack.ts'
 
-// One account per repeat: the Auth emulator lives for the whole run.
-const email = () => `e2e-${test.info().repeatEachIndex}@streamiq.test`
+// The test's account, new per run of the test (set at its start).
+let account = ''
+const email = () => account
 
 async function signIn(browser: Browser, create = false, path = '/') {
   const page = await newPage(browser) // own IndexedDB = own client key
@@ -59,9 +56,11 @@ const pitch = (p: Page) =>
     )
   })
 
-test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', async ({
+test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golden', async ({
   browser,
+  jellyfin: _,
 }) => {
+  account = uniqueEmail('golden')
   const stateDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'streamiq-e2e-gateway-'),
   )

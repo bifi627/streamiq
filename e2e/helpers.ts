@@ -1,5 +1,10 @@
 // Shared by the specs: accounts + households over the API (emulator sign-up as in
-// preview.ts, the #191 invite flow), and browser steps (sign in, pair, play).
+// preview.ts, the #191 invite flow), gateways, and browser steps (sign in, pair, play).
+// Arrange state here, not through the UI: only the feature under test uses the browser.
+import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import {
   expect,
   type Browser,
@@ -7,7 +12,14 @@ import {
   type Page,
 } from '@playwright/test'
 
+import { startGateway } from './stack.ts'
+
 export const password = 'e2e-password'
+
+/** A fresh address per call: the Auth emulator lives for the whole run, and
+ * tests run in parallel and under --repeat-each. */
+export const uniqueEmail = (tag: string) =>
+  `e2e-${tag}-${randomUUID().slice(0, 8)}@streamiq.test`
 
 export type User = {
   email: string
@@ -50,6 +62,37 @@ export async function signUp(email: string): Promise<User> {
     tenantId: me.tenantId,
     api,
   }
+}
+
+/**
+ * user's new gateway, onboarded the way "Add gateway" does (the golden path
+ * drives that UI): an enrollment token, the gateway started with it, online.
+ * Needs the `jellyfin` fixture (the gateway connects to it).
+ */
+export async function onboardGateway(user: User) {
+  const { token } = await user.api('/gateways/enrollment-tokens', {
+    method: 'POST',
+  })
+  const gateway = await startGateway(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'streamiq-e2e-gateway-')),
+    {
+      STREAMIQ_API_URL: process.env.E2E_API_URL!,
+      STREAMIQ_ENROLL_TOKEN: token,
+    },
+  )
+  try {
+    await expect
+      .poll(
+        async () =>
+          (await user.api<{ online: boolean }[]>('/gateways'))[0]?.online,
+        { timeout: 60_000 },
+      )
+      .toBe(true)
+  } catch (e) {
+    await gateway.stop()
+    throw e
+  }
+  return gateway
 }
 
 /**

@@ -110,7 +110,7 @@ export async function startGateway(
   }
   const p = process.env.E2E_GATEWAY_IMAGE
     ? await dockerGateway(process.env.E2E_GATEWAY_IMAGE, port, gwEnv)
-    : start('gateway', process.env.E2E_GATEWAY_BIN!, [], {
+    : start(`gateway-${port}`, process.env.E2E_GATEWAY_BIN!, [], {
         cwd: root,
         env: gwEnv,
       })
@@ -186,7 +186,7 @@ async function dockerGateway(
       .digest('base64'),
   }
   const p = start(
-    'gateway',
+    `gateway-${port}`,
     'docker',
     [
       'run',
@@ -235,6 +235,8 @@ export type StackOptions = {
   label?: string
   /** Give Jellyfin all NVIDIA GPUs (`--gpus all`) and turn on NVENC. */
   nvenc?: boolean
+  /** No Jellyfin: the e2e's workers start their own (startJellyfin, fixtures.ts). */
+  noJellyfin?: boolean
 }
 
 // tmpfs over every VOLUME the image declares, so no run leaves an anonymous
@@ -268,20 +270,13 @@ async function emulatorImage() {
 }
 
 /**
- * Starts the whole stack hermetically: random ports everywhere (but lan.port),
- * so it runs next to a live `dev.ps1` stack, other worktrees, and in CI alike.
- * Sets the E2E_* env vars that startGateway() and the specs read.
+ * Jellyfin with the fixture media and its libraries (setupJellyfin): the slow part
+ * of the stack, so the e2e starts it only when a spec asks (fixtures.ts).
  */
-export async function startStack(o: StackOptions) {
-  fs.rmSync(logs, { recursive: true, force: true })
-  fs.mkdirSync(logs, { recursive: true })
-  const build = (cmd: string, args: string[], cwd: string) =>
-    execFileSync(cmd, args, { cwd, stdio: 'inherit' })
-  const labeled = (c: GenericContainer) =>
-    o.label ? c.withLabels({ 'streamiq.preview': o.label }) : c
-
-  const firebaseImage = await emulatorImage()
-
+export async function startJellyfin(
+  o: Partial<StackOptions> = {},
+  labeled = (c: GenericContainer) => c,
+) {
   const jellyfinContainer = labeled(
     new GenericContainer(pin('jellyfin/jellyfin'))
       .withExposedPorts(8096)
@@ -314,71 +309,8 @@ export async function startStack(o: StackOptions) {
       { source: media, target: '/media/dev-media', mode: 'ro' },
     ])
   }
-  const apiOut = path.join(o.dir, 'api')
-  const [pg, firebase, jellyfin, { coturn, turnPort }] = await Promise.all([
-    labeled(
-      new GenericContainer(pin('postgres'))
-        .withEnvironment({
-          POSTGRES_USER: 'streamiq',
-          POSTGRES_PASSWORD: 'dev',
-          POSTGRES_DB: 'streamiq',
-        })
-        .withExposedPorts(5432)
-        .withTmpFs(NO_VOLUMES.postgres)
-        // Twice: the init run restarts the server once before it's really ready.
-        .withWaitStrategy(
-          Wait.forLogMessage(
-            /database system is ready to accept connections/,
-            2,
-          ),
-        ),
-    ).start(),
-    labeled(
-      firebaseImage
-        .withCopyFilesToContainer([
-          {
-            source: path.join(root, 'dev', 'firebase', 'firebase.json'),
-            target: '/app/firebase.json',
-          },
-        ])
-        .withWorkingDir('/app')
-        .withCommand([
-          'firebase',
-          'emulators:start',
-          '--only',
-          'auth',
-          '--project',
-          'demo-streamiq',
-        ])
-        .withExposedPorts(9099)
-        .withWaitStrategy(Wait.forLogMessage('All emulators ready')),
-    ).start(),
-    jellyfinContainer.start(),
-    startCoturn(labeled),
-    // Build while the containers boot.
-    (async () => {
-      build(
-        'dotnet',
-        ['build', 'src/StreamIq.Api', '--nologo', '-v', 'q', '-o', apiOut],
-        path.join(root, 'backend'),
-      )
-      const bin = path.join(
-        o.dir,
-        `streamiq-e2e-gateway${process.platform === 'win32' ? '.exe' : ''}`,
-      )
-      fs.mkdirSync(path.dirname(bin), { recursive: true })
-      build(
-        'go',
-        ['build', '-o', bin, './cmd/gateway'],
-        path.join(root, 'gateway'),
-      )
-      process.env.E2E_GATEWAY_BIN = bin
-    })(),
-  ])
-
-  process.env.E2E_TURN_PORT = String(turnPort) // stack.ts: Docker-gateway mode
-  const emulator = `http://${firebase.getHost()}:${firebase.getMappedPort(9099)}`
-  process.env.E2E_JELLYFIN_URL = `http://${jellyfin.getHost()}:${jellyfin.getMappedPort(8096)}`
+  const jellyfin = await jellyfinContainer.start()
+  const url = `http://${jellyfin.getHost()}:${jellyfin.getMappedPort(8096)}`
   // Fixture media, made in the container by Jellyfin's own ffmpeg (no host
   // ffmpeg in CI): a 30 s H.264 clip with two AAC tracks (English 440 Hz,
   // German 880 Hz: the audio menu, #109) + sidecar English subtitle, in
@@ -416,8 +348,92 @@ export async function startStack(o: StackOptions) {
     'FFMPEG=/usr/lib/jellyfin-ffmpeg/ffmpeg sh /tmp/gen-test-series.sh /shows',
   )
   if (o.nvenc) await sh('nvidia-smi -L') // the GPU really is in the container
-  await setupJellyfin(process.env.E2E_JELLYFIN_URL, o.nvenc)
+  await setupJellyfin(url, o.nvenc)
 
+  process.env.E2E_JELLYFIN_URL = url
+  return { container: jellyfin, url }
+}
+
+/**
+ * Starts the whole stack hermetically: random ports everywhere (but lan.port),
+ * so it runs next to a live `dev.ps1` stack, other worktrees, and in CI alike.
+ * Sets the E2E_* env vars that startGateway() and the specs read.
+ */
+export async function startStack(o: StackOptions) {
+  fs.rmSync(logs, { recursive: true, force: true })
+  fs.mkdirSync(logs, { recursive: true })
+  const build = (cmd: string, args: string[], cwd: string) =>
+    execFileSync(cmd, args, { cwd, stdio: 'inherit' })
+  const labeled = (c: GenericContainer) =>
+    o.label ? c.withLabels({ 'streamiq.preview': o.label }) : c
+
+  const firebaseImage = await emulatorImage()
+
+  const apiOut = path.join(o.dir, 'api')
+  const jellyfin = o.noJellyfin ? undefined : startJellyfin(o, labeled)
+  jellyfin?.catch(() => {}) // rejects at its await below
+  const [pg, firebase, { coturn, turnPort }] = await Promise.all([
+    labeled(
+      new GenericContainer(pin('postgres'))
+        .withEnvironment({
+          POSTGRES_USER: 'streamiq',
+          POSTGRES_PASSWORD: 'dev',
+          POSTGRES_DB: 'streamiq',
+        })
+        .withExposedPorts(5432)
+        .withTmpFs(NO_VOLUMES.postgres)
+        // Twice: the init run restarts the server once before it's really ready.
+        .withWaitStrategy(
+          Wait.forLogMessage(
+            /database system is ready to accept connections/,
+            2,
+          ),
+        ),
+    ).start(),
+    labeled(
+      firebaseImage
+        .withCopyFilesToContainer([
+          {
+            source: path.join(root, 'dev', 'firebase', 'firebase.json'),
+            target: '/app/firebase.json',
+          },
+        ])
+        .withWorkingDir('/app')
+        .withCommand([
+          'firebase',
+          'emulators:start',
+          '--only',
+          'auth',
+          '--project',
+          'demo-streamiq',
+        ])
+        .withExposedPorts(9099)
+        .withWaitStrategy(Wait.forLogMessage('All emulators ready')),
+    ).start(),
+    startCoturn(labeled),
+    // Build while the containers boot.
+    (async () => {
+      build(
+        'dotnet',
+        ['build', 'src/StreamIq.Api', '--nologo', '-v', 'q', '-o', apiOut],
+        path.join(root, 'backend'),
+      )
+      const bin = path.join(
+        o.dir,
+        `streamiq-e2e-gateway${process.platform === 'win32' ? '.exe' : ''}`,
+      )
+      fs.mkdirSync(path.dirname(bin), { recursive: true })
+      build(
+        'go',
+        ['build', '-o', bin, './cmd/gateway'],
+        path.join(root, 'gateway'),
+      )
+      process.env.E2E_GATEWAY_BIN = bin
+    })(),
+  ])
+
+  process.env.E2E_TURN_PORT = String(turnPort) // stack.ts: Docker-gateway mode
+  const emulator = `http://${firebase.getHost()}:${firebase.getMappedPort(9099)}`
   const apiPort = await freePort()
   const api = `http://127.0.0.1:${apiPort}`
   // Picked before the backend starts: it's the backend's CORS allowlist entry.
@@ -477,6 +493,7 @@ export async function startStack(o: StackOptions) {
   )
 
   await Promise.all([
+    jellyfin, // its start ran alongside everything above
     waitHttp(`${api}/healthz`, backend),
     // 127.0.0.1: Vite listens on IPv4 only. LAN: the caller trusts the
     // self-signed cert (NODE_EXTRA_CA_CERTS).
@@ -494,7 +511,10 @@ export async function startStack(o: StackOptions) {
       await Promise.all([
         pg.stop(),
         firebase.stop(),
-        jellyfin.stop(),
+        jellyfin?.then(
+          (j) => j.container.stop(),
+          () => {}, // failed to start: nothing to stop, stop the rest
+        ),
         coturn.stop(),
       ])
     },

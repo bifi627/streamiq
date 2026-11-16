@@ -7,6 +7,7 @@ export default async function globalSetup() {
   // worktree's build overwrite (or, on Windows, fail on) the running binary.
   const stack = await startStack({
     dir: path.join(import.meta.dirname, '.bin'),
+    noJellyfin: true, // a worker starts its own on first use (fixtures.ts)
   })
   return stack.stop
 }

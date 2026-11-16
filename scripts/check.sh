@@ -31,7 +31,7 @@ else
   echo "!! SKIPPED: go not installed locally — gateway is UNVERIFIED here, CI will run it" >&2
 fi
 
-echo "== e2e: golden path + web-app specs (Docker + Chrome; no Chrome? npx playwright install chrome in e2e/) =="
+echo "== e2e: all specs, in parallel (Docker + Chrome; no Chrome? npx playwright install chrome in e2e/) =="
 npm test --prefix e2e
 
 echo "== compose config =="

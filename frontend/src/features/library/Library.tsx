@@ -147,7 +147,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
     : !seriesId
       ? { item: it.data }
       : series.data && { item: series.data, season: it.data.Id }
-  if (error) return <ErrorView error={toAppError(error)} focus />
+  if (error && !shown) return <ErrorView error={toAppError(error)} focus />
   if (!shown)
     return (
       <div className="title" role="status" aria-label="Loading">
@@ -202,7 +202,7 @@ function Title({ item, season }: { item: Item; season?: string }) {
   const lists = ss.data &&
     es.data && { seasons: ss.data.Items, episodes: es.data.Items }
   const failed = ss.error ?? es.error
-  const err = failed ? toAppError(failed) : null
+  const err = failed && !lists ? toAppError(failed) : null
 
   const play = (i: Item) =>
     navigate({
@@ -913,7 +913,7 @@ function Listing({
     `/Items?parentId=${item.Id}&sortBy=SortName`,
   )
   const items = q.data?.Items
-  if (q.error) return <ErrorView error={toAppError(q.error)} focus />
+  if (q.error && !items) return <ErrorView error={toAppError(q.error)} focus />
   if (!items)
     return (
       <ul className="tiles" role="status" aria-label="Loading">

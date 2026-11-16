@@ -61,7 +61,7 @@ export function Home() {
     )
   }, [pc])
   const shelf = (q: ReturnType<typeof useTunnelQuery<{ Items: Item[] }>>) =>
-    q.error ? toAppError(q.error) : q.data?.Items
+    q.data ? q.data.Items : q.error ? toAppError(q.error) : undefined
   const added = shelf(useTunnelQuery(RECENT))
   const views = shelf(useTunnelQuery('/UserViews'))
   // First visit: all settled before the home shows, so first focus lands as
@@ -117,7 +117,7 @@ export function Home() {
                 <button
                   type="button"
                   className="primary"
-                  autoFocus
+                  autoFocus={!warm} // a revisit: focus stays where it landed
                   onClick={() => open(spot)}
                 >
                   <svg aria-hidden="true" viewBox="0 0 24 24">

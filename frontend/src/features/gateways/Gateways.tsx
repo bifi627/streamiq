@@ -265,13 +265,12 @@ export function Gateways() {
                 )
               )}
               <StatusDetails g={d} />
-              {admin && (
-                <PairedClients
-                  g={d}
-                  unpaired={unpaired.has(d.id)}
-                  onRemovedSelf={() => removedSelf(d.id)}
-                />
-              )}
+              {/* A member's list is just this browser (#341). */}
+              <PairedClients
+                g={d}
+                unpaired={unpaired.has(d.id)}
+                onRemovedSelf={() => removedSelf(d.id)}
+              />
             </li>
           ))}
         </ul>
@@ -614,7 +613,7 @@ function PairedClients({
 const clientsMessage = (e: AppError) =>
   isKind(e, 'not-paired')
     ? 'Pair this browser to see them.'
-    : e.context.status === 404
+    : e.context.status === 404 || e.context.status === 403 // 403: a member, gateway before #341
       ? 'This gateway is too old to list them: update it.'
       : describe(e).message
 

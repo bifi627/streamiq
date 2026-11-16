@@ -78,14 +78,19 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
     const a = await open(A)
     const b = await open(B)
 
-    await test.step('paired clients are admin-only over the tunnel (#311, #256)', async () => {
+    await test.step('paired clients: a member sees and removes only itself (#311, #341)', async () => {
+      type Client = { keyFp: string; self: boolean }
       const list = await viaTunnel(a, '/streamiq/clients')
       expect(list.status).toBe(200)
-      const clients: { self: boolean }[] = JSON.parse(list.body)
+      const clients: Client[] = JSON.parse(list.body)
       expect(clients.map((c) => c.self).sort()).toEqual([false, true])
-      expect((await viaTunnel(b, '/streamiq/clients')).status).toBe(403)
+      const own = await viaTunnel(b, '/streamiq/clients')
+      expect(own.status).toBe(200)
+      const bs: Client[] = JSON.parse(own.body)
+      expect(bs.map((c) => c.self)).toEqual([true])
+      const aKey = clients.find((c) => c.self)!.keyFp
       const remove = await viaTunnel(b, '/streamiq/clients/remove', {
-        keyFp: 'x',
+        keyFp: aKey,
       })
       expect(remove.status).toBe(403)
     })
@@ -129,6 +134,20 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
       await signIn(a, B, A.tenantId) // same URL: Settings (#201)
       await a.goBack() // the gateway's library home, freshly loaded
       await resume(/0:1[5-9]/)
+    })
+
+    await test.step('B (member) unpairs its own browser from the card (#341)', async () => {
+      await b.goto(app() + '/gateways')
+      const card = b.locator('li.card')
+      await card.getByText('Paired clients', { exact: true }).click()
+      const clients = card.locator('.clients li')
+      await expect(clients).toHaveCount(1)
+      await expect(clients).toContainText('(this browser)')
+      b.once('dialog', (d) => d.accept())
+      await clients.getByRole('button', { name: 'Remove' }).click()
+      await expect(
+        card.getByText('This browser was removed: pair it again.'),
+      ).toBeVisible()
     })
   } finally {
     await gateway.stop()

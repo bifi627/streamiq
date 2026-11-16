@@ -7,8 +7,8 @@ import { ErrorView } from '../../ErrorView'
 
 type Member = {
   userId: string
-  name: string | null
-  email: string | null
+  name: string | null // the alias (#388), else the email; null: Firebase unreachable
+  email?: string // your own row only
   role: 'admin' | 'member'
   joinedAt: string
 }
@@ -102,7 +102,7 @@ export function Members() {
                     {m.role === 'admin' ? 'Admin' : 'Member'}
                   </span>
                 </span>
-                {m.name && m.email && (
+                {m.email && m.email !== m.name && (
                   <span className="meta muted">{m.email}</span>
                 )}
                 <span className="meta muted">

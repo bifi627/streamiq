@@ -35,6 +35,11 @@ async function signIn(browser: Browser, create = false, path = '/') {
   await page
     .getByRole('button', { name: create ? 'Create account' : 'Sign in' })
     .click()
+  if (create) {
+    // A new account picks its alias first (#388): keeps the prefilled email.
+    await expect(page.getByLabel('Your name')).toHaveValue(email())
+    await page.getByRole('button', { name: 'Continue' }).click()
+  }
   if (path === '/')
     await expect(page.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   return page

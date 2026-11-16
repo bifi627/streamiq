@@ -19,6 +19,13 @@ public static class Households
     /// or not: the web app drops its household choice on it, never on any other 404 (#210).
     public const string NotMemberHeader = "X-StreamIQ-Not-Member";
 
+    /// Endpoint metadata: works for a user with no household at all (#387): `/me`,
+    /// opening an invite, creating a household. Every other authenticated endpoint
+    /// answers such a user like a non-member (404 + NotMemberHeader).
+    public static readonly object Optional = new NoHouseholdOk();
+
+    private sealed class NoHouseholdOk;
+
     /// All of the user's memberships, oldest first.
     public static IQueryable<Membership> Of(StreamIqDbContext db, Guid userId)
     {

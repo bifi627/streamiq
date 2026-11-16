@@ -189,6 +189,7 @@ ListMembers.Map(api);
 RemoveMember.Map(api);
 SetMemberRole.Map(api);
 RenameHousehold.Map(api);
+CreateHousehold.Map(api);
 
 // Unknown /api/* paths are a 404, never the SPA; any other path without a file
 // extension is a client route and gets index.html (404 if no SPA is built, e.g. dev).

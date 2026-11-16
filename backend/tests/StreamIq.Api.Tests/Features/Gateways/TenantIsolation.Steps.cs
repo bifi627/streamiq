@@ -19,7 +19,7 @@ public class TenantIsolationSteps(IntegrationFixture fx)
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123");
         var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        await client.GetAsync("/api/me");     // ensure provisioned
+        await OwnHousehold.MeAsync(client);
         return client;
     }
 

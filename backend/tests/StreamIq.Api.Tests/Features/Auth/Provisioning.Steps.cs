@@ -19,6 +19,23 @@ public class ProvisioningSteps(IntegrationFixture fx)
         (await client.GetAsync("/api/me")).EnsureSuccessStatusCode();
     }
 
+    [When("\"(.*)\" creates a household")]
+    public async Task WhenCreates(string email)
+    {
+        var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123");
+        using var client = fx.Factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        (await client.PostAsync("/api/households", null)).EnsureSuccessStatusCode();
+    }
+
+    [Then("that user is in no household")]
+    public async Task ThenNone()
+    {
+        using var scope = fx.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
+        Assert.Empty(await db.Memberships.IgnoreQueryFilters().ToListAsync());
+    }
+
     [Then("there is exactly (.*) tenant and (.*) user")]
     public async Task ThenCounts(int tenants, int users)
     {

@@ -32,7 +32,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
     }
 
     [Fact]
-    public async Task First_sign_in_provisions_exactly_one_tenant_and_user()
+    public async Task First_sign_in_provisions_exactly_one_user_and_no_household()
     {
         await fx.ResetAsync();
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, "new@x.test", "password123");
@@ -45,46 +45,46 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
         Assert.Equal(1, await db.Users.CountAsync());
-        Assert.Equal(1, await db.Tenants.CountAsync());
+        Assert.Equal(0, await db.Tenants.CountAsync());   // #387: a household is made on purpose, never by sign-up
+        Assert.Equal(0, await db.Memberships.IgnoreQueryFilters().CountAsync());
     }
 
-    private async Task<string> TenantOf(string token)
+    private async Task<string> UserOf(string token)
     {
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
-        return me.GetProperty("tenantId").GetString() ?? throw new InvalidOperationException("/api/me without tenantId");
+        return me.GetProperty("userId").GetString() ?? throw new InvalidOperationException("/api/me without userId");
     }
 
     [Fact]
-    public async Task Google_sign_in_provisions_a_tenant_and_stores_no_profile_claims()
+    public async Task Google_sign_in_provisions_a_user_and_stores_no_profile_claims()
     {
         await fx.ResetAsync();
         var token = await TokenMinter.MintGoogleIdTokenAsync(fx.EmulatorHost, $"g-{Guid.NewGuid():N}", $"g-{Guid.NewGuid():N}@x.test");
 
-        var tenant = await TenantOf(token);
-        Assert.Equal(tenant, await TenantOf(token)); // returning Google user resolves, not re-provisions
+        var userId = await UserOf(token);
+        Assert.Equal(userId, await UserOf(token)); // returning Google user resolves, not re-provisions
 
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
         Assert.Equal(1, await db.Users.CountAsync());
-        Assert.Equal(1, await db.Tenants.CountAsync());
-        // #65/#66: name/picture claims must not land in our DB.
-        Assert.Null(await db.Tenants.Select(t => t.Name).SingleAsync());
+        Assert.Equal(0, await db.Tenants.CountAsync());
+        // #65/#66: name/picture claims must not land in our DB (the users row has no column for them).
     }
 
     [Fact]
-    public async Task Google_sign_in_with_an_existing_password_email_lands_in_the_same_tenant()
+    public async Task Google_sign_in_with_an_existing_password_email_is_the_same_user()
     {
         await fx.ResetAsync();
         var email = $"both-{Guid.NewGuid():N}@x.test";
-        var passwordTenant = await TenantOf(await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123"));
-        var googleTenant = await TenantOf(await TokenMinter.MintGoogleIdTokenAsync(fx.EmulatorHost, $"g-{Guid.NewGuid():N}", email));
-        Assert.Equal(passwordTenant, googleTenant); // Firebase one-account-per-email: same UID
+        var passwordUser = await UserOf(await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123"));
+        var googleUser = await UserOf(await TokenMinter.MintGoogleIdTokenAsync(fx.EmulatorHost, $"g-{Guid.NewGuid():N}", email));
+        Assert.Equal(passwordUser, googleUser); // Firebase one-account-per-email: same UID
     }
 
     [Fact]
-    public async Task Concurrent_first_requests_provision_one_tenant_not_two()
+    public async Task Concurrent_first_requests_provision_one_user_not_two()
     {
         await fx.ResetAsync();
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, "race@x.test", "password123");
@@ -100,6 +100,6 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
         Assert.Equal(1, await db.Users.CountAsync());
-        Assert.Equal(1, await db.Tenants.CountAsync());
+        Assert.Equal(0, await db.Tenants.CountAsync());
     }
 }

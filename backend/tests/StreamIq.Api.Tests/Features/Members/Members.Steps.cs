@@ -191,13 +191,16 @@ public partial class MembersSteps(IntegrationFixture fx)
         Assert.Equal(count, (await res.Content.ReadFromJsonAsync<JsonElement>()).GetArrayLength());
     }
 
-    [Then("\"(.*)\" is admin of exactly one new household")]
-    public async Task ThenNew(string email)
+    // Shared with Invites.feature. No fresh household is made for them (#387); a household-scoped request is refused as not a member.
+    [Then("\"(.*)\" is in no household")]
+    public async Task ThenNone(string email)
     {
-        var me = await Me(email, null);
-        var m = Assert.Single(me.GetProperty("memberships").EnumerateArray());
-        Assert.Equal(Membership.Admin, m.GetProperty("role").GetString());
-        Assert.DoesNotContain(m.GetProperty("id").GetGuid(), _households.Values);
+        var me = await Me(email, null, raw: true);
+        Assert.Empty(me.GetProperty("memberships").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, me.GetProperty("tenantId").ValueKind);
+        using var res = await Send(email, HttpMethod.Get, "/api/gateways", null);
+        Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
+        Assert.Equal(["1"], res.Headers.GetValues(Households.NotMemberHeader));
     }
 
     [GeneratedRegex("\"(.*?)\" as \"(.*?)\"")]
@@ -217,11 +220,22 @@ public partial class MembersSteps(IntegrationFixture fx)
         return (await Me(email, null)).GetProperty("userId").GetGuid();
     }
 
-    private async Task<JsonElement> Me(string email, Guid? household)
+    // Without a household named: X's own one is made on first mention (OwnHousehold),
+    // unless raw (checks that a user has none).
+    private async Task<JsonElement> Me(string email, Guid? household, bool raw = false)
     {
         using var res = await Send(email, HttpMethod.Get, "/api/me", household);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        return await res.Content.ReadFromJsonAsync<JsonElement>();
+        var me = await res.Content.ReadFromJsonAsync<JsonElement>();
+        if (raw || household is not null || me.GetProperty("memberships").GetArrayLength() > 0)
+        {
+            return me;
+        }
+        using (var created = await Send(email, HttpMethod.Post, "/api/households", null))
+        {
+            created.EnsureSuccessStatusCode();
+        }
+        return await Me(email, null);
     }
 
     private async Task<HttpResponseMessage> Send(string email, HttpMethod method, string path, Guid? household, object? body = null)

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Generate deterministic, license-free test media into dev-media/ (gitignored).
+# Generate deterministic, license-free test media into dev-media/ (movies) and
+# dev-shows/ (a series), both gitignored.
 # Requires ffmpeg. Runs in Git Bash, WSL, devcontainer, CI.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -74,4 +75,9 @@ streamiq subtitle test — if you can read this, subs survive the tunnel
 05:30 — near the end
 SRT
 
-echo "Test media written to dev-media/"
+# A small series (2 seasons x 2 episodes), in dev-shows/ of its own so
+# dev-media/ stays a movies library (compose: /shows, a Shows library).
+mkdir -p dev-shows
+sh scripts/gen-test-series.sh dev-shows
+
+echo "Test media written to dev-media/ and dev-shows/"

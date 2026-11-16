@@ -18,6 +18,7 @@ gateway/gateway
 # Local env & generated media
 .env
 dev-media/
+dev-shows/
 
 # IDE
 .vs/

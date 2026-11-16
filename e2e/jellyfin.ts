@@ -1,6 +1,7 @@
 // Completes Jellyfin's first-run wizard over its HTTP API (admin JELLYFIN_ADMIN)
-// and adds the /media library. The gateway then connects the real way: an admin
-// login on its local page (stack.ts), which gives it its viewer token. Test-only.
+// and adds the /media (Movies) + /shows (Shows) libraries. The gateway then
+// connects the real way: an admin login on its local page (stack.ts), which
+// gives it its viewer token. Test-only.
 const AUTH =
   'MediaBrowser Client="streamiq-e2e", Device="e2e", DeviceId="streamiq-e2e", Version="1"'
 
@@ -107,17 +108,25 @@ export async function setupJellyfin(
     token,
   )
 
+  await post(
+    '/Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fshows&refreshLibrary=true',
+    { LibraryOptions: { EnableInternetProviders: false } },
+    token,
+  )
+
   // The scan is async, and the one refreshLibrary=true starts can race the new
   // library's options (it then indexes /media as a plain folder): re-kick a
   // full refresh every 10 s until the fixture shows up.
   for (let i = 0; i < 120; i++) {
     if (i % 10 === 0) await call('/Library/Refresh', { method: 'POST' }, token)
-    const items = await call(
-      `/Items?userId=${login.User.Id}&recursive=true&includeItemTypes=Movie`,
-      {},
-      token,
-    )
-    if (items.TotalRecordCount > 0) return
+    const count = (type: string) =>
+      call(
+        `/Items?userId=${login.User.Id}&recursive=true&includeItemTypes=${type}`,
+        {},
+        token,
+      ).then((r) => r.TotalRecordCount)
+    // All 4 episodes (stack.ts): a half-scanned series has no next one yet.
+    if ((await count('Movie')) > 0 && (await count('Episode')) >= 4) return
     await new Promise((r) => setTimeout(r, 1000))
   }
   throw new Error('jellyfin: library scan found no media after 120s')

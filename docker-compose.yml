@@ -25,6 +25,7 @@ services:
       - jellyfin-config:/config
       - jellyfin-cache:/cache
       - ./dev-media:/media:ro
+      - ./dev-shows:/shows:ro
 
   firebase:
     # Auth emulator only (Node-based, no Java needed). Prebuilt image bakes a

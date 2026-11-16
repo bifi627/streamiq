@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Reproducible dev Jellyfin setup. Wipes the throwaway Jellyfin config, re-runs
 # the startup wizard via the REST API with known dev creds, adds the dev-media
-# library, scans it, and writes gateway/gateway.env for the dev gateway. The dev
-# gateway then connects the real way: sign in on its local page (:18097) with the
+# + Shows libraries, scans them, and writes gateway/gateway.env for the dev
+# gateway. The dev gateway then connects the real way: sign in on its local page (:18097) with the
 # dev admin, and it creates its own viewer token (gateway/internal/jellyfin).
 #
 # ponytail: throwaway dev tooling — hardcoded creds, no error recovery beyond
@@ -52,10 +52,14 @@ TOKEN=$(printf '%s' "$AUTH" | jget AccessToken)
 USER_ID=$(printf '%s' "$AUTH" | jget User.Id)
 [ -n "$TOKEN" ] || { echo "auth failed"; exit 1; }
 
-echo "== 5/7 adding dev-media library (/media) + scanning =="
+echo "== 5/7 adding dev-media (/media) + Shows (/shows) libraries + scanning =="
 curl -fsS -X POST "$BASE/Library/VirtualFolders?name=dev-media&collectionType=movies&refreshLibrary=true" \
   -H "Authorization: MediaBrowser Token=\"$TOKEN\"" -H 'Content-Type: application/json' \
   -d '{"LibraryOptions":{"PathInfos":[{"Path":"/media"}]}}' >/dev/null
+# The series fixture (gen-test-media.sh: dev-shows/ on /shows).
+curl -fsS -X POST "$BASE/Library/VirtualFolders?name=Shows&collectionType=tvshows&refreshLibrary=true" \
+  -H "Authorization: MediaBrowser Token=\"$TOKEN\"" -H 'Content-Type: application/json' \
+  -d '{"LibraryOptions":{"PathInfos":[{"Path":"/shows"}]}}' >/dev/null
 curl -fsS -X POST "$BASE/Library/Refresh" -H "Authorization: MediaBrowser Token=\"$TOKEN\"" >/dev/null || true
 
 echo "== 6/7 waiting for the scan to index the clips =="

@@ -56,7 +56,7 @@ jobs:
       - run: go vet ./... && go build ./... && go test -race ./...
         working-directory: gateway
 
-  # The one golden path (dev-env spec). Containers via testcontainers-node,
+  # The e2e specs (golden path, multi-user, households). Containers via testcontainers-node,
   # backend/Vite/gateway as real processes — see e2e/global-setup.ts.
   e2e:
     runs-on: ubuntu-latest

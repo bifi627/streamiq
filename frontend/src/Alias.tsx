@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { updateProfile, type User } from '@firebase/auth'
+import { signOut, updateProfile, type User } from '@firebase/auth'
+import { auth } from './firebase'
 import { describe, toAppError } from './errors'
 import { arrowFocus } from './focus'
 import { EditableName } from './features/gateways/Gateways'
@@ -69,6 +70,12 @@ export function PickAlias({ user, done }: { user: User; done: () => void }) {
           Continue
         </button>
       </form>
+      <p className="switch muted">
+        Wrong account?{' '}
+        <button type="button" className="link" onClick={() => signOut(auth)}>
+          Sign out
+        </button>
+      </p>
     </main>
   )
 }

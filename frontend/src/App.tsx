@@ -479,7 +479,7 @@ function Shell() {
             ))}
           </select>
         )}
-        {gatewayId && (
+        {gatewayId && !homeless && (
           <div className="status">
             <span className="chip">
               <span

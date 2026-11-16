@@ -103,7 +103,6 @@ export function NoHousehold() {
         <button
           type="button"
           className="primary"
-          autoFocus
           disabled={busy}
           onClick={create}
         >
@@ -114,10 +113,11 @@ export function NoHousehold() {
         className="actions"
         onSubmit={(e) => {
           e.preventDefault()
-          if (token) location.assign(`/join#${token}`)
+          if (token) location.assign(`/join#${encodeURIComponent(token)}`) // base64url: unchanged
         }}
       >
         <input
+          autoFocus // not on Create: one stray OK on a TV would make a household
           aria-label="Invite link"
           placeholder="Paste an invite link"
           value={link}

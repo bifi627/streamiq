@@ -77,6 +77,8 @@ test('households: join, switch, removed while open, leave @households', async ({
     await expect(members.getByText(A.email)).toBeVisible()
     b.once('dialog', (d) => d.accept()) // "Leave this household?"
     await members.getByRole('button', { name: 'Leave' }).click()
+    // Leaving reloads home, which goes on to /gateways: a click before that is lost.
+    await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
     await b.getByRole('link', { name: 'Household' }).click()
     await expect(heading).toHaveText(label(B))
     await expect(picker).toHaveCount(0) // after /me: the Shell renders it then
@@ -140,6 +142,7 @@ test('households: sign up through an invite, none left, create one @households',
     await c.getByLabel('Invite link').fill(`${app()}/join#${token}`)
     await c.getByRole('button', { name: 'Open' }).click()
     await c.getByRole('button', { name: 'Join' }).click()
+    await expect(c).not.toHaveURL(/\/join/)
     await c.getByRole('link', { name: 'Household' }).click()
     await expect(heading).toHaveText(label(A))
     c.once('dialog', (d) => d.accept())

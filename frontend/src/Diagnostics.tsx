@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { Link } from '@tanstack/react-router'
+import { arrowFocus } from './focus'
 import {
   debugOn,
   diag,
@@ -37,7 +38,8 @@ export function Diagnostics() {
   return (
     <>
       <div className={open ? 'dock-space open' : 'dock-space'} />
-      <aside className="dock" aria-label="Diagnostics">
+      {/* its own D-pad box first: the sheet covers what's below the bar */}
+      <aside className="dock" aria-label="Diagnostics" onKeyDown={arrowFocus}>
         <button
           type="button"
           className="dock-bar"

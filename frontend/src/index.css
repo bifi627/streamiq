@@ -1481,6 +1481,9 @@ progress::-moz-progress-bar {
 
 /* Diagnostics page (#230): Settings' layout (.settings), the report as a
    selectable monospace box. */
+.diagnostics .card > button {
+  align-self: flex-start;
+}
 .diagnostics .report {
   align-self: stretch;
   margin: 0;
@@ -1519,6 +1522,7 @@ progress::-moz-progress-bar {
 }
 .dock-bar {
   display: flex;
+  align-items: center;
   gap: var(--sp-3);
   width: 100%;
   border-radius: 0;

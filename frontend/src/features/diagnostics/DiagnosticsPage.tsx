@@ -146,8 +146,9 @@ export function DiagnosticsPage() {
             type="button"
             className="primary"
             autoFocus
-            disabled={!gatewayId || running}
-            onClick={run}
+            // busy, but keeps focus: a disabled button drops the D-pad's place
+            aria-disabled={!gatewayId || running}
+            onClick={() => gatewayId && !running && run()}
           >
             {running ? 'Testing…' : 'Test connection'}
           </button>
@@ -163,12 +164,11 @@ export function DiagnosticsPage() {
       </div>
 
       <div className="card">
-        <div className="card-head">
-          <h2>Report</h2>
-          <button type="button" onClick={copy}>
-            Copy report
-          </button>
-        </div>
+        <h2>Report</h2>
+        {/* left, under the heading: the D-pad's Down from the test reaches it */}
+        <button type="button" onClick={copy}>
+          Copy report
+        </button>
         {copied && <p role="status">{copied}</p>}
         <pre className="report">{report}</pre>
       </div>

@@ -83,10 +83,14 @@ down → prompt the user to start Desktop, don't skip.
 - **Two workflows depending on what's moving:**
   - **Range change** (bump the `^x.y.z` base, e.g. for majors): edit
     `package.json`, then `npm install`. The new range forces re-resolution.
-  - **Within-range bump** (take "Wanted" from `npm outdated` without
-    changing `package.json`): `npm update <pkg1> <pkg2> ...`. **Plain
-    `npm install` is a no-op** here — it only re-resolves when
-    `package.json` changes or the lockfile is missing.
+  - **Within-range bump** (take "Wanted" from `npm outdated`):
+    `npm update --save <pkg1> <pkg2> ...`. `--save` raises each `^` floor
+    to the locked version, so `package.json` never claims support for
+    versions nobody tested. **Plain `npm install` is a no-op** here — it
+    only re-resolves when `package.json` changes or the lockfile is missing.
+  - Floors left behind earlier (range below the locked version): raise them
+    to `^<locked>` in the same sweep; the lockfile diff must then show only
+    range lines, no resolved-version changes.
 - `npm update` with no args re-resolves the whole tree, which
   **cascade-fails on `min-release-age=7`** if ANY package in the tree has a
   fresh release (`Found: <pkg>@undefined` for the fresh one and nothing

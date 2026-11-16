@@ -6,8 +6,8 @@ test('a refused broker socket shows an error, not "loading…" (#403) @gateways'
 }) => {
   const { page } = paired
   // A 429'd handshake (STREAMIQ_SIGNALING_PER_MINUTE) is invisible to JS: the
-  // socket errors and closes without ever opening. A closed port does the same,
-  // without using up the shared per-IP budget.
+  // socket errors and closes without ever opening. Port 1 (Chrome blocks it)
+  // does the same, without using up the shared per-IP budget.
   await page.addInitScript(() => {
     const Real = WebSocket
     window.WebSocket = class extends Real {
@@ -27,5 +27,8 @@ test('a refused broker socket shows an error, not "loading…" (#403) @gateways'
   await expect(card.getByRole('status')).toHaveText(refused)
 
   await card.getByRole('button', { name: 'Open' }).click()
-  await expect(page.getByText(refused)).toBeVisible()
+  await expect(page).toHaveURL(/\/g\/[^/]+$/) // left the card: not its note
+  await expect(page.locator('[data-kind="broker-unreachable"]')).toContainText(
+    refused,
+  )
 })

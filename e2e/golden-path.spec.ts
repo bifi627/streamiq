@@ -126,7 +126,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
           name: 'StreamIQ gateway · Living room NAS',
         }),
       ).toBeVisible()
-      await gatewayPage.close()
       await a.reload()
       await expect(
         a.getByRole('heading', { level: 2, name: 'Living room NAS' }),
@@ -154,7 +153,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       gateway = await startGateway(stateDir, env)
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       await expect(gatewayPage.getByText('StreamIQ: connected')).toBeVisible() // back on the broker
-      await gatewayPage.close()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
@@ -187,7 +185,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       gateway = await startGateway(stateDir, env)
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       await expect(gatewayPage.getByText('StreamIQ: connected')).toBeVisible()
-      await gatewayPage.close()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()

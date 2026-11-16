@@ -82,7 +82,9 @@ export function Home() {
   const recent = ok(lists.recent)
   return (
     <div className="home">
-      {lists.resume instanceof AppError && <ErrorView error={lists.resume} />}
+      <Row title="Continue watching" error={lists.resume}>
+        {[]}
+      </Row>
       {spot && (
         <div className="resume">
           <article className="spot">

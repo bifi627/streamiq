@@ -30,7 +30,7 @@ test('households: join, switch, removed while open, leave', async ({
     await p.getByRole('button', { name: 'Join' }).click()
     await expect(p).not.toHaveURL(/\/join/)
     await p.getByRole('link', { name: 'Household' }).click()
-    await expect(heading).toHaveText(label(A))
+    await expect(p.getByRole('heading', { level: 1 })).toHaveText(label(A))
     await expect(p.getByText('You are a member')).toBeVisible()
   }
 
@@ -55,9 +55,9 @@ test('households: join, switch, removed while open, leave', async ({
     await expect(
       b.getByRole('status').filter({ hasText: 'no longer a member' }),
     ).toContainText(`You're no longer a member of ${label(A)}.`)
-    await expect(picker).toHaveCount(0)
     await b.getByRole('link', { name: 'Household' }).click()
     await expect(heading).toHaveText(label(B))
+    await expect(picker).toHaveCount(0) // after /me: the Shell renders it then
   })
 
   await test.step('B leaves a household: back in its own (#192)', async () => {
@@ -68,9 +68,9 @@ test('households: join, switch, removed while open, leave', async ({
     await expect(members.getByText(A.email)).toBeVisible()
     b.once('dialog', (d) => d.accept()) // "Leave this household?"
     await members.getByRole('button', { name: 'Leave' }).click()
-    await expect(picker).toHaveCount(0)
     await b.getByRole('link', { name: 'Household' }).click()
     await expect(heading).toHaveText(label(B))
+    await expect(picker).toHaveCount(0) // after /me: the Shell renders it then
     expect(
       (await A.api<{ userId: string }[]>('/members')).map((m) => m.userId),
     ).toEqual([A.userId])

@@ -8,13 +8,13 @@ using StreamIq.Api;
 using StreamIq.Api.Auth;
 using StreamIq.Api.Data;
 using StreamIq.Api.Features.Broker;
-using StreamIq.Api.Features.Tunnels;
 using StreamIq.Api.Features.Gateways;
 using StreamIq.Api.Features.Household;
 using StreamIq.Api.Features.Invites;
 using StreamIq.Api.Features.Me;
 using StreamIq.Api.Features.Members;
 using StreamIq.Api.Features.Onboarding;
+using StreamIq.Api.Features.Tunnels;
 
 var builder = WebApplication.CreateBuilder(args);
 

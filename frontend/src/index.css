@@ -464,8 +464,9 @@ html.tv .no-tv {
 .card-head h2 {
   overflow-wrap: anywhere;
 }
-/* name + Rename, or the inline rename form (#310) */
-.card-head .name {
+/* name + Rename, or the inline rename form (#310, #365) */
+.card-head .name,
+.card .clients .name {
   display: flex;
   flex: 1;
   flex-wrap: wrap;
@@ -473,7 +474,8 @@ html.tv .no-tv {
   gap: var(--sp-2);
   min-width: 0;
 }
-.card-head .name input {
+.card-head .name input,
+.card .clients .name input {
   flex: 1;
   min-width: 10rem;
 }
@@ -516,6 +518,7 @@ html.tv .no-tv {
 }
 /* paired clients (#311): name · date, Remove at the end of the line */
 .card .clients li {
+  overflow-wrap: anywhere; /* a long name without spaces (#365) */
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -570,6 +573,18 @@ html.tv .no-tv {
 }
 .dot.waiting {
   background: var(--relayed);
+}
+/* name this browser, right after pairing (#365) */
+.name-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  align-self: stretch;
+}
+.name-prompt label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
 }
 .pair-box {
   display: flex;

@@ -520,7 +520,18 @@ export function ScreenPage() {
     return () => window.removeEventListener('keydown', key)
   }, [play, leave])
 
-  const name = browserName()
+  // The name the gateway stores, so a rename (#365) shows here too: it's what
+  // the phone's Play on list offers. The auto name until it answers (older gateway).
+  const [name, setName] = useState(browserName)
+  useEffect(() => {
+    tunnelJson<{ name: string; self: boolean }[]>(pc, '/streamiq/clients').then(
+      (l) => {
+        const me = l.find((c) => c.self)
+        if (me) setName(me.name)
+      },
+      () => {},
+    )
+  }, [pc])
   return (
     <>
       {ended && (

@@ -725,9 +725,15 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       )
     })
 
-    await test.step('Paired clients on the card (#311): remove B → its stream stops; remove A itself → Pair again', async () => {
+    await test.step('Paired clients on the card (#311): name B after pairing, rename A (#365); remove B → its stream stops; remove A itself → Pair again', async () => {
       const b = await signIn(browser, false, '/gateways')
       await pair(b, gatewayCtx, gateway.pageUrl)
+      // Right after pairing, B names itself (#365): prefilled with the paired name.
+      const name = b.getByLabel('Name this browser')
+      await expect(name).toHaveValue(/ on /) // "Chrome on Linux" etc.
+      await name.fill("  B's phone ")
+      await b.getByRole('button', { name: 'Save' }).click()
+      await expect(name).toBeHidden()
       await b.getByRole('button', { name: 'Open' }).click()
       const movies = b.getByRole('button', { name: /Movies/ })
       await expect(movies).toBeVisible() // B's live session
@@ -740,6 +746,16 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(self).toContainText(
         `paired ${await a.evaluate(() => new Date().toLocaleDateString())}`,
       )
+      await expect(clients.filter({ hasText: "B's phone" })).toHaveCount(1)
+      // Rename on the list (#365).
+      await self.getByRole('button', { name: 'Rename' }).click()
+      // The form replaces the row's text (and its "(this browser)"): find it by label.
+      const field = card.getByLabel('Client name')
+      await field.fill('Desk')
+      await field.press('Enter')
+      await expect(field).toBeHidden()
+      await expect(self).toContainText('Desk (this browser)')
+      await expect(self.getByRole('button', { name: 'Rename' })).toBeFocused()
       a.once('dialog', (d) => d.accept())
       await clients
         .filter({ hasNotText: '(this browser)' })

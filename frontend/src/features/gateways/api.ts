@@ -110,6 +110,14 @@ export const listClients = (id: string) =>
 export const removeClient = (id: string, keyFp: string) =>
   viaTunnel(id, '/streamiq/clients/remove', { keyFp })
 
+export const renameClient = async (id: string, keyFp: string, name: string) =>
+  (
+    await viaTunnel<{ name: string }>(id, '/streamiq/clients/rename', {
+      keyFp,
+      name,
+    })
+  ).name
+
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })
 

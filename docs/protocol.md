@@ -380,8 +380,7 @@ member's list holds only its own entry (#341).
 browser's own key is removed only once the reply is delivered (the browser closed the
 request channel, at most `EOFGrace` 10 s later), so it still gets its `200` before its
 session closes. Names and keys stay on
-the gateway: the API never sees or stores them. A gateway older than these answers
-`404`; the web app then says to update it.
+the gateway: the API never sees or stores them.
 
 **`POST /streamiq/update`** (#312, admin-only, body ignored) → `202 { "version": "1.5.0" }`: the
 gateway started a detached `gateway update` (output in `update.log` next to the binary) for the

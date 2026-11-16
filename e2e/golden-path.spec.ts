@@ -423,7 +423,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('button', { name: 'Open' }).click()
       await a.getByRole('button', { name: /Shows/ }).click()
       await a.getByRole('button', { name: /StreamIQ Test Series/ }).click()
-      await a.getByRole('button', { name: /Episode 1\.2/ }).click()
+      await a.getByRole('button', { name: /S01E02/ }).click()
       const now = (ep: string) => a.locator('.now p', { hasText: ep })
       await expect(now('S1 · E2')).toBeVisible()
       // Season 1's last episode leads to season 2's first.
@@ -438,9 +438,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(1)
       // The series' last episode: no button.
-      await expect(
-        a.getByRole('button', { name: 'Next episode' }),
-      ).toHaveCount(0)
+      await expect(a.getByRole('button', { name: 'Next episode' })).toHaveCount(
+        0,
+      )
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 

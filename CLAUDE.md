@@ -173,7 +173,7 @@ powershell -File scripts/prune-worktrees.ps1 [-DryRun]  # remove worktrees + loc
 
 docker compose up -d                    # deps: postgres, jellyfin, firebase auth emulator
 docker compose --profile relay up -d    # + local coturn (force relay via iceTransportPolicy)
-bash scripts/gen-test-media.sh          # generate dev-media/ fixtures (needs ffmpeg)
+bash scripts/gen-test-media.sh          # generate dev-media/ (movies) + dev-shows/ (a series) fixtures (needs ffmpeg)
 
 dotnet run --project backend/src/StreamIq.Api     # backend (or: dotnet watch)
 dotnet test backend/StreamIq.slnx                 # backend tests (Testcontainers → needs Docker)

@@ -12,7 +12,6 @@ for s in 1 2; do
       -f lavfi -i "testsrc=duration=10:size=640x360:rate=30" \
       -f lavfi -i "sine=frequency=440:duration=10" \
       -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest \
-      -metadata title="Episode $s.$e" \
       "$D/Season 0$s/StreamIQ Test Series S0${s}E0$e.mp4"
   done
 done

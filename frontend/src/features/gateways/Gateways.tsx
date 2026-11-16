@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   createEnrollmentToken,
-  getGateways,
   listClients,
   removeClient,
   renameClient,
@@ -12,7 +11,9 @@ import {
   type GatewayStatus,
   type Install,
   updateGateway,
+  useGateways,
 } from './api'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Pairing } from '../pairing/Pairing'
 import { dropShared, share } from '../pairing/connect'
 import { deletePin } from '../pairing/store'
@@ -36,25 +37,17 @@ import { updated, type Started } from './update'
 // gateway, else the list. History replace both ways, so Back doesn't bounce.
 export function Home() {
   const navigate = useNavigate()
+  const { data, isError } = useGateways()
   useEffect(() => {
-    let gone = false // left before the list came: no redirect
-    getGateways()
-      .then((g) => (g.length === 1 ? g[0].id : null))
-      .catch(() => null) // the list shows the error
-      .then((id) => {
-        if (gone) return
-        if (id)
-          navigate({
-            to: '/g/$gatewayId',
-            params: { gatewayId: id },
-            replace: true,
-          })
-        else navigate({ to: '/gateways', replace: true })
+    if (!data && !isError) return // the list shows the error
+    if (data?.length === 1)
+      navigate({
+        to: '/g/$gatewayId',
+        params: { gatewayId: data[0].id },
+        replace: true,
       })
-    return () => {
-      gone = true
-    }
-  }, [navigate])
+    else navigate({ to: '/gateways', replace: true })
+  }, [data, isError, navigate])
   return null
 }
 
@@ -64,13 +57,27 @@ export function Home() {
 // (#190): hidden for a member (the API answers 403 anyway) and until /me is in;
 // a member gets told an admin does them instead (#211).
 export function Gateways() {
-  const [gateways, setGateways] = useState<Gateway[] | null>(null) // null = loading
+  const q = useGateways(5000)
+  const gateways = q.data ?? null // null = loading
   const role = useHousehold().current?.role
   const admin = role === 'admin'
   const [install, setInstall] = useState<Install | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
-  const [err, setErr] = useState<AppError | null>(null)
+  // An action's error, until the next successful poll (as the load error).
+  const [actErr, setActErr] = useState<{ e: AppError; at: number } | null>(null)
+  const setErr = (e: AppError) => setActErr({ e, at: q.dataUpdatedAt })
+  const err = q.error
+    ? toAppError(q.error)
+    : actErr?.at === q.dataUpdatedAt
+      ? actErr.e
+      : null
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const removing = useMutation({
+    mutationFn: removeGateway,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['gateways'] }),
+    onError: (e) => setErr(toAppError(e)),
+  })
   // Gateways this browser holds a pin for: Rename goes over the tunnel, so it
   // shows only there (#329). A stale pin keeps it: the rename's error says so.
   // Each card's Pairing reports it (onPin, onPaired).
@@ -91,42 +98,22 @@ export function Gateways() {
     setUnpaired((s) => new Set(s).add(id))
   }
 
-  useEffect(() => {
-    const load = () =>
-      getGateways()
-        .then((d) => {
-          setGateways(d)
-          setErr(null)
-        })
-        .catch((e) => setErr(toAppError(e)))
-    load()
-    const t = setInterval(load, 5000)
-    return () => clearInterval(t)
-  }, [])
-
-  async function remove(d: Gateway) {
+  function remove(d: Gateway) {
     if (
       !confirm(
         `Remove "${d.name ?? 'gateway'}"? It disconnects now and must be installed again to come back.`,
       )
     )
       return
-    try {
-      await removeGateway(d.id)
-      setGateways((gs) => gs && gs.filter((g) => g.id !== d.id))
-    } catch (e) {
-      setErr(toAppError(e))
-    }
+    removing.mutate(d.id)
   }
 
   // null = renamed; else the error to show in the form.
   async function rename(d: Gateway, name: string) {
     try {
-      const stored = await renameGateway(d.id, name)
-      setGateways(
-        (gs) =>
-          gs && gs.map((g) => (g.id === d.id ? { ...g, name: stored } : g)),
-      )
+      await renameGateway(d.id, name)
+      // The gateway tells the API at once (a heartbeat on rename).
+      void qc.invalidateQueries({ queryKey: ['gateways'] })
       return null
     } catch (e) {
       return renameMessage(toAppError(e))

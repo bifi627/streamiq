@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { authed } from '../../api'
 import { share } from '../pairing/connect'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
@@ -67,6 +68,11 @@ export type Install = {
 }
 
 export const getGateways = () => authed<Gateway[]>('/gateways')
+
+// The household's gateway list, shared by every screen that shows it. A
+// refetchInterval polls only while a component asking for it is mounted.
+export const useGateways = (refetchInterval?: number) =>
+  useQuery({ queryKey: ['gateways'], queryFn: getGateways, refetchInterval })
 
 export const removeGateway = (id: string) =>
   authed(`/gateways/${id}`, { method: 'DELETE' })

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authed } from '../../api'
 import { copyText } from '../../clipboard'
 import { switchHousehold } from './household'
@@ -18,56 +19,50 @@ const linkFor = (token: string) => `${location.origin}/join#${token}`
 // (7 days), list the pending ones, revoke one. The link is shown once: Copy, or
 // Share through the phone's apps (Web Share; absent on TVs and plain http).
 export function Invites() {
-  const [invites, setInvites] = useState<Invite[]>([])
+  const q = useQuery({
+    queryKey: ['invites'],
+    queryFn: () => authed<Invite[]>('/invites'),
+  })
+  const invites = q.data ?? []
   const [link, setLink] = useState<{
     id: string
     url: string
     expiresAt: string
   } | null>(null)
   const [copied, setCopied] = useState(false)
-  const [err, setErr] = useState<AppError | null>(null)
-  const [loaded, setLoaded] = useState(false) // "No open invites" only after a load
+  const [actErr, setErr] = useState<AppError | null>(null)
+  const err = actErr ?? (q.error && toAppError(q.error))
+  const loaded = q.isSuccess // "No open invites" only after a load
   const inviteBtn = useRef<HTMLButtonElement>(null)
+  const qc = useQueryClient()
+  const reload = () => qc.invalidateQueries({ queryKey: ['invites'] })
 
-  const load = () =>
-    authed<Invite[]>('/invites')
-      .then((l) => (setInvites(l), setLoaded(true)))
-      .catch((e) => setErr(toAppError(e)))
-  useEffect(() => {
-    load()
-  }, [])
-
-  async function create() {
-    setErr(null)
-    try {
-      const r = await authed<{
-        id: string
-        token: string
-        expiresAt: string
-      }>('/invites', {
+  const creating = useMutation({
+    mutationFn: () =>
+      authed<{ id: string; token: string; expiresAt: string }>('/invites', {
         method: 'POST',
-      })
+      }),
+    onMutate: () => setErr(null),
+    onSuccess: (r) => {
       setLink({ id: r.id, url: linkFor(r.token), expiresAt: r.expiresAt })
       setCopied(false)
-      await load()
-    } catch (e) {
-      setErr(toAppError(e))
-    }
-  }
+      return reload()
+    },
+    onError: (e) => setErr(toAppError(e)),
+  })
 
-  async function revoke(id: string) {
-    setErr(null)
-    try {
-      await authed(`/invites/${id}`, { method: 'DELETE' })
+  const revoking = useMutation({
+    mutationFn: (id: string) => authed(`/invites/${id}`, { method: 'DELETE' }),
+    onMutate: () => setErr(null),
+    onSuccess: (_, id) => {
       if (id === link?.id) setLink(null) // its link box goes with it
       // Revoke goes with its row: focus a control that stays, or the D-pad
       // (arrowFocus on the page) loses its place, as in Pairing (#226).
       inviteBtn.current?.focus()
-      await load()
-    } catch (e) {
-      setErr(toAppError(e))
-    }
-  }
+      return reload()
+    },
+    onError: (e) => setErr(toAppError(e)),
+  })
 
   // No clipboard API on plain http (a LAN address): the link selects on click.
   const copy = (url: string) =>
@@ -85,7 +80,7 @@ export function Invites() {
           ref={inviteBtn}
           type="button"
           className="primary"
-          onClick={create}
+          onClick={() => creating.mutate()}
         >
           Invite someone
         </button>
@@ -122,7 +117,7 @@ export function Invites() {
                 </span>
               </span>
               <span className="row-actions">
-                <button type="button" onClick={() => revoke(i.id)}>
+                <button type="button" onClick={() => revoking.mutate(i.id)}>
                   Revoke
                 </button>
               </span>

@@ -419,6 +419,31 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
+    await test.step('next episode (#205, #344): the following one, across seasons; none after the last', async () => {
+      await a.getByRole('button', { name: 'Open' }).click()
+      await a.getByRole('button', { name: /Shows/ }).click()
+      await a.getByRole('button', { name: /StreamIQ Test Series/ }).click()
+      await a.getByRole('button', { name: /S01E02/ }).click()
+      const now = (ep: string) => a.locator('.now p', { hasText: ep })
+      await expect(now('S1 · E2')).toBeVisible()
+      // Season 1's last episode leads to season 2's first.
+      await a.getByRole('button', { name: 'Next episode' }).click()
+      await expect(now('S2 · E1')).toBeVisible()
+      await expect
+        .poll(() => videoTime(a), { timeout: 30_000 })
+        .toBeGreaterThan(1)
+      await a.getByRole('button', { name: 'Next episode' }).click()
+      await expect(now('S2 · E2')).toBeVisible()
+      await expect
+        .poll(() => videoTime(a), { timeout: 30_000 })
+        .toBeGreaterThan(1)
+      // The series' last episode: no button.
+      await expect(a.getByRole('button', { name: 'Next episode' })).toHaveCount(
+        0,
+      )
+      await a.getByRole('link', { name: '← Gateways' }).click()
+    })
+
     await test.step('play on TV (#180) + phone remote (#181): commands, state, Back', async () => {
       // TV = tab a; phones = more tabs of the same paired browser (each its own
       // tunnel session, so its own screens view).

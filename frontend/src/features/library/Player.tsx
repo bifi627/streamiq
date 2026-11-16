@@ -195,15 +195,16 @@ export function Player({
     setNext(undefined) // never the episode now playing
     if (!series) return
     let gone = false // a late answer for the previous episode
+    // This episode and the one after it, not the whole series (#344);
     // isMissing=false: no episode Jellyfin lists without a file (#337).
     tunnelJson<{ Items: Item[] }>(
       pc,
-      `/Shows/${series}/Episodes?isMissing=false`,
+      `/Shows/${series}/Episodes?startItemId=${itemId}&limit=2&isMissing=false`,
     ).then(
       (p) => {
         if (gone) return
-        const i = p.Items.findIndex((e) => e.Id === itemId)
-        setNext(i < 0 ? undefined : p.Items[i + 1]) // not listed: no button
+        // Not listed first (e.g. missing): no button.
+        setNext(p.Items[0]?.Id === itemId ? p.Items[1] : undefined)
       },
       () => {}, // ponytail: no list = no button
     )

@@ -4,6 +4,7 @@
 **/dist/
 .git/
 dev-media/
+dev-shows/
 gateway/
 e2e/
 frontend/.env*

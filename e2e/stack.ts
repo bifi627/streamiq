@@ -405,6 +405,16 @@ export async function startStack(o: StackOptions) {
       '-c:v libx264 -pix_fmt yuv420p -c:a:0 mp2 -c:a:1 aac -shortest -metadata:s:a language=eng ' +
       '-metadata title="streamiq e2e mp2 default" "$D/streamiq e2e mp2 default.mkv"',
   )
+  // The series (#344): gen-test-media.sh's own script, with Jellyfin's ffmpeg.
+  await jellyfin.copyFilesToContainer([
+    {
+      source: path.join(root, 'scripts', 'gen-test-series.sh'),
+      target: '/tmp/gen-test-series.sh',
+    },
+  ])
+  await sh(
+    'FFMPEG=/usr/lib/jellyfin-ffmpeg/ffmpeg sh /tmp/gen-test-series.sh /shows',
+  )
   if (o.nvenc) await sh('nvidia-smi -L') // the GPU really is in the container
   await setupJellyfin(process.env.E2E_JELLYFIN_URL, o.nvenc)
 

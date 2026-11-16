@@ -128,9 +128,10 @@ func Offline(file string) string {
 	return OfflineAllowed
 }
 
-const manualJail = `Turn the jail on by hand (docs/install.md, "Offline Jellyfin"): in the jellyfin
-service replace ports: with networks: [jail], and copy the forwarder service and
-the networks: block from the jellyfin-compose.yml of the latest gateway release.
+const manualJail = `To do it by hand (docs/install.md, "Offline Jellyfin"): jailed = the jellyfin
+service has networks: [jail] instead of ports:, plus the forwarder service and the
+networks: block from the latest gateway release's jellyfin-compose.yml; online =
+the jellyfin service's ports: back, without those.
 `
 
 // OfflineCLI is `gateway jellyfin offline on|off`: toggles the marked blocks and restarts Jellyfin.
@@ -147,7 +148,7 @@ func OfflineCLI(ctx context.Context, file string, offline bool, out io.Writer) e
 		fmt.Fprintf(out, "%s is unchanged. Run `gateway jellyfin upgrade` first if it predates the jail, else:\n%s", file, manualJail)
 		return err
 	}
-	state := map[bool]string{true: "offline: nothing leaves the Jellyfin container", false: "online lookups allowed"}[offline]
+	state := map[bool]string{true: "offline: nothing leaves the Jellyfin container", false: "online: lookups (posters, descriptions) allowed"}[offline]
 	if !changed {
 		fmt.Fprintln(out, "Jellyfin is already", state)
 		return nil

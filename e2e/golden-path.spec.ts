@@ -422,7 +422,13 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await test.step('play on TV (#180) + phone remote (#181): commands, state, Back', async () => {
       // TV = tab a; phones = more tabs of the same paired browser (each its own
       // tunnel session, so its own screens view).
+      // TV mode off (#248): no entry in the library, the gateway card has one.
       await a.getByRole('button', { name: 'Open' }).click()
+      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
+      await expect(a.getByRole('link', { name: 'Use as screen' })).toHaveCount(
+        0,
+      )
+      await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('link', { name: 'Use as screen' }).click()
       const waiting = a.getByRole('heading', { name: /^Screen: / })
       await expect(waiting).toBeVisible()
@@ -498,8 +504,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await both((p) => expect(p.getByText('Nothing playing.')).toBeVisible())
       // Back on the TV leaves screen mode at once: both remotes say so, and
       // Play on… no longer lists it.
-      await a.keyboard.press('Escape')
-      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
+      await a.keyboard.press('Escape') // back where it was opened: Gateways
+      await expect(a.getByRole('button', { name: 'Open' })).toBeVisible()
       await both((p) => expect(p.getByText('Screen closed.')).toBeVisible())
       expect(
         JSON.parse((await viaTunnel(phone, '/streamiq/screens')).body),
@@ -513,7 +519,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(phone.getByText(/No screen open/)).toBeVisible()
       await phone.close()
       await phone2.close()
-      await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
     await test.step('Auto on a slow link (#162): a capped rung, Source warns', async () => {

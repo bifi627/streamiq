@@ -46,6 +46,7 @@ import {
 import { Privacy } from './Privacy'
 import { ICON, Icon } from './Controls'
 import { arrowFocus } from '../../focus'
+import { tvOn } from '../../settings'
 import { Tunnel, backdrop, items as getItems, primary } from './art'
 import { Artwork, minutes, Watched } from './Home'
 export { Home as LibraryHome } from './Home'
@@ -93,7 +94,9 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         <Link to="/gateways">← Gateways</Link>
         <span className="lib-actions">
           {session && !playing && !screenMode && <Privacy pc={session.pc} />}
-          {!screenMode && (
+          {/* Up front only in TV mode (#248); every device keeps the gateway
+              card's entry (Gateways.tsx). */}
+          {!screenMode && tvOn() && (
             <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
               Use as screen
             </Link>
@@ -632,8 +635,8 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
         ) : (
           <p className="muted">
             <small>
-              No screen open. On the TV, open this gateway in StreamIQ and
-              choose “Use as screen”.
+              No screen open. On the TV, go to Gateways in StreamIQ and choose
+              “Use as screen” on this gateway.
             </small>
           </p>
         ))}

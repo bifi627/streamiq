@@ -62,7 +62,7 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 {{if .Err}}<li style="color:#c00">{{.Err}}</li>{{end}}
 {{end}}
 {{with .Offline}}<li>{{if eq . "enforced"}}<b>Offline: enforced</b> (Jellyfin has no internet access){{else}}<b>Online lookups allowed</b>
-(<code>gateway jellyfin offline on</code> cuts Jellyfin off){{end}}</li>{{end}}
+(<code>gateway jellyfin offline on</code> cuts Jellyfin off; a file from before the jail: <code>gateway jellyfin upgrade</code>){{end}}</li>{{end}}
 </ul>
 {{with .Jellyfin}}{{if .PasswordFile}}
 <p style="border:2px solid #888;padding:.5rem 1rem">This gateway set up Jellyfin. Jellyfin admin:

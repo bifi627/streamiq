@@ -44,11 +44,19 @@ func Upgrade(ctx context.Context, file string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	orig := b
 	b, pinned, err := Pin(b)
 	if err != nil {
 		return err
 	}
 	jailed, migrated, err := Jail(b)
+	if err == nil && migrated { // a shape Jail misread must not reach the user's file
+		tmp := file + ".jail-check.yml" // same dir: relative mounts resolve the same
+		if err = os.WriteFile(tmp, jailed, 0o644); err == nil {
+			err = composeQuiet(ctx, tmp, "config", "--quiet")
+			os.Remove(tmp)
+		}
+	}
 	if err != nil {
 		fmt.Fprintf(out, "Not moved into the offline jail: %v.\n%s", err, manualJail)
 		jailed = b
@@ -61,6 +69,7 @@ func Upgrade(ctx context.Context, file string, out io.Writer) error {
 		return err
 	}
 	if err := Compose(ctx, file, "up", "-d"); err != nil {
+		os.WriteFile(file, orig, 0o644) // the status reads the file: keep it saying what runs
 		return err
 	}
 	fmt.Fprintln(out, "Jellyfin now runs", Image)

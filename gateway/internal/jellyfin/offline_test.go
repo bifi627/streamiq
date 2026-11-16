@@ -93,6 +93,15 @@ func TestJail(t *testing.T) {
 		t.Fatalf("Jail: changed %v, err %v\n%q\nwant\n%q", changed, err, got, want)
 	}
 
+	// A mount commented out at column 0 is still inside the jellyfin service:
+	// the forwarder goes after all of it, not in the middle (review of #355).
+	mounts := strings.Replace(readFile(t, "testdata/jellyfin-compose-pre321.yml"), "      - ./jellyfin-config:/config", "#      - ./jellyfin-config:/config", 1)
+	got, _, err = Jail([]byte(mounts))
+	if err != nil || strings.Index(string(got), "forwarder:") < strings.Index(string(got), "read_only: true") ||
+		!strings.Contains(string(got), "#      - ./jellyfin-config:/config\n      - cache:/cache") {
+		t.Fatalf("column-0 comment in the service: err %v\n%s", err, got)
+	}
+
 	old := readFile(t, "testdata/jellyfin-compose-pre321.yml")
 	jailed, changed, err := Jail([]byte(old))
 	if err != nil || !changed {
@@ -128,11 +137,13 @@ func TestJail(t *testing.T) {
 
 func TestJailUnknownShape(t *testing.T) {
 	for name, in := range map[string]string{
-		"no jellyfin":      "services:\n  media:\n    ports:\n      - 1:1\n",
-		"no ports":         "services:\n  jellyfin:\n    image: x\n",
-		"own networks":     "services:\n  jellyfin:\n    ports: [\"1:1\"]\nnetworks:\n  x: {}\n",
-		"service network":  "services:\n  jellyfin:\n    network_mode: host\n    ports: [\"1:1\"]\n",
-		"comment in ports": "services:\n  jellyfin:\n    ports:\n      # - 1900:1900\n      - 1:1\n",
+		"no jellyfin":         "services:\n  media:\n    ports:\n      - 1:1\n",
+		"no ports":            "services:\n  jellyfin:\n    image: x\n",
+		"own networks":        "services:\n  jellyfin:\n    ports: [\"1:1\"]\nnetworks:\n  x: {}\n",
+		"service network":     "services:\n  jellyfin:\n    network_mode: host\n    ports: [\"1:1\"]\n",
+		"comment in ports":    "services:\n  jellyfin:\n    ports:\n      # - 1900:1900\n      - 1:1\n",
+		"ports at key indent": "services:\n  jellyfin:\n    image: x\n    ports:\n    - \"8096:8096\"\n    volumes:\n    - ./c:/config\n",
+		"blank in ports":      "services:\n  jellyfin:\n    ports:\n      - 1:1\n\n      - 2:2\n    image: x\n",
 	} {
 		if _, _, err := Jail([]byte(in)); !errors.Is(err, errShape) {
 			t.Errorf("%s: err %v, want errShape", name, err)

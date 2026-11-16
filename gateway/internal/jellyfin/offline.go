@@ -159,6 +159,7 @@ func OfflineCLI(ctx context.Context, file string, offline bool, out io.Writer) e
 	// --remove-orphans: turning the jail off comments the forwarder out, and its
 	// container still holds the port Jellyfin publishes again.
 	if err := Compose(ctx, file, "up", "-d", "--remove-orphans"); err != nil {
+		os.WriteFile(file, b, 0o644) // the status reads the file: keep it saying what runs
 		return err
 	}
 	fmt.Fprintln(out, "Jellyfin is now", state)
@@ -198,8 +199,11 @@ func Jail(b []byte) (out []byte, changed bool, err error) {
 	for i, l := range ls {
 		if servicesKey.MatchString(l) {
 			for j := i + 1; j < len(ls); j++ {
-				if t := strings.TrimSpace(ls[j]); t != "" && indent(ls[j]) == 0 {
-					end = j // next top-level line (a comment above volumes: stays with it)
+				if t := strings.TrimSpace(ls[j]); t != "" && t[0] != '#' && indent(ls[j]) == 0 {
+					end = j // the next top-level key; a #-line at column 0 may be a commented-out mount
+					for end > i+1 && strings.HasPrefix(ls[end-1], "#") {
+						end-- // column-0 comments right above it stay with it (above volumes:)
+					}
 					break
 				}
 				if svc < 0 && jellyfinKey.MatchString(ls[j]) {
@@ -230,6 +234,7 @@ func Jail(b []byte) (out []byte, changed bool, err error) {
 		}
 		switch m := serviceKeyRe.FindStringSubmatch(l); {
 		case m == nil:
+			return nil, false, fmt.Errorf("%w: line %d is not a key of the jellyfin service", errShape, j+1)
 		case m[1] == "networks" || m[1] == "network_mode":
 			return nil, false, fmt.Errorf("%w: the jellyfin service already sets %s", errShape, m[1])
 		case m[1] == "ports" && ports >= 0:
@@ -241,6 +246,14 @@ func Jail(b []byte) (out []byte, changed bool, err error) {
 					return nil, false, fmt.Errorf("%w: a comment inside the jellyfin service's ports:", errShape)
 				}
 				portsEnd++
+			}
+			for k := portsEnd; k < end; k++ { // a blank line inside ports: (an item after it)
+				if t := strings.TrimSpace(ls[k]); t != "" {
+					if t[0] != '#' && indent(ls[k]) > ki {
+						return nil, false, fmt.Errorf("%w: a blank line inside the jellyfin service's ports:", errShape)
+					}
+					break
+				}
 			}
 		}
 	}

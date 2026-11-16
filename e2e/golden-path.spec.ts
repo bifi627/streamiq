@@ -134,9 +134,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     })
 
     await test.step('library → back → library within 30 s: one shared session (#152)', async () => {
-      let rows = 0 // connection telemetry: one POST per session attempt
+      let rows = 0 // tunnel telemetry: one POST per tunnel
       const count = (r: Request) =>
-        r.method() === 'POST' && r.url().endsWith('/connections') && rows++
+        r.method() === 'POST' && r.url().endsWith('/tunnels') && rows++
       a.on('request', count)
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
@@ -696,7 +696,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       const run = async (path: RegExp) => {
         // Closing the test's session sends its measurement to telemetry (#162).
         const end = a.waitForRequest(
-          (r) => r.method() === 'PATCH' && r.url().includes('/connections/'),
+          (r) => r.method() === 'PATCH' && r.url().includes('/tunnels/'),
         )
         await a.getByRole('button', { name: 'Test connection' }).click()
         await expect(report).toContainText(

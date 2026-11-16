@@ -61,7 +61,7 @@ export async function connect(
   // addEventListener: the handlers below own the on* properties.
   pc.addEventListener('connectionstatechange', () => pcState(pc))
   pc.addEventListener('iceconnectionstatechange', () => pcState(pc))
-  // Connection telemetry: one row per attempt. A tunnel that came up gets its
+  // Tunnel telemetry: one row per tunnel. A tunnel that came up gets its
   // ICE pair now and totals on close; a failed one gets its reason. ponytail: a
   // closed tab skips the end PATCH (row keeps EndedAt null), and so does a tab
   // closed mid-connect (no row at all).
@@ -85,7 +85,7 @@ export async function connect(
       .then(([id, s]) => {
         const p = pairInfo(s)
         if (id && p)
-          return authed(`/connections/${id}`, {
+          return authed(`/tunnels/${id}`, {
             method: 'PATCH',
             body: JSON.stringify({
               bytesReceived: p.bytesReceived,
@@ -104,7 +104,7 @@ export async function connect(
       .then((s) => {
         const p = pairInfo(s)
         if (!p) return null
-        return authed<{ id: string }>('/connections', {
+        return authed<{ id: string }>('/tunnels', {
           method: 'POST',
           body: JSON.stringify({
             gatewayId,
@@ -135,7 +135,7 @@ export async function connect(
       const e = toAppError(x)
       if (!settled) {
         settled = true
-        void authed('/connections', {
+        void authed('/tunnels', {
           method: 'POST',
           body: JSON.stringify({
             gatewayId,

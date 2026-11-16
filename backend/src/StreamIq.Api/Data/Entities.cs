@@ -67,10 +67,10 @@ public class Invite : ITenantOwned
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-/// One WebRTC session from a client to a gateway (connection telemetry, a
+/// One tunnel: the WebRTC connection from a client to a gateway (tunnel telemetry, a
 /// deliverable: checkpoints query direct-vs-relay and IPv4/v6 rates here).
 /// Written by the client: POST on connect, PATCH with totals on close.
-public class ConnectionSession : ITenantOwned
+public class Tunnel : ITenantOwned
 {
     public Guid Id { get; set; }
     public Guid TenantId { get; set; }
@@ -85,5 +85,5 @@ public class ConnectionSession : ITenantOwned
     public int? ThroughputKbps { get; set; }            // the client's gateway → client measurement (#162); null = none finished
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? EndedAt { get; set; }
-    public string? Failure { get; set; }                // null = tunnel came up; else why the attempt failed (no pair: Relay/types unset)
+    public string? Failure { get; set; }                // null = tunnel came up; else why the tunnel failed (no pair: Relay/types unset)
 }

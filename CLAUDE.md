@@ -73,7 +73,7 @@ via Jellyfin UserData. The gateway owns the Jellyfin credentials (since #195 one
 non-admin viewer `streamiq-<users.id>` per user, made on their first session, `streamiq-viewer` as the fallback; dev: `scripts/setup-jellyfin.sh`, then Connect
 Jellyfin on the dev page): it injects the session user's token, pins that viewer, lets only an
 endpoint allowlist through, and redacts the token from playlists. **PR B (trust it):** TURN (Cloudflare creds in prod,
-coturn in dev; per-session since item 6), `connection_sessions` telemetry (migration #4, drops
+coturn in dev; per-session since item 6), tunnel telemetry (migration #4, table `tunnels` since #389; drops
 the POC's `poc_connectivity`), privacy indicator (direct vs relayed); `?relay`
 forces the relay path. **Hosting:** the root `Dockerfile` builds the SPA into the
 API image (`wwwroot`, same origin, no CORS in prod); Railway Root Directory = repo root.
@@ -123,7 +123,11 @@ tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 `/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home
 LAN (code: `localpage`); **web gateway page** = the web app's view of a gateway;
 **gateway API** = endpoints the gateway serves under `/streamiq/*` over the tunnel
-(#138; a session carries device = client key and user = `users.id` from the broker). "Media server" means Jellyfin only; "relay" means TURN only.
+(#138; a session carries device = client key and user = `users.id` from the broker);
+**tunnel** = the WebRTC connection from one client to one gateway, from the browser
+opening `/api/broker/ws` until that socket closes: direct, relayed, or failed (one row in
+`tunnels`); "session" stays only the protocol/code name of a tunnel's identity (the
+`session` field, `gateway/internal/sessions`). "Media server" means Jellyfin only; "relay" means TURN only.
 Player qualities (`profile.ts`): **Auto** = the default, capped from the measured
 gateway → client throughput (#162); **Source** = no cap, remuxes what the capability
 probe says this device decodes, transcodes the rest; **Raw** = opt-in setting, no probe:
@@ -303,7 +307,7 @@ Copy `.env.example` only to override.
 - **CRUD stays boring** (plain EF Core, no repository ceremony). The
   cleverness budget goes to tunnel/signaling/gateway only. The owner works
   ponytail-style: laziest solution that works, stdlib first, shortest diff.
-- **Connection telemetry is a deliverable**: every WebRTC session attempt
+- **Tunnel telemetry is a deliverable**: every tunnel
   logs direct-vs-relay, IPv4/v6, throughput to Postgres. Checkpoints read
   this table.
 - Data-channel payloads are **chunked (~16–64KB) with backpressure**

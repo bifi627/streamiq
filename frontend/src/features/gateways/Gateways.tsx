@@ -26,7 +26,7 @@ import { isBack } from '../library/items'
 import { ErrorView, State } from '../../ErrorView'
 import { copyText } from '../../clipboard'
 import { tunnelJson } from '../../tunnel'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../focus'
 import { updated, type Started } from './update'
@@ -268,6 +268,10 @@ export function Gateways() {
                     })
                   }
                 >
+                  {/* Every device (#248); the library shows it only in TV mode. */}
+                  <Link to="/g/$gatewayId/screen" params={{ gatewayId: d.id }}>
+                    Use as screen
+                  </Link>
                   {d.lanUrl && (
                     <a href={d.lanUrl} target="_blank" rel="noreferrer">
                       Gateway page

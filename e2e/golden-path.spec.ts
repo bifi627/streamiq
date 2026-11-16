@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import type { Browser, Page, Request } from '@playwright/test'
+import type { Browser, Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   gatewayTab,
@@ -15,6 +15,7 @@ import {
   pair,
   password,
   tunnelOk,
+  tunnelRow,
   uniqueEmail,
   videoTime,
   viaTunnel,
@@ -65,6 +66,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     path.join(os.tmpdir(), 'streamiq-e2e-gateway-'),
   )
   const a = await signIn(browser, true)
+  // The broker and the gateway record tunnels; the browser never creates one (#390).
+  let posts = 0
+  a.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().includes('/tunnels')) posts++
+  })
 
   await test.step('installable as a PWA (manifest + icons)', async () => {
     const cdp = await a.context().newCDPSession(a)
@@ -134,16 +140,15 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     })
 
     await test.step('library → back → library within 30 s: one shared session (#152)', async () => {
-      let rows = 0 // tunnel telemetry: one POST per tunnel
-      const count = (r: Request) =>
-        r.method() === 'POST' && r.url().endsWith('/tunnels') && rows++
-      a.on('request', count)
+      let rows = 0 // one broker socket per tunnel
+      const count = (ws: WebSocket) => ws.url().endsWith('/broker/ws') && rows++
+      a.on('websocket', count)
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
-      a.off('request', count)
+      a.off('websocket', count)
       expect(rows).toBe(1)
     })
 
@@ -693,10 +698,25 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         .click()
       const report = a.locator('pre', { hasText: 'StreamIQ diagnostics' })
       await expect(report).toContainText(/codecs: h264 .* L\d/) // the #115 probe
-      const run = async (path: RegExp) => {
+      const run = async (path: RegExp, relay: boolean) => {
+        // This test's tunnel id arrives in its broker `answer` (#390); other
+        // sessions (the shared one, dropped by the relay toggle) PATCH theirs too.
+        const tunnel = new Promise<string>((resolve) => {
+          const onWs = (ws: WebSocket) => {
+            if (!ws.url().endsWith('/broker/ws')) return
+            a.off('websocket', onWs)
+            ws.on('framereceived', (f) => {
+              const m = JSON.parse(String(f.payload))
+              if (m.type === 'answer') resolve(m.tunnel)
+            })
+          }
+          a.on('websocket', onWs)
+        })
         // Closing the test's session sends its measurement to telemetry (#162).
         const end = a.waitForRequest(
-          (r) => r.method() === 'PATCH' && r.url().includes('/tunnels/'),
+          async (r) =>
+            r.method() === 'PATCH' &&
+            r.url().endsWith(`/tunnels/${await tunnel}`),
         )
         await a.getByRole('button', { name: 'Test connection' }).click()
         await expect(report).toContainText(
@@ -706,10 +726,28 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         expect((await end).postDataJSON().throughputKbps).toBeGreaterThan(0)
         await expect(report).toContainText('paired: yes')
         await expect(report).toContainText(path)
+        // The row: written by the broker, ended when the browser's socket closed,
+        // route + bytes from the gateway's report (#390).
+        const id = await tunnel
+        await expect
+          .poll(() => tunnelRow(id), { timeout: 15_000 })
+          .toMatchObject({
+            EndedAt: expect.any(String),
+            BytesSent: expect.any(Number),
+          })
+        const row = tunnelRow(id)!
+        expect(row, JSON.stringify(row)).toMatchObject({
+          Relay: relay,
+          Failure: null,
+          ThroughputKbps: expect.any(Number),
+        })
+        expect(row.BytesSent).toBeGreaterThan(0)
+        expect(row.BytesReceived).toBeGreaterThan(0)
+        expect(posts).toBe(0)
       }
-      await run(/path: direct .* RTT \d+ ms/)
+      await run(/path: direct .* RTT \d+ ms/, false)
       await a.getByLabel('Force relay (TURN)', { exact: true }).check()
-      await run(/relay forced: yes[\s\S]*path: relayed \(TURN\)/)
+      await run(/relay forced: yes[\s\S]*path: relayed \(TURN\)/, true)
       await a.getByLabel('Force relay (TURN)', { exact: true }).uncheck()
       await expect(report).not.toContainText(email())
       await a.goto(process.env.E2E_APP_URL! + '/gateways')

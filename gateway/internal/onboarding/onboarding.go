@@ -27,7 +27,7 @@ const heartbeatEvery = 30 * time.Second
 
 // Protocol is the gateway ↔ API protocol version (docs/protocol.md). Bump it on a
 // breaking change; the API refuses a gateway below its minimum ("upgrade required").
-const Protocol = 1
+const Protocol = 2 // 2: tunnel reports (#390)
 
 // ErrUpgradeRequired: the API no longer speaks this gateway's protocol.
 var ErrUpgradeRequired = errors.New("the StreamIQ service no longer supports this gateway version: " +

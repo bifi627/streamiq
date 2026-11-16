@@ -445,6 +445,7 @@ export async function startStack(o: StackOptions) {
   process.env.E2E_APP_URL = app
   process.env.E2E_API_URL = api // helpers.ts: users + invites over the API
   process.env.E2E_EMULATOR_URL = emulator
+  process.env.E2E_PG_CONTAINER = pg.getId() // helpers.ts tunnelRow: psql in it
   const backend = start(
     'backend',
     'dotnet',

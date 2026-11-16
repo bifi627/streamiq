@@ -367,6 +367,7 @@ type browser struct {
 	pc   *webrtc.PeerConnection
 	auth *webrtc.DataChannel
 	in   chan map[string]any
+	reps chan Report // the gateway's tunnel reports for this session
 
 	mu    sync.Mutex                // gateway → browser signaling arrives from several goroutines
 	early []webrtc.ICECandidateInit // gateway candidates that beat the answer
@@ -382,13 +383,13 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { pc.Close() })
-	b := &browser{t: t, pc: pc, in: make(chan map[string]any, 8)}
+	b := &browser{t: t, pc: pc, in: make(chan map[string]any, 8), reps: make(chan Report, 4)}
 	// Signaling behaves like production: the gateway reads its control socket one
 	// message at a time and the browser sends the offer before any candidate
 	// (inOrder); the browser holds candidates that beat the answer (fromGateway).
 	// Without both, candidates got dropped and ICE sometimes never connected (#105).
 	var inOrder sync.Mutex
-	handle := func(m Msg) { raw, _ := json.Marshal(m); gateway.Handle(raw, func(v any) { b.fromGateway(v.(Msg)) }) }
+	handle := func(m Msg) { raw, _ := json.Marshal(m); gateway.Handle(raw, b.fromGateway) }
 	toGateway := func(m Msg) { inOrder.Lock(); defer inOrder.Unlock(); handle(m) }
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c != nil {
@@ -427,7 +428,12 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 
 // fromGateway applies the gateway's signaling like the frontend (connect.ts):
 // candidates that arrive before the answer wait for it.
-func (b *browser) fromGateway(m Msg) {
+func (b *browser) fromGateway(v any) {
+	if r, ok := v.(Report); ok {
+		b.reps <- r
+		return
+	}
+	m := v.(Msg)
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	switch m.Type {
@@ -655,5 +661,85 @@ func TestTunnelChannelCap(t *testing.T) {
 		if time.Since(start) > 10*time.Second {
 			t.Fatal("cap did not free up after the served channels ended")
 		}
+	}
+}
+
+// The gateway reports each tunnel once when it ends (#390), read before the
+// PeerConnection closes: a paired one with its route and bytes and no failure,
+// an unpaired one with why it never got the tunnel. A second bye sends nothing.
+func TestTunnelReportedOnceOnEnd(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/Users" {
+			w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
+			return
+		}
+		w.Write([]byte("jellyfin"))
+	}))
+	defer origin.Close()
+	dir := t.TempDir()
+	cert, fp, _ := identity.LoadOrCreate(dir)
+	store, _ := pairing.Open(dir)
+	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
+	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
+	bye := func(id string, b *browser) Report {
+		raw, _ := json.Marshal(Msg{Type: "bye", Session: id})
+		gateway.Handle(raw, b.fromGateway)
+		select {
+		case r := <-b.reps:
+			return r
+		case <-time.After(10 * time.Second):
+			t.Fatal("no tunnel report after bye")
+			return Report{}
+		}
+	}
+
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	b := connect(t, gateway, "s1", key, false)
+	b.say(nil) // unpaired
+	nB := pairing.Nonce()
+	h := sha256.Sum256([]byte(nB))
+	b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": "phone"})
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	for len(store.Pending()) == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	store.Decide(store.Pending()[0].ID, true)
+	if b.say(nil)["type"] != "approved" || b.fetch() != "jellyfin" {
+		t.Fatal("want a working tunnel")
+	}
+	r := bye("s1", b)
+	if r.Type != "tunnel" || r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
+		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 {
+		t.Fatalf("report of a served tunnel = %+v", r)
+	}
+
+	other, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	u := connect(t, gateway, "s2", other, false)
+	u.say(nil) // unpaired
+	if r := bye("s2", u); r.Failure == nil || *r.Failure != "unpaired" {
+		t.Fatalf("report of an unpaired tunnel = %+v", r)
+	}
+	raw, _ := json.Marshal(Msg{Type: "bye", Session: "s2"})
+	gateway.Handle(raw, u.fromGateway)
+	select {
+	case r := <-u.reps:
+		t.Fatalf("second report %+v", r)
+	case <-time.After(time.Second): // also covers the Closed state callback that follows
+	}
+}
+
+// Forced relay (#390): only a browser that signaled nothing but relays counts as
+// relay-only; the end-of-candidates "" counts as nothing.
+func TestSignaledKinds(t *testing.T) {
+	var c signaled
+	c.saw("candidate:1 1 udp 41885439 203.0.113.7 3478 typ relay raddr 0.0.0.0 rport 0 generation 0")
+	c.saw("")
+	if !c.relay.Load() || c.other.Load() {
+		t.Fatal("want relay-only")
+	}
+	c.saw("candidate:2 1 udp 2122260223 192.168.1.5 50000 typ host generation 0")
+	if !c.other.Load() {
+		t.Fatal("a host candidate must count as other")
 	}
 }

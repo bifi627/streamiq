@@ -308,8 +308,9 @@ Copy `.env.example` only to override.
   cleverness budget goes to tunnel/signaling/gateway only. The owner works
   ponytail-style: laziest solution that works, stdlib first, shortest diff.
 - **Tunnel telemetry is a deliverable**: every tunnel
-  logs direct-vs-relay, IPv4/v6, throughput to Postgres. Checkpoints read
-  this table.
+  logs direct-vs-relay, IPv4/v6, bytes, duration, throughput to Postgres. The broker
+  writes the row and its end, the gateway reports route + bytes, the browser adds only
+  its measured throughput (#390). Checkpoints read this table.
 - Data-channel payloads are **chunked (~16–64KB) with backpressure**
   (`bufferedAmount` both ends) — never send whole segments as one message.
 - **English-only UI** (#97): user-visible strings stay inline (no message map, no i18n

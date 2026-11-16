@@ -1,6 +1,7 @@
 // Shared by the specs: accounts + households over the API (emulator sign-up as in
 // preview.ts, the #191 invite flow), gateways, and browser steps (sign in, pair, play).
 // Arrange state here, not through the UI: only the feature under test uses the browser.
+import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -15,6 +16,30 @@ import {
 import { startGateway } from './stack.ts'
 
 export const password = 'e2e-password'
+
+/** One `tunnels` row (#390) as JSON (EF column names: Relay, BytesSent, EndedAt, …),
+ * read from the stack's Postgres with its own psql: e2e has no DB client. null = no row. */
+export function tunnelRow(id: string): Record<string, any> | null {
+  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error(`not a tunnel id: ${id}`)
+  const r = spawnSync(
+    'docker',
+    [
+      'exec',
+      process.env.E2E_PG_CONTAINER!,
+      'psql',
+      '-U',
+      'streamiq',
+      '-d',
+      'streamiq',
+      '-At',
+      '-c',
+      `select row_to_json(t) from tunnels t where "Id" = '${id}'`,
+    ],
+    { encoding: 'utf8' },
+  )
+  if (r.status !== 0) throw new Error(`psql: ${r.stderr}`)
+  return r.stdout.trim() ? JSON.parse(r.stdout) : null
+}
 
 /** A fresh address per call: the Auth emulator lives for the whole run, and
  * tests run in parallel and under --repeat-each. */

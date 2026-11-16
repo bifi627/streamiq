@@ -247,10 +247,11 @@ func Jail(b []byte) (out []byte, changed bool, err error) {
 				}
 				portsEnd++
 			}
-			for k := portsEnd; k < end; k++ { // a blank line inside ports: (an item after it)
-				if t := strings.TrimSpace(ls[k]); t != "" {
-					if t[0] != '#' && indent(ls[k]) > ki {
-						return nil, false, fmt.Errorf("%w: a blank line inside the jellyfin service's ports:", errShape)
+			// A blank line or a column-0 comment ended the span: a port item after it is refused.
+			for k := portsEnd; k < end; k++ {
+				if t := strings.TrimSpace(ls[k]); t != "" && t[0] != '#' {
+					if indent(ls[k]) > ki {
+						return nil, false, fmt.Errorf("%w: a blank line or comment inside the jellyfin service's ports:", errShape)
 					}
 					break
 				}

@@ -59,7 +59,7 @@ func Upgrade(ctx context.Context, file string, out io.Writer) error {
 	}
 	if err != nil {
 		fmt.Fprintf(out, "Not moved into the offline jail: %v.\n%s", err, manualJail)
-		jailed = b
+		jailed, migrated = b, false
 	}
 	if !pinned && !migrated {
 		fmt.Fprintln(out, "Already on", Image)

@@ -137,17 +137,32 @@ func TestJail(t *testing.T) {
 
 func TestJailUnknownShape(t *testing.T) {
 	for name, in := range map[string]string{
-		"no jellyfin":         "services:\n  media:\n    ports:\n      - 1:1\n",
-		"no ports":            "services:\n  jellyfin:\n    image: x\n",
-		"own networks":        "services:\n  jellyfin:\n    ports: [\"1:1\"]\nnetworks:\n  x: {}\n",
-		"service network":     "services:\n  jellyfin:\n    network_mode: host\n    ports: [\"1:1\"]\n",
-		"comment in ports":    "services:\n  jellyfin:\n    ports:\n      # - 1900:1900\n      - 1:1\n",
-		"ports at key indent": "services:\n  jellyfin:\n    image: x\n    ports:\n    - \"8096:8096\"\n    volumes:\n    - ./c:/config\n",
-		"blank in ports":      "services:\n  jellyfin:\n    ports:\n      - 1:1\n\n      - 2:2\n    image: x\n",
+		"no jellyfin":            "services:\n  media:\n    ports:\n      - 1:1\n",
+		"no ports":               "services:\n  jellyfin:\n    image: x\n",
+		"own networks":           "services:\n  jellyfin:\n    ports: [\"1:1\"]\nnetworks:\n  x: {}\n",
+		"service network":        "services:\n  jellyfin:\n    network_mode: host\n    ports: [\"1:1\"]\n",
+		"comment in ports":       "services:\n  jellyfin:\n    ports:\n      # - 1900:1900\n      - 1:1\n",
+		"ports at key indent":    "services:\n  jellyfin:\n    image: x\n    ports:\n    - \"8096:8096\"\n    volumes:\n    - ./c:/config\n",
+		"col-0 comment in ports": "services:\n  jellyfin:\n    ports:\n      - \"8096:8096\"\n#      - \"1900:1900/udp\"\n      - \"7359:7359/udp\"\n    image: x\n",
+		"blank in ports":         "services:\n  jellyfin:\n    ports:\n      - 1:1\n\n      - 2:2\n    image: x\n",
 	} {
 		if _, _, err := Jail([]byte(in)); !errors.Is(err, errShape) {
 			t.Errorf("%s: err %v, want errShape", name, err)
 		}
+	}
+}
+
+// A migration that's refused, with the pin already current, changes nothing:
+// no write, no restart, no "now offline" (second review of #355).
+func TestUpgradeRefusedMigration(t *testing.T) {
+	in := "services:\n  jellyfin:\n    image: " + Image + "\n    ports:\n      - \"8096:8096\"\n#      - \"1900:1900/udp\"\n      - \"7359:7359/udp\"\n"
+	f := write(t, []byte(in))
+	var out strings.Builder
+	if err := Upgrade(t.Context(), f, &out); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, f); got != in || strings.Contains(out.String(), "now offline") || !strings.Contains(out.String(), "Not moved into the offline jail") || !strings.Contains(out.String(), "Already on") {
+		t.Fatalf("output %q, file changed: %v", out.String(), got != in)
 	}
 }
 

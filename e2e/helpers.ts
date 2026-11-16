@@ -29,14 +29,24 @@ export type User = {
   api: <T = any>(path: string, init?: RequestInit) => Promise<T>
 }
 
-/** A new emulator account, provisioned by the API (first /me). */
-export async function signUp(email: string): Promise<User> {
+/** A new emulator account, provisioned by the API (first /me). Its alias
+ * (displayName, #388) is its email unless given: null = none yet, so the app
+ * asks for one first. */
+export async function signUp(
+  email: string,
+  alias: string | null = email,
+): Promise<User> {
   const r = await fetch(
     `${process.env.E2E_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, returnSecureToken: true }),
+      body: JSON.stringify({
+        email,
+        password,
+        returnSecureToken: true,
+        ...(alias !== null && { displayName: alias }),
+      }),
     },
   ).then((r) => r.json())
   if (!r.idToken) throw new Error(`emulator signUp: ${JSON.stringify(r)}`)

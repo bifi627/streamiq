@@ -85,8 +85,9 @@ Already a member: both answer `200` without spending the invite. Unknown, expire
 used or revoked: `404`, all alike.
 
 **Members (#192).** Any member: `GET /api/members` →
-`[{userId, name, email, role, joinedAt}]` of the request's household (`name`/`email`
-looked up in Firebase per call, nothing stored; `null` when unknown);
+`[{userId, name, email?, role, joinedAt}]` of the request's household (looked up in
+Firebase per call, nothing stored): `name` = the alias (Firebase `displayName`, set by the
+web app, #388), else the email, `null` when unknown; `email` only on the caller's own row;
 `DELETE /api/members/{own userId}` → `204` (leave). Household admin (a member gets
 `403`): `DELETE /api/members/{userId}` → `204` (remove);
 `PUT /api/members/{userId}/role {role}` → `204` (`admin` | `member`). Removing a user also deletes their

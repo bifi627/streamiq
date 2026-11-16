@@ -49,6 +49,7 @@ import {
   tvOn,
 } from './settings'
 import { arrowFocus } from './focus'
+import { AliasSetting, needsAlias, PickAlias } from './Alias'
 import { clearArtThen } from './leave'
 import { useGateways } from './features/gateways/api'
 import { useQueryClient } from '@tanstack/react-query'
@@ -350,6 +351,14 @@ function Settings() {
       <div className="card">
         <h2>Account</h2>
         <ul className="rows">
+          {auth.currentUser && (
+            <li>
+              <AliasSetting user={auth.currentUser} />
+              <p className="muted">
+                What members of your households see instead of your email.
+              </p>
+            </li>
+          )}
           <li>
             <span className="setting">
               Signed in as{' '}
@@ -615,6 +624,7 @@ declare module '@tanstack/react-router' {
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
+  const [, aliasSet] = useState(false) // updateProfile fires no auth event
 
   useEffect(() => {
     let was: User | null = null
@@ -632,5 +642,8 @@ export default function App() {
 
   if (!ready) return null
   // Signed out on a deep link: SignIn renders at that URL, so it loads after sign-in.
-  return user ? <RouterProvider router={router} /> : <SignIn />
+  if (!user) return <SignIn />
+  if (needsAlias(user))
+    return <PickAlias user={user} done={() => aliasSet(true)} />
+  return <RouterProvider router={router} />
 }

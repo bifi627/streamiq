@@ -107,7 +107,7 @@ membership. `switchHousehold()` stores the choice and fully reloads `/` (closes 
 the old household's state). **Lost membership (#210):** after `/me` every request names its
 household; a non-member answer is a `404` with header `X-StreamIQ-Not-Member` (same for a
 foreign or missing household), on which `authed()` (`api.ts`) drops the choice and reloads `/` with a notice.
-**Members (#192):** `Features/Members/`: anyone lists (names/emails from Firebase per call) and
+**Members (#192):** `Features/Members/`: anyone lists (aliases from Firebase per call, #388: `displayName` picked after sign-up, else the email; your own email only) and
 leaves, an admin removes and promotes/demotes; a household always keeps an admin (`409`; the
 check runs under a lock on the tenant row). A user left with no household gets a fresh one
 (`UserProvisioner`).

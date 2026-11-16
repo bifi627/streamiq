@@ -511,7 +511,10 @@ export async function startStack(o: StackOptions) {
       await Promise.all([
         pg.stop(),
         firebase.stop(),
-        jellyfin?.then((j) => j.container.stop()),
+        jellyfin?.then(
+          (j) => j.container.stop(),
+          () => {}, // failed to start: nothing to stop, stop the rest
+        ),
         coturn.stop(),
       ])
     },

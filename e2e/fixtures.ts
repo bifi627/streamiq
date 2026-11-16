@@ -3,6 +3,8 @@
 //   (stack.ts). Any spec that starts a gateway asks for it; a run of
 //   specs that don't never starts Jellyfin.
 // - paired: a signed-in browser paired with its own fresh gateway.
+// A serial lane, if one is ever needed: Playwright's own `{ lock: 'jellyfin' }`
+// in the test details (no harness code).
 import { test as base, type BrowserContext, type Page } from '@playwright/test'
 import {
   newPage,

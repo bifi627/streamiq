@@ -338,8 +338,9 @@ func TestBYOWithoutOwnAdminAsksToReconnect(t *testing.T) {
 	c := s.creds
 	c.User, c.Password, c.BYO = "", "", false // as written before #195
 	b, _ := json.Marshal(c)
-	if err := os.WriteFile(s.path(), b, 0o600); err != nil {
-		t.Fatal(err)
+	later := time.Now().Add(time.Second) // a coarse mtime still moves (#353)
+	if os.WriteFile(s.path(), b, 0o600) != nil || os.Chtimes(s.path(), later, later) != nil {
+		t.Fatal("write jellyfin.json")
 	}
 	got = [2]string{}
 	if err := s.Load(); err != nil {

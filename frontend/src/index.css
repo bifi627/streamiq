@@ -1406,11 +1406,56 @@ progress::-moz-progress-bar {
   }
 }
 
-/* Settings leftovers until its own redesign (#229). */
-.setting {
-  display: block;
-  margin-top: var(--sp-4);
+/* Settings (#229): a card per section, a row per setting: its name with the
+   control at the row's right end (one column, so the D-pad's Up/Down go
+   straight), its one-line explanation under it. */
+.settings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-5);
+  max-width: 48rem;
 }
-.setting + p {
-  margin: var(--sp-1) 0 0 var(--sp-6);
+.settings .back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.settings .back svg {
+  width: 1rem;
+  height: 1rem;
+}
+.settings .head {
+  display: block;
+  margin: 0;
+}
+.settings .head p {
+  margin: var(--sp-1) 0 0;
+}
+.settings .card {
+  align-items: stretch;
+  align-self: stretch;
+}
+.setting {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  min-height: var(--target);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.setting > input,
+.setting > select {
+  order: 1;
+  margin: 0 0 0 auto;
+}
+.settings .rows p {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: var(--fs-meta);
+}
+.settings .rows li:last-child {
+  padding-bottom: 0;
 }

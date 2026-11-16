@@ -5,6 +5,7 @@
 // Selects, textareas, number fields and radios keep their arrows; other one-line
 // fields and sliders: up/down leave them, left/right only past a text caret's end
 // (#202; a slider has no caret, so it keeps left/right: the remote's seek, #227).
+// Checkboxes use no arrows: every arrow leaves them (#229).
 import type { KeyboardEvent } from 'react'
 
 type Box = { left: number; top: number; right: number; bottom: number }
@@ -56,7 +57,9 @@ export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
     e.shiftKey || // browser shortcuts
     e.defaultPrevented || // an inner container moved already
     from.matches('select, textarea, input[type=number], input[type=radio]') ||
-    (from instanceof HTMLInputElement && !caretAtEdge(from, e.key))
+    (from instanceof HTMLInputElement &&
+      from.type !== 'checkbox' &&
+      !caretAtEdge(from, e.key))
   )
     return
   const els = [

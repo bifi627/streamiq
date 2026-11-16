@@ -212,8 +212,8 @@ function SignIn() {
   )
 }
 
-// Per-device settings (#113). Back goes back in history; after a deep link
-// (no in-app history) it goes home instead of leaving the app.
+// Per-device settings (#113), in sections (#229). Back goes back in history;
+// after a deep link (no in-app history) it goes home instead of leaving the app.
 function Settings() {
   const router = useRouter()
   const canGoBack = useCanGoBack()
@@ -222,100 +222,153 @@ function Settings() {
   const [raw, setRawOn] = useState(rawOn)
   const [tv, setTvOn] = useState(tvOn)
   const [saver, setSaver] = useState(dataSaver)
+  const net = netInfo()
   return (
-    <section>
+    <section className="settings" onKeyDown={arrowFocus}>
       <button
         type="button"
+        className="back"
         onClick={() =>
           canGoBack
             ? router.history.back()
             : navigate({ to: '/', replace: true })
         }
       >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
         Back
       </button>
-      <h2>Settings</h2>
-      <p className="muted">These apply to this device only.</p>
-      <label className="setting">
-        <input
-          type="checkbox"
-          autoFocus
-          checked={compatible}
-          onChange={(e) => {
-            setCompatible(e.target.checked)
-            setOn(e.target.checked)
-          }}
-        />{' '}
-        Compatible mode
-      </label>
-      <p className="muted">
-        For old TVs: plays everything in the safest format, costs more work on
-        your home PC.
-      </p>
-      <label className="setting">
-        Data saver{' '}
-        <select
-          value={saver}
-          onChange={(e) => {
-            const v = e.target.value as typeof saver
-            setDataSaver(v)
-            setSaver(v)
-          }}
-        >
-          <option value="auto">Automatic</option>
-          <option value="on">On</option>
-          <option value="off">Off</option>
-        </select>
-      </label>
-      <p className="muted">
-        {dataSaverOn() ? 'On now' : 'Off now'}: Auto quality stays at 480p and
-        the speed test uses ~3 MB instead of up to ~50 MB. Automatic turns it on
-        on mobile data or when the browser asks to save data. This browser
-        reports:{' '}
-        {netInfo()
-          ? `connection ${netInfo()!.type ?? 'unknown'}, save data ${netInfo()!.saveData ? 'on' : 'off'}`
-          : 'nothing (no Network Information API)'}
-        .
-      </p>
-      <label className="setting">
-        <input
-          type="checkbox"
-          checked={raw}
-          onChange={(e) => {
-            setRaw(e.target.checked)
-            setRawOn(e.target.checked)
-          }}
-        />{' '}
-        Raw quality option (plays original streams, may not play on this device)
-      </label>
-      <p className="muted">
-        Adds Raw to the player's quality menu: no check of what this device can
-        decode.
-      </p>
-      <label className="setting">
-        <input
-          type="checkbox"
-          checked={tv}
-          onChange={(e) => {
-            setTv(e.target.checked)
-            setTvOn(e.target.checked)
-          }}
-        />{' '}
-        TV mode
-      </label>
-      <p className="muted">
-        Larger text and a margin for TVs that crop the picture edges.
-      </p>
-      <DiagnosticsToggle />
-      <p className="muted">
-        Connection, CPU and memory details on every page, to report a problem.
-      </p>
-      <p className="setting">
-        {auth.currentUser?.email}{' '}
-        <button type="button" onClick={() => signOut(auth)}>
-          Sign out
-        </button>
-      </p>
+      <div className="head">
+        <h1>Settings</h1>
+        <p className="muted">These apply to this device only.</p>
+      </div>
+
+      <div className="card">
+        <h2>Playback</h2>
+        <ul className="rows">
+          <li>
+            <label className="setting">
+              <input
+                type="checkbox"
+                autoFocus
+                checked={compatible}
+                onChange={(e) => {
+                  setCompatible(e.target.checked)
+                  setOn(e.target.checked)
+                }}
+              />{' '}
+              Compatible mode
+            </label>
+            <p className="muted">
+              For old TVs: plays everything in the safest format, costs more
+              work on your home PC.
+            </p>
+          </li>
+          <li>
+            <label className="setting">
+              Data saver
+              <select
+                value={saver}
+                onChange={(e) => {
+                  const v = e.target.value as typeof saver
+                  setDataSaver(v)
+                  setSaver(v)
+                }}
+              >
+                <option value="auto">Automatic</option>
+                <option value="on">On</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+            <p className="muted">
+              {dataSaverOn() ? 'On now' : 'Off now'}: Auto quality stays at
+              480p and the speed test uses ~3 MB instead of up to ~50 MB.
+              Automatic turns it on on mobile data or when the browser asks to
+              save data. This browser reports:{' '}
+              {net
+                ? `connection ${net.type ?? 'unknown'}, save data ${net.saveData ? 'on' : 'off'}`
+                : 'nothing (no Network Information API)'}
+              .
+            </p>
+          </li>
+          <li>
+            <label className="setting">
+              <input
+                type="checkbox"
+                checked={raw}
+                onChange={(e) => {
+                  setRaw(e.target.checked)
+                  setRawOn(e.target.checked)
+                }}
+              />{' '}
+              Raw quality option
+            </label>
+            <p className="muted">
+              Adds Raw to the player's quality menu: plays original streams with
+              no check of what this device can decode, so they may not play.
+            </p>
+          </li>
+        </ul>
+      </div>
+
+      <div className="card">
+        <h2>Display</h2>
+        <ul className="rows">
+          <li>
+            <label className="setting">
+              <input
+                type="checkbox"
+                checked={tv}
+                onChange={(e) => {
+                  setTv(e.target.checked)
+                  setTvOn(e.target.checked)
+                }}
+              />{' '}
+              TV mode
+            </label>
+            <p className="muted">
+              Larger text and a margin for TVs that crop the picture edges.
+            </p>
+          </li>
+        </ul>
+      </div>
+
+      <div className="card">
+        <h2>Account</h2>
+        <ul className="rows">
+          <li>
+            <span className="setting">
+              Signed in as
+              <span className="muted">{auth.currentUser?.email}</span>
+            </span>
+            <button type="button" onClick={() => signOut(auth)}>
+              Sign out
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <div className="card">
+        <h2>Diagnostics</h2>
+        <ul className="rows">
+          <li>
+            <DiagnosticsToggle />
+            <p className="muted">
+              Connection, CPU and memory details on every page, to report a
+              problem.
+            </p>
+          </li>
+          <li>
+            <Link to="/diagnostics" className="setting">
+              Client info + connection test
+            </Link>
+            <p className="muted">
+              What this browser can play, and a speed test to your gateway.
+            </p>
+          </li>
+        </ul>
+      </div>
     </section>
   )
 }

@@ -245,6 +245,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       ).toBeVisible()
       await a.getByRole('link', { name: 'Settings' }).click()
       await a.getByLabel('Compatible mode').uncheck()
+      // The D-pad leaves a checkbox (#229): Down reaches the next setting.
+      await a.keyboard.press('ArrowDown')
+      await expect(
+        a.getByRole('combobox', { name: 'Data saver' }),
+      ).toBeFocused()
       await a.getByRole('button', { name: 'Back' }).click()
       // Quality (#108, #161): the picker says what plays and hides rungs that
       // would not scale the 360p clip down (480p too); a switch reloads at the

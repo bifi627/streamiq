@@ -194,7 +194,7 @@ Copy `.env.example` only to override.
 ## Machine notes
 
 - Primary dev machine is Windows 10 + Git Bash + Docker Desktop (WSL2).
-  Go 1.26, .NET 10 SDK, Node 26, Docker are present — gateway work runs locally
+  Go 1.27, .NET 10 SDK, Node 26, Docker are present — gateway work runs locally
   now (the devcontainer remains for CI parity / clean-room builds).
 - **Worktrees:** tests are isolated — `check.sh` / backend tests / e2e run concurrently
   across worktrees (random ports, per-checkout `e2e/.bin`; the test Firebase emulator image is

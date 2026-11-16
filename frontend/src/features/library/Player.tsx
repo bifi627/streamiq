@@ -235,6 +235,8 @@ export function Player({
     }
     const at = Date.now()
     playback.set(gatewayId, { at })
+    // A read still in flight predates this playback: drop its result (#378).
+    void queryClient.cancelQueries({ queryKey: ['tunnel', gatewayId] })
     let saving: Promise<unknown> = Promise.resolve()
     const save = (body: object) =>
       (saving = tunnelJson(pc, `/UserItems/${itemId}/UserData`, body).catch(

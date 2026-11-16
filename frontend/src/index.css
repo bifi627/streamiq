@@ -1447,9 +1447,28 @@ progress::-moz-progress-bar {
   overflow-wrap: anywhere;
 }
 .setting > input,
-.setting > select {
+.setting > .choice {
   order: 1;
   margin: 0 0 0 auto;
+}
+.choice {
+  display: flex;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border-radius: 1.625rem;
+  background: var(--surface-2);
+}
+.choice button {
+  font-size: var(--fs-meta);
+}
+.choice button[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+.settings .rows a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
 }
 .settings .rows p {
   flex: 1 0 100%;

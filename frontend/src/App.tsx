@@ -266,21 +266,32 @@ function Settings() {
             </p>
           </li>
           <li>
-            <label className="setting">
-              Data saver
-              <select
-                value={saver}
-                onChange={(e) => {
-                  const v = e.target.value as typeof saver
-                  setDataSaver(v)
-                  setSaver(v)
-                }}
-              >
-                <option value="auto">Automatic</option>
-                <option value="on">On</option>
-                <option value="off">Off</option>
-              </select>
-            </label>
+            {/* Buttons, not a select: a select keeps the D-pad's arrows
+                (focus.ts), so focus could never leave it (#229). */}
+            <div className="setting">
+              <span id="saver">Data saver</span>
+              <div role="group" aria-labelledby="saver" className="choice">
+                {(
+                  [
+                    ['auto', 'Automatic'],
+                    ['on', 'On'],
+                    ['off', 'Off'],
+                  ] as const
+                ).map(([v, name]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={saver === v}
+                    onClick={() => {
+                      setDataSaver(v)
+                      setSaver(v)
+                    }}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
             <p className="muted">
               {dataSaverOn() ? 'On now' : 'Off now'}: Auto quality stays at 480p
               and the speed test uses ~3 MB instead of up to ~50 MB. Automatic
@@ -339,7 +350,7 @@ function Settings() {
         <ul className="rows">
           <li>
             <span className="setting">
-              Signed in as
+              Signed in as{' '}
               <span className="muted">{auth.currentUser?.email}</span>
             </span>
             <button type="button" onClick={() => signOut(auth)}>
@@ -360,9 +371,7 @@ function Settings() {
             </p>
           </li>
           <li>
-            <Link to="/diagnostics" className="setting">
-              Client info + connection test
-            </Link>
+            <Link to="/diagnostics">Client info + connection test</Link>
             <p className="muted">
               What this browser can play, and a speed test to your gateway.
             </p>

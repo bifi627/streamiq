@@ -245,11 +245,16 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       ).toBeVisible()
       await a.getByRole('link', { name: 'Settings' }).click()
       await a.getByLabel('Compatible mode').uncheck()
-      // The D-pad leaves a checkbox (#229): Down reaches the next setting.
+      // The D-pad leaves a checkbox (#229), Left/Right too (no caret to
+      // keep them), and Down goes on past Data saver.
+      await a.keyboard.press('ArrowLeft')
+      await expect(a.getByLabel('Compatible mode')).not.toBeFocused()
+      await a.getByLabel('Compatible mode').focus()
       await a.keyboard.press('ArrowDown')
-      await expect(
-        a.getByRole('combobox', { name: 'Data saver' }),
-      ).toBeFocused()
+      const saver = a.getByRole('group', { name: 'Data saver' })
+      await expect(saver.getByRole('button', { name: 'Off' })).toBeFocused()
+      await a.keyboard.press('ArrowDown')
+      await expect(a.getByLabel('Raw quality option')).toBeFocused()
       await a.getByRole('button', { name: 'Back' }).click()
       // Quality (#108, #161): the picker says what plays and hides rungs that
       // would not scale the 360p clip down (480p too); a switch reloads at the
@@ -553,7 +558,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
 
     await test.step('data saver (#291): small measurement, Auto at 480p', async () => {
       await a.getByRole('link', { name: 'Settings' }).click()
-      await a.getByRole('combobox', { name: 'Data saver' }).selectOption('on')
+      await a
+        .getByRole('group', { name: 'Data saver' })
+        .getByRole('button', { name: 'On' })
+        .click()
       await expect(a.getByText(/^On now/)).toBeVisible()
       await a.reload() // a fresh tunnel session: it measures in saver mode
       await a.getByRole('link', { name: 'Gateways' }).click()
@@ -579,7 +587,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
         a.getByRole('menuitem', { name: /^Quality.*Auto · 480p \(data saver/ }),
       ).toBeVisible()
       await a.goto(`${process.env.E2E_APP_URL!}/settings`)
-      await a.getByRole('combobox', { name: 'Data saver' }).selectOption('auto')
+      await a
+        .getByRole('group', { name: 'Data saver' })
+        .getByRole('button', { name: 'Automatic' })
+        .click()
       await expect(a.getByText(/^Off now/)).toBeVisible() // desktop: no cellular
       await a.goto(process.env.E2E_APP_URL! + '/gateways')
     })

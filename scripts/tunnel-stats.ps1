@@ -29,5 +29,5 @@ $url = $ConnectionString -replace '@(localhost|127\.0\.0\.1)([:/])', '@host.dock
 
 # A "-- # Title" line in the .sql becomes a printed heading (plain SQL stays runnable on its own)
 $sql = (Get-Content -Raw (Join-Path $PSScriptRoot 'tunnel-stats.sql')) -replace '(?m)^-- # (.*)$', "\qecho`n\qecho == `$1"
-"SET stats.weeks = $Weeks;`n$sql" | docker run -i --rm postgres:18 psql -q -X -v ON_ERROR_STOP=1 -d $url -f -
+"SET default_transaction_read_only = on; SET stats.weeks = $Weeks;`n$sql" | docker run -i --rm postgres:18 psql -q -X -v ON_ERROR_STOP=1 -d $url -f -
 if ($LASTEXITCODE -ne 0) { throw "psql failed (exit $LASTEXITCODE)" }

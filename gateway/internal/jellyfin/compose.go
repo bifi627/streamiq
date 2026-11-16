@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -32,23 +33,41 @@ func Pin(b []byte) (out []byte, changed bool, err error) {
 	return imageLine.ReplaceAll(b, []byte("${1}"+Image)), true, nil
 }
 
-// Upgrade pins file to Image and restarts Jellyfin; false if it was already on it.
-func Upgrade(ctx context.Context, file string) (bool, error) {
+// Upgrade pins file to Image, moves a file from before #321 into the jail
+// (Jail; a file it can't read is only pinned, with the manual steps printed)
+// and restarts Jellyfin if anything changed.
+func Upgrade(ctx context.Context, file string, out io.Writer) error {
 	b, err := os.ReadFile(file)
 	if errors.Is(err, os.ErrNotExist) {
-		return false, fmt.Errorf("no %s: run `gateway jellyfin up` first", file)
+		return fmt.Errorf("no %s: run `gateway jellyfin up` first", file)
 	}
 	if err != nil {
-		return false, err
+		return err
 	}
-	out, changed, err := Pin(b)
-	if err != nil || !changed {
-		return false, err
+	b, pinned, err := Pin(b)
+	if err != nil {
+		return err
 	}
-	if err := os.WriteFile(file, out, 0o644); err != nil {
-		return false, err
+	jailed, migrated, err := Jail(b)
+	if err != nil {
+		fmt.Fprintf(out, "Not moved into the offline jail: %v.\n%s", err, manualJail)
+		jailed = b
 	}
-	return true, Compose(ctx, file, "up", "-d")
+	if !pinned && !migrated {
+		fmt.Fprintln(out, "Already on", Image)
+		return nil
+	}
+	if err := os.WriteFile(file, jailed, 0o644); err != nil {
+		return err
+	}
+	if err := Compose(ctx, file, "up", "-d"); err != nil {
+		return err
+	}
+	fmt.Fprintln(out, "Jellyfin now runs", Image)
+	if migrated {
+		fmt.Fprintln(out, "Jellyfin is now offline: nothing leaves its container (`gateway jellyfin offline off` allows online lookups).")
+	}
+	return nil
 }
 
 // Compose runs `docker compose -f file args…` with its output on the terminal.

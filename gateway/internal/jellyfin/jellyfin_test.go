@@ -434,6 +434,17 @@ func TestPinsMatchTested(t *testing.T) {
 			t.Errorf("%s: Jellyfin image %q, want %s", f, m, Image)
 		}
 	}
+	// The forwarder (#321): every alpine/socat line in the shipped file is the pin; never `latest`.
+	b, _ := os.ReadFile("../../install/jellyfin-compose.yml")
+	socat := regexp.MustCompile(`image: (alpine/socat\S*)`).FindAllSubmatch(b, -1)
+	if len(socat) == 0 || strings.HasSuffix(Forwarder, ":latest") || !strings.Contains(Forwarder, ":") {
+		t.Errorf("forwarder image %q / %s", socat, Forwarder)
+	}
+	for _, m := range socat {
+		if string(m[1]) != Forwarder {
+			t.Errorf("jellyfin-compose.yml: forwarder image %s, want %s", m[1], Forwarder)
+		}
+	}
 	if !strings.HasPrefix(Image, "jellyfin/jellyfin:"+Tested+".") {
 		t.Errorf("Image %s is not Jellyfin %s", Image, Tested)
 	}

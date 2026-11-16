@@ -61,6 +61,8 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 (<code>STREAMIQ_JELLYFIN_HWACCEL</code> in gateway.env){{else}}not managed (your Jellyfin: Dashboard → Playback → Transcoding){{end}}</li>{{end}}
 {{if .Err}}<li style="color:#c00">{{.Err}}</li>{{end}}
 {{end}}
+{{with .Offline}}<li>{{if eq . "enforced"}}<b>Offline: enforced</b> (Jellyfin has no internet access){{else}}<b>Online lookups allowed</b>
+(<code>gateway jellyfin offline on</code> cuts Jellyfin off){{end}}</li>{{end}}
 </ul>
 {{with .Jellyfin}}{{if .PasswordFile}}
 <p style="border:2px solid #888;padding:.5rem 1rem">This gateway set up Jellyfin. Jellyfin admin:
@@ -106,6 +108,7 @@ type Config struct {
 	Store                           *pairing.Store
 	Jellyfin                        func() any                                       // status snapshot (jellyfin.View)
 	Login                           func(ctx context.Context, user, pw string) error // connect Jellyfin (viewer token)
+	Offline                         func() string                                    // jellyfin.Offline: "" = no line (#321); nil = none
 }
 
 // Handler renders the status page and takes the Approve/Reject/Remove and
@@ -122,6 +125,7 @@ func Handler(c Config) http.Handler {
 			"Name": c.Name(), "GatewayID": c.GatewayID, "Fingerprint": c.Fingerprint,
 			"Version": c.Version, "Update": *c.Update.Load(), "LastBeat": beat,
 			"Jellyfin": c.Jellyfin(), "Pending": c.Store.Pending(), "Paired": c.Store.Paired(),
+			"Offline": offline(c),
 		})
 	})
 	// For `gateway status` on this machine. Loopback only, even with a page
@@ -225,4 +229,11 @@ func PrintStatus(ctx context.Context, w io.Writer, port, pageLink string) error 
 		fmt.Fprintf(w, "           from another device: %s\n", pageLink)
 	}
 	return nil
+}
+
+func offline(c Config) string {
+	if c.Offline == nil {
+		return ""
+	}
+	return c.Offline()
 }

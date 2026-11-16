@@ -712,6 +712,13 @@ function StatusLines({ s }: { s: GatewayStatus }) {
         {jf?.untested && <b> · not tested with this gateway</b>}
         {jf?.token && ` · ${tokenText[jf.token]}`}
       </li>
+      {jf?.offline && (
+        <li>
+          {jf.offline === 'enforced'
+            ? 'Offline: enforced'
+            : 'Online lookups allowed'}
+        </li>
+      )}
       <li>
         Paired browsers: {(s.pairedClients ?? '?').toLocaleString()} · open
         sessions: {(s.activeSessions ?? '?').toLocaleString()}

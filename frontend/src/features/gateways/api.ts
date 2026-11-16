@@ -28,6 +28,7 @@ export type GatewayStatus = {
     version?: string
     untested?: boolean
     token?: 'ok' | 'missing' | 'legacy'
+    offline?: 'enforced' | 'allowed' // #321: absent = no compose Jellyfin
   }
   viewer?: { shared?: boolean; reason?: string } // this session's (#242); reason: see guest.ts
   remoteUpdate?: true | string // #312: the update button works, or why not

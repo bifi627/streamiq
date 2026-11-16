@@ -2,6 +2,7 @@ package jellyfin
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 )
@@ -31,7 +32,7 @@ func TestComposeWithoutDocker(t *testing.T) {
 }
 
 func TestUpgradeWithoutFile(t *testing.T) {
-	_, err := Upgrade(context.Background(), t.TempDir()+"/"+ComposeFile)
+	err := Upgrade(context.Background(), t.TempDir()+"/"+ComposeFile, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "gateway jellyfin up") {
 		t.Fatalf("err = %v", err)
 	}

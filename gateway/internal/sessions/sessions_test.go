@@ -657,3 +657,91 @@ func TestTunnelChannelCap(t *testing.T) {
 		}
 	}
 }
+
+// The gateway reports each tunnel once when it ends (#390), read before the
+// PeerConnection closes: a paired one with its route and bytes and no failure,
+// an unpaired one with why it never got the tunnel. A second bye sends nothing.
+// Reports go on the control socket that is up, not the offer's: one made while
+// none was up is held until the next is announced.
+func TestTunnelReportedOnceOnEnd(t *testing.T) {
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/Users" {
+			w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
+			return
+		}
+		w.Write([]byte("jellyfin"))
+	}))
+	defer origin.Close()
+	dir := t.TempDir()
+	cert, fp, _ := identity.LoadOrCreate(dir)
+	store, _ := pairing.Open(dir)
+	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
+	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
+	reps := make(chan Report, 4)
+	next := func() Report {
+		select {
+		case r := <-reps:
+			return r
+		case <-time.After(10 * time.Second):
+			t.Fatal("no tunnel report")
+			return Report{}
+		}
+	}
+	bye := func(id string) {
+		raw, _ := json.Marshal(Msg{Type: "bye", Session: id})
+		gateway.Handle(raw, func(any) { t.Error("a report on the offer's socket") })
+	}
+
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	b := connect(t, gateway, "s1", key, false)
+	b.say(nil) // unpaired
+	nB := pairing.Nonce()
+	h := sha256.Sum256([]byte(nB))
+	b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": "phone"})
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	for len(store.Pending()) == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	store.Decide(store.Pending()[0].ID, true)
+	if b.say(nil)["type"] != "approved" || b.fetch() != "jellyfin" {
+		t.Fatal("want a working tunnel")
+	}
+	gateway.Handle(nil, nil) // the control socket dropped
+	bye("s1")
+	gateway.Handle(nil, func(v any) { reps <- v.(Report) }) // a new one is up
+	r := next()
+	if r.Type != "tunnel" || r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
+		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 {
+		t.Fatalf("report of a served tunnel = %+v", r)
+	}
+
+	other, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	u := connect(t, gateway, "s2", other, false)
+	u.say(nil) // unpaired
+	bye("s2")
+	if r := next(); r.Failure == nil || *r.Failure != "unpaired" {
+		t.Fatalf("report of an unpaired tunnel = %+v", r)
+	}
+	bye("s2")
+	select {
+	case r := <-reps:
+		t.Fatalf("second report %+v", r)
+	case <-time.After(time.Second): // also covers the Closed state callback that follows
+	}
+}
+
+// Forced relay (#390): only a browser that signaled nothing but relays counts as
+// relay-only; the end-of-candidates "" counts as nothing.
+func TestSignaledKinds(t *testing.T) {
+	var c signaled
+	c.saw("candidate:1 1 udp 41885439 203.0.113.7 3478 typ relay raddr 0.0.0.0 rport 0 generation 0")
+	c.saw("")
+	if !c.relay.Load() || c.other.Load() {
+		t.Fatal("want relay-only")
+	}
+	c.saw("candidate:2 1 udp 2122260223 192.168.1.5 50000 typ host generation 0")
+	if !c.other.Load() {
+		t.Fatal("a host candidate must count as other")
+	}
+}

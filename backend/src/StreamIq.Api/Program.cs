@@ -180,7 +180,6 @@ CreateEnrollmentToken.Map(api);
 Enroll.Map(api);
 GatewaySocket.Map(api);
 BrowserSocket.Map(api);
-StartTunnel.Map(api);
 EndTunnel.Map(api);
 CreateInvite.Map(api);
 ListInvites.Map(api);

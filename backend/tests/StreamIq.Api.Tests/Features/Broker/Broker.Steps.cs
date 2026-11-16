@@ -23,6 +23,14 @@ public class BrokerSteps(IntegrationFixture fx)
     private JsonElement _offer;
     private string _offerer = "";
 
+    // For the tunnel telemetry steps (#390), which share this scenario's sockets.
+    internal Guid Session => Guid.Parse(_session);
+    internal WebSocket Browser => _browser;
+    internal (Guid Id, WebSocket Ws) Gateway(string name)
+    {
+        return (_gateways[name].Id, _gateways[name].Ws);
+    }
+
     [AfterScenario]
     public void Close()
     {
@@ -119,7 +127,10 @@ public class BrokerSteps(IntegrationFixture fx)
     [Then("the browser receives the answer")]
     public async Task ThenBrowserGetsAnswer()
     {
-        Assert.Equal("v=0 answer", Assert.NotNull(await Receive(_browser)).GetProperty("sdp").GetProperty("sdp").GetString());
+        var m = Assert.NotNull(await Receive(_browser));
+        Assert.Equal("v=0 answer", m.GetProperty("sdp").GetProperty("sdp").GetString());
+        // The tunnel id, for the browser's throughput PATCH (#390), is the session.
+        Assert.Equal(_session, m.GetProperty("tunnel").GetString());
     }
 
     [Then("the browser receives nothing")]
@@ -224,7 +235,7 @@ public class BrokerSteps(IntegrationFixture fx)
     }
 
     // With their own household (made on first use).
-    private async Task<HttpClient> SignedIn(string email)
+    internal async Task<HttpClient> SignedIn(string email)
     {
         var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await IdToken(email));
@@ -244,7 +255,7 @@ public class BrokerSteps(IntegrationFixture fx)
         await Send(_browser, new { type = "auth", token });
     }
 
-    private static Task Send(WebSocket ws, object msg)
+    internal static Task Send(WebSocket ws, object msg)
     {
         return ws.SendAsync(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(msg)), WebSocketMessageType.Text, true, CancellationToken.None);
     }

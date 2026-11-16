@@ -35,6 +35,23 @@ type Msg struct {
 	Candidate *webrtc.ICECandidateInit   `json:"candidate,omitempty"`
 }
 
+// Report is the gateway's account of a tunnel, sent once when its PeerConnection
+// ends (docs/protocol.md, "Telemetry"): the broker fills that tunnel's row with it.
+// local = the gateway's side of the selected pair, remote = the browser's; bytes as
+// the gateway counted them on the ICE transport (sent = gateway → client).
+type Report struct {
+	Type                string  `json:"type"` // tunnel
+	Session             string  `json:"session"`
+	Relay               bool    `json:"relay"`
+	Ipv6                bool    `json:"ipv6"`
+	LocalCandidateType  string  `json:"localCandidateType,omitempty"`
+	RemoteCandidateType string  `json:"remoteCandidateType,omitempty"`
+	Protocol            string  `json:"protocol,omitempty"`
+	BytesSent           uint64  `json:"bytesSent"`
+	BytesReceived       uint64  `json:"bytesReceived"`
+	Failure             *string `json:"failure"` // nil = the tunnel came up and passed auth
+}
+
 type Sessions struct {
 	Cert     *webrtc.Certificate
 	Fp       string // our DTLS fingerprint
@@ -46,9 +63,14 @@ type Sessions struct {
 
 	mu    sync.Mutex
 	pcs   map[string]*webrtc.PeerConnection
-	keys  map[string]string // session id → client key fp, recorded before the allowlist check
-	users map[string]string // session id → user id from the offer (who acts; the key says which device)
-	API   *webrtc.API       // from NewAPI; nil = Pion defaults
+	keys  map[string]string               // session id → client key fp, recorded before the allowlist check
+	users map[string]string               // session id → user id from the offer (who acts; the key says which device)
+	ends  map[string]func(iceFailed bool) // session id → its one way out: report, then close (end)
+	cands map[string]*signaled            // session id → the kinds of candidate the browser signaled
+	API   *webrtc.API                     // from NewAPI; nil = Pion defaults
+
+	ctl     func(any) // the control socket that is up (RunControl's handle(nil, send)); nil = none
+	backlog []Report  // tunnel reports made while none was up, sent on the next one
 }
 
 // NewAPI builds the one WebRTC API all sessions share. Native runs need
@@ -86,16 +108,31 @@ func (s *Sessions) Active() int {
 }
 
 // Handle processes one broker message; send writes JSON to the current control socket.
+// A nil raw announces the control socket that is up (send), or that it dropped (nil send).
 func (s *Sessions) Handle(raw []byte, send func(any)) {
+	if raw == nil {
+		s.mu.Lock()
+		s.ctl = send
+		var backlog []Report
+		if send != nil {
+			backlog, s.backlog = s.backlog, nil
+		}
+		s.mu.Unlock()
+		for _, r := range backlog {
+			send(r)
+		}
+		return
+	}
 	var m Msg
 	if json.Unmarshal(raw, &m) != nil || m.Session == "" {
 		return // heartbeat acks etc.: not ours
 	}
 	s.mu.Lock()
 	if s.pcs == nil {
-		s.pcs, s.keys, s.users = map[string]*webrtc.PeerConnection{}, map[string]string{}, map[string]string{}
+		s.pcs, s.keys, s.users, s.ends = map[string]*webrtc.PeerConnection{}, map[string]string{}, map[string]string{}, map[string]func(bool){}
+		s.cands = map[string]*signaled{}
 	}
-	pc := s.pcs[m.Session]
+	pc, end, cands := s.pcs[m.Session], s.ends[m.Session], s.cands[m.Session]
 	s.mu.Unlock()
 
 	switch m.Type {
@@ -116,16 +153,27 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 		}
 		if err := answer(pc, *m.SDP, m.Session, send); err != nil {
 			log.Printf("gateway: session %s: answer: %v", m.Session, err)
-			pc.Close()
+			s.end(m.Session)
 		}
 	case "ice":
 		if pc != nil && m.Candidate != nil {
+			cands.saw(m.Candidate.Candidate)
 			pc.AddICECandidate(*m.Candidate)
 		}
 	case "bye":
-		if pc != nil {
-			pc.Close()
+		if end != nil {
+			end(false)
 		}
+	}
+}
+
+// end ends a session the way a bye does (report, then close); no-op once ended.
+func (s *Sessions) end(id string) {
+	s.mu.Lock()
+	end := s.ends[id]
+	s.mu.Unlock()
+	if end != nil {
+		end(false)
 	}
 }
 
@@ -150,9 +198,42 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	if err != nil {
 		return nil, err
 	}
+	var authed, authSeen atomic.Bool
+	var cands signaled
+	var why atomic.Value // last auth outcome short of success ("unpaired", a refusal); the report's failure
+	// Every way a session ends (ICE failed/closed, bye, a removed client, a failed
+	// answer) goes through here: the report is read before pc.Close() (pion's
+	// stats are gone after it) and sent once, whichever path comes first.
+	end := func(iceFailed bool) {
+		s.mu.Lock()
+		_, live := s.ends[id]
+		delete(s.pcs, id)
+		delete(s.keys, id)
+		delete(s.users, id)
+		delete(s.ends, id)
+		delete(s.cands, id)
+		s.mu.Unlock()
+		if !live {
+			return
+		}
+		var failure *string
+		switch w, _ := why.Load().(string); {
+		case iceFailed:
+			failure = ptr("ice failed")
+		case !authed.Load() && w != "":
+			failure = &w
+		case !authed.Load():
+			// Includes a browser that refused us (pin mismatch): it hangs up before auth.
+			failure = ptr("ended before auth")
+		}
+		s.report(report(id, pc, &cands, failure))
+		pc.Close()
+	}
 	s.mu.Lock()
 	s.pcs[id] = pc
 	s.users[id] = user
+	s.ends[id] = end
+	s.cands[id] = &cands
 	s.mu.Unlock()
 
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
@@ -165,21 +246,15 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		log.Printf("gateway: session %s: %s", id, st)
 		if st == webrtc.PeerConnectionStateFailed || st == webrtc.PeerConnectionStateClosed ||
 			st == webrtc.PeerConnectionStateDisconnected {
-			pc.Close()
-			s.mu.Lock()
-			delete(s.pcs, id)
-			delete(s.keys, id)
-			delete(s.users, id)
-			s.mu.Unlock()
+			end(st == webrtc.PeerConnectionStateFailed)
 		}
 	})
 
-	var authed, authSeen atomic.Bool
 	slots := make(chan struct{}, tunnel.MaxChannels) // tunnel channels being served on this connection
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
 		switch {
 		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
-			s.serveAuth(id, user, pc, d, &authed)
+			s.serveAuth(id, user, pc, d, &authed, &why)
 		case d.Label() != "auth" && authed.Load():
 			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Key: s.key(id), Name: func() string { return s.name(id) }}, slots)
 		default:
@@ -231,14 +306,15 @@ type authMsg struct {
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
 // approved/rejected), once per connection (newPeer). Messages on one channel
 // arrive in order, one at a time; after a refusal none is handled.
-func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool) {
+func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool, why *atomic.Value) {
 	say := func(m authMsg) { b, _ := json.Marshal(m); d.SendText(string(b)) }
 	done := make(chan struct{}) // closed when the channel closes or we refuse
 	var once sync.Once
 	end := func() { once.Do(func() { close(done) }) }
-	fail := func(why string) {
-		log.Printf("gateway: auth: %s", why)
-		say(authMsg{Type: "rejected", Why: why})
+	fail := func(reason string) {
+		log.Printf("gateway: auth: %s", reason)
+		why.Store(reason)
+		say(authMsg{Type: "rejected", Why: reason})
 		d.Close()
 		end()
 	}
@@ -279,6 +355,7 @@ func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webr
 				s.authorize(user, authed)
 				say(authMsg{Type: "ok"})
 			} else {
+				why.Store("unpaired")
 				say(authMsg{Type: "unpaired"})
 			}
 		case m.Type == "commit" && keyFp != "" && !authed.Load() && reveal == nil:
@@ -337,21 +414,72 @@ func (s *Sessions) pair(id, keyFp, commit, name, nA string, reveal <-chan string
 // the PeerConnection ends DTLS/SCTP and every channel on it — the only kill
 // that works: the tunnel is peer-to-peer, signaling isn't on the media path.
 func (s *Sessions) Drop(keyFp string) {
-	var victims []*webrtc.PeerConnection
+	var victims []func(bool)
 	s.mu.Lock()
 	for id, fp := range s.keys {
-		if fp == keyFp && s.pcs[id] != nil {
-			victims = append(victims, s.pcs[id])
+		if fp == keyFp && s.ends[id] != nil {
+			victims = append(victims, s.ends[id])
 		}
 	}
 	s.mu.Unlock()
-	for _, pc := range victims {
-		pc.Close()
+	for _, end := range victims {
+		end(false)
 	}
 	if len(victims) > 0 {
 		log.Printf("gateway: removed browser: closed %d session(s)", len(victims))
 	}
 }
+
+// report sends r on the control socket that is up now, not the one that carried the
+// offer: a tunnel often ends because that one dropped ("gateway gone"). None up = held
+// for the next. ponytail: capped; a gateway that stays offline past it, or exits, loses them.
+func (s *Sessions) report(r Report) {
+	s.mu.Lock()
+	send := s.ctl
+	if send == nil && len(s.backlog) < 1000 {
+		s.backlog = append(s.backlog, r)
+	}
+	s.mu.Unlock()
+	if send != nil {
+		send(r)
+	}
+}
+
+// signaled records which kinds of candidate a browser trickled to us.
+type signaled struct{ relay, other atomic.Bool }
+
+func (c *signaled) saw(candidate string) {
+	if _, typ, ok := strings.Cut(candidate, " typ "); ok {
+		if strings.HasPrefix(typ, "relay") {
+			c.relay.Store(true)
+		} else {
+			c.other.Store(true)
+		}
+	}
+}
+
+// report reads the tunnel's selected candidate pair and transport bytes from pion
+// (empty pair = ICE never connected).
+func report(id string, pc *webrtc.PeerConnection, cands *signaled, failure *string) Report {
+	r := Report{Type: "tunnel", Session: id, Failure: failure}
+	ice := pc.SCTP().Transport().ICETransport()
+	if p, err := ice.GetSelectedCandidatePair(); err == nil && p != nil {
+		r.LocalCandidateType, r.RemoteCandidateType = p.Local.Typ.String(), p.Remote.Typ.String()
+		r.Relay = p.Local.Typ == webrtc.ICECandidateTypeRelay || p.Remote.Typ == webrtc.ICECandidateTypeRelay ||
+			// The browser's relay reached us from an address it never signaled (a NAT in
+			// front of the TURN server: Docker in the e2e), so pion calls it prflx. If the
+			// browser offered nothing but relays (forced relay), it can only be one.
+			p.Remote.Typ == webrtc.ICECandidateTypePrflx && cands.relay.Load() && !cands.other.Load()
+		// A browser's host candidate may be an mDNS name: the gateway's own address decides then.
+		r.Ipv6 = strings.Contains(p.Local.Address, ":") || strings.Contains(p.Remote.Address, ":")
+		r.Protocol = p.Local.Protocol.String()
+	}
+	st := ice.Stats()
+	r.BytesSent, r.BytesReceived = st.BytesSent, st.BytesReceived
+	return r
+}
+
+func ptr(s string) *string { return &s }
 
 func trim(name string) string {
 	name = strings.TrimSpace(name)

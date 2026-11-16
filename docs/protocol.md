@@ -32,7 +32,7 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 1, "name": "Living room NAS" }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 2, "name": "Living room NAS" }
 ```
 Liveness plus what the gateway owns and the API mirrors (#140, #310); a gateway sends one
 early, right after its name changes, not just every 30 s. The API sets `last_seen_at = now`, `lan_url` (http/https only,
@@ -45,7 +45,7 @@ its name; the API never writes it after enrollment. `GET /api/gateways` returns 
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
-protocol (currently **1**; Go `onboarding.Protocol`). A breaking change bumps it. The API
+protocol (currently **2**: 2 adds the `tunnel` report, #390; Go `onboarding.Protocol`). A breaking change bumps it. The API
 has one minimum (`GatewaySocket.MinGatewayProtocol`); raising it is a deliberate step,
 since every gateway below it stops working until its owner updates. A first heartbeat
 below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the API
@@ -144,12 +144,13 @@ gateway survives ends it too: rare, and the next open makes a fresh session.
 | browser → broker | `{type:"offer", gatewayId, sdp}` — browser is the offerer |
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |
 | browser → broker | `{type:"ice", candidate}` |
-| broker → browser | `{type:"answer", sdp}` · `{type:"ice", candidate}` |
+| broker → browser | `{type:"answer", sdp, tunnel}` (`tunnel` = this tunnel's id, for the throughput PATCH below) · `{type:"ice", candidate}` |
 | browser → broker | `{type:"ping"}` — every 25 s while the socket is open, ignored by the broker: keeps an idle session's socket from being dropped by a proxy (#178, #180) |
 
 **Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, user, role, sdp}`,
 `{type:"ice", session, candidate}`, `{type:"bye", session}`; gateway → broker
-`{type:"answer"|"ice", session, …}`. The broker only routes a gateway's message
+`{type:"answer"|"ice", session, …}` and, when a session's PeerConnection ends,
+`{type:"tunnel", session, …}` (telemetry, below). The broker only routes a gateway's message
 into a session opened *for that gateway*. The gateway keeps one PeerConnection
 per session (several browsers at once).
 
@@ -193,20 +194,44 @@ that can't edit the URL; `?debug` also opens it), sets `iceTransportPolicy: "rel
 gateway stays on its own config (STUN, optional `STREAMIQ_ICE_*`): the browser's
 relay candidate is enough, as the e2e's forced-relay step shows.
 
-**Telemetry**: once the tunnel is up the browser reads the selected candidate
-pair from `getStats()` and calls `POST /api/tunnels`
-`{gatewayId, relay, ipv6, localCandidateType, remoteCandidateType, protocol}` →
-`{id}`; on close, `PATCH /api/tunnels/{id}` `{bytesReceived, bytesSent,
-throughputKbps}` (stamps `EndedAt`; `throughputKbps` = the tunnel's last burst
-measurement, below, or null). Rows live in `tunnels` (tenant-owned, global filter;
-another tenant's gateway or row → `404`). A closed tab skips the PATCH.
-A failed tunnel (ICE `failed`, pin mismatch, unpaired, broker or gateway
-closed, refused) posts `{gatewayId, failure}` instead: candidate fields null,
-`failure` = the reason (≤ 64 chars). Rate queries: `failure IS NULL` = up.
-`relay` = either selected candidate is a relay. Chrome can report a relayed
-local candidate as `prflx`; only relay candidates carry `relayProtocol`, so
-that counts too. The same reading drives the player's privacy indicator
-(polled every 2 s).
+**Telemetry** (#390): the broker and the gateway record every tunnel, the browser
+can't create, alter or skip a row. One row in `tunnels` (tenant-owned, global filter) per
+offer the broker routes:
+- **Start**: routing an `offer` inserts the row: `id` = the broker session, tenant = the
+  gateway's household, `gateway_id`, `user_id` (`users.id`). A refused offer (gateway
+  offline/unknown, not a member) writes none. Best-effort: a failed insert is logged and the
+  offer is routed anyway (that tunnel has no row; its report changes nothing). Deleting the
+  user sets `user_id` null, the row stays.
+- **End**: the browser's broker socket closing (the `bye` path) stamps `EndedAt`; duration
+  = `EndedAt - CreatedAt`.
+- **Gateway report**: when a session's PeerConnection fails or closes (any path: ICE,
+  `bye`, a removed client), the gateway sends once, read from pion before `pc.Close()`, on
+the control socket that is up then (not the offer's: held until the next one if none is):
+  `{type:"tunnel", session, relay, ipv6, localCandidateType, remoteCandidateType, protocol,
+  bytesSent, bytesReceived, failure}`. From the gateway's side: `local` = the gateway's
+  selected candidate, `remote` = the browser's, `bytesSent` = gateway → client (ICE
+  transport totals). `relay` = either side of the pair is a relay, or the browser's side is
+`prflx` and every candidate the browser signaled is a relay (forced relay: a NAT in front of
+the TURN server, like Docker in the e2e, hides the signaled relay address). No pair (ICE
+never connected) = candidate fields absent. `failure`:
+  `"ice failed"`, else, when auth never succeeded, the gateway's last auth outcome
+  (`"unpaired"`, a refusal reason) or `"ended before auth"` (incl. a browser that refused the
+  gateway's pin: it hangs up before auth); null = the tunnel came up and passed auth. The
+  broker applies it only to a row with that id **and** this gateway's id, only the first
+  report (`BytesSent` null until then), and also after the browser's socket closed. Strings
+  are cut to 16 chars (`failure` 64). A gateway below protocol 2 sends none: its rows keep
+  null route and bytes. A gateway crash mid-tunnel loses that tunnel's report.
+- **Browser**: only its measured throughput, `PATCH /api/tunnels/{id}` `{throughputKbps}`
+  (the tunnel's last burst measurement, below; `id` from the `answer`), before it closes the
+  socket. Only the caller's own tunnel (another user's or tenant's → `404`). A closed tab
+  skips it.
+
+Rate queries: up = `"BytesSent" IS NOT NULL AND "Failure" IS NULL`; unreported (a gateway
+below protocol 2, a lost report, one that never answered the offer) = `"BytesSent" IS NULL`,
+whose `Relay`/`Failure` say nothing. `relay` = either selected candidate is a relay. The
+browser's own reading of its pair (`getStats()`; Chrome can report a relayed local candidate
+as `prflx`, only relay candidates carry `relayProtocol`, so that counts too) drives the
+player's privacy indicator (polled every 2 s) and Diagnostics, not telemetry.
 
 ## Pairing + connection auth (MVP item 3)
 

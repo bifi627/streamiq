@@ -15,6 +15,8 @@ namespace StreamIq.Api.Features.Broker;
 /// their role in that gateway's household (from the same membership) as `role`.
 /// `ready` carries this session's ICE servers; a revocable TURN credential is
 /// revoked when the socket closes (closing it also ends the session: `bye`).
+/// Telemetry (#390): a routed offer inserts its `tunnels` row (id = session), and the
+/// socket closing stamps its end; the gateway's report fills in the rest (GatewaySocket).
 public static class BrowserSocket
 {
     public static readonly TimeSpan AuthTimeout = TimeSpan.FromSeconds(10);
@@ -106,6 +108,18 @@ public static class BrowserSocket
                                 continue;
                             }
                             session = Guid.NewGuid();
+                            // The row exists before the gateway hears of the session, so its report finds it.
+                            // Best-effort: a failed write costs this tunnel its telemetry, never the tunnel.
+                            var row = db.Tunnels.Add(new Tunnel { Id = session, TenantId = gateway.TenantId, GatewayId = gatewayId, UserId = user.Id });
+                            try
+                            {
+                                await db.SaveChangesAsync(ct);
+                            }
+                            catch (Exception e) when (!ct.IsCancellationRequested)
+                            {
+                                row.State = EntityState.Detached;
+                                log.LogWarning(e, "tunnel {Session}: row not recorded", session);
+                            }
                             Broker.Sessions[session] = new Broker.Link(socket, gateway.TenantId, gatewayId, gateway);
                             await gateway.SendAsync(new JsonObject
                             {
@@ -135,6 +149,15 @@ public static class BrowserSocket
                 if (session != Guid.Empty && Broker.Sessions.TryRemove(session, out _) && gateway is not null)
                 {
                     await gateway.SendAsync(new JsonObject { ["type"] = "bye", ["session"] = session.ToString() }, CancellationToken.None);
+                    try
+                    {
+                        await db.Tunnels.Where(t => t.Id == session)
+                            .ExecuteUpdateAsync(s => s.SetProperty(t => t.EndedAt, DateTimeOffset.UtcNow), CancellationToken.None);
+                    }
+                    catch (Exception e)
+                    {
+                        log.LogWarning(e, "tunnel {Session}: end not recorded", session);
+                    }
                 }
                 if (turnUsername is not null && turnHttp is not null)
                 {

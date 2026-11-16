@@ -1,102 +1,171 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.WebSockets;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
 using StreamIq.Api.Data;
+using StreamIq.Api.Tests.Features.Broker;
 using StreamIq.Api.Tests.Infrastructure;
 
 namespace StreamIq.Api.Tests.Features.Tunnels;
 
+/// Drives the real broker sockets through BrokerSteps (same scenario instance).
 [Binding]
-public class TunnelTelemetrySteps(IntegrationFixture fx)
+public class TunnelTelemetrySteps(IntegrationFixture fx, BrokerSteps broker)
 {
-    private readonly Dictionary<string, Guid> _gateways = [];
-    private Guid _tunnel;
     private HttpResponseMessage? _last;
-
-    private async Task<HttpClient> SignIn(string email)
-    {
-        var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123");
-        var client = fx.Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        await OwnHousehold.MeAsync(client);
-        return client;
-    }
 
     // Raw rows: the test reads across tenants on purpose (no CurrentTenantId ⇒
     // the filter would hide everything).
-    private static IQueryable<Tunnel> AllTunnels(StreamIqDbContext db)
+    private async Task<T> Rows<T>(Func<IQueryable<Tunnel>, Task<T>> q)
     {
-        return db.Tunnels.IgnoreQueryFilters();
-    }
-
-    [Given("\"(.*)\" owns a gateway named \"(.*)\"")]
-    public async Task GivenOwnsGateway(string email, string name)
-    {
-        Guid tenantId;
-        using (var client = await SignIn(email))
-        {
-            tenantId = (await OwnHousehold.MeAsync(client)).GetProperty("tenantId").GetGuid();
-        }
         using var scope = fx.Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
-        var gw = new Gateway { TenantId = tenantId, Name = name };
-        db.Gateways.Add(gw);
-        await db.SaveChangesAsync();
-        _gateways[name] = gw.Id;
+        return await q(scope.ServiceProvider.GetRequiredService<StreamIqDbContext>().Tunnels.IgnoreQueryFilters().AsNoTracking());
     }
 
-    [When("\"(.*)\" opens a relayed tunnel on \"(.*)\"")]
-    public async Task WhenStarts(string email, string gateway)
+    private Task<Tunnel> Row()
     {
-        using var client = await SignIn(email);
-        _last = await client.PostAsJsonAsync("/api/tunnels", new
+        return Rows(q => q.SingleAsync());
+    }
+
+    // The broker writes asynchronously to what the test sees (sockets): wait for it.
+    private async Task<Tunnel> RowWhen(Func<Tunnel, bool> done)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (true)
         {
-            gatewayId = _gateways[gateway],
+            var row = await Row();
+            if (done(row))
+            {
+                return row;
+            }
+            Assert.True(DateTime.UtcNow < deadline, "tunnel row never got there");
+            await Task.Delay(20);
+        }
+    }
+
+    private async Task<JsonElement> Me(string email)
+    {
+        using var client = await broker.SignedIn(email);
+        return await client.GetFromJsonAsync<JsonElement>("/api/me");
+    }
+
+    [Then("the tunnel is stored for gateway \"(.*)\" in the household of \"(.*)\" by \"(.*)\"")]
+    public async Task ThenStoredFor(string gateway, string owner, string user)
+    {
+        var row = await Row();
+        Assert.Equal(broker.Session, row.Id);
+        Assert.Equal(broker.Gateway(gateway).Id, row.GatewayId);
+        Assert.Equal((await Me(owner)).GetProperty("tenantId").GetGuid(), row.TenantId);
+        Assert.Equal((await Me(user)).GetProperty("userId").GetGuid(), row.UserId);
+        Assert.Null(row.BytesSent);
+    }
+
+    [Then("no tunnel is stored")]
+    public async Task ThenNone()
+    {
+        Assert.Equal(0, await Rows(q => q.CountAsync()));
+    }
+
+    [Then("the tunnel has no end time")]
+    public async Task ThenNotEnded()
+    {
+        Assert.Null((await Row()).EndedAt);
+    }
+
+    [When("the browser closes its socket")]
+    public Task WhenBrowserCloses()
+    {
+        return broker.Browser.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+    }
+
+    [StepDefinition("the tunnel gets an end time")]
+    public async Task ThenEnded()
+    {
+        var row = await RowWhen(r => r.EndedAt is not null);
+        Assert.True(row.EndedAt >= row.CreatedAt);
+    }
+
+    [When("gateway \"(.*)\" reports that tunnel as relayed with ([0-9]+) bytes sent")]
+    public Task WhenReportsRelayed(string gateway, long bytes)
+    {
+        return BrokerSteps.Send(broker.Gateway(gateway).Ws, new
+        {
+            type = "tunnel",
+            session = broker.Session,
             relay = true,
             ipv6 = false,
-            localCandidateType = "relay",
-            remoteCandidateType = "host",
+            localCandidateType = "host",
+            remoteCandidateType = "relay",
             protocol = "udp",
+            bytesSent = bytes,
+            bytesReceived = 10,
+            failure = (string?)null,
         });
-        if (_last.IsSuccessStatusCode)
+    }
+
+    [When("gateway \"(.*)\" reports that tunnel as failed because \"(.*)\"")]
+    public Task WhenReportsFailed(string gateway, string reason)
+    {
+        return BrokerSteps.Send(broker.Gateway(gateway).Ws, new
         {
-            _tunnel = (await _last.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        }
+            type = "tunnel",
+            session = broker.Session,
+            relay = false,
+            ipv6 = false,
+            bytesSent = 1,
+            bytesReceived = 1,
+            failure = reason,
+        });
     }
 
-    [When("\"(.*)\" logs a failed tunnel on \"(.*)\" because \"(.*)\"")]
-    public async Task WhenFails(string email, string gateway, string reason)
+    [Then("the tunnel is stored as relayed with ([0-9]+) bytes sent and no failure")]
+    public async Task ThenReported(long bytes)
     {
-        using var client = await SignIn(email);
-        _last = await client.PostAsJsonAsync("/api/tunnels", new { gatewayId = _gateways[gateway], failure = reason });
+        var row = await RowWhen(r => r.BytesSent is not null);
+        // A later report (if any) had its chance: the gateway socket handles messages in order.
+        await Task.Delay(300);
+        row = await Row();
+        Assert.True(row.Relay);
+        Assert.Equal(bytes, row.BytesSent);
+        Assert.Equal(10, row.BytesReceived);
+        Assert.Equal("relay", row.RemoteCandidateType);
+        Assert.Null(row.Failure);
     }
 
-    [Then("the tunnel is stored as failed because \"(.*)\"")]
-    public async Task ThenFailed(string reason)
+    [Then("the tunnel has no report")]
+    public async Task ThenNoReport()
     {
-        Assert.Equal(HttpStatusCode.OK, _last?.StatusCode);
-        using var scope = fx.Factory.Services.CreateScope();
-        var row = await AllTunnels(scope.ServiceProvider.GetRequiredService<StreamIqDbContext>()).SingleAsync();
-        Assert.Equal(reason, row.Failure);
-        Assert.Null(row.LocalCandidateType);
+        // No ack on the socket: give the broker time to (not) apply it.
+        await Task.Delay(1000);
+        var row = await Row();
+        Assert.Null(row.BytesSent);
+        Assert.False(row.Relay);
     }
 
-    [When("\"(.*)\" ends that tunnel with ([0-9]+) bytes received")]
-    public async Task WhenEnds(string email, long bytes)
+    [When("\"([^\"]*)\" reports ([0-9]+) kbps for that tunnel")]
+    public async Task WhenThroughput(string email, int kbps)
     {
-        using var client = await SignIn(email);
-        _last = await client.PatchAsJsonAsync($"/api/tunnels/{_tunnel}", new { bytesReceived = bytes, bytesSent = 10 });
+        using var client = await broker.SignedIn(email);
+        _last = await client.PatchAsJsonAsync($"/api/tunnels/{broker.Session}", new { throughputKbps = kbps });
     }
 
-    [When("\"(.*)\" ends that tunnel with ([0-9]+) bytes received and ([0-9]+) kbps measured")]
-    public async Task WhenEndsMeasured(string email, long bytes, int kbps)
+    // A member of the tunnel's household still can't touch another user's tunnel.
+    [When("\"([^\"]*)\" reports ([0-9]+) kbps for that tunnel naming the household of \"([^\"]*)\"")]
+    public async Task WhenThroughputNaming(string email, int kbps, string owner)
     {
-        using var client = await SignIn(email);
-        _last = await client.PatchAsJsonAsync($"/api/tunnels/{_tunnel}", new { bytesReceived = bytes, bytesSent = 10, throughputKbps = kbps });
+        var household = (await Me(owner)).GetProperty("tenantId").GetString();
+        using var client = await broker.SignedIn(email);
+        client.DefaultRequestHeaders.Add(StreamIq.Api.Auth.Households.Header, household);
+        _last = await client.PatchAsJsonAsync($"/api/tunnels/{broker.Session}", new { throughputKbps = kbps });
+    }
+
+    [Then("the throughput is accepted")]
+    public void ThenAccepted()
+    {
+        Assert.Equal(HttpStatusCode.NoContent, _last?.StatusCode);
     }
 
     [Then("the request is refused with 404")]
@@ -105,43 +174,32 @@ public class TunnelTelemetrySteps(IntegrationFixture fx)
         Assert.Equal(HttpStatusCode.NotFound, _last?.StatusCode);
     }
 
-    [Then("no tunnel is stored")]
-    public async Task ThenNone()
+    [Then("the tunnel has ([0-9]+) kbps")]
+    public async Task ThenKbps(int kbps)
     {
+        Assert.Equal(kbps, (await Row()).ThroughputKbps);
+    }
+
+    // The account-deletion path's DB half (CLAUDE.md: DELETE the users row).
+    [When("the users row of \"(.*)\" is deleted")]
+    public async Task WhenUserDeleted(string email)
+    {
+        var id = (await Me(email)).GetProperty("userId").GetGuid();
         using var scope = fx.Factory.Services.CreateScope();
-        Assert.Equal(0, await AllTunnels(scope.ServiceProvider.GetRequiredService<StreamIqDbContext>()).CountAsync());
+        await scope.ServiceProvider.GetRequiredService<StreamIqDbContext>().Users.Where(u => u.Id == id).ExecuteDeleteAsync();
     }
 
-    [Then("the tunnel has no end time")]
-    public async Task ThenNotEnded()
+    [Then("the tunnel is kept without a user")]
+    public async Task ThenKeptWithoutUser()
     {
-        using var scope = fx.Factory.Services.CreateScope();
-        var row = await AllTunnels(scope.ServiceProvider.GetRequiredService<StreamIqDbContext>()).SingleAsync();
-        Assert.Null(row.EndedAt);
-        Assert.Null(row.BytesReceived);
+        var row = await Row();
+        Assert.Equal(broker.Session, row.Id);
+        Assert.Null(row.UserId);
     }
 
-    [Then("the tunnel is stored as relayed with ([0-9]+) bytes received, ([0-9]+) kbps and an end time")]
-    public async Task ThenStoredMeasured(long bytes, int kbps)
+    [Then("the tunnel has no throughput")]
+    public async Task ThenNoKbps()
     {
-        Assert.Equal(kbps, (await ThenStored(bytes)).ThroughputKbps);
-    }
-
-    [Then("the tunnel is stored as relayed with ([0-9]+) bytes received, no throughput and an end time")]
-    public async Task ThenStoredUnmeasured(long bytes)
-    {
-        Assert.Null((await ThenStored(bytes)).ThroughputKbps);
-    }
-
-    private async Task<Tunnel> ThenStored(long bytes)
-    {
-        Assert.Equal(HttpStatusCode.NoContent, _last?.StatusCode);
-        using var scope = fx.Factory.Services.CreateScope();
-        var row = await AllTunnels(scope.ServiceProvider.GetRequiredService<StreamIqDbContext>()).SingleAsync();
-        Assert.True(row.Relay);
-        Assert.Equal(bytes, row.BytesReceived);
-        Assert.NotNull(row.EndedAt);
-        Assert.Equal(_gateways["alice-nas"], row.GatewayId);
-        return row;
+        Assert.Null((await Row()).ThroughputKbps);
     }
 }

@@ -77,6 +77,7 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
         b.Entity<Invite>().HasOne<AppUser>().WithMany().HasForeignKey(i => i.CreatedBy).OnDelete(DeleteBehavior.SetNull);
         b.Entity<Tunnel>().HasOne<Tenant>().WithMany().HasForeignKey(c => c.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Tunnel>().HasOne<Gateway>().WithMany().HasForeignKey(c => c.GatewayId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<Tunnel>().HasOne<AppUser>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.SetNull);   // the telemetry outlives the account
 
         // ONE place: apply the tenant filter to every ITenantOwned entity. A
         // strongly-typed generic lambda referencing the instance property is the

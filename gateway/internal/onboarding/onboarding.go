@@ -27,7 +27,7 @@ const heartbeatEvery = 30 * time.Second
 
 // Protocol is the gateway ↔ API protocol version (docs/protocol.md). Bump it on a
 // breaking change; the API refuses a gateway below its minimum ("upgrade required").
-const Protocol = 1
+const Protocol = 2 // 2: tunnel reports (#390)
 
 // ErrUpgradeRequired: the API no longer speaks this gateway's protocol.
 var ErrUpgradeRequired = errors.New("the StreamIQ service no longer supports this gateway version: " +
@@ -140,6 +140,9 @@ type heartbeat struct {
 // RunControl holds the authenticated control socket until it drops: heartbeats
 // (liveness + update(), #140) out, broker messages (signaling for browser sessions) in,
 // handed to handle with a send func that writes JSON back on this socket.
+// handle(nil, send) announces this socket once the API has its first heartbeat (it
+// takes messages only after that), handle(nil, nil) that it dropped: messages not
+// tied to a broker message (tunnel reports, #390) go out on the socket that is up.
 // lastBeat holds the last heartbeat's unix time, 0 while disconnected (status page).
 func RunControl(ctx context.Context, api string, st *State, lanURL, version string, lastBeat *atomic.Int64,
 	update func() string, handle func(raw []byte, send func(any))) error {
@@ -157,6 +160,7 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 	}
 	defer conn.CloseNow()
 	defer lastBeat.Store(0)
+	defer handle(nil, nil)
 	conn.SetReadLimit(1 << 20) // SDP exceeds the 32KB default
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -170,9 +174,12 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 	go func() { // heartbeat (also keeps Railway's edge from reaping an idle socket)
 		t := time.NewTicker(heartbeatEvery)
 		defer t.Stop()
-		for {
+		for first := true; ; first = false {
 			send(heartbeat{Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol, Name: st.CurrentName()})
 			lastBeat.Store(time.Now().Unix())
+			if first {
+				handle(nil, send)
+			}
 			select {
 			case <-ctx.Done():
 				return

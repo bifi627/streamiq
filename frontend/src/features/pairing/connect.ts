@@ -3,7 +3,6 @@
 // comparison code. docs/protocol.md, "Broker" + "Pairing".
 import { auth } from '../../firebase'
 import { API, authed } from '../../api'
-import { pairInfo } from '../../stats'
 import { pcState, relayOn } from '../../diag'
 import { measure, type Speed } from '../../speed'
 import {
@@ -29,7 +28,7 @@ import {
 export type Session = {
   pc: RTCPeerConnection
   close: () => void
-  /** close() ran (the pc closes a moment later, after the telemetry PATCH). */
+  /** close() ran (the pc closes a moment later, after the throughput PATCH). */
   closed: boolean
   /** gateway → client throughput (#162): starts the measurement on the first
    * call, once per session, so sessions that never stream cost no bursts. */
@@ -61,12 +60,10 @@ export async function connect(
   // addEventListener: the handlers below own the on* properties.
   pc.addEventListener('connectionstatechange', () => pcState(pc))
   pc.addEventListener('iceconnectionstatechange', () => pcState(pc))
-  // Tunnel telemetry: one row per tunnel. A tunnel that came up gets its
-  // ICE pair now and totals on close; a failed one gets its reason. ponytail: a
-  // closed tab skips the end PATCH (row keeps EndedAt null), and so does a tab
-  // closed mid-connect (no row at all).
-  let logged: Promise<string | null> | null = null
-  let settled = false
+  // Tunnel telemetry (#390): the broker and the gateway record the tunnel; this
+  // browser only adds the throughput it measured, to the tunnel id from the answer.
+  // ponytail: a closed tab skips that PATCH (the row keeps no throughput).
+  let tunnel: string | undefined
   let speed: Speed | undefined
   let ping: ReturnType<typeof setInterval> | undefined
   const teardown = () => {
@@ -76,56 +73,26 @@ export async function connect(
   }
   let closed = false
   const close = () => {
+    if (closed) return
     closed = true
     speed?.stop()
-    const row = logged
-    logged = null
-    if (!row) return teardown()
-    void Promise.all([row, pc.getStats()])
-      .then(([id, s]) => {
-        const p = pairInfo(s)
-        if (id && p)
-          return authed(`/tunnels/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              bytesReceived: p.bytesReceived,
-              bytesSent: p.bytesSent,
-              throughputKbps: kbps(speed?.fresh()),
-            }),
-          })
-      })
+    const throughputKbps = kbps(speed?.fresh())
+    if (!tunnel || !throughputKbps) return teardown()
+    void authed(`/tunnels/${tunnel}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ throughputKbps }),
+    })
       .catch(() => {})
       .finally(teardown)
   }
-  const up = (): Session => {
-    settled = true
-    logged = pc
-      .getStats()
-      .then((s) => {
-        const p = pairInfo(s)
-        if (!p) return null
-        return authed<{ id: string }>('/tunnels', {
-          method: 'POST',
-          body: JSON.stringify({
-            gatewayId,
-            relay: p.relay,
-            ipv6: p.ipv6,
-            localCandidateType: p.local,
-            remoteCandidateType: p.remote,
-            protocol: p.protocol,
-          }),
-        }).then((r) => r.id)
-      })
-      .catch(() => null)
-    return {
-      pc,
-      close,
-      get closed() {
-        return closed
-      },
-      speed: () => (speed ??= measure(pc, gatewayId)),
-    }
-  }
+  const up = (): Session => ({
+    pc,
+    close,
+    get closed() {
+      return closed
+    },
+    speed: () => (speed ??= measure(pc, gatewayId)),
+  })
   const send = (m: object) => ws.send(JSON.stringify(m))
 
   return new Promise<Session>((resolve, reject) => {
@@ -133,16 +100,6 @@ export async function connect(
       new AppError(kind, detail, { gatewayId })
     const fail = (x: unknown) => {
       const e = toAppError(x)
-      if (!settled) {
-        settled = true
-        void authed('/tunnels', {
-          method: 'POST',
-          body: JSON.stringify({
-            gatewayId,
-            failure: e.kind === 'pin-mismatch' ? 'pin mismatch' : e.message,
-          }),
-        }).catch(() => {})
-      }
       close()
       reject(e)
     }
@@ -177,6 +134,7 @@ export async function connect(
         await pc.setLocalDescription(await pc.createOffer())
         send({ type: 'offer', gatewayId, sdp: pc.localDescription })
       } else if (m.type === 'answer') {
+        tunnel = m.tunnel
         try {
           gatewayFp = sdpFingerprint(m.sdp.sdp)
         } catch (e) {

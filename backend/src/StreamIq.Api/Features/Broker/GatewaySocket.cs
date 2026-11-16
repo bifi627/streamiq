@@ -8,7 +8,8 @@ namespace StreamIq.Api.Features.Broker;
 
 /// The gateway's control socket, authenticated by its credential (Bearer):
 /// heartbeats (last_seen_at + advertised LAN URL + version + protocol) and the gateway's half of
-/// brokered browser sessions (answer/ice back to the session's browser).
+/// brokered browser sessions (answer/ice back to the session's browser), and its
+/// report of each tunnel when it ends (#390).
 public static class GatewaySocket
 {
     /// Oldest gateway protocol (docs/protocol.md) the API still speaks. Raising it is a
@@ -90,9 +91,35 @@ public static class GatewaySocket
                                 && Broker.Sessions.TryGetValue(sid, out var browser)
                                 && browser.GatewayId == gateway.Id)
                             {
-                                await browser.SendAsync(Relay(msg), ct);
+                                await browser.SendAsync(Relay(msg, sid), ct);
                             }
 
+                            break;
+                        case "tunnel" when accepted:
+                            // Only this gateway's own row (another gateway's session id changes
+                            // nothing), only the first report (BytesSent null = none yet), and also
+                            // after the browser's socket closed: the broker's row outlives the session.
+                            if (Guid.TryParse((string?)msg["session"], out var tid)
+                                && msg["bytesSent"] is JsonValue bs && bs.TryGetValue<long>(out var sent) && sent >= 0
+                                && msg["bytesReceived"] is JsonValue br && br.TryGetValue<long>(out var received) && received >= 0)
+                            {
+                                var relay = msg["relay"] is JsonValue rv && rv.TryGetValue<bool>(out var r) && r;
+                                var ipv6 = msg["ipv6"] is JsonValue iv && iv.TryGetValue<bool>(out var i6) && i6;
+                                var local = Clip((string?)msg["localCandidateType"]);
+                                var remote = Clip((string?)msg["remoteCandidateType"]);
+                                var proto = Clip((string?)msg["protocol"]);
+                                var failure = Clip((string?)msg["failure"], 64);
+                                await db.Tunnels.Where(t => t.Id == tid && t.GatewayId == gateway.Id && t.BytesSent == null)
+                                    .ExecuteUpdateAsync(s => s
+                                        .SetProperty(t => t.Relay, relay)
+                                        .SetProperty(t => t.Ipv6, ipv6)
+                                        .SetProperty(t => t.LocalCandidateType, local)
+                                        .SetProperty(t => t.RemoteCandidateType, remote)
+                                        .SetProperty(t => t.Protocol, proto)
+                                        .SetProperty(t => t.BytesSent, sent)
+                                        .SetProperty(t => t.BytesReceived, received)
+                                        .SetProperty(t => t.Failure, failure), ct);
+                            }
                             break;
                     }
                 }
@@ -108,15 +135,31 @@ public static class GatewaySocket
         }).RequireRateLimiting("signaling");
     }
 
-    // Forward only the fields the protocol defines (docs/protocol.md).
-    static JsonObject Relay(JsonObject m)
+    // Forward only the fields the protocol defines (docs/protocol.md). The answer
+    // tells the browser its tunnel id (the session), for its throughput PATCH.
+    static JsonObject Relay(JsonObject m, Guid session)
     {
-        return new()
+        var o = new JsonObject
         {
             ["type"] = (string?)m["type"],
             ["sdp"] = m["sdp"]?.DeepClone(),
             ["candidate"] = m["candidate"]?.DeepClone(),
         };
+        if ((string?)m["type"] == "answer")
+        {
+            o["tunnel"] = session.ToString();
+        }
+        return o;
+    }
+
+    // Gateway-supplied strings: keep them short, and only text Postgres takes.
+    static string? Clip(string? s, int max = 16)
+    {
+        if (s is null || s.Any(char.IsControl))
+        {
+            return null;
+        }
+        return s.Length <= max ? s : s[..(char.IsHighSurrogate(s[max - 1]) ? max - 1 : max)];
     }
 
     // The gateway owns its name (#310). Missing or blank (an older gateway) or with a

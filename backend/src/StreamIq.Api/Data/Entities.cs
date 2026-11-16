@@ -75,15 +75,18 @@ public class Tunnel : ITenantOwned
     public Guid Id { get; set; }
     public Guid TenantId { get; set; }
     public Guid GatewayId { get; set; }
+    public Guid? UserId { get; set; }                   // who opened it (users.id); null = a row from before #390, or the user was deleted
+    // Route + bytes + failure: the gateway's report at the tunnel's end (#390); all unset
+    // until it arrives (an older gateway never sends one). BytesSent null = not reported yet.
     public bool Relay { get; set; }                     // either side's selected candidate is a relay
     public bool Ipv6 { get; set; }
-    public string? LocalCandidateType { get; set; }     // host / srflx / prflx / relay
-    public string? RemoteCandidateType { get; set; }
+    public string? LocalCandidateType { get; set; }     // host / srflx / prflx / relay; local = the gateway's side (since #390)
+    public string? RemoteCandidateType { get; set; }    // the browser's side
     public string? Protocol { get; set; }               // udp / tcp
-    public long? BytesReceived { get; set; }
-    public long? BytesSent { get; set; }
+    public long? BytesReceived { get; set; }            // as the gateway counts: received = client → gateway
+    public long? BytesSent { get; set; }                // gateway → client
     public int? ThroughputKbps { get; set; }            // the client's gateway → client measurement (#162); null = none finished
     public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset? EndedAt { get; set; }
-    public string? Failure { get; set; }                // null = tunnel came up; else why the tunnel failed (no pair: Relay/types unset)
+    public DateTimeOffset? EndedAt { get; set; }        // the broker: the browser's signaling socket closed
+    public string? Failure { get; set; }                // why it never came up / passed auth (no pair: Relay/types unset); null = it did, but only when reported (BytesSent not null)
 }

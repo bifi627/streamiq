@@ -1,12 +1,12 @@
-// Two users of one household over the real tunnel (#243): each plays as their own
-// Jellyfin viewer (#195), and switching accounts in one tab reloads, so no open
-// tunnel carries the old user into the new one (App.tsx).
+// Two users of one household over the real tunnel (#243): B joins through the
+// Household page's invite link (#345), each plays as their own Jellyfin viewer
+// (#195), and switching accounts in one tab reloads, so no open tunnel carries
+// the old user into the new one (App.tsx).
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import {
-  invite,
   keepPcs,
   newPage,
   pair,
@@ -42,7 +42,6 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
   const run = test.info().repeatEachIndex
   const A = await signUp(`e2e-multi-a-${run}@streamiq.test`)
   const B = await signUp(`e2e-multi-b-${run}@streamiq.test`)
-  await invite(A, B)
 
   // A's gateway, onboarded the way "Add gateway" does (the golden path drives that UI).
   const { token } = await A.api('/gateways/enrollment-tokens', {
@@ -65,18 +64,51 @@ test('two users: own Jellyfin viewers, account switch reloads', async ({
     if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
 
     // Each in their own browser (own client key), each paired.
-    const open = async (user: typeof A) => {
+    const client = async () => {
       const p = await newPage(browser) // own client key
       await keepPcs(p)
+      return p
+    }
+    const connect = async (p: Page) => {
       await p.goto(app() + '/gateways')
-      await signIn(p, user, A.tenantId)
       await pair(p, gatewayCtx, gateway.pageUrl)
       await p.getByRole('button', { name: 'Open' }).click()
       await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible() // a live session
-      return p
     }
-    const a = await open(A)
-    const b = await open(B)
+    const a = await client()
+    await a.goto(app() + '/gateways')
+    await signIn(a, A)
+    const b = await client()
+
+    await test.step('A invites from the Household page, revokes, invites again (#228, #337)', async () => {
+      await a.getByRole('link', { name: 'Household' }).click()
+      await expect(a.getByText('You are an admin')).toBeVisible()
+      const box = a.locator('.invite-link')
+      await a.getByRole('button', { name: 'Invite someone' }).click()
+      await expect(box).toBeVisible()
+      await a.getByRole('button', { name: 'Revoke' }).click()
+      await expect(box).toHaveCount(0) // its link box goes with it
+      await expect(a.getByText(/No open invites/)).toBeVisible()
+      await a.getByRole('button', { name: 'Invite someone' }).click()
+      const link = (await box.locator('pre').textContent())!
+
+      // B opens the link, signs in, joins: lands in A's household (#191).
+      await b.goto(link)
+      await signIn(b, B)
+      await expect(b.getByRole('heading', { name: /^Join/ })).toBeVisible()
+      await b.getByRole('button', { name: 'Join' }).click()
+      await expect(b).not.toHaveURL(/\/join/)
+      await b.getByRole('link', { name: 'Household' }).click()
+      await expect(b.getByText('You are a member')).toBeVisible()
+      const members = b.locator('section.card', {
+        has: b.getByRole('heading', { name: 'Members' }),
+      })
+      await expect(members.getByText(A.email)).toBeVisible()
+      await expect(members.getByText(B.email)).toBeVisible()
+      await expect(b.getByRole('heading', { name: 'Invites' })).toHaveCount(0)
+    })
+    await connect(a)
+    await connect(b)
 
     await test.step('paired clients are admin-only over the tunnel (#311, #256)', async () => {
       const list = await viaTunnel(a, '/streamiq/clients')

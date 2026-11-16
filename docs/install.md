@@ -33,6 +33,7 @@ Pick one:
   `gateway jellyfin up` again. If Jellyfin does come back empty (that folder
   deleted), the gateway sets it up again by itself: add your media libraries
   again; each user's resume state starts over.
+  This Jellyfin starts **offline**: see [Offline Jellyfin](#offline-jellyfin).
 
 ## 2. Install the gateway
 
@@ -123,6 +124,37 @@ can take a while for big collections.
    direct or relayed. Each browser (phone, laptop, …) is paired once; remove
    browsers on the local gateway page, or under **Paired clients** on the gateway's card in
    the web app (a household admin any browser, a member only the one they're using).
+
+## Offline Jellyfin
+
+The Jellyfin from `gateway jellyfin up` runs **offline by default**: it sits on a
+Docker network with no way out (`internal: true`), and a small forwarder
+container (`alpine/socat`) is the only way in, on port 8096 as before. Jellyfin
+can't send your titles or cast to TMDb, OMDb or anyone else, whatever its own
+settings say. Scanning and streaming work the same.
+
+What you lose: no downloaded posters, descriptions, ratings or cast photos.
+Jellyfin shows the file names, plus artwork and `.nfo` files you keep next to
+your media. Its log shows failed plugin update checks (`repo.jellyfin.org`);
+that is expected.
+
+The local gateway page and the gateway's status in the web app say which way it
+runs: **Offline: enforced** or **Online lookups allowed**. To allow online
+lookups, in the gateway's install dir:
+
+```
+gateway jellyfin offline off
+```
+
+`gateway jellyfin offline on` turns the jail back on. Both restart Jellyfin and
+change only the lines between the `# streamiq:jail` / `# streamiq:online`
+markers in `jellyfin-compose.yml`; keep those marker lines if you edit the file.
+A file from before the jail gets it from `gateway jellyfin upgrade` (see
+[Update](#update)); one it can't read is left alone, and the command prints what
+to change by hand (copy the `forwarder` service and the `networks:` block from
+the release's `jellyfin-compose.yml`, and replace the jellyfin service's `ports:`
+with `networks: [jail]`). Only this Jellyfin is covered: one you installed
+yourself or run natively reaches the internet as you set it up.
 
 ## GPU transcoding (optional)
 
@@ -336,7 +368,10 @@ If that backup fails, the update stops and nothing changes.
 **Jellyfin (Docker):** when the page warns that Jellyfin runs a version the
 gateway wasn't tested with, run `gateway jellyfin upgrade`. It changes only the
 `image:` line in `jellyfin-compose.yml` to the tested version and restarts
-Jellyfin; your media folders and everything else in the file stay.
+Jellyfin; your media folders and everything else in the file stay. A file from
+before the [offline jail](#offline-jellyfin) is also moved into it: the jellyfin
+service's `ports:` become the jail network and the forwarder service and the
+`networks:` block are added (nothing else changes). A jail you turned off stays off.
 
 ## Roll back an update
 

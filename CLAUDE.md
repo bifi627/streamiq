@@ -60,6 +60,9 @@ steps (`gateway/internal/jellyfin`: wizard bootstrap on a fresh Jellyfin, else o
 on the local gateway page; since #50 a non-admin viewer token, not an API key, in `state/jellyfin.json`),
 `gateway/install/jellyfin-compose.yml` release asset (pin = `jellyfin.Image`, test-enforced; `gateway jellyfin up|upgrade`), local
 page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapped admin creds).
+**Offline jail (#321):** the shipped compose Jellyfin sits on an `internal` network, an `alpine/socat`
+forwarder publishes 8096; `gateway jellyfin offline on|off` toggles the `# streamiq:<name>` marked blocks
+(`gateway/internal/jellyfin/offline.go`, reused by #334), `upgrade` migrates older files.
 
 **Item 5 — streaming client** (consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /
 series / episodes → hls.js player over the tunnel (custom loader), subtitles, resume

@@ -338,7 +338,7 @@ open to a member for its own client key only (#341, below). Code: `gateway/inter
 Fields are added over time; a client ignores ones it doesn't know.
 ```json
 { "transcoding": "nvenc", "os": "windows", "arch": "amd64", "startedAt": "2026-11-10T08:00:00Z",
-  "jellyfin": { "reachable": true, "version": "10.11.2", "untested": false, "token": "ok" },
+  "jellyfin": { "reachable": true, "version": "10.11.2", "untested": false, "token": "ok", "offline": "enforced" },
   "pairedClients": 2, "activeSessions": 1,
   "viewer": { "shared": true, "reason": "admin-refused" },
   "remoteUpdate": "no logon task, so nothing would start the gateway again after the update" }
@@ -349,7 +349,7 @@ Fields are added over time; a client ignores ones it doesn't know.
 | `transcoding` | `"nvenc"` / `"none"`: the `STREAMIQ_JELLYFIN_HWACCEL` the gateway applied to a Jellyfin it set up; `"unmanaged"`: a Jellyfin the user brought (the gateway doesn't own its settings) |
 | `os`, `arch` | Go's `GOOS` / `GOARCH` |
 | `startedAt` | gateway process start, ISO 8601 UTC |
-| `jellyfin` | `reachable`, `untested` (version outside the tested line), `version`, `token`: `ok` / `missing` / `legacy` (pre-#50 admin API key) |
+| `jellyfin` | `reachable`, `untested` (version outside the tested line), `version`, `token`: `ok` / `missing` / `legacy` (pre-#50 admin API key), `offline` (#321, from `jellyfin-compose.yml` on each request): `enforced` (the jail is on: Jellyfin has no internet access) / `allowed` (online lookups possible); absent when the gateway has no compose file (a Jellyfin the user brought, or native) |
 | `pairedClients`, `activeSessions` | counts only, no client names (#65) |
 | `viewer` | the calling session's Jellyfin viewer (#242): `shared: false` = the user's own; `shared: true` = the shared `streamiq-viewer` (#195 fallback), with a `reason` code: `admin-refused` (Jellyfin refused the gateway's admin sign-in), `no-admin` (the gateway has no Jellyfin admin of its own), `failed` (anything else; retried on the user's next session). The web app words it; an unknown code shows no reason. No credentials, no Jellyfin ids. The web app shows a guest-mode banner on the library and player while `shared` is true; no field (older gateway) = no banner |
 | `remoteUpdate` | `true` = `POST /streamiq/update` would start an update now (#312); else a sentence saying why not, shown as it is: not Windows, dev build, an update already running, already up to date, no logon task. No field (older gateway) = update by hand |

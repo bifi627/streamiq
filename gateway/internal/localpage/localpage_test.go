@@ -69,6 +69,17 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 		!strings.Contains(w.Body.String(), "<b>managed</b> · hardware acceleration off") {
 		t.Fatalf("status %d, body:\n%s", w.Code, w.Body)
 	}
+	// The jail state (#321): a line only with a compose Jellyfin.
+	for offline, want := range map[string]string{"": "", "enforced": "Offline: enforced", "allowed": "Online lookups allowed"} {
+		c := Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf },
+			Offline: func() string { return offline }}
+		w := httptest.NewRecorder()
+		Handler(c).ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+		body := w.Body.String()
+		if want == "" && (strings.Contains(body, "Offline") || strings.Contains(body, "Online lookups")) || !strings.Contains(body, want) {
+			t.Errorf("offline %q, body:\n%s", offline, body)
+		}
+	}
 	// Its admin refused (#240): the form says to sign in as it.
 	jf.NeedsLogin = true
 	w = httptest.NewRecorder()

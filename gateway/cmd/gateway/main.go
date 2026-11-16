@@ -7,7 +7,7 @@
 //	sessions    brokered browser sessions: auth channel, gated tunnel
 //	localpage   the gateway's status page on the home LAN (approve / remove browsers)
 //	jellyfin    non-admin Jellyfin viewer token without manual steps; transcoding settings; version check;
-//	            `gateway jellyfin up|upgrade` (Docker compose); `gateway jellyfin login` (repair, #241);
+//	            `gateway jellyfin up|upgrade|offline` (Docker compose); `gateway jellyfin login` (repair, #241);
 //	            `gateway jellyfin restore` (Jellyfin's backup API, #298)
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
 //	update      "newer release available" notice; `gateway update` swaps the binary,
@@ -16,7 +16,7 @@
 //	backup      `gateway backup` / `gateway restore`: the state dir + jellyfin-compose.yml + Jellyfin's
 //	            database as one zip (#52, #297, #298)
 //
-// Commands: gateway [run] | service install|uninstall | update | rollback | version | status | jellyfin up|upgrade|login|restore <file> | reset-identity |
+// Commands: gateway [run] | service install|uninstall | update | rollback | version | status | jellyfin up|upgrade|offline on|off|login|restore <file> | reset-identity |
 // backup [file] | restore [--force] <file>.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
@@ -87,7 +87,7 @@ func main() {
 	case help:
 		fmt.Println(usage)
 	case cmd == "run":
-		run(ctx)
+		run(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
 	case cmd == "service" && len(os.Args) == 3 && os.Args[2] == "install":
 		err = serviceInstall(ctx, exe)
 	case cmd == "service" && len(os.Args) == 3 && os.Args[2] == "uninstall":
@@ -104,13 +104,9 @@ func main() {
 	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "up":
 		err = jellyfinUp(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
 	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "upgrade":
-		var changed bool
-		changed, err = jellyfin.Upgrade(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
-		if err == nil && changed {
-			fmt.Println("Jellyfin now runs", jellyfin.Image)
-		} else if err == nil {
-			fmt.Println("Already on", jellyfin.Image)
-		}
+		err = jellyfin.Upgrade(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), os.Stdout)
+	case cmd == "jellyfin" && len(os.Args) == 4 && os.Args[2] == "offline" && (os.Args[3] == "on" || os.Args[3] == "off"):
+		err = jellyfin.OfflineCLI(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), os.Args[3] == "on", os.Stdout)
 	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "login":
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			err = errors.New("run it in a terminal: it reads the password without showing it")
@@ -168,7 +164,10 @@ const usage = `usage: gateway [command] [-h]
   version                    print this binary's version
   status                     show the running gateway's status
   jellyfin up                start Jellyfin in Docker (downloads jellyfin-compose.yml once)
-  jellyfin upgrade           pin jellyfin-compose.yml to the tested Jellyfin and restart it
+  jellyfin upgrade           pin jellyfin-compose.yml to the tested Jellyfin (and move a file from
+                             before the offline jail into it), then restart it
+  jellyfin offline on|off    on (the default): Jellyfin has no internet access, nothing leaves it;
+                             off: online lookups (posters, descriptions) allowed. Restarts Jellyfin
   jellyfin login             sign in with a Jellyfin admin to repair the gateway's access
                              (as the local gateway page does; docs/install.md)
   jellyfin restore <file>    put the Jellyfin data of a gateway backup back into the Jellyfin the
@@ -496,8 +495,8 @@ func stopGateway(exe string) {
 	exec.Command("pkill", "-f", "^"+regexp.QuoteMeta(exe)+"$").Run()
 }
 
-// run is the gateway daemon.
-func run(ctx context.Context) {
+// run is the gateway daemon; compose is jellyfin-compose.yml next to the binary.
+func run(ctx context.Context, compose string) {
 	stateDir := stateDir()
 	cert, fp, err := identity.LoadOrCreate(stateDir)
 	if err != nil {
@@ -531,6 +530,9 @@ func run(ctx context.Context) {
 		log.Fatalf("gateway: %v", err)
 	}
 	go setup.Run(ctx)
+	if o := jellyfin.Offline(compose); o != "" { // #321; read again on each status request
+		log.Printf("gateway: Jellyfin offline jail: %s (%s)", o, compose)
+	}
 
 	// Enroll once, then heartbeat over the authenticated control socket and
 	// serve the local page.
@@ -590,12 +592,14 @@ func run(ctx context.Context) {
 		}
 		jf.Status = func(user string) any { // gateway API GET /streamiq/status (docs/protocol.md)
 			v := setup.View()
+			jfs := map[string]any{"reachable": v.Reachable, "version": v.Version, "untested": v.Untested, "token": v.Token()}
+			if o := jellyfin.Offline(compose); o != "" { // no compose Jellyfin: no field
+				jfs["offline"] = o
+			}
 			return map[string]any{
 				"transcoding": v.Transcoding(),
 				"os":          runtime.GOOS, "arch": runtime.GOARCH, "startedAt": started,
-				"jellyfin": map[string]any{
-					"reachable": v.Reachable, "version": v.Version, "untested": v.Untested, "token": v.Token(),
-				},
+				"jellyfin": jfs,
 				// Counts only: no client names (#65).
 				"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
 				"viewer":       setup.ViewerState(user), // this session's own (#242)
@@ -612,6 +616,7 @@ func run(ctx context.Context) {
 				Name: st.CurrentName, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
 				LastBeat: &lastBeat, Update: &notice, Store: store,
 				Jellyfin: func() any { return setup.View() }, Login: setup.Login,
+				Offline: func() string { return jellyfin.Offline(compose) },
 			})
 			log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
 		}()

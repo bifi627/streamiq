@@ -7,14 +7,25 @@
 # Leave Jellyfin's setup wizard alone: the gateway completes it, creates the
 # admin user and shows its password on the gateway's local page
 # (http://localhost:8097).
+#
+# Offline (default): Jellyfin sits on a network with no way out, so nothing
+# about your media (titles, people) reaches TMDb or anyone else; the forwarder
+# below is the only way in. `gateway jellyfin offline off` allows online lookups
+# (posters, descriptions), `on` turns the jail back on. Those commands switch the
+# "# streamiq:..." blocks; keep their marker lines if you edit by hand.
 name: streamiq-jellyfin
 services:
   jellyfin:
     # Pinned deliberately, never `latest` (the gateway warns on another version).
     image: jellyfin/jellyfin:12.4.20261026-211555
     restart: unless-stopped
-    ports:
-      - "8096:8096"
+    # streamiq:online
+    # ports:
+      # - "8096:8096"
+    # streamiq:online end
+    # streamiq:jail
+    networks: [jail]
+    # streamiq:jail end
     volumes:
       # Jellyfin's users, libraries and watch state, in a folder next to this
       # file: Docker cleanups (prune, Docker Desktop "Clean up data") delete
@@ -44,5 +55,22 @@ services:
     # Intel / AMD on Linux (VA-API / QSV). Not available in Docker on Windows:
     # devices:
     #   - /dev/dri:/dev/dri
+  # Offline: the only way in to Jellyfin. Its ports: are the ones Jellyfin
+  # publishes when online.
+  # streamiq:jail
+  forwarder:
+    image: alpine/socat:1.8.0.3
+    restart: unless-stopped
+    command: tcp-listen:8096,fork,reuseaddr tcp-connect:jellyfin:8096
+    depends_on: [jellyfin]
+    ports:
+      - "8096:8096"
+    networks: [jail, default]
+  # streamiq:jail end
 volumes:
   cache:
+# streamiq:jail
+networks:
+  jail:
+    internal: true
+# streamiq:jail end

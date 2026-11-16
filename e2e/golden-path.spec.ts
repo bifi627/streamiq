@@ -873,6 +873,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         origin: new URL(app).origin,
         storageTypes: 'indexeddb',
       })
+      // Firebase's IndexedDB poll sees the sign-in gone and the app reloads
+      // (App.tsx onAuthStateChanged). Wait for that reload to land on the
+      // sign-in form, or it aborts / overtakes the goto below (#386).
+      await expect(a.getByLabel('Email')).toBeVisible()
       await a.goto(`${app}/g/${id}`)
       await a.getByLabel('Email').fill(email())
       await a.getByLabel('Password', { exact: true }).fill(password)

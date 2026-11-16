@@ -1,6 +1,14 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useSyncExternalStore } from 'react'
 import { Link } from '@tanstack/react-router'
-import { debugOn, diag, relayOn, setFlag, snapshot, subscribe } from './diag'
+import {
+  debugOn,
+  diag,
+  dockOpen,
+  relayOn,
+  setFlag,
+  snapshot,
+  subscribe,
+} from './diag'
 
 /** Settings checkbox: a TV remote can reach it, unlike the URL bar. */
 export function DiagnosticsToggle() {
@@ -23,7 +31,7 @@ export function DiagnosticsToggle() {
  * Controls.tsx). The spacer keeps the page scrollable past it. */
 export function Diagnostics() {
   useSyncExternalStore(subscribe, snapshot)
-  const [open, setOpen] = useState(false)
+  const open = dockOpen() // remembered per device, like the panel itself
   if (!debugOn()) return null
   const last = diag.events[diag.events.length - 1]
   return (
@@ -34,7 +42,7 @@ export function Diagnostics() {
           type="button"
           className="dock-bar"
           aria-expanded={open}
-          onClick={() => setOpen(!open)}
+          onClick={() => setFlag('dock', !open)}
         >
           <span className="dock-title">
             <span aria-hidden="true">{open ? '▾' : '▴'}</span> Diagnostics

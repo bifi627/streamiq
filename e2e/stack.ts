@@ -461,6 +461,9 @@ export async function startStack(o: StackOptions) {
         // The broker mints per-session creds from these (dev path; prod: Cloudflare).
         STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
         STREAMIQ_TURN_SECRET: 'e2e',
+        // Every test signals from 127.0.0.1: the per-IP limit (default 120/min)
+        // is shared by all workers, and a 429'd broker socket hangs a test (#397).
+        STREAMIQ_SIGNALING_PER_MINUTE: '100000',
       },
     },
   )

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace StreamIq.Api.Migrations;
 
-/// <summary>tunnels.UserId (#390): who opened the tunnel, written by the broker.</summary>
+/// <summary>tunnels.UserId (#390): who opened the tunnel, written by the broker; null once that user is deleted.</summary>
 public partial class TunnelUser : Migration
 {
     /// <inheritdoc />
@@ -28,7 +28,7 @@ public partial class TunnelUser : Migration
             column: "UserId",
             principalTable: "users",
             principalColumn: "Id",
-            onDelete: ReferentialAction.Cascade);
+            onDelete: ReferentialAction.SetNull);
     }
 
     /// <inheritdoc />

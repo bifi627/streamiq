@@ -337,7 +337,7 @@ namespace StreamIq.Api.Migrations
                     b.HasOne("StreamIq.Api.Data.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 #pragma warning restore 612, 618
         }

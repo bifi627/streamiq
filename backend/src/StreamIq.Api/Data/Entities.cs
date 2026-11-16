@@ -75,7 +75,7 @@ public class Tunnel : ITenantOwned
     public Guid Id { get; set; }
     public Guid TenantId { get; set; }
     public Guid GatewayId { get; set; }
-    public Guid? UserId { get; set; }                   // who opened it (users.id); null = a row from before #390
+    public Guid? UserId { get; set; }                   // who opened it (users.id); null = a row from before #390, or the user was deleted
     // Route + bytes + failure: the gateway's report at the tunnel's end (#390); all unset
     // until it arrives (an older gateway never sends one). BytesSent null = not reported yet.
     public bool Relay { get; set; }                     // either side's selected candidate is a relay

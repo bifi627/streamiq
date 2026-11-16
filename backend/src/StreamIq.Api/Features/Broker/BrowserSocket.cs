@@ -102,9 +102,18 @@ public static class BrowserSocket
                                 continue;
                             }
                             session = Guid.NewGuid();
-                            // The row exists before the gateway hears of the session, so its report always finds it.
-                            db.Tunnels.Add(new Tunnel { Id = session, TenantId = gateway.TenantId, GatewayId = gatewayId, UserId = user.Id });
-                            await db.SaveChangesAsync(ct);
+                            // The row exists before the gateway hears of the session, so its report finds it.
+                            // Best-effort: a failed write costs this tunnel its telemetry, never the tunnel.
+                            var row = db.Tunnels.Add(new Tunnel { Id = session, TenantId = gateway.TenantId, GatewayId = gatewayId, UserId = user.Id });
+                            try
+                            {
+                                await db.SaveChangesAsync(ct);
+                            }
+                            catch (Exception e) when (!ct.IsCancellationRequested)
+                            {
+                                row.State = EntityState.Detached;
+                                log.LogWarning(e, "tunnel {Session}: row not recorded", session);
+                            }
                             Broker.Sessions[session] = new Broker.Link(socket, gateway.TenantId, gatewayId, gateway);
                             await gateway.SendAsync(new JsonObject
                             {

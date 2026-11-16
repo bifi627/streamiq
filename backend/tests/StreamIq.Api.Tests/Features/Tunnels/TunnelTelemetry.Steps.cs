@@ -180,6 +180,23 @@ public class TunnelTelemetrySteps(IntegrationFixture fx, BrokerSteps broker)
         Assert.Equal(kbps, (await Row()).ThroughputKbps);
     }
 
+    // The account-deletion path's DB half (CLAUDE.md: DELETE the users row).
+    [When("the users row of \"(.*)\" is deleted")]
+    public async Task WhenUserDeleted(string email)
+    {
+        var id = (await Me(email)).GetProperty("userId").GetGuid();
+        using var scope = fx.Factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<StreamIqDbContext>().Users.Where(u => u.Id == id).ExecuteDeleteAsync();
+    }
+
+    [Then("the tunnel is kept without a user")]
+    public async Task ThenKeptWithoutUser()
+    {
+        var row = await Row();
+        Assert.Equal(broker.Session, row.Id);
+        Assert.Null(row.UserId);
+    }
+
     [Then("the tunnel has no throughput")]
     public async Task ThenNoKbps()
     {

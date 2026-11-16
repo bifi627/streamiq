@@ -71,3 +71,10 @@ Feature: Tunnel telemetry
     When "carol@home.test" reports 1 kbps for that tunnel naming the household of "alice@home.test"
     Then the request is refused with 404
     And the tunnel has no throughput
+
+  Scenario: Deleting the user keeps the tunnel, without its user
+    Given "alice@home.test" has an online gateway "nas"
+    When "alice@home.test" offers to gateway "nas"
+    And gateway "nas" receives the offer
+    And the users row of "alice@home.test" is deleted
+    Then the tunnel is kept without a user

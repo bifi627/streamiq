@@ -192,7 +192,9 @@ can't create, alter or skip a row. One row in `tunnels` (tenant-owned, global fi
 offer the broker routes:
 - **Start**: routing an `offer` inserts the row: `id` = the broker session, tenant = the
   gateway's household, `gateway_id`, `user_id` (`users.id`). A refused offer (gateway
-  offline/unknown, not a member) writes none.
+  offline/unknown, not a member) writes none. Best-effort: a failed insert is logged and the
+  offer is routed anyway (that tunnel has no row; its report changes nothing). Deleting the
+  user sets `user_id` null, the row stays.
 - **End**: the browser's broker socket closing (the `bye` path) stamps `EndedAt`; duration
   = `EndedAt - CreatedAt`.
 - **Gateway report**: when a session's PeerConnection fails or closes (any path: ICE,

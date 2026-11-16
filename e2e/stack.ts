@@ -186,7 +186,7 @@ async function dockerGateway(
       .digest('base64'),
   }
   const p = start(
-    'gateway',
+    `gateway-${port}`,
     'docker',
     [
       'run',
@@ -511,7 +511,14 @@ export async function startStack(o: StackOptions) {
     emulator,
     procs: [backend, vite],
     /** Jellyfin number n + fixture media, started on first call; its URL. */
-    jellyfin: async (n?: number) => (await startJf(n)).url,
+    jellyfin: async (n = 0) => {
+      try {
+        return (await startJf(n)).url
+      } catch (e) {
+        jellyfins.delete(n) // the slot's next worker tries again
+        throw e
+      }
+    },
     async stop() {
       await Promise.all([backend.stop(), vite.stop()])
       // Ryuk reaps the containers even if this never runs (crash, Ctrl+C).

@@ -18,8 +18,9 @@ export default defineConfig({
   retries: 0, // a flake is a bug to fix, not to retry away
   fullyParallel: true, // tests in a file too: they're independent
   // ponytail: no CI sharding: each shard would start its own stack (~1.5 min).
-  // CI: a GitHub runner has 4 vCPUs for Chromes, gateways and one transcoding
-  // Jellyfin. Locally: Playwright's default (half the cores).
+  // CI: a GitHub runner has 4 vCPUs (16 GB) for Chromes, gateways and up to one
+  // transcoding Jellyfin per worker (fixtures.ts), each generating its fixture
+  // media on first use. Locally: Playwright's default (half the cores).
   workers: process.env.CI ? 3 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {

@@ -46,15 +46,16 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
   paired: async ({ browser, jellyfin: _ }, use) => {
     const user = await signUp(uniqueEmail('paired'))
     const gateway = await onboardGateway(user)
+    const gatewayCtx = await browser.newContext()
+    const page = await newPage(browser)
     try {
-      const gatewayCtx = await browser.newContext()
       if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
-      const page = await newPage(browser)
       await page.goto(process.env.E2E_APP_URL + '/gateways')
       await signIn(page, user)
       await pair(page, gatewayCtx, gateway.pageUrl)
       await use({ user, page, gateway, gatewayCtx })
     } finally {
+      await Promise.all([gatewayCtx.close(), page.context().close()])
       await gateway.stop()
     }
   },

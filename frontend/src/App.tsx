@@ -407,13 +407,32 @@ function Shell() {
   // poll if it needs to be live.
   const { gatewayId } = useParams({ strict: false })
   const [gateways, setGateways] = useState<Gateway[]>([])
+  // The chip's dot (#206): loading / failed are not "offline". Keyed by the
+  // gateway it was fetched for: another one is loading until its answer.
+  const [fetched, setFetched] = useState<{ for?: string; ok: boolean }>()
   const gateway = gateways.find((g) => g.id === gatewayId)
   useEffect(() => {
     if (gatewayId) setLastGateway(gatewayId)
+    let gone = false // an older gateway's answer must not land on this one
     getGateways()
-      .then(setGateways)
-      .catch(() => {}) // the Gateways list / library show their own errors
+      .then((g) => {
+        if (gone) return
+        setGateways(g)
+        setFetched({ for: gatewayId, ok: true })
+      })
+      .catch(() => !gone && setFetched({ for: gatewayId, ok: false })) // the Gateways list / library show their own errors
+    return () => {
+      gone = true
+    }
   }, [gatewayId])
+  const dot =
+    fetched?.for !== gatewayId
+      ? 'loading'
+      : !fetched?.ok
+        ? 'failed'
+        : gateway?.online
+          ? 'online'
+          : 'offline'
   const last = gateways.find((g) => g.id === lastGateway()) // gone = removed, or another household
   const libraryId =
     gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)
@@ -460,10 +479,16 @@ function Shell() {
           <div className="status">
             <span className="chip">
               <span
-                className={gateway?.online ? 'dot online' : 'dot'}
-                aria-label={gateway?.online ? 'online' : 'offline'}
+                className={`dot ${dot}`}
+                role="img"
+                aria-label={dot === 'failed' ? 'status unavailable' : dot}
               />
               {gateway?.name ?? 'Gateway'}
+              {dot === 'failed' && (
+                <span className="muted" aria-hidden="true">
+                  · status unavailable
+                </span>
+              )}
             </span>
             <span className="meta muted">Your files stay on your hardware</span>
           </div>

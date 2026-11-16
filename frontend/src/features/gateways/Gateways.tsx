@@ -23,7 +23,7 @@ import {
   toAppError,
 } from '../../errors'
 import { isBack } from '../library/items'
-import { ErrorView } from '../../ErrorView'
+import { ErrorView, State } from '../../ErrorView'
 import { copyText } from '../../clipboard'
 import { tunnelJson } from '../../tunnel'
 import { useNavigate } from '@tanstack/react-router'
@@ -150,7 +150,8 @@ export function Gateways() {
     <section className="gateways" onKeyDown={arrowFocus}>
       <div className="head">
         <h1>Gateways</h1>
-        {admin && (
+        {/* No gateways: the empty state carries it instead. */}
+        {admin && gateways?.length !== 0 && (
           <button type="button" className="no-tv" onClick={addGateway}>
             Add gateway
           </button>
@@ -188,11 +189,31 @@ export function Gateways() {
           ))}
         </div>
       )}
-      {gateways?.length === 0 && !err && (
-        <p>
-          No gateways yet.
-          {role === 'member' && ' Ask a household admin to add one.'}
-        </p>
+      {!gateways && !err && (
+        <ul className="cards" role="status" aria-label="Loading">
+          {[0, 1].map((n) => (
+            <li key={n} className="card">
+              <div className="ph ph-h2" />
+              <div className="ph ph-line short" />
+              <div className="ph ph-btn" />
+            </li>
+          ))}
+        </ul>
+      )}
+      {gateways?.length === 0 && (
+        <State
+          icon="gateway"
+          title="No gateways yet."
+          text={role === 'member' && 'Ask a household admin to add one.'}
+        >
+          {admin && (
+            <p className="state-actions no-tv">
+              <button type="button" className="primary" onClick={addGateway}>
+                Add gateway
+              </button>
+            </p>
+          )}
+        </State>
       )}
       {!!gateways?.length && (
         <ul className="cards">

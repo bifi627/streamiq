@@ -5,7 +5,7 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../errors'
-import { ErrorView } from '../../ErrorView'
+import { ErrorView, State } from '../../ErrorView'
 import { backdrop, items, load, primary, Tunnel, type Art } from './art'
 import {
   clock,
@@ -76,10 +76,12 @@ export function Home() {
       params: { gatewayId, itemId: (i.SeasonId ?? i.SeriesId)! },
     })
 
-  if (!lists) return <p>Loading…</p>
+  if (!lists) return <HomePlaceholder />
   const ok = (r: Shelf) => (r instanceof AppError ? [] : r)
   const [spot, ...more] = ok(lists.resume)
   const recent = ok(lists.recent)
+  if (!spot && !recent.length && !ok(lists.views).length && !failed(lists))
+    return <State icon="empty" title="Nothing here." />
   return (
     <div className="home">
       <Row title="Continue watching" error={lists.resume}>
@@ -159,6 +161,25 @@ export function Home() {
           />
         ))}
       </Row>
+    </div>
+  )
+}
+
+const failed = (l: Lists) => Object.values(l).some((r) => r instanceof AppError)
+
+/** The home's shape while its rows load (#206): the spot and one row of covers. */
+function HomePlaceholder() {
+  return (
+    <div className="home" role="status" aria-label="Loading">
+      <div className="ph ph-spot" />
+      <section className="shelf">
+        <div className="ph ph-h2" />
+        <ul>
+          {[0, 1, 2, 3, 4, 5].map((n) => (
+            <li key={n} className="ph ph-cover" />
+          ))}
+        </ul>
+      </section>
     </div>
   )
 }
@@ -279,8 +300,7 @@ export function Artwork({
     return (
       <div
         ref={box}
-        className={`art ${className} title-card`}
-        style={{ background: tint(card.Name) }}
+        className={`art ${className} title-card tint-${tint(card.Name)}`}
       >
         <span aria-hidden="true">
           {card.Name}
@@ -295,11 +315,11 @@ export function Artwork({
   )
 }
 
-/** A muted colour per title: the same name always gets the same one. */
+/** A muted colour per title (one of 12 .tint-N classes in index.css): the
+ * same name always gets the same one. */
 function tint(name: string) {
   let h = 0
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360
-  // * 137: names one letter apart land far apart, not 1° apart.
-  // ponytail: lightness 22% keeps --text above 4.5:1 on every hue
-  return `hsl(${(h * 137) % 360}, 35%, 22%)`
+  // * 137: names one letter apart land far apart, not on the next hue.
+  return ((h * 137) % 360) % 12
 }

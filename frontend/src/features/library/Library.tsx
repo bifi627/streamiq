@@ -20,7 +20,7 @@ import {
 import { browserName, share, type Session } from '../pairing/connect'
 import { Pairing } from '../pairing/Pairing'
 import { AppError, toAppError } from '../../errors'
-import { ErrorView } from '../../ErrorView'
+import { ErrorView, State } from '../../ErrorView'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { event } from '../../diag'
 import type {
@@ -103,6 +103,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
       {err && (
         <ErrorView
           error={err}
+          focus
           // Evicted client key (#174) or a new gateway cert: pair right here,
           // then reconnect (no reload: it would wipe the diagnostics log).
           pair={
@@ -151,12 +152,35 @@ export function ItemPage({ itemId }: { itemId: string }) {
       )
       .then(setShown, (e) => setErr(toAppError(e)))
   }, [pc, itemId])
-  if (err) return <ErrorView error={err} />
-  if (!shown) return <p>Loading…</p>
+  if (err) return <ErrorView error={err} focus />
+  if (!shown)
+    return (
+      <div className="title" role="status" aria-label="Loading">
+        <div className="title-side">
+          <div className="ph title-poster" />
+          <div className="ph ph-h1" />
+          <div className="ph ph-line" />
+          <div className="ph ph-line short" />
+        </div>
+        <div className="title-main">
+          <EpisodesPlaceholder />
+        </div>
+      </div>
+    )
   const { item, season } = shown
   if (item.Type === 'Series' || item.Type === 'Movie')
     return <Title item={item} season={season} />
   return <Browse item={item} />
+}
+
+function EpisodesPlaceholder() {
+  return (
+    <div className="episodes" role="status" aria-label="Loading">
+      {[0, 1, 2].map((n) => (
+        <div key={n} className="ph ph-ep" />
+      ))}
+    </div>
+  )
 }
 
 const seasonName = (s: Item) =>
@@ -206,6 +230,7 @@ function Title({ item, season }: { item: Item; season?: string }) {
       ? ` S${next.ParentIndexNumber ?? '?'} · E${next.IndexNumber ?? '?'}`
       : ''
   const shown = tab ?? next?.SeasonId ?? lists?.seasons[0]?.Id
+  const episodes = lists?.episodes.filter((e) => e.SeasonId === shown) ?? []
   const count = lists?.seasons.length
   const meta = [
     item.ProductionYear,
@@ -255,7 +280,7 @@ function Title({ item, season }: { item: Item; season?: string }) {
       {series ? (
         <div className="title-main">
           {err && <ErrorView error={err} />}
-          {!lists && !err && <p>Loading…</p>}
+          {!lists && !err && <EpisodesPlaceholder />}
           {lists && lists.seasons.length > 0 && (
             <div role="tablist" aria-label="Seasons" className="seasons">
               {lists.seasons.map((s) => (
@@ -274,21 +299,22 @@ function Title({ item, season }: { item: Item; season?: string }) {
               ))}
             </div>
           )}
-          {lists && (
+          {lists && !episodes.length && (
+            <State icon="empty" title="Nothing here." />
+          )}
+          {lists && !!episodes.length && (
             <ul
               id="episodes"
               role="tabpanel"
               aria-labelledby={`tab-${shown}`}
               className="episodes"
             >
-              {lists.episodes
-                .filter((e) => e.SeasonId === shown)
-                .map((e) => (
-                  <li key={e.Id} className="ep-row">
-                    <Episode item={e} onPlay={play} />
-                    <PlayOn pc={pc} item={e} />
-                  </li>
-                ))}
+              {episodes.map((e) => (
+                <li key={e.Id} className="ep-row">
+                  <Episode item={e} onPlay={play} />
+                  <PlayOn pc={pc} item={e} />
+                </li>
+              ))}
             </ul>
           )}
         </div>
@@ -889,11 +915,21 @@ function Listing({
     )
   }, [pc, item.Id])
 
-  if (err) return <ErrorView error={err} />
-  if (!items) return <p>Loading…</p>
+  if (err) return <ErrorView error={err} focus />
+  if (!items)
+    return (
+      <ul className="tiles" role="status" aria-label="Loading">
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
+          <li key={n}>
+            <div className="ph poster" />
+            <div className="ph ph-line" />
+          </li>
+        ))}
+      </ul>
+    )
+  if (!items.length) return <State icon="empty" title="Nothing here." />
   return (
     <>
-      {items.length === 0 && <p>Nothing here.</p>}
       <ul className="tiles">
         {items.map((i) => (
           <li key={i.Id}>

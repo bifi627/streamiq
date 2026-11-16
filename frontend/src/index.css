@@ -713,22 +713,136 @@ html.tv .no-tv {
   min-width: 8rem;
 }
 
-/* ErrorView: moved out of inline styles (#225), same look until its redesign. */
-.err {
-  color: crimson;
+/* Empty / offline / error states (#206, ErrorView + State): one calm
+   centered block; .loud (pin mismatch) keeps the alarm. */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 32rem;
+  margin: var(--sp-6) auto;
+  padding: var(--sp-5);
+  text-align: center;
 }
-.err.loud {
-  padding: 0.5rem;
-  background: crimson;
-  color: white;
+.state > svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: var(--sp-2);
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.err > p:first-child {
-  margin: 0.5rem 0;
-}
-.err > .err-detail {
+.state > p {
   margin: 0;
-  font-size: 12px;
-  opacity: 0.8;
+}
+.state-title {
+  font-size: var(--fs-section);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.state-text {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  overflow-wrap: anywhere;
+}
+.state > .state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-5);
+  margin-top: var(--sp-3);
+}
+.state-actions button {
+  min-width: 8rem;
+}
+.state-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+}
+.state .pairing .actions {
+  justify-content: center;
+}
+.state.loud {
+  border: 2px solid #ff5a5f;
+  border-radius: var(--radius);
+  background: #3a1416;
+}
+.state.loud > svg {
+  stroke: #ff5a5f;
+}
+/* Inside a home row or a card: no page margins. */
+.shelf .state,
+.card .state {
+  margin: 0;
+  max-width: none;
+}
+
+/* Loading placeholders (#206): the page's shape in muted blocks, a slow
+   pulse (none with reduced motion). */
+.ph {
+  border-radius: 10px;
+  background: var(--surface-2);
+  animation: ph 1.6s ease-in-out infinite;
+}
+@keyframes ph {
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ph,
+  .dot.loading {
+    animation: none;
+  }
+}
+.ph-line {
+  width: 100%;
+  height: 1rem;
+  margin-top: var(--sp-2);
+}
+.ph-line.short {
+  width: 60%;
+}
+.ph-h1 {
+  width: 70%;
+  height: 2.25rem;
+}
+.ph-h2 {
+  width: 10rem;
+  height: 1.5rem;
+}
+.ph-btn {
+  width: 8rem;
+  height: var(--target);
+  border-radius: 999px;
+}
+.ph-spot {
+  min-height: 17rem;
+  border-radius: 16px;
+}
+.ph-cover {
+  flex: none;
+  width: 7.75rem;
+  height: 11.625rem;
+}
+.ph-ep {
+  height: 5.5rem;
+}
+.ph.poster {
+  min-height: 13rem; /* Chrome 87: no aspect-ratio */
+  background: var(--surface-2);
+}
+.dot.loading {
+  animation: ph 1.2s ease-in-out infinite;
+}
+.dot.failed {
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--relayed);
 }
 .uncaught {
   display: flex;
@@ -1025,7 +1139,7 @@ button.secondary:hover {
   height: 100%;
   object-fit: cover;
 }
-/* No image to show (#323): the title on a tint (inline style, Home.tsx tint()).
+/* No image to show (#323): the title on a tint (.tint-N, Home.tsx tint()).
    min-height: Chrome 87 ignores .poster's aspect-ratio. */
 .title-card {
   display: flex;
@@ -1037,6 +1151,43 @@ button.secondary:hover {
   text-align: center;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+/* lightness 22% keeps --text above 4.5:1 on every hue */
+.tint-0 {
+  background: hsl(0, 35%, 22%);
+}
+.tint-1 {
+  background: hsl(30, 35%, 22%);
+}
+.tint-2 {
+  background: hsl(60, 35%, 22%);
+}
+.tint-3 {
+  background: hsl(90, 35%, 22%);
+}
+.tint-4 {
+  background: hsl(120, 35%, 22%);
+}
+.tint-5 {
+  background: hsl(150, 35%, 22%);
+}
+.tint-6 {
+  background: hsl(180, 35%, 22%);
+}
+.tint-7 {
+  background: hsl(210, 35%, 22%);
+}
+.tint-8 {
+  background: hsl(240, 35%, 22%);
+}
+.tint-9 {
+  background: hsl(270, 35%, 22%);
+}
+.tint-10 {
+  background: hsl(300, 35%, 22%);
+}
+.tint-11 {
+  background: hsl(330, 35%, 22%);
 }
 .title-card span {
   display: -webkit-box;

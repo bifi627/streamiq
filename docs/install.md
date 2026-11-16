@@ -186,6 +186,26 @@ Most files play as-is (stream copy). Jellyfin re-encodes the video when a
 device can't play it that way (some older TVs fall back to this automatically).
 On the CPU that can max out a small NAS; a GPU does it almost for free.
 
+**NVIDIA, with the Jellyfin the gateway set up** (`gateway jellyfin up`): one
+command, run next to the gateway binary:
+
+```
+gateway jellyfin gpu nvidia
+```
+
+It switches on the NVIDIA block in `jellyfin-compose.yml`, sets
+`STREAMIQ_JELLYFIN_HWACCEL=nvenc` in `gateway.env`, restarts Jellyfin, checks
+that the container sees the GPU (`nvidia-smi`) and restarts the gateway (a gateway
+you started by hand on Windows: close its window and start it again). If the
+check fails it puts both files back and says why: on Windows you need Docker
+Desktop with the WSL 2 backend and a current NVIDIA driver, on Linux the
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+`gateway jellyfin gpu off` goes back to the CPU. A `jellyfin-compose.yml` from
+an older release needs `gateway jellyfin upgrade` first. Then check it works
+(step 3).
+
+Otherwise, by hand:
+
 **1. Give the container the GPU** (Docker compose file only; a native Jellyfin
 sees the GPU already). In `jellyfin-compose.yml`, uncomment one block, then run
 `gateway jellyfin up` again:

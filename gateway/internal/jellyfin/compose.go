@@ -34,8 +34,8 @@ func Pin(b []byte) (out []byte, changed bool, err error) {
 }
 
 // Upgrade pins file to Image, moves a file from before #321 into the jail
-// (Jail; a file it can't read is only pinned, with the manual steps printed)
-// and restarts Jellyfin if anything changed.
+// (Jail; a file it can't read is only pinned, with the manual steps printed),
+// marks the NVIDIA block (MarkGPU) and restarts Jellyfin if anything changed.
 func Upgrade(ctx context.Context, file string, out io.Writer) error {
 	b, err := os.ReadFile(file)
 	if errors.Is(err, os.ErrNotExist) {
@@ -61,7 +61,8 @@ func Upgrade(ctx context.Context, file string, out io.Writer) error {
 		fmt.Fprintf(out, "Not moved into the offline jail: %v.\n%s", err, manualJail)
 		jailed, migrated = b, false
 	}
-	if !pinned && !migrated {
+	jailed, marked := MarkGPU(jailed)
+	if !pinned && !migrated && !marked {
 		fmt.Fprintln(out, "Already on", Image)
 		return nil
 	}
@@ -73,6 +74,9 @@ func Upgrade(ctx context.Context, file string, out io.Writer) error {
 		return err
 	}
 	fmt.Fprintln(out, "Jellyfin now runs", Image)
+	if marked {
+		fmt.Fprintln(out, "`gateway jellyfin gpu nvidia` can now switch the NVIDIA GPU on.")
+	}
 	if migrated {
 		fmt.Fprintln(out, "Jellyfin is now offline: nothing leaves its container (`gateway jellyfin offline off` allows online lookups).")
 	}

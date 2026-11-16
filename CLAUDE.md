@@ -108,7 +108,7 @@ membership. `switchHousehold()` stores the choice and fully reloads `/` (closes 
 the old household's state). **Lost membership (#210):** after `/me` every request names its
 household; a non-member answer is a `404` with header `X-StreamIQ-Not-Member` (same for a
 foreign or missing household), on which `authed()` (`api.ts`) drops the choice and reloads `/` with a notice.
-**Members (#192):** `Features/Members/`: anyone lists (names/emails from Firebase per call) and
+**Members (#192):** `Features/Members/`: anyone lists (aliases from Firebase per call, #388: `displayName` picked after sign-up, else the email; your own email only) and
 leaves, an admin removes and promotes/demotes; a household always keeps an admin (`409`; the
 check runs under a lock on the tenant row). A user left with no household stays without one.
 **UI design pass (#93):** tokens + base styles (dark, pill buttons, one 3 px `:focus-visible` ring)
@@ -149,7 +149,7 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 | `backend/` | Control plane: API + WebRTC signaling (one web app) | .NET 10, EF Core, Postgres |
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
-| `e2e/` | E2E specs on one stack, in parallel: `golden-path` (browser → broker → gateway → Jellyfin), `multi-user` (two users over the tunnel), `households` (join / switch / leave / removed, no gateway). `test` comes from `fixtures.ts` (Jellyfin per worker, started only when a spec needs it; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`, unique accounts (`uniqueEmail`); an area tag per test (`@golden` `@gateways` `@player` `@households`) | Playwright + testcontainers-node |
+| `e2e/` | E2E specs on one stack, in parallel: `golden-path` (browser → broker → gateway → Jellyfin), `multi-user` (two users over the tunnel), `gateways` (gateway card edge cases, e.g. a refused broker socket), `households` (join / switch / leave / removed, no gateway). `test` comes from `fixtures.ts` (Jellyfin per worker, started only when a spec needs it; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`, unique accounts (`uniqueEmail`); an area tag per test (`@golden` `@gateways` `@player` `@households`) | Playwright + testcontainers-node |
 | `scripts/` | Dev + CI scripts (`check.sh`, `dev.ps1`, `gen-test-media.sh`, …) | bash / PowerShell |
 | `dev/firebase/` | Auth emulator config for compose | — |
 

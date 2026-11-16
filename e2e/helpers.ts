@@ -30,14 +30,23 @@ export type User = {
 }
 
 /** A new emulator account, provisioned by the API (first /me), with a household
- * of its own as its admin (Create a household, #387) unless household is false. */
-export async function signUp(email: string, household = true): Promise<User> {
+ * of its own as its admin (Create a household, #387). Its alias (displayName,
+ * #388) is its email unless given: null = none yet, so the app asks for one first. */
+export async function signUp(
+  email: string,
+  alias: string | null = email,
+): Promise<User> {
   const r = await fetch(
     `${process.env.E2E_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, returnSecureToken: true }),
+      body: JSON.stringify({
+        email,
+        password,
+        returnSecureToken: true,
+        ...(alias !== null && { displayName: alias }),
+      }),
     },
   ).then((r) => r.json())
   if (!r.idToken) throw new Error(`emulator signUp: ${JSON.stringify(r)}`)
@@ -55,7 +64,7 @@ export async function signUp(email: string, household = true): Promise<User> {
     const text = await res.text()
     return text ? JSON.parse(text) : null
   }
-  if (household) await api('/households', { method: 'POST' })
+  await api('/households', { method: 'POST' })
   const me = await api('/me')
   return {
     email,
@@ -139,9 +148,10 @@ export async function tunnelOk(p: Page) {
 /**
  * Opens the local gateway page in a new tab. Navigating the old tab races its
  * 3s meta refresh: whichever navigation starts second cancels the first (#149).
+ * Old tabs stay open (closed with the context): on a busy runner closing one
+ * blocked for minutes (#397), and their refreshes are harmless GETs.
  */
 export async function gatewayTab(ctx: BrowserContext, url: string) {
-  for (const p of ctx.pages()) await p.close() // drops the pending refresh
   const page = await ctx.newPage()
   await page.goto(url)
   return page

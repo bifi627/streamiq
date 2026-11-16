@@ -350,7 +350,11 @@ async function serve() {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...login, returnSecureToken: true }),
+        body: JSON.stringify({
+          ...login,
+          displayName: 'Preview', // no alias prompt (#388)
+          returnSecureToken: true,
+        }),
       },
     ).then((r) => r.json())
     if (!signUp.idToken)

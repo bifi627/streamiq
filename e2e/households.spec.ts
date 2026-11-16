@@ -116,6 +116,7 @@ test('households: sign up through an invite, none left, create one @households',
     await c.getByLabel('Email').fill(email)
     await c.getByLabel('Password', { exact: true }).fill(password)
     await c.getByRole('button', { name: 'Create account' }).click()
+    await c.getByRole('button', { name: 'Continue' }).click() // alias: the prefilled email (#388)
     await c.getByRole('button', { name: 'Join' }).click()
     await expect(c).not.toHaveURL(/\/join/)
     await c.getByRole('link', { name: 'Household' }).click()
@@ -158,5 +159,49 @@ test('households: sign up through an invite, none left, create one @households',
     expect(
       (await A.api<{ email: string }[]>('/members')).map((m) => m.email),
     ).toEqual([A.email]) // A's household: C left it, nothing else changed
+  })
+})
+
+test('a new account picks an alias; others see it, not the email (#388) @households', async ({
+  browser,
+}) => {
+  const A = await signUp(uniqueEmail('alias-a'))
+  const C = await signUp(uniqueEmail('alias-c'), null) // no alias yet
+  const { token } = await A.api('/invites', { method: 'POST' })
+  await C.api('/invites/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  })
+  const c = await newPage(browser)
+  await c.goto(app() + '/household')
+  await signIn(c, C, A.tenantId)
+  const alias = c.getByLabel('Your name')
+
+  await test.step('asked before the app, again after a reload, email prefilled', async () => {
+    await expect(alias).toHaveValue(C.email)
+    await c.reload()
+    await expect(alias).toHaveValue(C.email)
+    await expect(c.getByRole('link', { name: 'Household' })).toHaveCount(0)
+  })
+
+  await test.step('types one: the app opens, members show it', async () => {
+    await alias.fill('Carol')
+    await c.getByRole('button', { name: 'Continue' }).click()
+    await expect(c.getByText('Carol (you)')).toBeVisible()
+    await expect(c.getByText(C.email)).toBeVisible() // own row: own email
+    const seen = await A.api<{ name: string; email?: string }[]>('/members')
+    expect(seen.map((m) => m.name)).toEqual([A.email, 'Carol'])
+    expect(seen[1].email).toBeUndefined()
+  })
+
+  await test.step('changes it later in Settings', async () => {
+    await c.getByRole('link', { name: 'Settings' }).click()
+    await c.getByRole('button', { name: 'Rename' }).click()
+    await alias.fill('Caro')
+    await c.getByRole('button', { name: 'Save' }).click()
+    await expect(c.getByText('Caro', { exact: true })).toBeVisible()
+    await expect
+      .poll(async () => (await A.api<{ name: string }[]>('/members'))[1].name)
+      .toBe('Caro')
   })
 })

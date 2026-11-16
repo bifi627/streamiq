@@ -1,6 +1,7 @@
 Feature: Members
-  Any member sees who is in the household: name and email from Firebase (never
-  stored), role and joined date. An admin removes members and promotes or demotes;
+  Any member sees who is in the household: their alias from Firebase (never
+  stored; the email for an account without one), role and joined date. Your own
+  email is on your row only, never on anyone else's (#388). An admin removes members and promotes or demotes;
   anyone can leave. Nothing may leave a household without an admin. A membership
   that is gone ends access on the next request. Only the request's household is
   ever touched (tenant isolation, crown jewel).
@@ -11,6 +12,16 @@ Feature: Members
   Scenario: A member lists the household's members with names from Firebase
     When "bob@home.test" lists the members of the household of "alice@home.test"
     Then the members are "alice@home.test" as "admin" and "bob@home.test" as "member"
+
+  Scenario: Aliases replace emails; each member gets only their own email
+    Given "erin@home.test" is a member of the household of "alice@home.test"
+    And "erin@home.test" picked the alias "Erin"
+    When "alice@home.test" lists the members of the household of "alice@home.test"
+    Then the members are "alice@home.test" as "admin" and "bob@home.test" as "member" and "Erin" as "member"
+    And the only email listed is "alice@home.test"
+    When "erin@home.test" lists the members of the household of "alice@home.test"
+    Then the members are "alice@home.test" as "admin" and "bob@home.test" as "member" and "Erin" as "member"
+    And the only email listed is "erin@home.test"
 
   Scenario: An admin removes a member, who then gets 404 there
     When "alice@home.test" removes "bob@home.test" from the household of "alice@home.test"

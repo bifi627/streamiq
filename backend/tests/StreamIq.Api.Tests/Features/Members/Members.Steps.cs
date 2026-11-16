@@ -20,6 +20,7 @@ public partial class MembersSteps(IntegrationFixture fx)
     private readonly Dictionary<string, Guid> _households = new();
     private readonly List<HttpStatusCode> _race = [];
     private HttpResponseMessage? _last;
+    private JsonElement _members;   // the last members list, for the Thens after "the members are"
     private HttpResponseMessage Last => _last ?? throw new InvalidOperationException("no request sent yet");
 
     [AfterScenario]
@@ -141,10 +142,31 @@ public partial class MembersSteps(IntegrationFixture fx)
     {
         ThenStatus(200);
         var want = PairRe().Matches(list).Select(m => ((string?)m.Groups[1].Value, (string?)m.Groups[2].Value)).ToList();
-        var body = await Last.Content.ReadFromJsonAsync<JsonElement>();
-        var got = body.EnumerateArray().Select(m => (m.GetProperty("email").GetString(), m.GetProperty("role").GetString())).ToList();
+        var body = _members = await Last.Content.ReadFromJsonAsync<JsonElement>();
+        var got = body.EnumerateArray().Select(m => (m.GetProperty("name").GetString(), m.GetProperty("role").GetString())).ToList();
         Assert.Equal(want, got);
         Assert.All(body.EnumerateArray(), m => Assert.NotEqual(default, m.GetProperty("joinedAt").GetDateTimeOffset()));
+    }
+
+    // What the web app's updateProfile does (#388): the emulator's accounts:update.
+    // The emulator keeps accounts across scenarios: an alias sticks to that email.
+    [Given("\"(.*)\" picked the alias \"(.*)\"")]
+    public async Task GivenAlias(string email, string alias)
+    {
+        using var http = new HttpClient();
+        using var res = await http.PostAsJsonAsync(
+            $"http://{fx.EmulatorHost}/identitytoolkit.googleapis.com/v1/accounts:update?key=fake-api-key",
+            new { idToken = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123"), displayName = alias });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+    }
+
+    [Then("the only email listed is \"(.*)\"")]
+    public void ThenOnlyEmail(string email)
+    {
+        var emails = _members.EnumerateArray()
+            .Select(m => m.TryGetProperty("email", out var e) ? e.GetString() : null)
+            .OfType<string>();
+        Assert.Equal([email], emails);
     }
 
     [Then("\"(.*)\" still has their own household, not the one of \"(.*)\"")]

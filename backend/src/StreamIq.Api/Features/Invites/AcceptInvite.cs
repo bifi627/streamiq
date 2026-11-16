@@ -32,7 +32,7 @@ public static class AcceptInvite
                 return Results.NotFound();
             }
             return Results.Ok(new { householdId = invite.TenantId, name = await NameOf(db, invite, ct), member });
-        }).RequireAuthorization();
+        }).RequireAuthorization().WithMetadata(Households.Optional);   // the way in without a household (#387)
 
         app.MapPost("/invites/accept", async (Request req, ClaimsPrincipal user, StreamIqDbContext db, CancellationToken ct) =>
         {
@@ -68,7 +68,7 @@ public static class AcceptInvite
             }
             await tx.CommitAsync(ct);
             return Results.Ok(new { householdId = invite.TenantId });
-        }).RequireAuthorization();
+        }).RequireAuthorization().WithMetadata(Households.Optional);   // the way in without a household (#387)
     }
 
     // Tenant-filter exception: the invite token establishes the household.

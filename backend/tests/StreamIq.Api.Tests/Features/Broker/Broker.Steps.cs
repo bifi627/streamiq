@@ -37,8 +37,7 @@ public class BrokerSteps(IntegrationFixture fx)
     [Given("\"([^\"]*)\" has an online gateway \"([^\"]*)\"")]
     public async Task GivenOnlineGateway(string email, string name)
     {
-        using var client = fx.Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await IdToken(email));
+        using var client = await SignedIn(email);
         var token = (await (await client.PostAsync("/api/gateways/enrollment-tokens", null)).Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("token").GetString();
         var enrolled = await (await client.PostAsJsonAsync("/api/gateways/enroll", new { token, fingerprint = Fp, name }))
@@ -62,6 +61,7 @@ public class BrokerSteps(IntegrationFixture fx)
     public async Task WhenOffer(string email, string name)
     {
         _offerer = email;
+        (await SignedIn(email)).Dispose();   // their own household, so the socket gets to "ready"
         await BrowserAuth(await IdToken(email));
         var ready = Assert.NotNull(await Receive(_browser));
         Assert.Equal("ready", ready.GetProperty("type").GetString());
@@ -77,6 +77,7 @@ public class BrokerSteps(IntegrationFixture fx)
         using var ownerClient = await SignedIn(owner);
         var household = (await ownerClient.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("tenantId").GetString();
         _offerer = email;
+        (await SignedIn(email)).Dispose();
         var wsc = fx.Factory.Server.CreateWebSocketClient();
         wsc.ConfigureRequest = r => r.Headers[StreamIq.Api.Auth.Households.Header] = household;
         _browser = await wsc.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
@@ -137,6 +138,13 @@ public class BrokerSteps(IntegrationFixture fx)
     public async Task ThenBrowserError()
     {
         Assert.Equal("error", Assert.NotNull(await Receive(_browser)).GetProperty("type").GetString());
+    }
+
+    // Signed up, never created or joined a household (#387).
+    [When("\"([^\"]*)\", in no household, opens a broker socket")]
+    public async Task WhenNoHousehold(string email)
+    {
+        await BrowserAuth(await IdToken(email));
     }
 
     [When("a browser authenticates with token \"([^\"]*)\"")]
@@ -215,10 +223,12 @@ public class BrokerSteps(IntegrationFixture fx)
         return wsc.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/gateways/ws"), CancellationToken.None);
     }
 
+    // With their own household (made on first use).
     private async Task<HttpClient> SignedIn(string email)
     {
         var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await IdToken(email));
+        await OwnHousehold.MeAsync(client);
         return client;
     }
 

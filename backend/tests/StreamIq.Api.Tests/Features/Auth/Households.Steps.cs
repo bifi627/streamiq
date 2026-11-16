@@ -12,7 +12,7 @@ using StreamIq.Api.Tests.Infrastructure;
 namespace StreamIq.Api.Tests.Features.Auth;
 
 /// Household steps; the membership ones are shared with Broker.feature.
-/// "The household of X" = X's own household (made by their first sign-in, their oldest).
+/// "The household of X" = X's own household (OwnHousehold: made on first mention, their oldest).
 [Binding]
 public class HouseholdsSteps(IntegrationFixture fx)
 {
@@ -202,6 +202,6 @@ public class HouseholdsSteps(IntegrationFixture fx)
     private async Task<JsonElement> Me(string email)
     {
         using var client = await SignedIn(email);
-        return await client.GetFromJsonAsync<JsonElement>("/api/me");
+        return await OwnHousehold.MeAsync(client);
     }
 }

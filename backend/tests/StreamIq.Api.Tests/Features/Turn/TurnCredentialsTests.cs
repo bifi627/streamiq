@@ -46,6 +46,7 @@ public class TurnCredentialsTests(IntegrationFixture fx)
             .UseSetting("CLOUDFLARE_TURN_API_TOKEN", "tok")
             .ConfigureTestServices(s => s.ConfigureHttpClientDefaults(h => h.ConfigurePrimaryHttpMessageHandler(() => cloudflare))));
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, "turn@x.test", "password123");
+        await OwnHousehold.EnsureAsync(fx, token);
 
         async Task<string> Session()
         {
@@ -79,6 +80,7 @@ public class TurnCredentialsTests(IntegrationFixture fx)
             .UseSetting("CLOUDFLARE_TURN_API_TOKEN", "tok")
             .ConfigureTestServices(s => s.ConfigureHttpClientDefaults(h => h.ConfigurePrimaryHttpMessageHandler(() => cloudflare))));
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, "turn-down@x.test", "password123");
+        await OwnHousehold.EnsureAsync(fx, token);
 
         var ws = await factory.Server.CreateWebSocketClient()
             .ConnectAsync(new Uri(factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);

@@ -19,6 +19,15 @@ Feature: Invites
     And "bob@home.test" sees exactly gateway "bob-nas" without naming a household
     And "alice@home.test" has no pending invites
 
+  Scenario: A brand-new user who signs up through an invite is in that household only
+    Given "alice@home.test" created an invite
+    When "dave@home.test" previews the invite
+    Then the preview names "alice@home.test's household" and says not a member
+    When "dave@home.test" accepts the invite
+    Then the answer is the household of "alice@home.test"
+    And "dave@home.test" is only "member" of the household of "alice@home.test"
+    And "dave@home.test" sees exactly gateway "alice-nas" without naming a household
+
   Scenario: Accepting twice is a no-op the second time
     Given "alice@home.test" created an invite
     When "bob@home.test" accepts the invite
@@ -43,7 +52,7 @@ Feature: Invites
     Then the invite is refused as not found
     When "carol@home.test" accepts the invite
     Then the invite is refused as not found
-    And "carol@home.test" is only in their own household
+    And "carol@home.test" is in no household
 
   Scenario: An expired invite is refused
     Given "alice@home.test" created an invite

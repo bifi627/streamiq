@@ -42,6 +42,7 @@ public class RateLimitTests(IntegrationFixture fx)
     public async Task A_browser_socket_flooding_messages_is_closed()
     {
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, "flood@x.test", "password123");
+        await OwnHousehold.EnsureAsync(fx, token);
         var ws = await fx.Factory.Server.CreateWebSocketClient()
             .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
         await Send(ws, $$"""{"type":"auth","token":"{{token}}"}""");

@@ -78,13 +78,13 @@ Feature: Members
     When "dave@home.test" lists the members of the household of "dave@home.test"
     Then the members are "dave@home.test" as "admin" and "carol@home.test" as "member"
 
-  Scenario: Leaving the last household makes a new one on the next request
+  Scenario: Leaving the last household leaves the user in none
     Given "alice@home.test" is an admin of the household of "bob@home.test"
     When "bob@home.test" removes "bob@home.test" from the household of "bob@home.test"
     Then the answer is 204
     When "bob@home.test" removes "bob@home.test" from the household of "alice@home.test"
     Then the answer is 204
-    And "bob@home.test" is admin of exactly one new household
+    And "bob@home.test" is in no household
 
   Scenario: An admin names the household; members see the name, can't change it
     When "alice@home.test" names the household of "alice@home.test" "  The Smiths  "

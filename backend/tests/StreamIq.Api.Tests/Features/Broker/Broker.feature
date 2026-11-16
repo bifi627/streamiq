@@ -16,6 +16,10 @@ Feature: Signaling broker
     Then the browser is told the gateway is offline or unknown
     And gateway "nas" receives nothing
 
+  Scenario: A user in no household gets no session and no TURN credential
+    When "nobody@home.test", in no household, opens a broker socket
+    Then the browser socket is closed as "no household"
+
   Scenario: A member of a second household reaches that household's gateway, with their role there
     Given "alice@home.test" has an online gateway "nas"
     And "bob@home.test" is a member of the household of "alice@home.test"

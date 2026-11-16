@@ -22,7 +22,7 @@ public class TunnelTelemetrySteps(IntegrationFixture fx)
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123");
         var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        await client.GetAsync("/api/me");     // ensure provisioned
+        await OwnHousehold.MeAsync(client);
         return client;
     }
 
@@ -39,7 +39,7 @@ public class TunnelTelemetrySteps(IntegrationFixture fx)
         Guid tenantId;
         using (var client = await SignIn(email))
         {
-            tenantId = (await client.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("tenantId").GetGuid();
+            tenantId = (await OwnHousehold.MeAsync(client)).GetProperty("tenantId").GetGuid();
         }
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();

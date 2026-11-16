@@ -158,17 +158,17 @@ func GPUCLI(ctx context.Context, compose, envFile string, on bool, restart func(
 		if err := put(cb, eb); err != nil {
 			return fmt.Errorf("%w; putting %s and %s back failed too: %v", why, compose, envFile, err)
 		}
-		if err := Compose(ctx, compose, "up", "-d"); err != nil {
+		if err := Compose(context.WithoutCancel(ctx), compose, "up", "-d"); err != nil {
 			return fmt.Errorf("%w; Jellyfin did not come back up: %v (run `gateway jellyfin up`)", why, err)
 		}
-		fmt.Fprintf(out, "GPU transcoding is NOT on: %v\nPut %s and %s back as they were. See \"GPU transcoding\" in docs/install.md.\n", why, compose, envFile)
+		fmt.Fprintf(out, "Nothing changed: %v\nPut %s and %s back as they were. See \"GPU transcoding\" in docs/install.md.\n", why, compose, envFile)
 		return why
 	}
 	if err := put(nc, ne); err != nil {
 		return undo(err)
 	}
 	if err := Compose(ctx, compose, "up", "-d"); err != nil {
-		return undo(fmt.Errorf("Docker did not start Jellyfin with the GPU: %w", err))
+		return undo(fmt.Errorf("Docker did not restart Jellyfin: %w", err))
 	}
 	if on {
 		if err := composeQuiet(ctx, compose, "exec", "-T", "jellyfin", "nvidia-smi"); err != nil {
@@ -176,5 +176,9 @@ func GPUCLI(ctx context.Context, compose, envFile string, on bool, restart func(
 		}
 	}
 	fmt.Fprintln(out, "Jellyfin now", state)
+	// A gateway restarted from here (install.sh's nohup) inherits this
+	// environment, which loadEnvFile filled from the old gateway.env and which
+	// wins over the file: give it the new value.
+	os.Setenv(HWAccelKey, val)
 	return restart()
 }

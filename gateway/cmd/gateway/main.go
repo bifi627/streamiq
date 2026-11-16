@@ -171,7 +171,7 @@ const usage = `usage: gateway [command] [-h]
                              before the offline jail into it), then restart it
   jellyfin offline on|off    on (the default): Jellyfin has no internet access, nothing leaves it;
                              off: online lookups (posters, descriptions) allowed. Restarts Jellyfin
-  jellyfin gpu nvidia|off     transcode on an NVIDIA GPU (checks Jellyfin sees it, else changes
+  jellyfin gpu nvidia|off    transcode on an NVIDIA GPU (checks Jellyfin sees it, else changes
                              nothing) or on the CPU again. Restarts Jellyfin and the gateway
   jellyfin login             sign in with a Jellyfin admin to repair the gateway's access
                              (as the local gateway page does; docs/install.md)

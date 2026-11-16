@@ -70,6 +70,7 @@ type Creds struct {
 	BYO            bool              `json:"byo,omitempty"`            // the user brought this Jellyfin: hands off its settings
 	APIKey         string            `json:"apiKey,omitempty"`         // before #50: an admin API key
 	ConfigSteps    int               `json:"configSteps,omitempty"`    // len(configSteps) applied (managed Jellyfin only)
+	ServerSteps    int               `json:"serverSteps,omitempty"`    // len(serverSteps) applied (managed Jellyfin only)
 	HWAccel        string            `json:"hwAccel,omitempty"`        // STREAMIQ_JELLYFIN_HWACCEL last applied
 	Users          map[string]Viewer `json:"users,omitempty"`          // StreamIQ users.id → their own viewer (#195)
 }
@@ -90,6 +91,26 @@ type Viewer struct {
 var configSteps = []func(enc map[string]any){
 	func(enc map[string]any) { // #82: stop encoding far ahead of the player, delete old segments
 		enc["EnableThrottling"], enc["EnableSegmentDeletion"] = true, true
+	},
+}
+
+// serverSteps are like configSteps, against the main server config
+// (/System/Configuration), with their own count.
+var serverSteps = []func(cfg map[string]any){
+	func(cfg map[string]any) { // #322: Refresh People looks people up on TMDb even with every library offline (#314)
+		opts, _ := cfg["MetadataOptions"].([]any)
+		var person map[string]any
+		for _, o := range opts {
+			if m, ok := o.(map[string]any); ok && m["ItemType"] == "Person" {
+				person = m
+			}
+		}
+		if person == nil {
+			person = map[string]any{"ItemType": "Person"}
+			opts = append(opts, person)
+		}
+		person["DisabledMetadataFetchers"], person["DisabledImageFetchers"] = []string{"TheMovieDb"}, []string{"TheMovieDb"}
+		cfg["MetadataOptions"], cfg["PluginRepositories"] = opts, []any{}
 	},
 }
 
@@ -373,7 +394,7 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 		return err
 	}
 	if !byo { // keep the bootstrapped admin's password for the human (and configure)
-		c.User, c.Password, c.ConfigSteps, c.HWAccel = old.User, old.Password, old.ConfigSteps, old.HWAccel
+		c.User, c.Password, c.ConfigSteps, c.ServerSteps, c.HWAccel = old.User, old.Password, old.ConfigSteps, old.ServerSteps, old.HWAccel
 		if pw != "" && strings.EqualFold(user, old.User) { // "" would make the gateway unmanaged (managed())
 			c.Password = pw
 		}
@@ -486,7 +507,7 @@ func (s *Setup) ensureUser(ctx context.Context, admin, name string, isAdmin bool
 	return u.Id, pw, nil
 }
 
-// configure applies pending configSteps and a changed HWAccel to a Jellyfin
+// configure applies pending configSteps and serverSteps and a changed HWAccel to a Jellyfin
 // the gateway set up, as its stored admin. A failure (e.g. the user changed
 // that password) shows on the page and is retried next poll; playback runs on
 // the viewer token either way.
@@ -496,16 +517,16 @@ func (s *Setup) configure(ctx context.Context) {
 	s.mu.Lock()
 	c := s.creds
 	s.mu.Unlock()
-	if c.Token == "" || !c.managed() || (c.ConfigSteps >= len(configSteps) && c.HWAccel == s.HWAccel) {
+	if c.Token == "" || !c.managed() || (c.ConfigSteps >= len(configSteps) && c.ServerSteps >= len(serverSteps) && c.HWAccel == s.HWAccel) {
 		return
 	}
 	if err := s.applyConfig(ctx, c); err != nil {
-		s.setErr("Jellyfin transcoding settings: " + err.Error())
-		slog.Error("gateway: Jellyfin transcoding settings not applied", "err", err)
+		s.setErr("Jellyfin settings: " + err.Error())
+		slog.Error("gateway: Jellyfin settings not applied", "err", err)
 		return
 	}
 	s.setErr("")
-	slog.Info("gateway: applied Jellyfin transcoding settings", "steps", len(configSteps), "hwaccel", s.HWAccel)
+	slog.Info("gateway: applied Jellyfin settings", "steps", len(configSteps), "serverSteps", len(serverSteps), "hwaccel", s.HWAccel)
 }
 
 func (s *Setup) applyConfig(ctx context.Context, c Creds) error {
@@ -514,26 +535,47 @@ func (s *Setup) applyConfig(ctx context.Context, c Creds) error {
 		return err
 	}
 	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
-	// Whole object back, like the viewer policy: fields this code doesn't know survive.
-	var enc map[string]any
-	if err := s.call(ctx, "GET", "/System/Configuration/encoding", admin, "", &enc); err != nil {
-		return err
+	if c.ServerSteps < len(serverSteps) {
+		if err := s.edit(ctx, admin, "/System/Configuration", serverSteps[c.ServerSteps:]); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		cur := s.creds // a page login may have replaced the token meanwhile
+		s.mu.Unlock()
+		cur.ServerSteps = len(serverSteps)
+		if err := s.save(cur); err != nil {
+			return err
+		}
 	}
-	for _, step := range configSteps[min(c.ConfigSteps, len(configSteps)):] {
-		step(enc)
-	}
+	steps := configSteps[min(c.ConfigSteps, len(configSteps)):]
 	if c.HWAccel != s.HWAccel {
-		hwAccel(enc, s.HWAccel)
+		steps = append(steps[:len(steps):len(steps)], func(enc map[string]any) { hwAccel(enc, s.HWAccel) })
 	}
-	b, _ := json.Marshal(enc)
-	if err := s.call(ctx, "POST", "/System/Configuration/encoding", admin, string(b), nil); err != nil {
+	if len(steps) == 0 {
+		return nil
+	}
+	if err := s.edit(ctx, admin, "/System/Configuration/encoding", steps); err != nil {
 		return err
 	}
 	s.mu.Lock()
-	c = s.creds // a page login may have replaced the token meanwhile
+	c = s.creds
 	s.mu.Unlock()
 	c.ConfigSteps, c.HWAccel = len(configSteps), s.HWAccel
 	return s.save(c)
+}
+
+// edit round-trips the whole config object at path through steps, like the
+// viewer policy: fields this code doesn't know survive.
+func (s *Setup) edit(ctx context.Context, admin, path string, steps []func(map[string]any)) error {
+	var cfg map[string]any
+	if err := s.call(ctx, "GET", path, admin, "", &cfg); err != nil {
+		return err
+	}
+	for _, step := range steps {
+		step(cfg)
+	}
+	b, _ := json.Marshal(cfg)
+	return s.call(ctx, "POST", path, admin, string(b), nil)
 }
 
 // signIn returns an access token. Signing in again replaces this gateway's

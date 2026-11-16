@@ -156,6 +156,30 @@ the release's `jellyfin-compose.yml`, and replace the jellyfin service's `ports:
 with `networks: [jail]`). Only this Jellyfin is covered: one you installed
 yourself or run natively reaches the internet as you set it up.
 
+### Libraries: Offline and Extras
+
+On a Jellyfin the gateway set up, the local gateway page links to **Libraries**:
+each library with two states, read from Jellyfin every time you open it (the
+gateway stores nothing about libraries, and changes one only when you press its
+button):
+
+- **Offline**: Jellyfin looks nothing up online for that library: every metadata
+  and image fetcher is off, *Screen Grabber* too (a grabbed frame can show the
+  content itself). **Online (set in Jellyfin)** means at least one is on, or the
+  library never got explicit settings (Jellyfin then runs every fetcher).
+  **Make offline** turns them all off. In the jail the lookups fail anyway; this
+  stops the errors and keeps the library offline if you ever turn the jail off.
+  There is no "make online" button: online lookups stay possible in Jellyfin's
+  own **Dashboard → Libraries** (library → *Manage library*).
+- **Extras**: seek thumbnails (trickplay), chapter images and audio
+  normalization (LUFS). StreamIQ doesn't show them, and they cost CPU and disk.
+  **On** / **Off** turns all of them on or off together; **Custom (set in
+  Jellyfin)** means you set a mix in the Dashboard.
+
+The gateway also turns TMDb off for people (*Refresh People* looks up cast
+names server-wide, whatever the libraries say) and empties Jellyfin's plugin
+repository list, once per Jellyfin: a later change in the Dashboard stays.
+
 ## GPU transcoding (optional)
 
 Most files play as-is (stream copy). Jellyfin re-encodes the video when a

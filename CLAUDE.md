@@ -63,6 +63,9 @@ page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapp
 **Offline jail (#321):** the shipped compose Jellyfin sits on an `internal` network, an `alpine/socat`
 forwarder publishes 8096; `gateway jellyfin offline on|off` toggles the `# streamiq:<name>` marked blocks
 (`gateway/internal/jellyfin/offline.go`, reused by #334), `upgrade` migrates older files.
+**Libraries (#322):** the local page's `/libraries` shows a managed Jellyfin's per-library Offline / Extras
+state, read live (nothing stored), with *Make offline* and an Extras toggle (`jellyfin/libraries.go`);
+`serverSteps` (like `configSteps`, against `/System/Configuration`) turns the Person TMDb fetchers off.
 
 **Item 5 — streaming client** (consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /
 series / episodes → hls.js player over the tunnel (custom loader), subtitles, resume

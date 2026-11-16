@@ -57,6 +57,7 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 {{if .Untested}} · <b style="color:#c80">not tested with this gateway (tested: {{.Tested}}.x)</b>{{end}}
 {{else}}<b style="color:#c00">not reachable</b>{{end}}
 · token: {{if .LegacyKey}}<b style="color:#c80">admin API key: reconnect Jellyfin</b>{{else if .HasKey}}<b>set</b> (user {{.Viewer}}){{else}}<b style="color:#c00">missing</b>, playback refused{{end}}</li>
+{{if and .Managed $.Libraries}}<li><a href="/libraries">Libraries</a>: offline state and extras</li>{{end}}
 {{if .HasKey}}<li>Transcoding settings: {{if .Managed}}<b>managed</b> · hardware acceleration {{or .HWAccel "off"}}
 (<code>STREAMIQ_JELLYFIN_HWACCEL</code> in gateway.env){{else}}not managed (your Jellyfin: Dashboard → Playback → Transcoding){{end}}</li>{{end}}
 {{if .Err}}<li style="color:#c00">{{.Err}}</li>{{end}}
@@ -99,6 +100,31 @@ shared fallback <code>streamiq-viewer</code>. Your password is not stored.</p>{{
 DTLS fingerprint (browsers pin this):<br><code style="word-break:break-all">{{.Fingerprint}}</code></small></p>
 </body>`))
 
+var libs = template.Must(template.New("libs").Parse(`<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>StreamIQ gateway · Libraries</title>
+<body style="font-family:system-ui;max-width:40rem;margin:2rem auto;padding:0 1rem">
+<p><a href="/">← Gateway</a></p>
+<h1>Libraries</h1>
+<p><b>Offline</b>: Jellyfin looks nothing up online for this library (no metadata or image fetchers,
+Screen Grabber included). Online lookups stay possible in Jellyfin: Dashboard → Libraries.
+<b>Extras</b>: seek thumbnails (trickplay), chapter images and audio normalization (LUFS); StreamIQ
+doesn't show them, and they cost CPU and disk.</p>
+{{with .Err}}<p style="color:#c00">{{.}}</p>{{end}}
+{{range .Libraries}}
+<form method="post" style="border:1px solid #888;padding:.5rem 1rem;margin:.5rem 0">
+<input type="hidden" name="id" value="{{.ID}}">
+<p><b>{{.Name}}</b></p>
+<p>{{if .Offline}}<b>Offline</b>{{else}}<b style="color:#c80">Online (set in Jellyfin)</b>
+<button formaction="/libraries/offline">Make offline</button>{{end}}</p>
+<p>Extras: <b>{{if eq .Extras "Custom"}}Custom (set in Jellyfin){{else}}{{.Extras}}{{end}}</b>
+{{if eq .Extras "On"}}<button formaction="/libraries/extras" name="on" value="0">Turn off</button>
+{{else}}<button formaction="/libraries/extras" name="on" value="1">Turn on</button>
+{{if eq .Extras "Custom"}}<button formaction="/libraries/extras" name="on" value="0">Turn off</button>{{end}}{{end}}</p>
+</form>
+{{else}}{{if not .Err}}<p>No libraries yet. Add one in Jellyfin: Dashboard → Libraries.</p>{{end}}{{end}}
+</body>`))
+
 // Config is what the page shows and drives.
 type Config struct {
 	Name                            func() string // live: a rename (#310) shows without a restart
@@ -109,6 +135,10 @@ type Config struct {
 	Jellyfin                        func() any                                       // status snapshot (jellyfin.View)
 	Login                           func(ctx context.Context, user, pw string) error // connect Jellyfin (viewer token)
 	Offline                         func() string                                    // jellyfin.Offline: "" = no line (#321); nil = none
+	// A managed Jellyfin's libraries (#322; jellyfin.Setup's methods); nil = no list.
+	Libraries   func(ctx context.Context) (any, error)
+	MakeOffline func(ctx context.Context, id string) error
+	SetExtras   func(ctx context.Context, id string, on bool) error
 }
 
 // Handler renders the status page and takes the Approve/Reject/Remove and
@@ -125,9 +155,49 @@ func Handler(c Config) http.Handler {
 			"Name": c.Name(), "GatewayID": c.GatewayID, "Fingerprint": c.Fingerprint,
 			"Version": c.Version, "Update": *c.Update.Load(), "LastBeat": beat,
 			"Jellyfin": c.Jellyfin(), "Pending": c.Store.Pending(), "Paired": c.Store.Paired(),
-			"Offline": offline(c),
+			"Offline": offline(c), "Libraries": c.Libraries != nil,
 		})
 	})
+	// Not on the main page: reading libraries signs in as Jellyfin's admin,
+	// which the main page's 3 s refresh would do every 3 s.
+	showLibs := func(w http.ResponseWriter, r *http.Request, failed error) {
+		list, err := c.Libraries(r.Context())
+		if failed != nil {
+			err = failed
+		}
+		msg := ""
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			msg = "Jellyfin: " + err.Error()
+		}
+		libs.Execute(w, map[string]any{"Libraries": list, "Err": msg})
+	}
+	libsDo := func(do func(r *http.Request) error) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if c.Libraries == nil {
+				http.NotFound(w, r)
+				return
+			}
+			if err := do(r); err != nil {
+				showLibs(w, r, err)
+				return
+			}
+			http.Redirect(w, r, "/libraries", http.StatusSeeOther)
+		}
+	}
+	mux.HandleFunc("GET /libraries", func(w http.ResponseWriter, r *http.Request) {
+		if c.Libraries == nil {
+			http.NotFound(w, r)
+			return
+		}
+		showLibs(w, r, nil)
+	})
+	mux.HandleFunc("POST /libraries/offline", libsDo(func(r *http.Request) error {
+		return c.MakeOffline(r.Context(), r.FormValue("id"))
+	}))
+	mux.HandleFunc("POST /libraries/extras", libsDo(func(r *http.Request) error {
+		return c.SetExtras(r.Context(), r.FormValue("id"), r.FormValue("on") == "1")
+	}))
 	// For `gateway status` on this machine. Loopback only, even with a page
 	// cookie: it's a machine-local API, not part of the LAN page.
 	mux.HandleFunc("GET /status.json", func(w http.ResponseWriter, r *http.Request) {

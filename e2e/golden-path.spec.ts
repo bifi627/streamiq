@@ -39,6 +39,8 @@ async function signIn(browser: Browser, create = false, path = '/') {
     // A new account picks its alias first (#388): keeps the prefilled email.
     await expect(page.getByLabel('Your name')).toHaveValue(email())
     await page.getByRole('button', { name: 'Continue' }).click()
+    // Sign-up makes no household (#387): the user creates one.
+    await page.getByRole('button', { name: 'Create a household' }).click()
   }
   if (path === '/')
     await expect(page.getByRole('heading', { name: 'Gateways' })).toBeVisible()

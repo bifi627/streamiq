@@ -79,7 +79,7 @@ asks for, do on the running stack with the `api:` / `auth emulator:` URLs that
   `Authorization: Bearer <idToken>` on `<api>/api/...` (endpoints: `backend/src/StreamIq.Api/Features/`).
   Another household than the user's oldest: header `X-StreamIQ-Household: <tenant id>` (from `GET /api/me`).
 - **More people:** `accounts:signUp` (same body) as `preview2@streamiq.test`,
-  `preview3@…`, password `preview-password`; their first API call provisions their own household.
+  `preview3@…`, password `preview-password`; they start in no household (#387): `POST /api/households` gives them their own, or accept an invite.
 - **Media:** copy into `dev-media/` (or `bash scripts/gen-test-media.sh`), then
   "Scan All Libraries" on the printed `jellyfin:` address.
 - **Through the API only**, as a real user would: no SQL or direct DB writes (the

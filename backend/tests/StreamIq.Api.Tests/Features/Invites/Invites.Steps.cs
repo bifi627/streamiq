@@ -12,7 +12,9 @@ using StreamIq.Api.Tests.Infrastructure;
 namespace StreamIq.Api.Tests.Features.Invites;
 
 /// "The household of X" / "their own household" = X's first household (their oldest,
-/// what /me answers without the header). One invite per scenario.
+/// what /me answers without the header; OwnHousehold makes it on first mention). One
+/// invite per scenario. Accepting or previewing never makes one: a user who only ever
+/// accepts has no household of their own (#387).
 [Binding]
 public class InvitesSteps(IntegrationFixture fx)
 {
@@ -143,6 +145,12 @@ public class InvitesSteps(IntegrationFixture fx)
         Assert.Equal([(await HouseholdOf(email), Membership.Admin)], await Memberships(email));
     }
 
+    [Then("\"(.*)\" is only \"(.*)\" of the household of \"(.*)\"")]
+    public async Task ThenOnly(string email, string role, string owner)
+    {
+        Assert.Equal([(await HouseholdOf(owner), role)], await Memberships(email));
+    }
+
     [Then("\"(.*)\" sees exactly gateway \"(.*)\" in the household of \"(.*)\"")]
     public async Task ThenSeesIn(string email, string name, string owner)
     {
@@ -206,15 +214,17 @@ public class InvitesSteps(IntegrationFixture fx)
         return (await Me(email)).GetProperty("tenantId").GetGuid();
     }
 
+    // Raw /me: never makes a household.
     private async Task<(Guid, string?)[]> Memberships(string email)
     {
-        return (await Me(email)).GetProperty("memberships").EnumerateArray()
+        using var client = await SignedIn(email);
+        return (await client.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("memberships").EnumerateArray()
             .Select(m => (m.GetProperty("id").GetGuid(), m.GetProperty("role").GetString())).ToArray();
     }
 
     private async Task<JsonElement> Me(string email)
     {
         using var client = await SignedIn(email);
-        return await client.GetFromJsonAsync<JsonElement>("/api/me");
+        return await OwnHousehold.MeAsync(client);
     }
 }

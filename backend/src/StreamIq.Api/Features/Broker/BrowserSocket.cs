@@ -57,7 +57,13 @@ public static class BrowserSocket
                     await Broker.CloseAsync(socket, "unauthorized", ct);
                     return;
                 }
-                // No household yet: the offer's gateway decides which one (membership checked there).
+                // In no household at all (#387): nothing to offer to, and no TURN credential for it.
+                if (!await Households.AnyAsync(db, user.Id, ct))
+                {
+                    await Broker.CloseAsync(socket, "no household", ct);
+                    return;
+                }
+                // Which household: the offer's gateway decides (membership checked there).
                 var me = new Broker.Link(socket, Guid.Empty, Guid.Empty);
                 JsonArray iceServers;
                 // A slow TURN provider must not stall the session: fail fast to STUN.

@@ -71,6 +71,12 @@ The web app stores the household it acts in per device (`localStorage`
 `streamiq.household`, set on joining one) and sends it on every request; once `/me`
 is in, it sends that household even when it's the default. A `404` with
 `X-StreamIQ-Not-Member` on any request clears the choice and reloads into the default household with a notice (#210).
+**No household (#387).** Sign-up makes none: a user may have zero memberships. Such a
+user gets `200` from `GET /api/me` (`tenantId: null`, `memberships: []`), the invite
+`preview`/`accept` and `POST /api/households` → `{householdId}` (any signed-in user,
+creates a household with the caller as its admin); every other Firebase-authenticated
+endpoint answers the not-a-member `404` above, and the broker closes their socket
+(`1008`, "no household") before `ready`, so no TURN credential either.
 
 **Invites (#191).** Household admin (a member gets `403`): `POST /api/invites` →
 `{id, token, expiresAt}` (single use, 7 days; only the SHA-256 hash is stored, the
@@ -94,8 +100,8 @@ web app, #388), else the email, `null` when unknown; `email` only on the caller'
 pending invites in that household. A user outside
 the household → `404`. Anything that would leave the household without an admin →
 `409 {error}`. A gone membership ends access on the next request or broker `offer`
-(open sessions run to their end). A user left without any household gets a new one
-(as its admin) on their next request.
+(open sessions run to their end). A user left without any household stays without one
+(#387).
 
 **`DELETE /api/gateways/{id}`** (Firebase Bearer, household admin; a member gets
 `403`) → `204`: revokes the gateway's

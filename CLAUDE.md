@@ -90,7 +90,8 @@ of `state/jellyfin.json` (0600) holding it. LAN access to the page needs a token
 Postgres backups: daily `pg_dump` → GCS (`db-backup.yml`), restore runbook `docs/db-recovery.md`.
 **Households (#189, parent #92):** tenant = **household**, and a user can belong to
 several: `memberships` (tenant, user, role `admin`/`member`) replaced `users.tenant_id`;
-first sign-in makes your own household with you as admin. Each HTTP request acts in one,
+sign-up makes none (#387): a user joins one by invite or creates one (`POST /api/households`,
+as its admin); with none, only `/me`, invites and creating one work. Each HTTP request acts in one,
 named by the `X-StreamIQ-Household` header (default: the oldest membership);
 `CurrentTenantId` is set only from the signed-in user's own membership (`Auth/Households.cs`,
 the one cross-tenant membership lookup), a non-member gets `404`. The broker checks
@@ -109,8 +110,7 @@ household; a non-member answer is a `404` with header `X-StreamIQ-Not-Member` (s
 foreign or missing household), on which `authed()` (`api.ts`) drops the choice and reloads `/` with a notice.
 **Members (#192):** `Features/Members/`: anyone lists (aliases from Firebase per call, #388: `displayName` picked after sign-up, else the email; your own email only) and
 leaves, an admin removes and promotes/demotes; a household always keeps an admin (`409`; the
-check runs under a lock on the tenant row). A user left with no household gets a fresh one
-(`UserProvisioner`).
+check runs under a lock on the tenant row). A user left with no household stays without one.
 **UI design pass (#93):** tokens + base styles (dark, pill buttons, one 3 px `:focus-visible` ring)
 in `frontend/src/index.css`, CSS that Chrome 87 / webOS reads; shell nav, gateway chip, per-device **TV mode**
 (`settings.ts`, `html.tv`). D-pad = arrow keys: `onKeyDown={arrowFocus}` (`frontend/src/focus.ts`) on a container.

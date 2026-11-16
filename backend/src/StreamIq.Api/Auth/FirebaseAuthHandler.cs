@@ -13,7 +13,7 @@ namespace StreamIq.Api.Auth;
 /// (Households) and set CurrentTenantId so the global filter is live. The membership's
 /// role is the Role claim: admin-only endpoints RequireRole it, so a member gets 403. A household
 /// the user can't use flags the request for a 404 (Program.cs), same as one that
-/// doesn't exist.
+/// doesn't exist; so does having no household, except on Households.Optional endpoints.
 public class FirebaseAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
@@ -49,25 +49,26 @@ public class FirebaseAuthHandler(
             ? Guid.TryParse(h.ToString(), out var id) ? id : Guid.Empty
             : null;
         var membership = await Households.PickAsync(db, user.Id, wanted, Context.RequestAborted);
-        if (membership is null && wanted is null)   // no household at all: make a fresh one (#192)
-        {
-            await provisioner.EnsureHouseholdAsync(user, Context.RequestAborted);
-            membership = await Households.PickAsync(db, user.Id, null, Context.RequestAborted);
-        }
-        if (membership is null)
+        // No household at all (#387): only the endpoints marked Households.Optional,
+        // with no tenant claims and CurrentTenantId left null (the filter shows nothing).
+        var optional = wanted is null && Context.GetEndpoint()?.Metadata.Contains(Households.Optional) == true;
+        if (membership is null && !optional)
         {
             Context.Items[Households.Denied] = true;
             return AuthenticateResult.Fail("not a member of that household");
         }
-        db.CurrentTenantId = membership.TenantId;
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim("tenant_id", membership.TenantId.ToString()),
-            new Claim("firebase_uid", user.FirebaseUid),
-            new Claim(ClaimTypes.Role, membership.Role),   // admin-only endpoints: RequireRole(Membership.Admin)
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new("firebase_uid", user.FirebaseUid),
         };
+        if (membership is not null)
+        {
+            db.CurrentTenantId = membership.TenantId;
+            claims.Add(new Claim("tenant_id", membership.TenantId.ToString()));
+            claims.Add(new Claim(ClaimTypes.Role, membership.Role));   // admin-only endpoints: RequireRole(Membership.Admin)
+        }
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
     }

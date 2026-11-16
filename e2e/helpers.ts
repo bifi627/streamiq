@@ -25,13 +25,13 @@ export type User = {
   email: string
   uid: string // Firebase
   userId: string // users.id
-  tenantId: string // the household made on first sign-in
+  tenantId: string // their own household (signUp makes it), '' with none
   api: <T = any>(path: string, init?: RequestInit) => Promise<T>
 }
 
-/** A new emulator account, provisioned by the API (first /me). Its alias
- * (displayName, #388) is its email unless given: null = none yet, so the app
- * asks for one first. */
+/** A new emulator account, provisioned by the API (first /me), with a household
+ * of its own as its admin (Create a household, #387). Its alias (displayName,
+ * #388) is its email unless given: null = none yet, so the app asks for one first. */
 export async function signUp(
   email: string,
   alias: string | null = email,
@@ -64,12 +64,13 @@ export async function signUp(
     const text = await res.text()
     return text ? JSON.parse(text) : null
   }
+  await api('/households', { method: 'POST' })
   const me = await api('/me')
   return {
     email,
     uid: r.localId,
     userId: me.userId,
-    tenantId: me.tenantId,
+    tenantId: me.tenantId ?? '',
     api,
   }
 }

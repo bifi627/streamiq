@@ -42,7 +42,8 @@
 // commands, applied like the TV's own controls; play/stop are the screen's.
 // `onState` gets the playback state about once a second and on every change
 // (#181); a phone's pause holds through startup and reloads.
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { queryClient } from '../../query'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import Hls from 'hls.js'
@@ -66,6 +67,7 @@ import {
 import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
+import { Tunnel } from './art'
 import { Controls } from './Controls'
 import { Privacy } from './Privacy'
 import {
@@ -163,6 +165,7 @@ export function Player({
   /** Plays another item; unset (screen mode) = no "Next episode". */
   onNext?: (item: Item) => void
 }) {
+  const { gatewayId } = useContext(Tunnel)
   const [item, setItem] = useState<Item | null>(null)
   const [blocked, setBlocked] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
@@ -230,8 +233,11 @@ export function Player({
       if (!v.seeking && t > lastT && t - lastT < 1) played += t - lastT
       lastT = t
     }
+    let saving: Promise<unknown> = Promise.resolve()
     const save = (body: object) =>
-      tunnelJson(pc, `/UserItems/${itemId}/UserData`, body).catch(() => {})
+      (saving = tunnelJson(pc, `/UserItems/${itemId}/UserData`, body).catch(
+        () => {},
+      ))
     const report = () => {
       const t = Math.floor(v.currentTime)
       // Not after the end: its `pause` comes before `ended` (Played: true).
@@ -631,6 +637,10 @@ export function Player({
       clearInterval(state)
       changes.forEach((e) => v.removeEventListener(e, emit))
       report()
+      // After the exit save: the pages left behind show this progress (#360).
+      void saving.then(() =>
+        queryClient.invalidateQueries({ queryKey: ['tunnel', gatewayId] }),
+      )
       v.removeEventListener('play', onPlay)
       v.removeEventListener('timeupdate', onTime)
       v.removeEventListener('pause', report)
@@ -640,7 +650,7 @@ export function Player({
       h?.destroy()
       unshow()
     }
-  }, [pc, speed, itemId, startTicks, remote])
+  }, [pc, speed, itemId, startTicks, remote, gatewayId])
 
   return (
     <div>

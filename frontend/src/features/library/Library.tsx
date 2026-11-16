@@ -47,7 +47,7 @@ import { Privacy } from './Privacy'
 import { ICON, Icon } from './Controls'
 import { arrowFocus } from '../../focus'
 import { tvOn } from '../../settings'
-import { Tunnel, backdrop, items as getItems, primary } from './art'
+import { Tunnel, backdrop, primary, useTunnelQuery } from './art'
 import { Artwork, minutes, Watched } from './Home'
 export { Home as LibraryHome } from './Home'
 
@@ -138,24 +138,16 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
 // Folder / series / movie by Jellyfin item ID, so a reload or deep link
 // restores it. A season opens its series' page on that season's tab (#204).
 export function ItemPage({ itemId }: { itemId: string }) {
-  const { pc } = useContext(Tunnel)
-  const [shown, setShown] = useState<{ item: Item; season?: string } | null>(
-    null,
-  )
-  const [err, setErr] = useState<AppError | null>(null)
-  useEffect(() => {
-    tunnelJson<Item>(pc, `/Items/${itemId}`)
-      .then((i) =>
-        i.Type === 'Season' && i.SeriesId
-          ? tunnelJson<Item>(pc, `/Items/${i.SeriesId}`).then((s) => ({
-              item: s,
-              season: i.Id,
-            }))
-          : { item: i },
-      )
-      .then(setShown, (e) => setErr(toAppError(e)))
-  }, [pc, itemId])
-  if (err) return <ErrorView error={err} focus />
+  const it = useTunnelQuery<Item>(`/Items/${itemId}`)
+  const seriesId = it.data?.Type === 'Season' ? it.data.SeriesId : undefined
+  const series = useTunnelQuery<Item>(seriesId ? `/Items/${seriesId}` : null)
+  const error = it.error ?? series.error
+  const shown = !it.data
+    ? null
+    : !seriesId
+      ? { item: it.data }
+      : series.data && { item: series.data, season: it.data.Id }
+  if (error) return <ErrorView error={toAppError(error)} focus />
   if (!shown)
     return (
       <div className="title" role="status" aria-label="Loading">
@@ -199,20 +191,18 @@ function Title({ item, season }: { item: Item; season?: string }) {
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const series = item.Type === 'Series'
-  const [lists, setLists] = useState<{ seasons: Item[]; episodes: Item[] }>()
-  const [err, setErr] = useState<AppError | null>(null)
   const [tab, setTab] = useState(season)
-  useEffect(() => {
-    if (!series) return
-    // ponytail: every episode in one request; per season if huge shows lag.
-    Promise.all([
-      getItems(pc, `/Shows/${item.Id}/Seasons`),
-      getItems(pc, `/Shows/${item.Id}/Episodes`),
-    ]).then(
-      ([seasons, episodes]) => setLists({ seasons, episodes }),
-      (e) => setErr(toAppError(e)),
-    )
-  }, [pc, item.Id, series])
+  // ponytail: every episode in one request; per season if huge shows lag.
+  const ss = useTunnelQuery<{ Items: Item[] }>(
+    series ? `/Shows/${item.Id}/Seasons` : null,
+  )
+  const es = useTunnelQuery<{ Items: Item[] }>(
+    series ? `/Shows/${item.Id}/Episodes` : null,
+  )
+  const lists = ss.data &&
+    es.data && { seasons: ss.data.Items, episodes: es.data.Items }
+  const failed = ss.error ?? es.error
+  const err = failed ? toAppError(failed) : null
 
   const play = (i: Item) =>
     navigate({
@@ -919,17 +909,11 @@ function Listing({
   item: Item
   onOpen: (i: Item) => void
 }) {
-  const [items, setItems] = useState<Item[] | null>(null)
-  const [err, setErr] = useState<AppError | null>(null)
-
-  useEffect(() => {
-    getItems(pc, `/Items?parentId=${item.Id}&sortBy=SortName`).then(
-      setItems,
-      (e) => setErr(toAppError(e)),
-    )
-  }, [pc, item.Id])
-
-  if (err) return <ErrorView error={err} focus />
+  const q = useTunnelQuery<{ Items: Item[] }>(
+    `/Items?parentId=${item.Id}&sortBy=SortName`,
+  )
+  const items = q.data?.Items
+  if (q.error) return <ErrorView error={toAppError(q.error)} focus />
   if (!items)
     return (
       <ul className="tiles" role="status" aria-label="Loading">

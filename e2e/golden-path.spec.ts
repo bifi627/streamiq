@@ -199,6 +199,31 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await expect(a).toHaveURL(/\/g\/[^/]+\/i\/[^/]+$/) // folder deep link
       await a.reload() // restores the folder: item loaded by ID over a new tunnel
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      // Back to a folder seen < 5 min ago (#360): from the query cache, no
+      // "Loading…" and no tunnel request on the way.
+      await a.getByRole('button', { name: /^(Play|Resume)$/ }).waitFor()
+      await a.evaluate(() => {
+        const w = window as unknown as { seen: string[] }
+        w.seen = []
+        const make = RTCPeerConnection.prototype.createDataChannel
+        RTCPeerConnection.prototype.createDataChannel = function (l, o) {
+          w.seen.push(l)
+          return make.call(this, l, o)
+        }
+        new MutationObserver(
+          () =>
+            document.querySelector('[aria-label=Loading]') &&
+            w.seen.push('Loading'),
+        ).observe(document.body, { childList: true, subtree: true })
+      })
+      await a.goBack()
+      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
+      const seen = await a.evaluate(
+        () => (window as unknown as { seen: string[] }).seen,
+      )
+      expect(
+        seen.filter((l) => /Loading|req:\/Items(\?|\/[^/]+$)/.test(l)),
+      ).toEqual([])
       await a.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page (#204)
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })

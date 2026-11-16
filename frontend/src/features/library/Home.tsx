@@ -6,7 +6,15 @@ import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
-import { backdrop, items, load, primary, Tunnel, type Art } from './art'
+import {
+  backdrop,
+  items,
+  load,
+  primary,
+  Tunnel,
+  useTunnelQuery,
+  type Art,
+} from './art'
 import {
   clock,
   playable,
@@ -43,17 +51,27 @@ function meta(i: Item) {
 export function Home() {
   const { gatewayId, pc } = useContext(Tunnel)
   const navigate = useNavigate()
-  const [lists, setLists] = useState<Lists | null>(null)
+  // Resume is never cached (progress changes); Recently added and the
+  // libraries are cached queries (#360).
+  const [resume, setResume] = useState<Shelf | null>(null)
   useEffect(() => {
-    // All settled before the home shows: first focus lands as before (#203).
-    const get = (url: string) =>
-      items(pc, url).catch((e: unknown) => toAppError(e))
-    Promise.all([
-      get('/UserItems/Resume?mediaTypes=Video&limit=4'),
-      get(RECENT),
-      get('/UserViews'),
-    ]).then(([resume, recent, views]) => setLists({ resume, recent, views }))
+    items(pc, '/UserItems/Resume?mediaTypes=Video&limit=4').then(
+      setResume,
+      (e) => setResume(toAppError(e)),
+    )
   }, [pc])
+  const shelf = (q: ReturnType<typeof useTunnelQuery<{ Items: Item[] }>>) =>
+    q.error ? toAppError(q.error) : q.data?.Items
+  const added = shelf(useTunnelQuery(RECENT))
+  const views = shelf(useTunnelQuery('/UserViews'))
+  // First visit: all settled before the home shows, so first focus lands as
+  // before (#203). A revisit with both rows cached shows at once (#360); the
+  // Resume spot joins when it answers.
+  const [warm] = useState(() => !!added && !!views)
+  const lists: Lists | null =
+    added && views && (resume || warm)
+      ? { resume: resume ?? [], recent: added, views }
+      : null
 
   const open = (i: Item) =>
     navigate({

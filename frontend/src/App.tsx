@@ -419,7 +419,15 @@ function Shell() {
     gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)
 
   return (
-    <div className="shell">
+    // D-pad (#230): an arrow no page container used (its edge, or a page
+    // without one) moves across the whole shell, e.g. Down to the diagnostics
+    // dock. The player moves its own focus (Controls.tsx).
+    <div
+      className="shell"
+      onKeyDown={(e) =>
+        !(e.target as Element).closest('.player') && arrowFocus(e)
+      }
+    >
       <header className="top">
         <span className="wordmark">
           Stream<span>IQ</span>
@@ -462,7 +470,6 @@ function Shell() {
         )}
       </header>
       <main>
-        <Diagnostics />
         <UncaughtErrors />
         {notice && (
           <p role="status">
@@ -477,6 +484,7 @@ function Shell() {
           <Outlet />
         </HouseholdContext.Provider>
       </main>
+      <Diagnostics />
     </div>
   )
 }

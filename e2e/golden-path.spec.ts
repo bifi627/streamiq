@@ -213,6 +213,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
       await a.getByRole('link', { name: 'Settings' }).click()
       await a.getByLabel('Diagnostics panel').check()
       await a.getByRole('button', { name: 'Back' }).click() // player remounts
+      await openDock(a)
       await expect(a.getByText(/probe: h264 .* L\d/)).toBeVisible()
       await expect(
         a.getByText(/jellyfin: video remux \(h264\) · audio copy/),
@@ -832,3 +833,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke', asyn
     await gateway.stop()
   }
 })
+
+// The diagnostics dock (#230) starts collapsed; its button opens the sheet with
+// the log, the request table and Force relay, and it stays open (per device).
+const openDock = (p: Page) =>
+  p.getByRole('button', { name: /^Diagnostics peer:/, expanded: false }).click()

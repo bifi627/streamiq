@@ -146,6 +146,8 @@ export function setFlag(name: string, on: boolean) {
 const q = () => new URLSearchParams(location.search)
 export const debugOn = () => q().has('debug') || flag('debug')
 export const relayOn = () => q().has('relay') || flag('relay')
+/** The diagnostics dock's sheet is open (#230); collapsed until opened once. */
+export const dockOpen = () => flag('dock')
 /** ?fail=<n>: the first n player loads look stuck (forces the #238 escalation). */
 export const failLoads = () => Number(q().get('fail')) || 0
 /** Seconds a playback must really play before it saves anything (#330);

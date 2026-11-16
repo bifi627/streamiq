@@ -613,9 +613,11 @@ function PairedClients({
 const clientsMessage = (e: AppError) =>
   isKind(e, 'not-paired')
     ? 'Pair this browser to see them.'
-    : e.context.status === 404 || e.context.status === 403 // 403: a member, gateway before #341
+    : e.context.status === 404
       ? 'This gateway is too old to list them: update it.'
-      : describe(e).message
+      : e.context.status === 403 // a member, gateway before #341
+        ? 'This gateway is too old to list them: ask a household admin to update it.'
+        : describe(e).message
 
 const transcodingText: Record<string, string> = {
   nvenc: 'GPU (nvenc)',

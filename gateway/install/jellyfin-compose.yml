@@ -42,9 +42,10 @@ services:
       #   source: 'D:\Movies'
       #   target: /media/movies
       #   read_only: true
-    # GPU transcoding (optional; see "GPU transcoding" in docs/install.md, then
-    # set STREAMIQ_JELLYFIN_HWACCEL=nvenc in the gateway's gateway.env).
+    # GPU transcoding (optional; see "GPU transcoding" in docs/install.md).
     # NVIDIA (Windows Docker Desktop, or Linux with the NVIDIA Container Toolkit):
+    # `gateway jellyfin gpu nvidia` switches this block on, `gpu off` off again.
+    # streamiq:gpu-nvidia
     # deploy:
     #   resources:
     #     reservations:
@@ -52,6 +53,7 @@ services:
     #         - driver: nvidia
     #           count: all
     #           capabilities: [gpu]
+    # streamiq:gpu-nvidia end
     # Intel / AMD on Linux (VA-API / QSV). Not available in Docker on Windows:
     # devices:
     #   - /dev/dri:/dev/dri

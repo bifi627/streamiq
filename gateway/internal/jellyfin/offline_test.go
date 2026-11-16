@@ -191,7 +191,7 @@ func TestOfflineState(t *testing.T) {
 	}
 }
 
-// Both shipped variants and a migrated old file parse (`docker compose config`,
+// Both shipped variants, the GPU on and a migrated old file parse (`docker compose config`,
 // no pull). Docker is there in CI; a dev box without it skips.
 func TestComposeVariantsParse(t *testing.T) {
 	if exec.Command("docker", "compose", "version").Run() != nil {
@@ -203,7 +203,8 @@ func TestComposeVariantsParse(t *testing.T) {
 	on := []byte(readFile(t, shipped))
 	off, _, _ := SetOffline(on, false)
 	migrated, _, _ := Jail([]byte(readFile(t, "testdata/jellyfin-compose-pre321.yml")))
-	for name, b := range map[string][]byte{"on": on, "off": off, "migrated": migrated} {
+	gpu, _, _ := SetGPU(on, true)
+	for name, b := range map[string][]byte{"on": on, "off": off, "migrated": migrated, "gpu": gpu} {
 		if out, err := exec.Command("docker", "compose", "-f", write(t, b), "config", "--quiet").CombinedOutput(); err != nil {
 			t.Errorf("%s: %v: %s", name, err, out)
 		}

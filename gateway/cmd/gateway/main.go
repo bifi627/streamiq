@@ -7,7 +7,7 @@
 //	sessions    brokered browser sessions: auth channel, gated tunnel
 //	localpage   the gateway's status page on the home LAN (approve / remove browsers)
 //	jellyfin    non-admin Jellyfin viewer token without manual steps; transcoding settings; version check;
-//	            `gateway jellyfin up|upgrade|offline` (Docker compose); `gateway jellyfin login` (repair, #241);
+//	            `gateway jellyfin up|upgrade|offline|gpu` (Docker compose); `gateway jellyfin login` (repair, #241);
 //	            `gateway jellyfin restore` (Jellyfin's backup API, #298)
 //	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
 //	update      "newer release available" notice; `gateway update` swaps the binary,
@@ -16,7 +16,7 @@
 //	backup      `gateway backup` / `gateway restore`: the state dir + jellyfin-compose.yml + Jellyfin's
 //	            database as one zip (#52, #297, #298)
 //
-// Commands: gateway [run] | service install|uninstall | update | rollback | version | status | jellyfin up|upgrade|offline on|off|login|restore <file> | reset-identity |
+// Commands: gateway [run] | service install|uninstall | update | rollback | version | status | jellyfin up|upgrade|offline on|off|gpu nvidia|off|login|restore <file> | reset-identity |
 // backup [file] | restore [--force] <file>.
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
@@ -107,6 +107,9 @@ func main() {
 		err = jellyfin.Upgrade(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), os.Stdout)
 	case cmd == "jellyfin" && len(os.Args) == 4 && os.Args[2] == "offline" && (os.Args[3] == "on" || os.Args[3] == "off"):
 		err = jellyfin.OfflineCLI(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), os.Args[3] == "on", os.Stdout)
+	case cmd == "jellyfin" && len(os.Args) == 4 && os.Args[2] == "gpu" && (os.Args[3] == "nvidia" || os.Args[3] == "off"):
+		err = jellyfin.GPUCLI(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), filepath.Join(filepath.Dir(exe), "gateway.env"),
+			os.Args[3] == "nvidia", func() error { return restartGateway(exe) }, os.Stdout)
 	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "login":
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			err = errors.New("run it in a terminal: it reads the password without showing it")
@@ -168,6 +171,8 @@ const usage = `usage: gateway [command] [-h]
                              before the offline jail into it), then restart it
   jellyfin offline on|off    on (the default): Jellyfin has no internet access, nothing leaves it;
                              off: online lookups (posters, descriptions) allowed. Restarts Jellyfin
+  jellyfin gpu nvidia|off    transcode on an NVIDIA GPU (checks Jellyfin sees it, else changes
+                             nothing) or on the CPU again. Restarts Jellyfin and the gateway
   jellyfin login             sign in with a Jellyfin admin to repair the gateway's access
                              (as the local gateway page does; docs/install.md)
   jellyfin restore <file>    put the Jellyfin data of a gateway backup back into the Jellyfin the
@@ -454,11 +459,8 @@ func rollback(ctx context.Context, exe string) error {
 	kept := filepath.Join(dir, filepath.Base(exe))
 	task := service.Installed()
 	stopGateway(exe)
-	for i := 0; notRunning() != nil; i++ {
-		if i == 20 {
-			return notRunning()
-		}
-		time.Sleep(500 * time.Millisecond)
+	if err := waitStopped(); err != nil {
+		return err
 	}
 	c := exec.CommandContext(ctx, kept, "restore", "--force", filepath.Join(dir, update.StateZip))
 	c.Dir, c.Stdout, c.Stderr = install, io.Discard, os.Stderr
@@ -471,18 +473,52 @@ func rollback(ctx context.Context, exe string) error {
 	os.Remove(exe + ".old") // Windows: still running (this process); the next update removes it
 	os.RemoveAll(dir)       // used up: a second rollback goes one update further back
 	fmt.Printf("Rolled back %s → %s.\n", version, prev)
-	switch {
-	case task:
-		err = service.Start()
-	case runtime.GOOS == "windows":
-		fmt.Println("Start it: gateway service install")
-	default: // as install.sh starts it
-		err = exec.Command("sh", "-c", `cd "$1" && nohup "$2" >> "$1/gateway.log" 2>&1 &`, "sh", install, exe).Run()
+	if task || runtime.GOOS != "windows" {
+		if err = startGateway(exe, task); err == nil {
+			fmt.Println("Started it again.")
+		}
+		return err
 	}
-	if err == nil && (task || runtime.GOOS != "windows") {
-		fmt.Println("Started it again.")
+	fmt.Println("Start it: gateway service install")
+	return nil
+}
+
+// startGateway starts exe as it ran: the logon task (task), else as install.sh
+// does. Not for Windows without the task (a gateway started by hand).
+func startGateway(exe string, task bool) error {
+	if task {
+		return service.Start()
 	}
-	return err
+	return exec.Command("sh", "-c", `cd "$1" && nohup "$2" >> "$1/gateway.log" 2>&1 &`, "sh", filepath.Dir(exe), exe).Run()
+}
+
+func waitStopped() error {
+	for i := 0; notRunning() != nil; i++ {
+		if i == 20 {
+			return notRunning()
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return nil
+}
+
+// restartGateway restarts a gateway running from exe (not this process) so it
+// reads gateway.env again; one started by hand on Windows is left to the user.
+func restartGateway(exe string) error {
+	task := service.Installed()
+	if !task && runtime.GOOS == "windows" {
+		fmt.Println("Restart the gateway to apply it: close its window and start it again (gateway run).")
+		return nil
+	}
+	stopGateway(exe)
+	if err := waitStopped(); err != nil {
+		return err
+	}
+	if err := startGateway(exe, task); err != nil {
+		return err
+	}
+	fmt.Println("Restarted the gateway.")
+	return nil
 }
 
 // stopGateway ends a gateway running from exe (not this process): the logon

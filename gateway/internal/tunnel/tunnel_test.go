@@ -529,8 +529,8 @@ func TestRename(t *testing.T) {
 	}
 }
 
-// GET /streamiq/clients + POST /streamiq/clients/remove (#311): admin-only, the
-// list marks the caller's own key, remove 404s an unknown key, removes another
+// GET /streamiq/clients + POST /streamiq/clients/remove (#311): a member only its
+// own key (#341), the list marks the caller's own key, remove 404s an unknown key, removes another
 // client at once (closing its sessions via OnRemove) and the caller's own key
 // only after the reply is delivered.
 func TestClients(t *testing.T) {
@@ -558,11 +558,13 @@ func TestClients(t *testing.T) {
 		t.Fatalf("no store: %d, want 404", s)
 	}
 	j.Clients = store
-	for _, role := range []string{Member, ""} {
-		for _, c := range [][2]string{{"GET", ClientsPath}, {"POST", ClientsRemovePath}} {
-			if s, _, _ := call(role, c[0], c[1], `{"keyFp":"bb"}`); s != http.StatusForbidden {
-				t.Errorf("%q %s %s: %d, want 403", role, c[0], c[1], s)
-			}
+	// A member (#341): sees only its own key, removing any other is 403 (known or not).
+	if s, list, _ := call(Member, "GET", ClientsPath, ""); s != 200 || list != `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true}]` {
+		t.Fatalf("member list: %d %s", s, list)
+	}
+	for _, fp := range []string{"bb", "zz"} {
+		if s, _, _ := call(Member, "POST", ClientsRemovePath, `{"keyFp":"`+fp+`"}`); s != http.StatusForbidden || !store.Allowed("bb") {
+			t.Errorf("member removes %s: %d, want 403", fp, s)
 		}
 	}
 	s, list, _ := call(Admin, "GET", ClientsPath, "")
@@ -581,8 +583,8 @@ func TestClients(t *testing.T) {
 	if _, deferred := rc.(afterReply); s != 200 || deferred || store.Allowed("bb") || !slices.Equal(dropped, []string{"bb"}) {
 		t.Fatalf("remove other: %d deferred=%v allowed=%v dropped=%v", s, deferred, store.Allowed("bb"), dropped)
 	}
-	// The caller itself (Key "aa"): only after the reply is delivered.
-	s, _, rc = call(Admin, "POST", ClientsRemovePath, `{"keyFp":"aa"}`)
+	// The caller itself (Key "aa", here a member): only after the reply is delivered.
+	s, _, rc = call(Member, "POST", ClientsRemovePath, `{"keyFp":"aa"}`)
 	if s != 200 || !store.Allowed("aa") || len(dropped) != 1 {
 		t.Fatalf("remove self: %d, before the reply is out: allowed=%v dropped=%v", s, store.Allowed("aa"), dropped)
 	}

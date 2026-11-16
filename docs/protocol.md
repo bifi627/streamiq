@@ -245,8 +245,8 @@ holds that to one guess per connection:
   the local gateway page. An exchange that ends between `commit` and `reveal` is
   logged.
 
-**Remove** (local gateway page, or `POST /streamiq/clients/remove` from an admin's
-web app, #311) drops the key from `allowlist.json` and closes
+**Remove** (local gateway page, or `POST /streamiq/clients/remove` from the web
+app: an admin any client, #311; a member only its own, #341) drops the key from `allowlist.json` and closes
 every open session authed with it: the gateway closes the PeerConnection, so all
 its channels end. Signaling can't do this — the tunnel is peer-to-peer and the
 broker never sees client keys. No message is sent; the browser sees the
@@ -330,8 +330,9 @@ that means Jellyfin is unreachable (#327). Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (`tunnel.AdminOnly`, exact
-path, any method): a session whose role isn't `admin` gets `403`: `/streamiq/name`,
-`/streamiq/clients*` and `/streamiq/update` so far; #89 decides per endpoint. Code: `gateway/internal/tunnel/tunnel.go`.
+path, any method): a session whose role isn't `admin` gets `403`: `/streamiq/name`
+and `/streamiq/update` so far; #89 decides per endpoint. `/streamiq/clients*` is
+open to a member for its own client key only (#341, below). Code: `gateway/internal/tunnel/tunnel.go`.
 
 **`GET /streamiq/status`** (#146, #140): `200`, JSON, built on each request.
 Fields are added over time; a client ignores ones it doesn't know.
@@ -370,16 +371,16 @@ once (local page, backup file names, logs), then sends an early heartbeat so
 `GET /api/gateways` shows it within a second. A gateway older than this endpoint
 answers `404`; the web app then says to update it.
 
-**`GET /streamiq/clients`** (#311, admin-only) → `200`
+**`GET /streamiq/clients`** (#311) → `200`
 `[{ "keyFp": "…", "name": "Pixel 8 · Chrome", "addedAt": "2026-11-01T10:00:00Z", "self": true }]`:
-the allowlist (`allowlist.json`); `self` = the calling session's client key.
-**`POST /streamiq/clients/remove`** (#311, admin-only) `{ "keyFp": "…" }` → the Remove above, then
-`200 {}`; unknown key `404`, a failed save of `allowlist.json` `500`. The calling
+the allowlist (`allowlist.json`); `self` = the calling session's client key. A
+member's list holds only its own entry (#341).
+**`POST /streamiq/clients/remove`** (#311) `{ "keyFp": "…" }` → the Remove above, then
+`200 {}`; a member naming any key but its own `403` (#341), unknown key `404`, a failed save of `allowlist.json` `500`. The calling
 browser's own key is removed only once the reply is delivered (the browser closed the
 request channel, at most `EOFGrace` 10 s later), so it still gets its `200` before its
 session closes. Names and keys stay on
-the gateway: the API never sees or stores them. A gateway older than these answers
-`404`; the web app then says to update it.
+the gateway: the API never sees or stores them.
 
 **`POST /streamiq/update`** (#312, admin-only, body ignored) → `202 { "version": "1.5.0" }`: the
 gateway started a detached `gateway update` (output in `update.log` next to the binary) for the

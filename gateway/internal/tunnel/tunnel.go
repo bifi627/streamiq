@@ -214,14 +214,14 @@ func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[st
 	case u.Path == NamePath && method == "POST" && j.Rename != nil:
 		return rename(j.Rename, rq.Body)
 	case u.Path == ClientsRemovePath && method == "POST" && j.Clients != nil:
-		return removeClient(j.Clients, rq.Body, who.Key)
+		return removeClient(j.Clients, rq.Body, who)
 	case u.Path == UpdatePath && method == "POST" && j.Update != nil:
 		return startUpdate(j.Update)
 	case method != "GET":
 	case u.Path == BurstPath:
 		return burst(u.Query().Get("size"))
 	case u.Path == ClientsPath && j.Clients != nil:
-		return clients(j.Clients, who.Key)
+		return clients(j.Clients, who)
 	case u.Path == StatusPath && j.Status != nil:
 		b, err := json.Marshal(j.Status(who.User))
 		if err != nil {
@@ -246,7 +246,7 @@ const (
 var AdminOnly sync.Map // path -> true
 
 func init() {
-	for _, p := range []string{NamePath, ClientsPath, ClientsRemovePath, UpdatePath} {
+	for _, p := range []string{NamePath, UpdatePath} {
 		AdminOnly.Store(p, true)
 	}
 }
@@ -278,19 +278,22 @@ func rename(set func(string) (string, error), body string) (int, map[string]stri
 // ClientsPath lists the paired clients (#311): GET → [{keyFp, name, addedAt, self}],
 // self = the calling session's client key. ClientsRemovePath removes one: POST
 // {"keyFp": "…"} → 200 {}, unknown → 404. The allowlist lives on the gateway only.
+// A member sees and removes only its own client key (#341): any other key → 403.
 const (
 	ClientsPath       = "/streamiq/clients"
 	ClientsRemovePath = "/streamiq/clients/remove"
 )
 
-func clients(st *pairing.Store, self string) (int, map[string]string, io.ReadCloser, error) {
+func clients(st *pairing.Store, who Session) (int, map[string]string, io.ReadCloser, error) {
 	type client struct {
 		pairing.Paired
 		Self bool `json:"self"`
 	}
 	out := []client{}
 	for _, p := range st.Paired() {
-		out = append(out, client{p, p.KeyFp == self})
+		if self := p.KeyFp == who.Key; self || who.Role == Admin {
+			out = append(out, client{p, self})
+		}
 	}
 	return okJSON(out)
 }
@@ -300,10 +303,14 @@ func clients(st *pairing.Store, self string) (int, map[string]string, io.ReadClo
 // delivered (afterReply): its removal closes this very session, which would
 // swallow the reply. The browser closes the channel at once, at worst EOFGrace;
 // a failed save is then only logged (the in-memory allowlist refuses it anyway).
-func removeClient(st *pairing.Store, body, self string) (int, map[string]string, io.ReadCloser, error) {
+func removeClient(st *pairing.Store, body string, who Session) (int, map[string]string, io.ReadCloser, error) {
+	self := who.Key
 	var in struct{ KeyFp string }
 	if json.Unmarshal([]byte(body), &in) != nil || in.KeyFp == "" {
 		return http.StatusBadRequest, nil, nil, errors.New("gateway API: remove client: bad body")
+	}
+	if in.KeyFp != self && who.Role != Admin { // before the lookup: a member learns nothing about other keys
+		return http.StatusForbidden, nil, nil, errors.New("gateway API: remove client: a member removes only its own")
 	}
 	if !st.Allowed(in.KeyFp) {
 		return http.StatusNotFound, nil, nil, errors.New("gateway API: remove client: not paired")

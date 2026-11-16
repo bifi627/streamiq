@@ -427,6 +427,7 @@ button.link {
 }
 .head h1 {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .card {
   display: flex;

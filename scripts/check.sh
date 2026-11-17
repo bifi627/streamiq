@@ -27,7 +27,7 @@ if command -v go >/dev/null 2>&1; then
    race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race
    go vet ./... && go build ./... && go test $race ./...)
 else
-  # ponytail: Go absent on the primary Windows machine; CI still runs it
+  # ponytail: the dev machines have Go; this is for a fresh checkout without it. CI still runs it
   echo "!! SKIPPED: go not installed locally — gateway is UNVERIFIED here, CI will run it" >&2
 fi
 

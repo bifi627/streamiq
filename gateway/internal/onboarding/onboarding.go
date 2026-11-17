@@ -35,6 +35,8 @@ var ErrUpgradeRequired = errors.New("the StreamIQ service no longer supports thi
 
 // State is gateway.json in the state dir. Delete the dir = brand-new gateway.
 // Name is shared mutable state (#310): read it with CurrentName, change it with SetName.
+// Its JSON format changed? Update oldState in cmd/gateway/update_windows_test.go
+// to the new format, in the same PR (the update test starts from it, #452).
 type State struct {
 	GatewayID  string `json:"gatewayId"`
 	Credential string `json:"credential"`

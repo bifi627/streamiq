@@ -74,6 +74,8 @@ func Nonce() string {
 }
 
 // Paired is one allowlist entry (allowlist.json in the state dir).
+// Its JSON format changed? Update oldState in cmd/gateway/update_windows_test.go
+// to the new format, in the same PR (the update test starts from it, #452).
 type Paired struct {
 	KeyFp   string    `json:"keyFp"`
 	Name    string    `json:"name"`

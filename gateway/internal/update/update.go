@@ -25,8 +25,8 @@ import (
 	"time"
 )
 
-// LatestURL is GitHub's latest *non-prerelease* release. ponytail: assumes
-// every release in the repo is a gateway release (tag gateway-vX.Y.Z); filter
+// LatestURL is GitHub's latest *non-prerelease* release (STREAMIQ_LATEST
+// overrides it: the update test serves its own, #452). ponytail: assumes every release in the repo is a gateway release (tag gateway-vX.Y.Z); filter
 // by tag prefix over /releases if the repo ever publishes other releases.
 const LatestURL = "https://api.github.com/repos/bifi627/streamiq/releases/latest"
 

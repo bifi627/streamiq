@@ -60,7 +60,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 One row per tunnel in `tunnels`: the broker writes the row and its end, the gateway
 reports route and bytes, the browser adds only its measured throughput. The web app shows
-a privacy indicator (direct vs relayed).
+a privacy indicator: on your network (host ↔ host on private addresses or one IPv6 /64, #428), direct, or relayed.
 
 ## Gateway (native binary)
 

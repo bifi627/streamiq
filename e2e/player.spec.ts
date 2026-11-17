@@ -73,8 +73,10 @@ test('deep link: /play/<id> reloads at the saved position; Back key in a new tab
   const { page } = paired
   await play(page, CLIP, 3)
   await expect(page).toHaveURL(/\/play\/[^/]+$/) // the player has its own route
-  // Pause saves the position (a `req:/UserItems/<id>/UserData` channel,
-  // closed once answered): wait for it, or the reload could cut it off.
+  // Pause and a seek to a later second save the position (each a
+  // `req:/UserItems/<id>/UserData` channel, closed once answered; the seek's
+  // second is always new, so at least one saves): wait for one, or the reload
+  // could cut it off. Either one saved 3 s or later.
   await page.evaluate(() => {
     const w = window as unknown as { saved: number }
     w.saved = 0
@@ -85,9 +87,14 @@ test('deep link: /play/<id> reloads at the saved position; Back key in a new tab
       return dc
     }
   })
-  await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause())
+  await page.locator('video').evaluate((v: HTMLVideoElement) => {
+    v.pause()
+    v.currentTime = Math.floor(v.currentTime) + 2
+  })
   await page.waitForFunction(
     () => (window as unknown as { saved: number }).saved > 0,
+    undefined,
+    { timeout: 15_000 },
   )
   // Deep link: tunnel → item by ID → its first frame at the saved position.
   await page.reload()
@@ -146,7 +153,7 @@ test('quality (#108, #161): Auto and Source only; Source reloads at the playhead
 }) => {
   const { page } = paired
   await arrange(page, DIAG)
-  await play(page, CLIP, 2.5)
+  await play(page, CLIP, 3) // the switch below logs @3 or later
   await openDock(page)
   // Rungs that would not scale the 360p clip down are hidden (480p too).
   // Auto (#162): localhost is fast, so the clip fits under the measured link.
@@ -308,8 +315,18 @@ test('subtitles (#136, #269): off at first; the SRT cue at its own time; Off cle
   paired,
 }) => {
   const { page } = paired
-  await play(page)
-  const en = await language(page, 'eng')
+  await play(page, CLIP, 3)
+  const [en, de] = [await language(page, 'eng'), await language(page, 'deu')]
+  // Mid-clip first (#269: cues landed seconds off after a start past 0): an
+  // audio switch restarts the stream at the playhead.
+  await menu(page)
+  await page
+    .getByRole('menuitem', { name: new RegExp(`^Audio.*${en}`) })
+    .click()
+  await page
+    .getByRole('menuitemradio', { name: new RegExp(`^${de}.*AAC mono`) })
+    .click()
+  await expect.poll(() => pitch(page), { timeout: 30_000 }).toBeCloseTo(880, -2)
   const cue = () =>
     page.evaluate(() =>
       [...document.querySelector('video')!.textTracks]
@@ -325,7 +342,7 @@ test('subtitles (#136, #269): off at first; the SRT cue at its own time; Off cle
     .getByRole('menuitemradio', { name: new RegExp(`^${en}.*SRT`) })
     .click()
   await expect.poll(cue, { timeout: 15_000 }).toBe('streamiq e2e subtitle')
-  // At its own time (0–30 s), not shifted after a mid-clip reload (#269).
+  // At its own time (0–30 s), not shifted by the mid-clip start (#269).
   expect(
     await page.evaluate(() =>
       [...document.querySelector('video')!.textTracks]

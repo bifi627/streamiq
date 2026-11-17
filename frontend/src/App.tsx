@@ -3,8 +3,6 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
   signOut,
   type User,
 } from '@firebase/auth'
@@ -50,7 +48,13 @@ import {
   tvOn,
 } from './settings'
 import { arrowFocus } from './focus'
-import { AliasSetting, needsAlias, PickAlias } from './Alias'
+import {
+  AliasSetting,
+  needsAlias,
+  PickAlias,
+  signingIn,
+  signInWithGoogle,
+} from './Alias'
 import { clearArtThen } from './leave'
 import { useGateways } from './features/gateways/api'
 import { useQueryClient } from '@tanstack/react-query'
@@ -116,9 +120,7 @@ function SignIn() {
       <button
         type="button"
         className="wide google"
-        onClick={() =>
-          run(() => signInWithPopup(auth, new GoogleAuthProvider()))
-        }
+        onClick={() => run(signInWithGoogle)}
       >
         {/* Google's "G" (their sign-in button branding, dark theme) */}
         <svg aria-hidden="true" viewBox="0 0 48 48">
@@ -628,8 +630,13 @@ export default function App() {
       if (was && was.uid !== u?.uid)
         return clearArtThen(() => location.reload())
       was = u
-      setUser(u)
-      setReady(true)
+      // A Google sign-up clears its Google name first (#404).
+      void signingIn
+        .catch(() => {})
+        .then(() => {
+          setUser(u)
+          setReady(true)
+        })
     })
   }, [])
 

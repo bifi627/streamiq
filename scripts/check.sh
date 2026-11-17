@@ -25,12 +25,20 @@ if command -v go >/dev/null 2>&1; then
   (cd gateway && test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
    # -race needs cgo; Go reports CGO_ENABLED=0 with no C compiler (e.g. Windows without gcc)
    race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race
-   go vet ./... && go build ./... && go test $race ./...
+   # one command per line: under set -e a failure inside an && chain only counts in its last command
+   go vet ./...
+   go build ./...
+   go test $race ./...
    # #453 (CI job gateway-jellyfin): the real pinned Jellyfin in Docker, ~1 min. The pin bump
    # needs the last release's compose file; without gh (or offline) that half is skipped.
    old=$(mktemp -d); command -v cygpath >/dev/null && old=$(cygpath -m "$old")  # Go on Windows can't read /tmp
-   gh release download --pattern jellyfin-compose.yml --dir "$old" >/dev/null 2>&1      && export STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE="$old/jellyfin-compose.yml"      || echo "!! gh release download failed: the Jellyfin pin-bump test is SKIPPED here, CI runs it" >&2
-   go vet -tags docker ./internal/jellyfin/ && go test -tags docker -run TestRealJellyfin -timeout 15m ./internal/jellyfin/)
+   if gh release download --pattern jellyfin-compose.yml --dir "$old" >/dev/null 2>&1; then
+     export STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE="$old/jellyfin-compose.yml"
+   else
+     echo "!! gh release download failed: the Jellyfin pin-bump test is SKIPPED here, CI runs it" >&2
+   fi
+   go vet -tags docker ./internal/jellyfin/
+   go test -tags docker -run TestRealJellyfin -timeout 15m ./internal/jellyfin/)
 else
   # ponytail: the dev machines have Go; this is for a fresh checkout without it. CI still runs it
   echo "!! SKIPPED: go not installed locally — gateway is UNVERIFIED here, CI will run it" >&2

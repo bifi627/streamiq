@@ -62,6 +62,11 @@ var projectLine = regexp.MustCompile(`(?m)^name: .*$`)
 // jellyfin.json's admin must sign in.
 func roundTrip(t *testing.T, compose []byte) {
 	ctx := t.Context()
+	if d, ok := t.Deadline(); ok { // fail before go test's timeout panic, which skips the cleanup
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, d.Add(-4*time.Minute))
+		defer cancel()
+	}
 	dir := t.TempDir()
 	for _, d := range []string{"jellyfin-config", "media"} { // ours, not created by Docker as root
 		if err := os.Mkdir(filepath.Join(dir, d), 0o755); err != nil {
@@ -69,6 +74,9 @@ func roundTrip(t *testing.T, compose []byte) {
 		}
 	}
 	// Its own project and a free port: tests and a real install side by side.
+	if !projectLine.Match(compose) {
+		t.Fatal("no top-level name: in the compose file: update this test")
+	}
 	b := projectLine.ReplaceAll(compose, []byte("name: streamiq-jellyfin-test-"+strings.ToLower(rand.Text()[:10])))
 	if !bytes.Contains(b, []byte(`"8096:8096"`)) {
 		t.Fatal(`no "8096:8096" port in the compose file: update this test`)
@@ -89,6 +97,7 @@ func roundTrip(t *testing.T, compose []byte) {
 			out, _ := docker(ctx, "logs", "--no-color", "--tail", "100", service)
 			t.Log("Jellyfin's log:\n" + out)
 		}
+		docker(ctx, "stop", service) // nothing writes while it's emptied
 		// Jellyfin writes jellyfin-config as root (Linux): emptied from inside, or the temp dir stays
 		if out, err := docker(ctx, "run", "--rm", "--no-deps", "-T", "--entrypoint", "find", service, "/config", "-mindepth", "1", "-delete"); err != nil {
 			t.Logf("emptying jellyfin-config: %v: %s", err, out)
@@ -101,11 +110,11 @@ func roundTrip(t *testing.T, compose []byte) {
 	if err := Compose(ctx, file, "up", "-d"); err != nil { // what `gateway jellyfin up` runs
 		t.Fatal(err)
 	}
-	port, err := docker(ctx, "port", "forwarder", "8096")
+	port, err := exec.CommandContext(ctx, "docker", "compose", "-f", file, "port", "forwarder", "8096").Output() // stdout only: it's parsed
 	if err != nil {
-		t.Fatalf("compose port: %v: %s", err, port)
+		t.Fatalf("compose port: %v", err)
 	}
-	s := &Setup{Client: http.DefaultClient, URL: "http://" + strings.TrimSpace(port), StateDir: t.TempDir(), OnKey: func(string, string) {}}
+	s := &Setup{Client: http.DefaultClient, URL: "http://" + strings.TrimSpace(string(port)), StateDir: t.TempDir(), OnKey: func(string, string) {}}
 
 	// 1. The gateway completes the setup wizard.
 	for deadline := time.Now().Add(3 * time.Minute); !s.View().HasKey; time.Sleep(2 * time.Second) {
@@ -150,7 +159,10 @@ func roundTrip(t *testing.T, compose []byte) {
 	t.Log(strings.TrimSpace(out.String()))
 	// Up again: a sign-in, not /System/Info/Public, which a starting Jellyfin answers before it restarts its listener.
 	for deadline := time.Now().Add(3 * time.Minute); ; time.Sleep(2 * time.Second) {
-		admin, err := s.signIn(ctx, adminName, s.creds.Password)
+		s.mu.Lock()
+		pw := s.creds.Password
+		s.mu.Unlock()
+		admin, err := s.signIn(ctx, adminName, pw)
 		if err == nil {
 			s.call(ctx, "POST", "/Sessions/Logout", admin, "", nil)
 			break

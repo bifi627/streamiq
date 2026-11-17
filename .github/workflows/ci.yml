@@ -16,9 +16,11 @@ permissions:
 
 # A new push to a PR cancels that PR's older run. Pushes to main each get their own group
 # (run_id): GitHub keeps only one pending run per group, so a shared group could drop a
-# main run, and with it its gateway release.
+# main run, and with it its gateway release. The draft state is part of a PR's group: a
+# push right before "ready for review" starts a skipped draft run, which must not cancel
+# the ready run (#457).
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  group: ci-${{ github.event_name == 'pull_request' && format('{0}-{1}', github.ref, github.event.pull_request.draft) || github.run_id }}
   cancel-in-progress: true
 
 jobs:

@@ -167,6 +167,19 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
   await page.reload()
   await expect.poll(async () => (await vol())[1]).toBe(true)
   expect((await vol())[0]).toBeCloseTo(0.2, 2) // mute keeps the level
+  // 100 % is the element's own default (no volumechange on restore): the
+  // slider still shows it.
+  const slider = page.getByRole('slider', { name: 'Volume' })
+  await slider.fill('1') // unmutes too
+  await expect.poll(vol).toEqual([1, false])
+  await page.reload()
+  await expect.poll(vol).toEqual([1, false])
+  await expect(slider).toHaveValue('1')
+  // Dragged to 0 = muted; it comes back muted at 50 %, so unmuting is audible.
+  await slider.fill('0')
+  await expect.poll(vol).toEqual([0, true])
+  await page.reload()
+  await expect.poll(vol).toEqual([0.5, true])
 })
 
 test('quality (#108, #161): Auto and Source only; Source reloads at the playhead, remembered @player', async ({

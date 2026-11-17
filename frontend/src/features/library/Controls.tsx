@@ -72,13 +72,15 @@ const setVol = (v: HTMLVideoElement, x: number) => {
   v.muted = v.volume === 0
 }
 
-// Volume + mute per device (#479): restored on every video, 50 % when unset.
+// Volume + mute per device (#479): restored when the player opens, 50 % when
+// unset. A stored 0 (slider dragged down = muted) comes back as muted at 50 %,
+// so unmuting is audible.
 const VOL = 'streamiq.volume'
 const MUTED = 'streamiq.muted'
 const loadVol = (v: HTMLVideoElement) => {
   try {
     const x = Number(localStorage.getItem(VOL) ?? NaN)
-    v.volume = x >= 0 && x <= 1 ? x : 0.5
+    v.volume = x > 0 && x <= 1 ? x : 0.5
     v.muted = localStorage.getItem(MUTED) === '1'
   } catch {
     v.volume = 0.5 // storage blocked (private mode)
@@ -216,6 +218,7 @@ export function Controls({
     const fs = () => setFull(!!document.fullscreenElement)
     const evs = ['pause', 'timeupdate', 'volumechange', 'seeked'] as const
     loadVol(v)
+    sync() // no volumechange when the stored level is the element's own (1)
     evs.forEach((e) => v.addEventListener(e, sync))
     const save = () => saveVol(v)
     v.addEventListener('volumechange', save)

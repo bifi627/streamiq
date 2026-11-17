@@ -298,3 +298,31 @@ export const keepPcs = (p: Page) =>
       }
     } as typeof P
   })
+
+/** Opens the paired gateway's library from the Gateways card; its id. */
+export async function openLibrary(p: Page) {
+  await p.locator('li.card').getByRole('button', { name: 'Open' }).click()
+  await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible()
+  return p.url().match(/\/g\/([^/]+)$/)![1]
+}
+
+/** The diagnostics dock (#230) starts collapsed; its button opens the sheet with
+ * the log, the request table and Force relay, and it stays open (per device). */
+export const openDock = (p: Page) =>
+  p.getByRole('button', { name: /^Diagnostics peer:/, expanded: false }).click()
+
+/** Dominant frequency (Hz) of the <video>'s audio: tells the fixture's 440 Hz
+ * English track from its 880 Hz German one (#109). */
+export const pitch = (p: Page) =>
+  p.locator('video').evaluate((v: HTMLVideoElement & { an?: AnalyserNode }) => {
+    if (!v.an) {
+      const ctx = new AudioContext()
+      v.an = ctx.createAnalyser()
+      ctx.createMediaElementSource(v).connect(v.an).connect(ctx.destination)
+    }
+    const bins = new Float32Array(v.an.frequencyBinCount)
+    v.an.getFloatFrequencyData(bins)
+    return (
+      (bins.indexOf(Math.max(...bins)) * v.an.context.sampleRate) / v.an.fftSize
+    )
+  })

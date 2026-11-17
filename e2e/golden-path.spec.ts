@@ -1,16 +1,15 @@
 // THE golden path: the one critical-path E2E. Real browser → broker → gateway →
 // Jellyfin: onboard, pair, browse, play, resume, re-pair, re-pair after an evicted
 // key, remove (kills open sessions). Supporting features have per-page specs
-// (shell, gateways, households, library, player, …); edge cases belong in the integration layer.
+// (shell, gateways, households, library, player, screen, …); edge cases belong in the integration layer.
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import type { Browser, Page, WebSocket } from '@playwright/test'
+import type { Browser, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   gatewayTab,
-  keepPcs,
   newContext,
   newPage,
   openDock,
@@ -20,7 +19,6 @@ import {
   tunnelRow,
   uniqueEmail,
   videoTime,
-  viaTunnel,
 } from './helpers.ts'
 import { startGateway } from './stack.ts'
 
@@ -148,108 +146,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await a.getByRole('button', { name: 'Resume' }).click()
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // starts there, not at 0
       await a.getByRole('link', { name: '← Gateways' }).click()
-    })
-
-    await test.step('play on TV (#180) + phone remote (#181): commands, state, Back', async () => {
-      // TV = tab a; phones = more tabs of the same paired browser (each its own
-      // tunnel session, so its own screens view).
-      // TV mode off (#248): no entry in the library, the gateway card has one.
-      await a.getByRole('button', { name: 'Open' }).click()
-      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
-      await expect(a.getByRole('link', { name: 'Use as screen' })).toHaveCount(
-        0,
-      )
-      await a.getByRole('link', { name: '← Gateways' }).click()
-      await a.getByRole('link', { name: 'Use as screen' }).click()
-      const waiting = a.getByRole('heading', { name: /^Screen: / })
-      await expect(waiting).toBeVisible()
-      const name = (await waiting.textContent())!.replace('Screen: ', '')
-      await expect(a.getByText(`Play on ${name}`)).toBeVisible()
-      const phone = await a.context().newPage()
-      await keepPcs(phone)
-      await phone.goto(a.url().replace(/\/screen$/, ''))
-      await phone.getByRole('button', { name: /Movies/ }).click()
-      await phone.getByRole('button', { name: 'Play on…' }).first().click()
-      await phone.getByRole('button', { name, exact: true }).click()
-      await expect(
-        phone.getByRole('heading', { name: `Remote: ${name}` }),
-      ).toBeVisible()
-      await expect(a.getByText('Controlled from your phone')).toBeVisible()
-      await expect
-        .poll(() => videoTime(a), { timeout: 30_000 })
-        .toBeGreaterThan(1)
-      // The TV's state reaches the phone: title, playing.
-      await expect(
-        phone.getByRole('heading', { name: 'streamiq e2e clip' }),
-      ).toBeVisible()
-      // A second phone on the same screen: Play on… → Remote.
-      const phone2 = await a.context().newPage()
-      await phone2.goto(phone.url().replace(/\/remote\/.*$/, ''))
-      await phone2.getByRole('button', { name: /Movies/ }).click()
-      await phone2.getByRole('button', { name: 'Play on…' }).first().click()
-      await phone2.getByRole('link', { name: 'Remote' }).click()
-      const both = async (f: (p: Page) => Promise<void>) => {
-        await f(phone)
-        await f(phone2)
-      }
-      const paused = () =>
-        a.locator('video').evaluate((v: HTMLVideoElement) => v.paused)
-      await both((p) =>
-        expect(p.getByRole('button', { name: 'Pause' })).toBeVisible(),
-      )
-      await phone.getByRole('button', { name: 'Pause' }).click()
-      await expect.poll(paused).toBe(true)
-      await both((p) =>
-        expect(p.getByRole('button', { name: 'Play' })).toBeVisible(),
-      )
-      // Subtitles from the second phone (last command wins): the TV shows
-      // them and stays paused; both phones show the pick.
-      await phone2.getByLabel('Subtitles').selectOption({ index: 1 })
-      const cue = () =>
-        a.evaluate(() =>
-          [...document.querySelector('video')!.textTracks]
-            .filter((t) => t.mode === 'showing')
-            .flatMap((t) => [...(t.activeCues ?? [])])
-            .map((c) => (c as VTTCue).text)
-            .join(),
-        )
-      await expect.poll(cue, { timeout: 15_000 }).toBe('streamiq e2e subtitle')
-      await both((p) => expect(p.getByLabel('Subtitles')).not.toHaveValue('-1'))
-      expect(await paused()).toBe(true)
-      // Seek bar, then −10 s.
-      await phone.getByLabel('Position').fill('20')
-      await expect.poll(() => videoTime(a)).toBeGreaterThan(19.5)
-      await both((p) => expect(p.getByText(/^0:2\d \/ 0:30$/)).toBeVisible())
-      await phone.getByRole('button', { name: '−10 s' }).click()
-      await expect.poll(() => videoTime(a)).toBeLessThan(11)
-      // The TV's own remote (K = play/pause) shows on the phones within ~2 s.
-      await a.keyboard.press('k')
-      await expect.poll(paused).toBe(false)
-      await both((p) =>
-        expect(p.getByRole('button', { name: 'Pause' })).toBeVisible({
-          timeout: 2_500,
-        }),
-      )
-      await phone.getByRole('button', { name: 'Stop' }).click()
-      await expect(waiting).toBeVisible()
-      await both((p) => expect(p.getByText('Nothing playing.')).toBeVisible())
-      // Back on the TV leaves screen mode at once: both remotes say so, and
-      // Play on… no longer lists it.
-      await a.keyboard.press('Escape') // back where it was opened: Gateways
-      await expect(a.getByRole('button', { name: 'Open' })).toBeVisible()
-      await both((p) => expect(p.getByText('Screen closed.')).toBeVisible())
-      expect(
-        JSON.parse((await viaTunnel(phone, '/streamiq/screens')).body),
-      ).toEqual([])
-      await phone
-        .getByRole('alert')
-        .getByRole('link', { name: 'Library' })
-        .click() // not the nav's (#201)
-      await phone.getByRole('button', { name: /Movies/ }).click()
-      await phone.getByRole('button', { name: 'Play on…' }).first().click()
-      await expect(phone.getByText(/No screen open/)).toBeVisible()
-      await phone.close()
-      await phone2.close()
     })
 
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).

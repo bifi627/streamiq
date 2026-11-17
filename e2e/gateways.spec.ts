@@ -1,5 +1,205 @@
-// Gateway card edge cases on a paired browser (fixtures.ts `paired`).
+// The gateways page (#408), on a paired browser with its own gateway (fixtures.ts
+// `paired`): rename (#310, #329), Status paired and unpaired (#140), the nav chip's
+// dot (#206), paired clients (#311, #365), the member view (#190), Reject on the
+// local gateway page, and a refused broker socket (#403). Onboarding, Approve,
+// Test connection and the removes that end sessions are the golden path's; the
+// offline dot (90 s), rejection edge cases and a member's own client list are
+// backend / Go / multi-user.
+import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
+import {
+  gatewayTab,
+  join,
+  pair,
+  signedInPage,
+  signUp,
+  uniqueEmail,
+  type User,
+} from './helpers.ts'
+
+const card = (p: Page) => p.locator('li.card')
+/** Another browser of user (own client key), never paired, on Gateways. */
+const second = (browser: Browser, user: User) =>
+  signedInPage(browser, user, '/gateways')
+
+test('rename: shown once paired, Escape cancels, Enter saves a trimmed name @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const { user, gateway, gatewayCtx } = paired
+  const b = await second(browser, user)
+  const renameBtn = card(b).getByRole('button', { name: 'Rename' })
+  // Rename goes over the tunnel: not offered until this browser is paired (#329).
+  await expect(
+    card(b).getByRole('button', { name: 'Pair this browser' }),
+  ).toBeVisible() // the pin check is done
+  await expect(renameBtn).toHaveCount(0)
+  await pair(b, gatewayCtx, gateway.pageUrl)
+  await expect(renameBtn).toBeVisible() // no reload
+
+  const input = card(b).getByRole('textbox', { name: 'Gateway name' })
+  const heading = card(b).getByRole('heading', { level: 2 })
+  const before = (await heading.textContent())!
+  await renameBtn.click()
+  await input.fill('discarded')
+  await b.keyboard.press('Escape') // cancels
+  await expect(heading).toHaveText(before)
+  await expect(renameBtn).toBeFocused() // D-pad keeps its place
+  await b.keyboard.press('Enter') // reopens from the keyboard
+  await input.fill('  Living room NAS  ')
+  await b.keyboard.press('Enter') // saves
+  await expect(heading).toHaveText('Living room NAS')
+  await expect(renameBtn).toBeFocused()
+  // The gateway owns it: its local page shows it at once, and the API learns
+  // it from the early heartbeat (a reload reads the list again).
+  const local = await gatewayTab(gatewayCtx, gateway.pageUrl)
+  await expect(
+    local.getByRole('heading', { name: 'StreamIQ gateway · Living room NAS' }),
+  ).toBeVisible()
+  await b.reload()
+  await expect(
+    b.getByRole('heading', { level: 2, name: 'Living room NAS' }),
+  ).toBeVisible()
+})
+
+test('status, paired: details from the gateway API (#140) @gateways', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await card(page).getByText('Status', { exact: true }).click()
+  // e2e's Jellyfin was set up by the test (wizard), not the gateway.
+  await expect(
+    page.getByText('Transcoding: not managed by StreamIQ'),
+  ).toBeVisible({ timeout: 15_000 })
+  await expect(
+    page.getByText(/Jellyfin: reachable, version .* · token set/),
+  ).toBeVisible()
+  await expect(page.getByText(/Paired browsers: 1 · open sessions/)).toBeVisible()
+})
+
+test('status, unpaired: liveness only, details need pairing (#140) @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const b = await second(browser, paired.user)
+  await card(b).getByText('Status', { exact: true }).click()
+  await expect(b.getByText(/StreamIQ: connected/)).toBeVisible()
+  await expect(
+    b.getByText('Details: pair this browser to see them'),
+  ).toBeVisible({ timeout: 15_000 })
+  await expect(b.getByText(/Jellyfin:|Paired browsers/)).toHaveCount(0)
+})
+
+test("status dot: a gateway route's nav chip shows its name, online (#206) @gateways", async ({
+  paired,
+}) => {
+  const { page, user } = paired
+  const [g] = await user.api<{ name: string }[]>('/gateways')
+  await card(page).getByRole('button', { name: 'Open' }).click()
+  await expect(page).toHaveURL(/\/g\/[^/]+$/)
+  const chip = page.locator('header .status .chip')
+  await expect(chip).toContainText(g.name)
+  await expect(chip.getByRole('img', { name: 'online' })).toBeVisible()
+})
+
+test('paired clients: name, list, rename own, remove other (stream stops), remove self (#311, #365) @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const { page: a, user, gateway, gatewayCtx } = paired
+  const b = await second(browser, user)
+  await pair(b, gatewayCtx, gateway.pageUrl)
+  // Right after pairing, B names itself (#365): prefilled with the paired name.
+  const name = b.getByLabel('Name this browser')
+  await expect(name).toHaveValue(/ on /) // "Chrome on Linux" etc.
+  await name.fill("  B's phone ")
+  await b.getByRole('button', { name: 'Save' }).click()
+  await expect(name).toBeHidden()
+  await card(b).getByRole('button', { name: 'Open' }).click()
+  const movies = b.getByRole('button', { name: /Movies/ })
+  await expect(movies).toBeVisible() // B's live session
+
+  const summary = card(a).getByText('Paired clients', { exact: true })
+  await summary.click()
+  const clients = card(a).locator('.clients li')
+  await expect(clients).toHaveCount(2)
+  const self = clients.filter({ hasText: '(this browser)' })
+  await expect(self).toHaveCount(1)
+  await expect(self).toContainText(
+    `paired ${await a.evaluate(() => new Date().toLocaleDateString())}`,
+  )
+  await expect(clients.filter({ hasText: "B's phone" })).toHaveCount(1)
+
+  // Rename the own row (#365). The form replaces the row's text (and its
+  // "(this browser)"): find it by label.
+  await self.getByRole('button', { name: 'Rename' }).click()
+  const field = card(a).getByLabel('Client name')
+  await field.fill('Desk')
+  await field.press('Enter')
+  await expect(field).toBeHidden()
+  await expect(self).toContainText('Desk (this browser)')
+  await expect(self.getByRole('button', { name: 'Rename' })).toBeFocused()
+
+  // Remove B: the gateway closes B's PeerConnection.
+  a.once('dialog', (d) => d.accept())
+  await clients
+    .filter({ hasNotText: '(this browser)' })
+    .getByRole('button', { name: 'Remove' })
+    .click()
+  await expect(clients).toHaveCount(1)
+  await expect(summary).toBeFocused() // the D-pad keeps its place (#226)
+  await movies.click()
+  await expect(b.locator('[role=alert][data-kind="tunnel-lost"]')).toBeVisible()
+
+  // Remove A itself: the reply still arrives, then the card offers Pair.
+  a.once('dialog', (d) => d.accept())
+  await self.getByRole('button', { name: 'Remove' }).click()
+  await expect(
+    card(a).getByText('This browser was removed: pair it again.'),
+  ).toBeVisible()
+  await expect(summary).toBeFocused()
+  await pair(a, gatewayCtx, gateway.pageUrl)
+  await expect(clients).toHaveCount(1) // the list reloads once paired
+  await expect(card(a).getByRole('button', { name: 'Open' })).toBeVisible()
+})
+
+test('member view: the gateway, no Add gateway, no Remove (#190) @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const { user } = paired
+  const [g] = await user.api<{ name: string }[]>('/gateways')
+  const member = await signUp(uniqueEmail('gw-member'))
+  await join(user, member)
+  const m = await signedInPage(browser, member, '/gateways', user.tenantId)
+  await expect(
+    card(m).getByRole('heading', { level: 2, name: g.name }),
+  ).toBeVisible()
+  await expect(card(m).getByText('Online', { exact: true })).toBeVisible() // card loaded
+  await expect(m.getByRole('button', { name: 'Add gateway' })).toHaveCount(0)
+  await expect(card(m).getByRole('button', { name: 'Remove' })).toHaveCount(0)
+})
+
+test('reject on the local gateway page: refused, stays unpaired @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const { user, gateway, gatewayCtx } = paired
+  const b = await second(browser, user)
+  const pairBtn = card(b).getByRole('button', { name: 'Pair this browser' })
+  await pairBtn.click()
+  const code = (await b.getByLabel('Comparison code').textContent())!
+  const local = await gatewayTab(gatewayCtx, gateway.pageUrl)
+  const request = local.locator('form[action="/decide"]')
+  await expect(request).toContainText(code) // page self-refreshes every 3s
+  await request.getByRole('button', { name: 'Reject' }).click()
+  await expect(b.getByText('The gateway refused this browser.')).toBeVisible()
+  await expect(pairBtn).toBeVisible()
+  await card(b).getByRole('button', { name: 'Test connection' }).click()
+  await expect(
+    b.getByText('this browser is not paired with the gateway'),
+  ).toBeVisible()
+})
 
 test('a refused broker socket shows an error, not "loading…" (#403) @gateways', async ({
   paired,

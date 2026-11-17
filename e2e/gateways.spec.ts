@@ -152,6 +152,11 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   await expect(summary).toBeFocused() // the D-pad keeps its place (#226)
   await movies.click()
   await expect(b.locator('[role=alert][data-kind="tunnel-lost"]')).toBeVisible()
+  await b.getByRole('link', { name: '← Gateways' }).click()
+  await card(b).getByRole('button', { name: 'Test connection' }).click()
+  await expect(
+    b.getByText('this browser is not paired with the gateway'),
+  ).toBeVisible()
 
   // Remove A itself: the reply still arrives, then the card offers Pair.
   a.once('dialog', (d) => d.accept())
@@ -178,6 +183,9 @@ test('member view: the gateway, no Add gateway, no Remove (#190) @gateways', asy
     card(m).getByRole('heading', { level: 2, name: g.name }),
   ).toBeVisible()
   await expect(card(m).getByText('Online', { exact: true })).toBeVisible() // card loaded
+  // The role is in (/me): the switcher shows the joined household. Before that
+  // both buttons are hidden for anyone.
+  await expect(m.getByLabel('Switch household')).toHaveValue(user.tenantId)
   await expect(m.getByRole('button', { name: 'Add gateway' })).toHaveCount(0)
   await expect(card(m).getByRole('button', { name: 'Remove' })).toHaveCount(0)
 })

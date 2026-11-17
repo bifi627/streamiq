@@ -71,10 +71,12 @@ jobs:
         working-directory: gateway
 
   # #452: Windows-only code (service, update, rollback) runs here; the update test
-  # starts from the last release's real binary. Not a required check (yet): the ruleset names it.
+  # starts from the last release's real binary. Not in the merge-gate ruleset's required
+  # checks (yet): only release-gateway waits for it.
   gateway-windows:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: windows-latest
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash

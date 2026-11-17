@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"streamiq/gateway/internal/identity"
+	"streamiq/gateway/internal/onboarding"
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/service"
 	"streamiq/gateway/internal/update"
@@ -44,12 +45,29 @@ func TestUpdateFromLastRelease(t *testing.T) {
 	if old == "" {
 		t.Skip("STREAMIQ_TEST_OLD_GATEWAY not set (the last release's streamiq-gateway-windows-amd64.exe)")
 	}
-	oldBin := read(t, old)
-	oldVersion := strings.TrimSpace(gateway(t, old, "", "version"))
-	t.Logf("updating from the last release, v%s (%s)", oldVersion, old)
-	install, state := setup(t, newVersion)
+	install, _ := setup(t, newVersion)
 	exe := filepath.Join(install, "gateway.exe")
-	os.WriteFile(exe, oldBin, 0o755)
+	os.WriteFile(exe, read(t, old), 0o755)
+	updateAndRollBack(t, install)
+}
+
+// This commit's update and restore code, as the release after it will run
+// them: a build of this commit is the "old" release. Always runs, so that code
+// is tested before it ships.
+func TestUpdateFromThisCommit(t *testing.T) {
+	install, _ := setup(t, newVersion)
+	build(t, filepath.Join(install, "gateway.exe"), "1.0.0")
+	updateAndRollBack(t, install)
+}
+
+// updateAndRollBack updates the gateway installed in install to the served
+// release, then rolls back.
+func updateAndRollBack(t *testing.T, install string) {
+	exe := filepath.Join(install, "gateway.exe")
+	state := os.Getenv("STREAMIQ_STATE_DIR")
+	oldBin := read(t, exe)
+	oldVersion := strings.TrimSpace(gateway(t, exe, install, "version"))
+	t.Logf("updating from v%s", oldVersion)
 
 	gateway(t, exe, install, "reset-identity") // the old release writes its identity
 	for f, b := range oldState {
@@ -107,8 +125,14 @@ func TestUpdateFromLastRelease(t *testing.T) {
 		t.Fatalf("identity after the update: %q, %v; want %q (the old one)", got, err, fp)
 	}
 	ps, err := pairing.Open(state)
-	if err != nil || len(ps.Paired()) != 1 || ps.Paired()[0].KeyFp != "sha-256 AA:BB" {
-		t.Fatalf("paired clients after the update: %+v, %v; want the old one", ps.Paired(), err)
+	if err != nil {
+		t.Fatalf("allowlist.json after the update: %v", err)
+	}
+	if p := ps.Paired(); len(p) != 1 || p[0].KeyFp != "sha-256 AA:BB" {
+		t.Fatalf("paired clients after the update: %+v, want the old one", p)
+	}
+	if st, err := onboarding.LoadOrEnroll(t.Context(), state, "", "", fp); err != nil || st.GatewayID != "7d1c1f0e-4b7a-4c55-9a43-2f1a8e1f3b10" {
+		t.Fatalf("gateway.json after the update: %+v, %v; want the old gateway id", st, err)
 	}
 	if err := jellyfinSetup().Load(); err != nil {
 		t.Fatalf("jellyfin.json after the update: %v", err)

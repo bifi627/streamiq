@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import {
   getAdditionalUserInfo,
   GoogleAuthProvider,
@@ -10,7 +10,7 @@ import {
 import { auth } from './firebase'
 import { describe, toAppError } from './errors'
 import { arrowFocus } from './focus'
-import { EditableName } from './features/gateways/Gateways'
+import { EditableName, STORED } from './features/gateways/Gateways'
 
 // The alias other household members see instead of your email (#388): the
 // Firebase displayName, set here, never stored by us (no PII in our DB, #65).
@@ -51,6 +51,7 @@ export function PickAlias({ user, done }: { user: User; done: () => void }) {
   const google = user.providerData.find((p) => p.providerId === 'google.com')
   const [name, setName] = useState(google?.displayName || user.email || '')
   const [err, setErr] = useState<string | null>(null)
+  const hintId = useId()
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     const e2 = await save(user, name)
@@ -82,8 +83,12 @@ export function PickAlias({ user, done }: { user: User; done: () => void }) {
             required
             pattern=".*\S.*"
             autoFocus
+            aria-describedby={hintId}
           />
         </label>
+        <p id={hintId} className="hint muted">
+          {STORED}
+        </p>
         {err && (
           <p className="error" role="alert">
             {err}
@@ -110,6 +115,7 @@ export function AliasSetting({ user }: { user: User }) {
     <EditableName
       name={name}
       label="Your name"
+      hint={STORED}
       rename={async (n) => {
         const e = await save(user, n)
         if (!e) setName(n)

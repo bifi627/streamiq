@@ -170,6 +170,7 @@ async function google(p: Page, email: string, name: string) {
   const popup = p.waitForEvent('popup')
   await p.getByRole('button', { name: 'Continue with Google' }).click()
   const g = await popup
+  await g.waitForLoadState() // a click before its script runs does nothing
   const listed = g.getByText(email)
   await expect(g.getByText('Add new account').or(listed).first()).toBeVisible()
   if (await listed.isVisible()) return listed.click()

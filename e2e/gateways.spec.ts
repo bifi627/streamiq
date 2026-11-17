@@ -74,7 +74,9 @@ test('status, paired: details from the gateway API (#140) @gateways', async ({
   await expect(
     page.getByText(/Jellyfin: reachable, version .* · token set/),
   ).toBeVisible()
-  await expect(page.getByText(/Paired browsers: 1 · open sessions/)).toBeVisible()
+  await expect(
+    page.getByText(/Paired browsers: 1 · open sessions/),
+  ).toBeVisible()
 })
 
 test('status, unpaired: liveness only, details need pairing (#140) @gateways', async ({

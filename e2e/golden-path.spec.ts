@@ -104,6 +104,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       let rows = 0 // one broker socket per tunnel
       const count = (ws: WebSocket) => ws.url().endsWith('/broker/ws') && rows++
       a.on('websocket', count)
+      // A fresh page: pairing left the card's own shared session open.
+      await a.reload()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.getByRole('link', { name: '← Gateways' }).click()

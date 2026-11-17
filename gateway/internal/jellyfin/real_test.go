@@ -118,7 +118,7 @@ func roundTrip(t *testing.T, compose []byte) {
 
 	// 1. The gateway completes the setup wizard.
 	for deadline := time.Now().Add(3 * time.Minute); !s.View().HasKey; time.Sleep(2 * time.Second) {
-		if time.Now().After(deadline) {
+		if time.Now().After(deadline) || ctx.Err() != nil {
 			t.Fatalf("the gateway did not set Jellyfin up: %+v", s.View())
 		}
 		s.poll(ctx)
@@ -167,7 +167,7 @@ func roundTrip(t *testing.T, compose []byte) {
 			s.call(ctx, "POST", "/Sessions/Logout", admin, "", nil)
 			break
 		}
-		if unauthorized(err) || time.Now().After(deadline) {
+		if unauthorized(err) || time.Now().After(deadline) || ctx.Err() != nil {
 			t.Fatalf("Jellyfin after the upgrade: %v", err)
 		}
 	}

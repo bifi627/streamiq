@@ -5,6 +5,12 @@ browser anywhere, with **zero router configuration** — WebRTC data-channel
 tunnel to a home gateway, TURN fallback. Sensitive files never leave the
 user's hardware.
 
+**You own this code; you're not a guest in it.** You maintain StreamIQ alongside the
+owner. Notice what's worse than it should be (bugs, misleading names, dead code, missing
+tests, stale docs or rules, awkward designs, a spec that looks wrong) and **speak up,
+unasked**. Staying silent is the failure; a proposal the owner turns down costs nothing.
+How to raise it without scope creep: "Ownership in practice" under Working rules.
+
 ## Read this first
 
 Direction and specs live in **GitHub Issues** (+ milestones): `gh issue list`. A
@@ -26,96 +32,10 @@ removed, or changed (new env secret, new image, new cloud service).
 streaming over the tunnel is proven on mobile (cellular) and on a TV browser, and the
 UI design pass (#93) is done. What's weak and what's next live on GitHub, not here:
 the current milestone and the `p1`/`p2` issues (`gh issue list`).
-The paragraphs below record what is built ("item N" = the original MVP build order).
+How it's built, by area (auth/tenancy, pairing, broker, gateway, Jellyfin, web client,
+hosting), with the paths, endpoints and decisions: `docs/architecture.md`. Read the
+section for an area before changing it.
 
-**POC (2026-07-08, GO).** Proven: cellular→home connectivity (86%
-direct, cellular 100%), TURN fallback, 1080p+subtitles, seek, HEVC transcode
-and remux over the tunnel, 4K feasible via ABR. Record: `docs/poc-connectivity-spike.md`.
-POC code was deleted in item 5 PR A; git holds it. Still open: iOS Safari device
-test, codec census over real libraries, Jellyfin NAS footprint + GPLv2 check.
-
-**Item 1 — control-plane foundation.** Migration #1
-(tenants/users/devices, now `gateways`), Firebase ID-token verification (FirebaseAdmin, same path
-dev+prod), first-sign-in tenant provisioning, and the ONE EF global query filter
-enforcing tenant isolation are in. Integration harness: Testcontainers Postgres +
-Firebase Auth emulator, real tokens minted through the prod verify path; behaviors
-covered by Reqnroll (isolation/provisioning/auth-reject) + xUnit edges. React:
-Firebase sign-in + empty authed shell.
-
-**Items 2+3 — pairing + broker.** **PR A
-(onboarding):** migration #2, enrollment token → `/api/gateways/enroll` → credential,
-authenticated `/api/gateways/ws` heartbeat, persistent non-expiring gateway DTLS cert (`gateway reset-identity` replaces it) + state dir,
-local gateway page (Host/Origin guard), Gateways list. **PR B (broker + pairing):**
-tenant-scoped broker (`/api/broker/ws`, session routing), browser WebCrypto client key,
-session-bound connection auth, commit/reveal comparison code approved on the gateway
-page, allowlist, pins enforced both directions; protocol in `docs/protocol.md`.
-**Item 4 — productized gateway** (pivoted from a Docker sidecar after a spike: on Docker
-Desktop, a containerized gateway gets relayed on cellular). **PR A:** native binaries on GitHub Releases
-(merge touching `gateway/**` → auto-versioned release after green CI, `!` subject = minor bump, major = hand-pushed `gateway-v*` tag; `release-gateway.yml`), `install.sh`/`install.ps1` (install = update,
-SHA256-checked), `gateway.env` config file, daily update *notice* (Windows + logon task: an admin starts the update from the gateway card, #312), every update keeps the old binary + a
-state backup in `backups/` for `gateway rollback` (#296), version in heartbeat + Gateways list (migration #5), JSON logs.
-User guide: `docs/install.md`. Dev ports moved to 18096 (Jellyfin) / 18097 (local gateway page),
-so an installed copy runs on the defaults alongside dev. **PR B:** Jellyfin credential without manual
-steps (`gateway/internal/jellyfin`: wizard bootstrap on a fresh Jellyfin, else one admin login
-on the local gateway page; since #50 a non-admin viewer token, not an API key, in `state/jellyfin.json`),
-`gateway/install/jellyfin-compose.yml` release asset (pin = `jellyfin.Image`, test-enforced; `gateway jellyfin up|upgrade`), local
-page is now a status page (heartbeat, Jellyfin reachable/version/key, bootstrapped admin creds).
-**Offline jail (#321):** the shipped compose Jellyfin sits on an `internal` network, an `alpine/socat`
-forwarder publishes 8096; `gateway jellyfin offline on|off` toggles the `# streamiq:<name>` marked blocks
-(`gateway/internal/jellyfin/offline.go`, reused by #334), `upgrade` migrates older files.
-**Libraries (#322):** the local page's `/libraries` shows a managed Jellyfin's per-library Offline / Extras
-state, read live (nothing stored), with *Make offline* and an Extras toggle (`jellyfin/libraries.go`);
-`serverSteps` (like `configSteps`, against `/System/Configuration`) turns the Person TMDb fetchers off.
-
-**Item 5 — streaming client** (consumption-only, functional UI). **PR A (watch it):** Gateways → Open → library /
-series / episodes → hls.js player over the tunnel (custom loader), subtitles, resume
-via Jellyfin UserData. The gateway owns the Jellyfin credentials (since #195 one hidden
-non-admin viewer `streamiq-<users.id>` per user, made on their first session, `streamiq-viewer` as the fallback; dev: `scripts/setup-jellyfin.sh`, then Connect
-Jellyfin on the dev page): it injects the session user's token, pins that viewer, lets only an
-endpoint allowlist through, and redacts the token from playlists. **PR B (trust it):** TURN (Cloudflare creds in prod,
-coturn in dev; per-session since item 6), tunnel telemetry (migration #4, table `tunnels` since #389; drops
-the POC's `poc_connectivity`), privacy indicator (direct vs relayed); `?relay`
-forces the relay path. **Hosting:** the root `Dockerfile` builds the SPA into the
-API image (`wwwroot`, same origin, no CORS in prod); Railway Root Directory = repo root.
-**Item 6 — hardening** (protocol in `docs/protocol.md`). **PR A:** signaling
-rate limits (per client IP via `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`, plus
-per-socket message buckets, 10 s auth deadline), TURN creds minted per broker session
-in `ready` and revoked at its end (no standalone TURN endpoint; dev coturn uses TURN REST
-`STREAMIQ_TURN_SECRET`), gateway revocation (`DELETE /api/gateways/{id}`: hash nulled, row
-kept for telemetry, sockets + sessions closed). Removing a client on the local gateway page
-closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).
-**Local gateway page secret:** the page never shows the Jellyfin admin password, only the path
-of `state/jellyfin.json` (0600) holding it. LAN access to the page needs a token
-(`state/page-token`; login link `state/page-link`, printed by the installer; loopback exempt).
-Postgres backups: daily `pg_dump` → GCS (`db-backup.yml`), restore runbook `docs/db-recovery.md`.
-**Households (#189, parent #92):** tenant = **household**, and a user can belong to
-several: `memberships` (tenant, user, role `admin`/`member`) replaced `users.tenant_id`;
-sign-up makes none (#387): a user joins one by invite or creates one (`POST /api/households`,
-as its admin); with none, only `/me`, invites and creating one work. Each HTTP request acts in one,
-named by the `X-StreamIQ-Household` header (default: the oldest membership);
-`CurrentTenantId` is set only from the signed-in user's own membership (`Auth/Households.cs`,
-the one cross-tenant membership lookup), a non-member gets `404`. The broker checks
-membership for the offered gateway's household, never one the browser names, and puts the
-user's `role` there in the gateway's offer (#194: `tunnel.AdminOnly` endpoints answer a member `403`). The membership's
-role is the request's `Role` claim: adding and removing gateways is admin-only (`RequireRole`,
-a member gets `403`, #190); members list and open them. **Invites (#191):** an admin makes a
-single-use 7-day link (`/join#<token>`, hash stored only); accepting adds the signed-in user as
-`member` (`Features/Invites/AcceptInvite.cs`, the token picks the household); the web app then
-sends that household in `X-StreamIQ-Household` (per device, `localStorage`).
-**Switcher (#193):** Shell loads `/me` once per page load and shares it (`HouseholdContext`,
-`useHousehold()` in `features/households/household.ts`); a picker shows with more than one
-membership. `switchHousehold()` stores the choice and fully reloads `/` (closes tunnels, drops
-the old household's state). **Lost membership (#210):** after `/me` every request names its
-household; a non-member answer is a `404` with header `X-StreamIQ-Not-Member` (same for a
-foreign or missing household), on which `authed()` (`api.ts`) drops the choice and reloads `/` with a notice.
-**Members (#192):** `Features/Members/`: anyone lists (aliases from Firebase per call, #388: `displayName` picked after sign-up, else the email; your own email only) and
-leaves, an admin removes and promotes/demotes; a household always keeps an admin (`409`; the
-check runs under a lock on the tenant row). A user left with no household stays without one.
-**UI design pass (#93):** tokens + base styles (dark, pill buttons, one 3 px `:focus-visible` ring)
-in `frontend/src/index.css`, CSS that Chrome 87 / webOS reads; shell nav, gateway chip, per-device **TV mode**
-(`settings.ts`, `html.tv`). D-pad = arrow keys: `onKeyDown={arrowFocus}` (`frontend/src/focus.ts`) on a container.
-**Library home (#203):** `features/library/Home.tsx` (Resume spot, Recently added, libraries); artwork through
-`art.ts`: loads only on screen, kept per gateway in the Cache API, deleted on sign-out and household switch.
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
 "browser device"; its key = client key); **API** = the control plane (`backend/`,
@@ -263,14 +183,21 @@ Copy `.env.example` only to override.
   - In chat, every issue/PR number is a markdown link, never a bare `#N`:
     `[#193](https://github.com/bifi627/streamiq/issues/193)` (`/issues/N` redirects to PRs too).
     On GitHub itself `#N` autolinks.
+  - **Ownership in practice:** inside the task, fix it in the diff. Outside it, propose
+    it as below (no drive-by fix, and don't drop it either). Rank by impact: lead with at
+    most 3, nits in one line. Disagree once, with your pick and how sure you are; once the
+    owner decides, build it fully and don't re-argue. The harness counts too: if
+    CLAUDE.md, a skill or `check.sh` steered you wrong, propose the fix. End every task
+    report (and a built PR's `## Noticed` section) with what you noticed but didn't touch.
   - Found mid-task (no drive-by fixes): search `gh issue list --search …` for a
     duplicate, then **propose** the issue (title, labels, body) in chat; create it only
     after the owner approves. Ask in the same message whether the spec is approved too:
     yes → create it without `needs-spec` and move it to *Ready*.
   - Security-sensitive findings never go in a public issue (public repo): tell the owner.
-- **Current state above is not a status log.** Don't append per-PR progress there (it
-  was the merge-conflict hotspot); open work lives in `gh issue list`. Edit it only when
-  a lasting fact changes (new item complete, new architecture piece).
+- **Current state above and `docs/architecture.md` are not a status log.** Don't append
+  per-PR progress there (it was the merge-conflict hotspot); open work lives in
+  `gh issue list`. Edit them only when a lasting fact changes (new area complete, new
+  architecture piece goes in `docs/architecture.md`).
 - **Done means:** `scripts/check.sh` ran and its output was read; the changed flow was
   actually driven (curl / UI / test output shown); docs invalidated by the change updated
   in the same diff. "It should work" is not evidence.

@@ -63,6 +63,11 @@ you run in; a worker started by an orchestrator reports there.
 
 ## 3. Review
 
+Before the review, give the PR body a `## Noticed` section (the review checks for it):
+what you noticed outside the task but didn't touch (ranked, at most 3 plus a line of nits,
+each with the issue you proposed or why not), or `none`. Keep it current through later
+rounds. Security-sensitive items never go there: tell the owner privately (CLAUDE.md).
+
 After `check.sh` is green and all commits are pushed, the agent review of this PR runs
 here, in the PR's own thread: no `agent` label is needed on it, and it is the only
 review (no separate self-review before it). Start a fresh-context subagent (Agent

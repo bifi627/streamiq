@@ -21,7 +21,7 @@ const report = (p: Page) =>
  * its ended `tunnels` row (#390); the PATCH body and the row. */
 async function testConnection(page: Page) {
   // This test's tunnel id arrives in its broker `answer` (#390); other
-  // sessions (the library's) PATCH theirs too.
+  // sessions (the pairing's) PATCH theirs too.
   const tunnel = new Promise<string>((resolve) => {
     const onWs = (ws: WebSocket) => {
       if (!ws.url().endsWith('/broker/ws')) return
@@ -119,7 +119,7 @@ test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({
   await expect(report(page)).toContainText(
     /relay forced: yes[\s\S]*path: relayed \(TURN\)/,
   )
-  expect(row, JSON.stringify(row)).toMatchObject({ Relay: true })
+  expect(row, JSON.stringify(row)).toMatchObject({ Relay: true, Failure: null })
 })
 
 test('Copy report: the clipboard holds the report @diagnostics', async ({

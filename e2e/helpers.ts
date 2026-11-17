@@ -194,6 +194,15 @@ export async function newPage(browser: Browser) {
  * error on a page or its scripts only: anything else still fails the test. */
 export async function newContext(browser: Browser) {
   const ctx = await browser.newContext()
+  // Google's gapi, which Firebase's popup sign-in loads even against the
+  // emulator: fetched by Playwright outside Chrome, so the error below can't
+  // drop it and a reload can't lose a pending sign-in (#483).
+  await ctx.route('https://apis.google.com/**', (r) =>
+    r.fetch().then(
+      (response) => r.fulfill({ response }),
+      () => r.abort(),
+    ),
+  )
   const reloaded = new WeakSet<Page>()
   ctx.on('requestfailed', (r) => {
     if (

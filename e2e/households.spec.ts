@@ -120,6 +120,7 @@ test('invites: make, revoke, make another; a member sees none @households', asyn
   const b = await signedInPage(browser, B, '/household', A.tenantId)
   await expect(b.getByText('You are a member')).toBeVisible()
   await expect(b.getByRole('heading', { name: 'Invites' })).toHaveCount(0)
+  await expect(row(b, 'Alice')).toBeVisible() // a member sees the members too
 })
 
 test('join: Join lands in the household; a revoked link is refused @households', async ({
@@ -165,6 +166,7 @@ test('invite-first sign-up: only that household, no picker @households', async (
   await c.getByRole('link', { name: 'Household' }).click()
   await expect(h1(c)).toHaveText(label(A))
   await expect(members(c).getByText('Dana (you)')).toBeVisible()
+  await expect(c.getByText('You are a member')).toBeVisible()
   await expect(c.getByLabel('Switch household')).toHaveCount(0) // exactly one
 })
 

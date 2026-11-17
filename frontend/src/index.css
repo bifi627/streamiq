@@ -334,7 +334,8 @@ input[type='radio'] {
 .signin label {
   font-size: 0.875rem;
 }
-.signin label + .password {
+.signin label + .password,
+.signin label + .hint {
   margin-top: calc(var(--sp-2) - var(--sp-4));
 }
 .password {

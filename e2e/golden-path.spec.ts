@@ -1,7 +1,7 @@
 // THE golden path: the one critical-path E2E. Real browser → broker → gateway →
 // Jellyfin: onboard, pair, browse, play, resume, re-pair, re-pair after an evicted
 // key, remove (kills open sessions). Supporting features have per-page specs
-// (shell, gateways, households, …); edge cases belong in the integration layer.
+// (shell, gateways, households, library, …); edge cases belong in the integration layer.
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -100,29 +100,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await pair(a, gatewayCtx, gateway.pageUrl)
     })
 
-    await test.step('library → back → library within 30 s: one shared session (#152)', async () => {
-      let rows = 0 // one broker socket per tunnel
-      const count = (ws: WebSocket) => ws.url().endsWith('/broker/ws') && rows++
-      a.on('websocket', count)
-      // A fresh page: pairing left the card's own shared session open.
-      await a.reload()
-      await a.getByRole('button', { name: 'Open' }).click()
-      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
-      await a.getByRole('link', { name: '← Gateways' }).click()
-      await a.getByRole('button', { name: 'Open' }).click()
-      await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
-      a.off('websocket', count)
-      expect(rows).toBe(1)
-    })
-
     await test.step('gateway restarts → library opens right away (#172)', async () => {
-      // The shared session still looks connected for ~5–30 s; the broker
-      // closing it (gateway socket closed) evicts it, so this Open makes a fresh one.
+      // Pairing left the card's shared session open; it still looks connected
+      // for ~5–30 s. The broker closing it (gateway socket closed) evicts it,
+      // so this Open makes a fresh one.
       await gateway.stop()
       gateway = await startGateway(stateDir, env)
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       await expect(gatewayPage.getByText('StreamIQ: connected')).toBeVisible() // back on the broker
-      await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
     })
@@ -161,34 +146,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
 
     await test.step('browse → play through the tunnel → resume', async () => {
       await a.getByRole('button', { name: /Movies/ }).click()
-      await expect(a).toHaveURL(/\/g\/[^/]+\/i\/[^/]+$/) // folder deep link
-      await a.reload() // restores the folder: item loaded by ID over a new tunnel
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
-      // Back to a folder seen < 5 min ago (#360): from the query cache, no
-      // "Loading…" and no tunnel request on the way.
-      await a.getByRole('button', { name: /^(Play|Resume)$/ }).waitFor()
-      await a.evaluate(() => {
-        const w = window as unknown as { seen: string[] }
-        w.seen = []
-        const make = RTCPeerConnection.prototype.createDataChannel
-        RTCPeerConnection.prototype.createDataChannel = function (l, o) {
-          w.seen.push(l)
-          return make.call(this, l, o)
-        }
-        new MutationObserver(
-          () =>
-            document.querySelector('[aria-label=Loading]') &&
-            w.seen.push('Loading'),
-        ).observe(document.body, { childList: true, subtree: true })
-      })
-      await a.goBack()
-      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
-      const seen = await a.evaluate(
-        () => (window as unknown as { seen: string[] }).seen,
-      )
-      expect(
-        seen.filter((l) => /Loading|req:\/Items(\?|\/[^/]+$)/.test(l)),
-      ).toEqual([])
       await a.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page (#204)
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
@@ -367,35 +325,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await expect(
         a.getByRole('menuitemradio', { name: /AAC mono/, checked: true }),
       ).toBeVisible()
-      await expect.poll(() => videoTime(a)).toBeGreaterThan(2) // saves whole seconds
-      await a.goBack() // player → movie page
-      await a.goBack() // movie page → folder
-      await a.goBack() // folder → library home
-      // Continue watching is newest first (#330): this one, played after the
-      // clip, though the clip sorts first by name.
-      const spot = a.locator('.spot h2')
-      // The exit save is fire-and-forget: a reload can close the tunnel first.
-      await expect(async () => {
-        await a.reload()
-        await expect(spot).toHaveText('streamiq e2e mp2 default', {
-          timeout: 3000,
-        })
-      }).toPass()
-      // The click-through guard (#330): a playback shorter than 60 s saves
-      // nothing, so the clip doesn't move up.
-      await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '60'))
-      await a.getByRole('button', { name: /Movies/ }).click()
-      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
-      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
-      await expect
-        .poll(() => videoTime(a), { timeout: 30_000 })
-        .toBeGreaterThan(5)
-      await a.goBack() // player → movie page (saves nothing)
-      await a.goBack() // movie page → folder
-      await a.goBack() // folder → library home
-      await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '0'))
-      await a.reload()
-      await expect(spot).toHaveText('streamiq e2e mp2 default')
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
@@ -805,8 +734,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
           /storage: (persist\(\) (granted|denied)|already persistent)/,
         ),
       ).toBeVisible()
-      await a.goto(app) // one gateway: home is its library (#225)
-      await expect(a).toHaveURL(`${app}/g/${id}`)
       await a.getByRole('link', { name: 'Gateways', exact: true }).click()
       await expect(a.getByRole('heading', { name: 'Gateways' })).toBeVisible()
     })

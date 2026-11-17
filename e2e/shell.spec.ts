@@ -163,3 +163,44 @@ test('Settings D-pad: off a checkbox, Down past Data saver to Raw @shell', async
   await p.keyboard.press('ArrowDown')
   await expect(p.getByLabel('Raw quality option')).toBeFocused()
 })
+
+/** Signs in with Google on p through the Auth emulator's popup: a new account
+ * (name, email) the first time, the listed one after that. */
+async function google(p: Page, email: string, name: string) {
+  const popup = p.waitForEvent('popup')
+  await p.getByRole('button', { name: 'Continue with Google' }).click()
+  const g = await popup
+  await g.waitForLoadState() // a click before its script runs does nothing
+  const listed = g.getByText(email)
+  await expect(g.getByText('Add new account').or(listed).first()).toBeVisible()
+  if (await listed.isVisible()) return listed.click()
+  await g.getByText('Add new account').click()
+  await g.getByLabel('Email').fill(email)
+  await g.getByLabel('Display name').fill(name)
+  await g.getByRole('button', { name: /Sign in with Google/ }).click()
+}
+
+test('Google sign-up: picks its alias, prefilled with the Google name @shell', async ({
+  browser,
+}) => {
+  const email = uniqueEmail('google')
+  const p = await newPage(browser)
+  await p.goto(appUrl())
+  await google(p, email, 'Gina Google')
+  // Asked like an email sign-up (#404), not handed Google's name silently.
+  const alias = p.getByLabel('Your name')
+  await expect(alias).toHaveValue('Gina Google')
+  // Not chosen yet: a second Google sign-in still asks.
+  await p.getByRole('button', { name: 'Sign out' }).click()
+  await google(p, email, 'Gina Google')
+  await expect(alias).toHaveValue('Gina Google')
+  // Continue keeps it: the app opens (no household yet: Google sign-up made
+  // none), Settings shows it, no prompt after a reload.
+  const app = p.getByRole('heading', { name: "You're not in a household yet" })
+  await p.getByRole('button', { name: 'Continue' }).click()
+  await expect(app).toBeVisible()
+  await p.reload()
+  await expect(app).toBeVisible()
+  await p.goto(appUrl('/settings'))
+  await expect(p.getByText('Your name Gina Google')).toBeVisible()
+})

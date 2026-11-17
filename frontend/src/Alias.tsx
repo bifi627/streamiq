@@ -1,5 +1,12 @@
 import { useId, useState, type FormEvent } from 'react'
-import { signOut, updateProfile, type User } from '@firebase/auth'
+import {
+  getAdditionalUserInfo,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+  type User,
+} from '@firebase/auth'
 import { auth } from './firebase'
 import { describe, toAppError } from './errors'
 import { arrowFocus } from './focus'
@@ -15,6 +22,21 @@ const ALIASES_SINCE = Date.parse('2026-11-16T00:00:00Z')
 export const needsAlias = (u: User) =>
   !u.displayName && Date.parse(u.metadata.creationTime ?? '') >= ALIASES_SINCE
 
+// A Google sign-up arrives with the Google profile name as displayName: clear
+// it, so it picks an alias like an email sign-up, prefilled with that name
+// (#404). App holds the signed-in user back until this settles, so the app
+// never renders with the Google name in between.
+// ponytail: if the clear fails, the account keeps the Google name unasked;
+// a retry needs a flag Firebase doesn't keep (custom claim, #404 notes).
+export let signingIn: Promise<unknown> = Promise.resolve()
+export const signInWithGoogle = () =>
+  (signingIn = signInWithPopup(auth, new GoogleAuthProvider()).then(
+    async (cred) => {
+      if (getAdditionalUserInfo(cred)?.isNewUser)
+        await updateProfile(cred.user, { displayName: '' }) // null = unchanged
+    },
+  ))
+
 async function save(u: User, name: string) {
   try {
     await updateProfile(u, { displayName: name.trim() })
@@ -26,7 +48,8 @@ async function save(u: User, name: string) {
 
 // After sign-up, before the app: until a displayName is set (any device).
 export function PickAlias({ user, done }: { user: User; done: () => void }) {
-  const [name, setName] = useState(user.email ?? '')
+  const google = user.providerData.find((p) => p.providerId === 'google.com')
+  const [name, setName] = useState(google?.displayName || user.email || '')
   const [err, setErr] = useState<string | null>(null)
   const hintId = useId()
   const submit = async (e: FormEvent) => {
@@ -44,7 +67,7 @@ export function PickAlias({ user, done }: { user: User; done: () => void }) {
         <p className="tagline">What should others call you?</p>
         <p className="muted">
           Members of your households see this name, not your email address. Keep
-          your email or type a name. You can change it in Settings.
+          this one or type another. You can change it in Settings.
         </p>
       </header>
       <form onSubmit={submit}>

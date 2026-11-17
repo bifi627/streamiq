@@ -4,6 +4,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+echo "== docs drift: STREAMIQ_* env vars + gateway routes documented =="
+bash scripts/check-docs-drift.sh
+
 echo "== backend: tenant-filter bypasses + format + build + test =="
 bash scripts/check-tenant-filter.sh
 dotnet format backend/StreamIq.slnx --verify-no-changes

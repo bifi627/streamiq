@@ -154,6 +154,23 @@ export async function newPage(browser: Browser) {
     if (localStorage.getItem('streamiq.watchMin') === null)
       localStorage.setItem('streamiq.watchMin', '0')
   })
+  // Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
+  // interfaces change, e.g. Docker adding a container for another worker on CI;
+  // a failed module never renders the app (#419). Reload once per tab, for that
+  // error on the page or its modules only: anything else still fails the test.
+  const reloaded = new WeakSet<Page>()
+  ctx.on('requestfailed', (r) => {
+    if (
+      r.failure()?.errorText !== 'net::ERR_NETWORK_CHANGED' ||
+      !['document', 'script'].includes(r.resourceType())
+    )
+      return
+    const p = r.frame().page()
+    if (reloaded.has(p)) return
+    reloaded.add(p)
+    console.warn(`e2e: ${r.url()} hit ERR_NETWORK_CHANGED, reloading once`)
+    void p.reload().catch(() => {}) // a test's own navigation may overtake it
+  })
   return ctx.newPage()
 }
 

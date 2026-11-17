@@ -7,6 +7,7 @@
 // in the test details (no harness code).
 import { test as base, type BrowserContext, type Page } from '@playwright/test'
 import {
+  newContext,
   newPage,
   onboardGateway,
   pair,
@@ -49,7 +50,7 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
   paired: async ({ browser, jellyfin: _ }, use) => {
     const user = await signUp(uniqueEmail('paired'))
     const gateway = await onboardGateway(user)
-    const gatewayCtx = await browser.newContext()
+    const gatewayCtx = await newContext(browser)
     const page = await newPage(browser)
     try {
       if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only

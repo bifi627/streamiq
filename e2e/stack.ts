@@ -531,7 +531,9 @@ export async function startStack(o: StackOptions) {
 async function startCoturn(labeled: (c: GenericContainer) => GenericContainer) {
   for (let attempt = 1; ; attempt++) {
     const turnPort = 20000 + Math.floor(Math.random() * 20000) // below Windows' ephemeral range; a clash anywhere is a bind error → retry
-    const relayPorts = [1, 2, 3, 4, 5].map((i) => turnPort + i)
+    // One relay port per allocation, and every tunnel's browser and gateway allocate:
+    // 5 ran out with 3 golden-path copies in parallel (508 Cannot create socket, #418).
+    const relayPorts = Array.from({ length: 50 }, (_, i) => turnPort + 1 + i)
     const hex = turnPort.toString(16).toUpperCase().padStart(4, '0')
     const fixed = (port: number, protocol: 'tcp' | 'udp') => ({
       container: port,

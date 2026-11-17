@@ -60,6 +60,8 @@ const (
 )
 
 // Creds is state/jellyfin.json.
+// Its JSON format changed? Update oldState in cmd/gateway/update_windows_test.go
+// to the new format, in the same PR (the update test starts from it, #452).
 type Creds struct {
 	Token          string            `json:"token,omitempty"` // the viewer's access token
 	Viewer         string            `json:"viewer,omitempty"`

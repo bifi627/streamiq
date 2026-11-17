@@ -33,7 +33,10 @@ const newVersion = "999.0.0" // this commit's build, as the served release
 
 // The state an installed gateway has today. cert.pem is written by the old
 // release itself (reset-identity); these are the files it writes once enrolled,
-// paired and set up, in its format (onboarding, pairing, jellyfin).
+// paired and set up, in its format (onboarding, pairing, jellyfin): fixtures,
+// since only the API, a paired browser and a Jellyfin make it write them. They
+// follow the format users have: a PR that changes one updates it here (the
+// types say so). ponytail: a state dir from a real old release (e2e) is the upgrade path.
 var oldState = map[string]string{
 	"gateway.json":   `{"credential":"cred-1","gatewayId":"7d1c1f0e-4b7a-4c55-9a43-2f1a8e1f3b10","name":"nas"}`,
 	"allowlist.json": "[\n {\n  \"keyFp\": \"sha-256 AA:BB\",\n  \"name\": \"Phone\",\n  \"addedAt\": \"2026-11-17T08:00:00Z\"\n }\n]",

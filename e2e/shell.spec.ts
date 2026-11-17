@@ -4,24 +4,23 @@
 // playback is the player's spec (#410).
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
-import { newPage, signIn, signUp, uniqueEmail } from './helpers.ts'
-
-const app = () => process.env.E2E_APP_URL!
+import {
+  appUrl,
+  newPage,
+  signedInPage,
+  signUp,
+  uniqueEmail,
+} from './helpers.ts'
 
 /** A new account signed in on a new browser at path. */
-async function signedIn(browser: Browser, path = '/gateways') {
-  const user = await signUp(uniqueEmail('shell'))
-  const p = await newPage(browser)
-  await p.goto(app() + path)
-  await signIn(p, user)
-  return { p, user }
-}
+const signedIn = async (browser: Browser, path = '/gateways') =>
+  signedInPage(browser, await signUp(uniqueEmail('shell')), path)
 
 const gatewaysHeading = (p: Page) =>
   p.getByRole('heading', { level: 1, name: 'Gateways' })
 
 test('sign-in: through the form to Gateways @shell', async ({ browser }) => {
-  const { p } = await signedIn(browser, '/')
+  const p = await signedIn(browser, '/')
   await expect(gatewaysHeading(p)).toBeVisible()
 })
 
@@ -30,7 +29,7 @@ test('sign-in: a wrong password shows the error, stays on the form @shell', asyn
 }) => {
   const user = await signUp(uniqueEmail('shell'))
   const p = await newPage(browser)
-  await p.goto(app())
+  await p.goto(appUrl())
   await p.getByLabel('Email').fill(user.email)
   await p.getByLabel('Password', { exact: true }).fill('not-the-password')
   await p.getByRole('button', { name: 'Sign in' }).click()
@@ -44,13 +43,13 @@ test('sign-in: a wrong password shows the error, stays on the form @shell', asyn
 test('signed-out deep link: that route loads after sign-in @shell', async ({
   browser,
 }) => {
-  const { p } = await signedIn(browser, '/settings')
+  const p = await signedIn(browser, '/settings')
   await expect(p.getByRole('heading', { level: 1 })).toHaveText('Settings')
   expect(new URL(p.url()).pathname).toBe('/settings')
 })
 
 test('not-found: Go to your gateways @shell', async ({ browser }) => {
-  const { p } = await signedIn(browser, '/no-such-page')
+  const p = await signedIn(browser, '/no-such-page')
   await expect(p.getByText('Page not found.')).toBeVisible()
   await p.getByRole('link', { name: 'Go to your gateways' }).click()
   await expect(p).toHaveURL(/\/gateways$/)
@@ -58,7 +57,7 @@ test('not-found: Go to your gateways @shell', async ({ browser }) => {
 })
 
 test('nav: Gateways, Household, Settings @shell', async ({ browser }) => {
-  const { p } = await signedIn(browser, '/settings')
+  const p = await signedIn(browser, '/settings')
   const nav = p.getByRole('navigation', { name: 'Main' })
   const h1 = p.getByRole('heading', { level: 1 })
   await nav.getByRole('link', { name: 'Gateways' }).click()
@@ -75,7 +74,7 @@ test('nav: Gateways, Household, Settings @shell', async ({ browser }) => {
 test('Settings Back: home after a direct open, else back in history @shell', async ({
   browser,
 }) => {
-  const { p } = await signedIn(browser, '/settings') // no in-app history
+  const p = await signedIn(browser, '/settings') // no in-app history
   const back = p.getByRole('button', { name: 'Back' })
   await back.click()
   await expect(gatewaysHeading(p)).toBeVisible()
@@ -96,7 +95,7 @@ test('Settings Back: home after a direct open, else back in history @shell', asy
 })
 
 test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
-  const { p } = await signedIn(browser)
+  const p = await signedIn(browser)
   await expect(gatewaysHeading(p)).toBeVisible()
   const cdp = await p.context().newCDPSession(p)
   const { installabilityErrors } = await cdp.send(
@@ -111,7 +110,7 @@ test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
 
 // Each toggle once, then a reload: per-device settings live in localStorage.
 test('Settings toggles persist across a reload @shell', async ({ browser }) => {
-  const { p } = await signedIn(browser, '/settings')
+  const p = await signedIn(browser, '/settings')
   const saver = p.getByRole('group', { name: 'Data saver' })
   const dock = p.getByRole('complementary', { name: 'Diagnostics' })
   // Desktop Chrome: no saveData, not cellular, so Automatic is off.
@@ -154,7 +153,7 @@ test('Settings toggles persist across a reload @shell', async ({ browser }) => {
 test('Settings D-pad: off a checkbox, Down past Data saver to Raw @shell', async ({
   browser,
 }) => {
-  const { p } = await signedIn(browser, '/settings')
+  const p = await signedIn(browser, '/settings')
   const compatible = p.getByLabel('Compatible mode')
   await compatible.focus()
   await p.keyboard.press('ArrowLeft')

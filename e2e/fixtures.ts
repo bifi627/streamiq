@@ -8,10 +8,9 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test'
 import {
   newContext,
-  newPage,
   onboardGateway,
   pair,
-  signIn,
+  signedInPage,
   signUp,
   uniqueEmail,
   type User,
@@ -51,15 +50,14 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
     const user = await signUp(uniqueEmail('paired'))
     const gateway = await onboardGateway(user)
     const gatewayCtx = await newContext(browser)
-    const page = await newPage(browser)
+    let page: Page | undefined
     try {
       if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
-      await page.goto(process.env.E2E_APP_URL + '/gateways')
-      await signIn(page, user)
+      page = await signedInPage(browser, user, '/gateways')
       await pair(page, gatewayCtx, gateway.pageUrl)
       await use({ user, page, gateway, gatewayCtx })
     } finally {
-      await Promise.all([gatewayCtx.close(), page.context().close()])
+      await Promise.all([gatewayCtx.close(), page?.context().close()])
       await gateway.stop()
     }
   },

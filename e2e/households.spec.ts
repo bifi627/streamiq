@@ -6,15 +6,15 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
+  appUrl,
   newPage,
   password,
-  signIn,
+  signedInPage,
   signUp,
   uniqueEmail,
   type User,
 } from './helpers.ts'
 
-const app = () => process.env.E2E_APP_URL!
 // householdLabel() in api.ts: an unnamed household (none renamed yet, #384).
 const label = (u: User) => `Household …${u.tenantId.slice(-6)}`
 
@@ -23,9 +23,7 @@ test('households: join, switch, removed while open, leave @households', async ({
 }) => {
   const A = await signUp(uniqueEmail('house-a'))
   const B = await signUp(uniqueEmail('house-b'))
-  const b = await newPage(browser)
-  await b.goto(app() + '/household')
-  await signIn(b, B)
+  const b = await signedInPage(browser, B, '/household')
   const heading = b.getByRole('heading', { level: 1 })
   await expect(heading).toHaveText(label(B))
   const picker = b.getByLabel('Switch household')
@@ -34,7 +32,7 @@ test('households: join, switch, removed while open, leave @households', async ({
   // A (admin of A's household) makes a link; B, signed in, opens and joins it.
   const join = async (p: Page) => {
     const { token } = await A.api('/invites', { method: 'POST' })
-    await p.goto(`${app()}/join#${token}`)
+    await p.goto(appUrl(`/join#${token}`))
     await p.getByRole('button', { name: 'Join' }).click()
     await expect(p).not.toHaveURL(/\/join/)
     await p.getByRole('link', { name: 'Household' }).click()
@@ -111,7 +109,7 @@ test('households: sign up through an invite, none left, create one @households',
 
   await test.step('a new account opens an invite link first: joins only that household', async () => {
     const { token } = await A.api('/invites', { method: 'POST' })
-    await c.goto(`${app()}/join#${token}`)
+    await c.goto(appUrl(`/join#${token}`))
     await c.getByRole('button', { name: 'Create an account' }).click()
     await c.getByLabel('Email').fill(email)
     await c.getByLabel('Password', { exact: true }).fill(password)
@@ -131,17 +129,17 @@ test('households: sign up through an invite, none left, create one @households',
     await c.getByRole('button', { name: 'Leave' }).click()
     await expect(none).toBeVisible()
     await expect(c.getByRole('link', { name: 'Gateways' })).toHaveCount(0)
-    await c.goto(`${app()}/gateways`)
+    await c.goto(appUrl('/gateways'))
     await expect(none).toBeVisible() // household pages are locked
     await c.getByRole('link', { name: 'Settings' }).click()
     await expect(c.getByRole('heading', { name: 'Settings' })).toBeVisible() // per-device settings still open
-    await c.goto(app())
+    await c.goto(appUrl())
     await expect(none).toBeVisible()
   })
 
   await test.step('pasting an invite link joins again', async () => {
     const { token } = await A.api('/invites', { method: 'POST' })
-    await c.getByLabel('Invite link').fill(`${app()}/join#${token}`)
+    await c.getByLabel('Invite link').fill(appUrl(`/join#${token}`))
     await c.getByRole('button', { name: 'Open' }).click()
     await c.getByRole('button', { name: 'Join' }).click()
     await expect(c).not.toHaveURL(/\/join/)
@@ -173,9 +171,7 @@ test('a new account picks an alias; others see it, not the email (#388) @househo
     method: 'POST',
     body: JSON.stringify({ token }),
   })
-  const c = await newPage(browser)
-  await c.goto(app() + '/household')
-  await signIn(c, C, A.tenantId)
+  const c = await signedInPage(browser, C, '/household', A.tenantId)
   const alias = c.getByLabel('Your name')
 
   await test.step('asked before the app, again after a reload, email prefilled', async () => {

@@ -1,7 +1,7 @@
 // THE golden path: the one critical-path E2E. Real browser → broker → gateway →
 // Jellyfin: onboard, pair, browse, play, resume, re-pair, re-pair after an evicted
 // key, remove (kills open sessions). Supporting features have per-page specs
-// (shell, gateways, households, library, …); edge cases belong in the integration layer.
+// (shell, gateways, households, library, player, …); edge cases belong in the integration layer.
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -13,6 +13,7 @@ import {
   keepPcs,
   newContext,
   newPage,
+  openDock,
   pair,
   password,
   tunnelOk,
@@ -48,22 +49,6 @@ async function signIn(browser: Browser, create = false, path = '/') {
     await expect(page.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   return page
 }
-
-// Dominant frequency (Hz) of the <video>'s audio: tells the fixture's 440 Hz
-// English track from its 880 Hz German one (#109).
-const pitch = (p: Page) =>
-  p.locator('video').evaluate((v: HTMLVideoElement & { an?: AnalyserNode }) => {
-    if (!v.an) {
-      const ctx = new AudioContext()
-      v.an = ctx.createAnalyser()
-      ctx.createMediaElementSource(v).connect(v.an).connect(ctx.destination)
-    }
-    const bins = new Float32Array(v.an.frequencyBinCount)
-    v.an.getFloatFrequencyData(bins)
-    return (
-      (bins.indexOf(Math.max(...bins)) * v.an.context.sampleRate) / v.an.fftSize
-    )
-  })
 
 test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golden', async ({
   browser,
@@ -151,21 +136,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(3)
-      // Privacy badge (#205) in the player's overlay; a click shows its line.
-      await a.getByRole('button', { name: 'Direct from home' }).click()
-      await expect(
-        a.getByText(/end-to-end encrypted · StreamIQ carried 0 bytes/),
-      ).toBeVisible() // same host: host candidates, no relay
-      // Device profile (#115): probe + Jellyfin's decision in the diagnostics.
-      // Diagnostics panel: on once in Settings, the flag persists (#201).
-      await a.getByRole('link', { name: 'Settings' }).click()
-      await a.getByLabel('Diagnostics panel').check()
-      await a.getByRole('button', { name: 'Back' }).click() // player remounts
-      await openDock(a)
-      await expect(a.getByText(/probe: h264 .* L\d/)).toBeVisible()
-      await expect(
-        a.getByText(/jellyfin: video remux \(h264\) · audio copy/),
-      ).toBeVisible()
       await a.goBack() // leaving the player saves the position
       await a.goBack() // movie page → folder
       await a.goBack() // browser history: folder → library home
@@ -177,197 +147,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       ).toHaveAttribute('aria-valuetext', /^0:0[3-9] of/)
       await a.getByRole('button', { name: 'Resume' }).click()
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // starts there, not at 0
-      await expect(a).toHaveURL(/\/play\/[^/]+$/) // the player has its own route
-      await a.reload() // player deep link: tunnel → item by ID → saved position
-      await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
-      // Compatible mode (#113): Settings view → next playback uses the
-      // restricted profile; an H.264 + AAC file still remuxes.
-      await a.getByRole('link', { name: 'Settings' }).click()
-      await a.getByLabel('Compatible mode').check()
-      await a.getByRole('button', { name: 'Back' }).click() // player remounts
-      await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
-      await expect(
-        a.getByText(
-          // newest first: this playback's decision, after its mode line
-          /jellyfin: video remux \(h264\) · audio copy[\s\S]*compatible mode: on/,
-        ),
-      ).toBeVisible()
-      await a.getByRole('link', { name: 'Settings' }).click()
-      await a.getByLabel('Compatible mode').uncheck()
-      await a.getByRole('button', { name: 'Back' }).click()
-      // Quality (#108, #161): the picker says what plays and hides rungs that
-      // would not scale the 360p clip down (480p too); a switch reloads at the
-      // playhead. Remembered. Auto (#162): localhost is fast, so the clip fits
-      // under the measured link and remuxes.
-      await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5)
-      await a.getByRole('button', { name: 'Playback options' }).click()
-      await a
-        .getByRole('menuitem', {
-          name: /^Quality.*Auto \(your connection ~[\d.,]+ Mbps\) · Original 360p/,
-        })
-        .click()
-      await expect(a.getByRole('menuitemradio')).toHaveText([
-        /Auto/, // ✓ Auto
-        /^Source360p, [\d.,]+ Mbps$/, // the clip's size + bitrate
-      ])
-      await a.getByRole('menuitemradio', { name: /^Source/ }).click()
-      await expect(
-        a.getByText(
-          /jellyfin: video remux \(h264\)[\s\S]*quality: Source \(no limit\)[\s\S]*quality: switch to Source @([3-9]|[1-9]\d)\./, // reloaded at the playhead
-        ),
-      ).toBeVisible()
-      await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // and plays on there
-      await a.reload()
-      await a.getByRole('button', { name: 'Playback options' }).click()
-      await a
-        .getByRole('menuitem', { name: /^Quality.*Source · Original 360p/ }) // remembered
-        .click()
-      await a.getByRole('menuitemradio', { name: /^Auto/ }).click()
-      // Audio (#109): Jellyfin's default track (English, 440 Hz) first; a
-      // switch reloads at the playhead with AudioStreamIndex, and the remux
-      // carries the German track (880 Hz). Labels use the browser's locale.
-      const [en, de] = await a.evaluate(() =>
-        ['eng', 'deu'].map((c) =>
-          new Intl.DisplayNames(undefined, { type: 'language' }).of(c)!,
-        ),
-      )
-      await a.evaluate(() => (document.querySelector('video')!.currentTime = 1)) // room left in the 30 s clip
-      await expect
-        .poll(() => pitch(a), { timeout: 30_000 })
-        .toBeCloseTo(440, -2)
-      await a.getByRole('button', { name: 'Playback options' }).click()
-      await a
-        .getByRole('menuitem', { name: new RegExp(`^Audio.*${en}`) })
-        .click()
-      await a
-        .getByRole('menuitemradio', { name: new RegExp(`^${de}.*AAC mono`) })
-        .click()
-      // The reload shows the last frame meanwhile, not a black, resized box.
-      expect(
-        await a.locator('video').evaluate((v: HTMLVideoElement) => v.poster),
-      ).toMatch(/^data:image\/jpeg/)
-      await expect
-        .poll(() => pitch(a), { timeout: 30_000 })
-        .toBeCloseTo(880, -2)
-      await expect(
-        a.getByText(
-          /jellyfin: video remux \(h264\) · audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: switch to stream \1 @\d/,
-        ),
-      ).toBeVisible()
-      // Subtitles (#136): off at first; the sidecar .srt's cue shows once
-      // picked, at its own time (0–30 s; was shifted by seconds after a
-      // mid-clip reload, #269), and goes away with Off.
-      const cue = () =>
-        a.evaluate(() =>
-          [...document.querySelector('video')!.textTracks]
-            .filter((t) => t.mode === 'showing')
-            .flatMap((t) => [...(t.activeCues ?? [])])
-            .map((c) => (c as VTTCue).text)
-            .join(),
-        )
-      expect(await cue()).toBe('')
-      await a.getByRole('button', { name: 'Playback options' }).click()
-      await a.getByRole('menuitem', { name: /^Subtitles.*Off/ }).click()
-      await a
-        .getByRole('menuitemradio', { name: new RegExp(`^${en}.*SRT`) })
-        .click()
-      await expect.poll(cue, { timeout: 15_000 }).toBe('streamiq e2e subtitle')
-      expect(
-        await a.evaluate(() =>
-          [...document.querySelector('video')!.textTracks]
-            .filter((t) => t.mode === 'showing')
-            .flatMap((t) => [...(t.cues ?? [])])
-            .map((c) => [c.startTime, c.endTime]),
-        ),
-      ).toEqual([[0, 30]])
-      await a.getByRole('button', { name: 'Playback options' }).click()
-      await a
-        .getByRole('menuitem', { name: new RegExp(`^Subtitles.*${en}`) })
-        .click()
-      await a.getByRole('menuitemradio', { name: /^Off/ }).click()
-      await expect.poll(cue).toBe('')
-      // Opened in a new tab (no in-app history): Back goes to the item's folder.
-      const tab = await a.context().newPage()
-      await tab.goto(a.url())
-      await expect(
-        tab.getByRole('heading', { name: /streamiq e2e clip/ }),
-      ).toBeVisible() // item loaded: Back knows its folder
-      // The Back key (Escape / TV remote) hides a shown bar first, then exits.
-      await expect(async () => {
-        await tab.keyboard.press('Escape')
-        await expect(tab).toHaveURL(/\/i\/[^/]+$/, { timeout: 1000 })
-      }).toPass()
-      await expect(
-        tab.getByRole('button', { name: /streamiq e2e clip/ }),
-      ).toBeVisible()
-      await tab.close()
-      await a.getByRole('link', { name: '← Gateways' }).click()
-    })
-
-    await test.step('auto audio (#252): a decodable track instead of an MP2 default', async () => {
-      await a.getByRole('button', { name: 'Open' }).click()
-      await a.getByRole('button', { name: /Movies/ }).click()
-      await a.getByRole('button', { name: /streamiq e2e mp2 default/ }).click()
-      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
-      await expect
-        .poll(() => pitch(a), { timeout: 30_000 })
-        .toBeCloseTo(880, -2)
-      // Newest first: this load's decision, then the pick before it. Video
-      // may transcode (the mkv has no bitrate); the audio is copied.
-      await expect(
-        a.getByText(
-          /jellyfin: video \w+ \(h264\) · audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: default not decodable, stream \1 instead/,
-        ),
-      ).toBeVisible()
-      // The audio menu shows it as the one playing.
-      await a.getByRole('button', { name: 'Playback options' }).click()
-      await a.getByRole('menuitem', { name: /^Audio/ }).click()
-      await expect(
-        a.getByRole('menuitemradio', { name: /AAC mono/, checked: true }),
-      ).toBeVisible()
-      await a.getByRole('link', { name: '← Gateways' }).click()
-    })
-
-    await test.step('next episode (#205, #344): the following one, across seasons; none after the last', async () => {
-      await a.getByRole('button', { name: 'Open' }).click()
-      await a.getByRole('button', { name: /Shows/ }).click()
-      await a.getByRole('button', { name: /StreamIQ Test Series/ }).click()
-      const now = (ep: string) => a.locator('.now p', { hasText: ep })
-      // Finished episode → back (#378): the first primary button shown already
-      // names the next one (no stale "S1 · E1"), and OK at once plays it.
-      const primary = a.locator('button.primary')
-      await expect(primary).toBeFocused()
-      expect(await primary.textContent()).toContain('S1 · E1')
-      await a.keyboard.press('Enter')
-      await expect(now('S1 · E1')).toBeVisible()
-      await expect
-        .poll(() => videoTime(a), { timeout: 30_000 })
-        .toBeGreaterThan(0)
-      await a.evaluate(() => {
-        const v = document.querySelector('video')!
-        v.currentTime = v.duration - 0.5
-      })
-      await a.waitForFunction(() => document.querySelector('video')!.ended)
-      await a.goBack()
-      await expect(primary).toBeFocused()
-      expect(await primary.textContent()).toContain('S1 · E2')
-      await a.keyboard.press('Enter')
-      await expect(now('S1 · E2')).toBeVisible()
-      // Season 1's last episode leads to season 2's first.
-      await a.getByRole('button', { name: 'Next episode' }).click()
-      await expect(now('S2 · E1')).toBeVisible()
-      await expect
-        .poll(() => videoTime(a), { timeout: 30_000 })
-        .toBeGreaterThan(1)
-      await a.getByRole('button', { name: 'Next episode' }).click()
-      await expect(now('S2 · E2')).toBeVisible()
-      await expect
-        .poll(() => videoTime(a), { timeout: 30_000 })
-        .toBeGreaterThan(1)
-      // The series' last episode: no button.
-      await expect(a.getByRole('button', { name: 'Next episode' })).toHaveCount(
-        0,
-      )
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
@@ -473,88 +252,13 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await phone2.close()
     })
 
-    await test.step('Auto on a slow link (#162): a capped rung, Source warns', async () => {
-      // A slow home upload, simulated: the bursts fail, so Auto falls back to
-      // the stored hint, set to 0.1 Mbps (the clip is ~0.2). A reload at the
-      // end undoes both. Reload first: the library's tunnel is shared and kept
-      // 30 s after leaving (#152), and this step needs a fresh session.
-      await a.reload()
-      await a.evaluate(() => {
-        const create = RTCPeerConnection.prototype.createDataChannel
-        RTCPeerConnection.prototype.createDataChannel = function (label, o) {
-          if (label.startsWith('req:/streamiq/burst')) throw new Error('slow')
-          return create.call(this, label, o)
-        }
-        for (const k of Object.keys(localStorage))
-          if (k.startsWith('streamiq.speed:')) localStorage.setItem(k, '0.1')
-      })
-      await a.getByRole('button', { name: 'Open' }).click()
-      await a.getByRole('button', { name: /Movies/ }).click()
-      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
-      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
-      await expect
-        .poll(() => videoTime(a), { timeout: 30_000 })
-        .toBeGreaterThan(1)
-      await expect(
-        a.getByText(
-          // newest first: Jellyfin's decision, the limit, Auto's pick
-          /jellyfin: video transcode[\s\S]*quality: Auto \(≤480p, 0\.07 Mbps\)[\s\S]*auto: link ~0\.1 Mbps \(stored hint\) → cap 0\.1 Mbps, source [\d.]+ Mbps → 480p/,
-        ),
-      ).toBeVisible()
-      await a.getByRole('button', { name: 'Playback options' }).click()
-      await a
-        .getByRole('menuitem', {
-          name: /^Quality.*Auto · 480p \(your connection ~0\.1 Mbps\) · Transcoded to 360p/,
-        })
-        .click()
-      await expect(
-        a.getByRole('menuitemradio', { name: /^Source/ }),
-      ).toContainText('faster than your connection, may stutter')
-      await a.reload() // drops the patch; the next session measures again
-      await a.goto(process.env.E2E_APP_URL! + '/gateways')
-    })
-
-    await test.step('data saver (#291): small measurement, Auto at 480p', async () => {
-      await a.getByRole('link', { name: 'Settings' }).click()
-      await a
-        .getByRole('group', { name: 'Data saver' })
-        .getByRole('button', { name: 'On' })
-        .click()
-      await expect(a.getByText(/^On now/)).toBeVisible()
-      await a.reload() // a fresh tunnel session: it measures in saver mode
-      await a.getByRole('link', { name: 'Gateways' }).click()
-      await a.getByRole('button', { name: 'Open' }).click()
-      await a.getByRole('button', { name: /Movies/ }).click()
-      await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
-      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click()
-      await expect
-        .poll(() => videoTime(a), { timeout: 30_000 })
-        .toBeGreaterThan(1)
-      await expect(
-        a.getByText(
-          /speed: ~[\d.]+ Mbps \(median of [\d. /]+, data saver: 3 × 1 MiB, not kept/,
-        ),
-      ).toBeVisible()
-      await expect(
-        a.getByText(
-          /quality: Auto \(≤480p[\s\S]*auto: link .*data saver on → 480p/,
-        ),
-      ).toBeVisible()
-      await a.getByRole('button', { name: 'Playback options' }).click()
-      await expect(
-        a.getByRole('menuitem', { name: /^Quality.*Auto · 480p \(data saver/ }),
-      ).toBeVisible()
-      await a.goto(`${process.env.E2E_APP_URL!}/settings`)
-      await a
-        .getByRole('group', { name: 'Data saver' })
-        .getByRole('button', { name: 'Automatic' })
-        .click()
-      await expect(a.getByText(/^Off now/)).toBeVisible() // desktop: no cellular
-      await a.goto(process.env.E2E_APP_URL! + '/gateways')
-    })
-
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
     await test.step('diagnostics panel: force relay → tunnel works, panel logs it', async () => {
+      // Diagnostics panel: on once in Settings, the flag persists (#201).
+      await a.getByRole('link', { name: 'Settings' }).click()
+      await a.getByLabel('Diagnostics panel').check()
+      await a.getByRole('link', { name: 'Gateways', exact: true }).click()
+      await openDock(a)
       await a.getByLabel('Force relay (TURN) on next connect').check()
       await a.getByRole('button', { name: 'Open' }).click()
       await a
@@ -753,8 +457,3 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     await gateway.stop()
   }
 })
-
-// The diagnostics dock (#230) starts collapsed; its button opens the sheet with
-// the log, the request table and Force relay, and it stays open (per device).
-const openDock = (p: Page) =>
-  p.getByRole('button', { name: /^Diagnostics peer:/, expanded: false }).click()

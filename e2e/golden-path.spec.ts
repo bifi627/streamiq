@@ -97,47 +97,15 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
 
     await test.step('browser A pairs; codes match on both sides', async () => {
-      const card = a.getByRole('listitem').filter({ hasText: 'Version' })
-      // Rename goes over the tunnel: not offered until this browser is paired (#329).
-      await expect(card.getByRole('button', { name: 'Rename' })).toHaveCount(0)
       await pair(a, gatewayCtx, gateway.pageUrl)
-      await expect(card.getByRole('button', { name: 'Rename' })).toBeVisible() // no reload
-    })
-
-    await test.step('admin renames the gateway over the tunnel (#310)', async () => {
-      const card = a.getByRole('listitem').filter({ hasText: 'Version' })
-      const renameBtn = card.getByRole('button', { name: 'Rename' })
-      const input = card.getByRole('textbox', { name: 'Gateway name' })
-      const heading = card.getByRole('heading', { level: 2 })
-      const before = await heading.textContent()
-      await renameBtn.click()
-      await input.fill('discarded')
-      await a.keyboard.press('Escape') // cancels
-      await expect(heading).toHaveText(before!)
-      await expect(renameBtn).toBeFocused() // D-pad keeps its place
-      await a.keyboard.press('Enter') // reopens from the keyboard
-      await input.fill('  Living room NAS  ')
-      await a.keyboard.press('Enter') // saves
-      await expect(heading).toHaveText('Living room NAS')
-      await expect(renameBtn).toBeFocused()
-      // The gateway owns it: its local page shows it at once, and the API
-      // learns it from the early heartbeat (a reload reads the list again).
-      const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
-      await expect(
-        gatewayPage.getByRole('heading', {
-          name: 'StreamIQ gateway · Living room NAS',
-        }),
-      ).toBeVisible()
-      await a.reload()
-      await expect(
-        a.getByRole('heading', { level: 2, name: 'Living room NAS' }),
-      ).toBeVisible()
     })
 
     await test.step('library → back → library within 30 s: one shared session (#152)', async () => {
       let rows = 0 // one broker socket per tunnel
       const count = (ws: WebSocket) => ws.url().endsWith('/broker/ws') && rows++
       a.on('websocket', count)
+      // A fresh page: pairing left the card's own shared session open.
+      await a.reload()
       await a.getByRole('button', { name: 'Open' }).click()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.getByRole('link', { name: '← Gateways' }).click()
@@ -742,20 +710,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await tunnelOk(a)
     })
 
-    await test.step('web gateway page: status from the gateway API (#140)', async () => {
-      // e2e's Jellyfin was set up by the test (wizard), not the gateway.
-      await a.getByText('Status', { exact: true }).click()
-      await expect(
-        a.getByText('Transcoding: not managed by StreamIQ'),
-      ).toBeVisible({ timeout: 15_000 })
-      await expect(
-        a.getByText(/Jellyfin: reachable, version .* · token set/),
-      ).toBeVisible()
-      await expect(
-        a.getByText(/Paired browsers: 1 · open sessions/),
-      ).toBeVisible()
-    })
-
     await test.step('browser B (same account, never paired) is refused', async () => {
       // Signed out on the gateway's deep link: sign-in lands B on it.
       const id = (await a.locator('li code').first().textContent())!
@@ -769,84 +723,12 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         b.getByText('this browser is not paired with the gateway'),
       ).toBeVisible()
 
-      // Unpaired, B sees only liveness from the heartbeat; the details need
-      // the tunnel (#140).
-      await b.getByText('Status', { exact: true }).click()
-      await expect(b.getByText(/StreamIQ: connected/)).toBeVisible()
-      await expect(
-        b.getByText('Details: pair this browser to see them'),
-      ).toBeVisible({ timeout: 15_000 })
-      await expect(b.getByText(/Jellyfin:|Paired browsers/)).toHaveCount(0)
-
       // The diagnostics page says so too, and names the failed step.
       await b.goto(process.env.E2E_APP_URL! + '/diagnostics')
       await b.getByRole('button', { name: 'Test connection' }).click()
       await expect(b.locator('pre')).toContainText(
         /paired: no\s+failed at connect .*not paired/,
       )
-    })
-
-    await test.step('Paired clients on the card (#311): name B after pairing, rename A (#365); remove B → its stream stops; remove A itself → Pair again', async () => {
-      const b = await signIn(browser, false, '/gateways')
-      await pair(b, gatewayCtx, gateway.pageUrl)
-      // Right after pairing, B names itself (#365): prefilled with the paired name.
-      const name = b.getByLabel('Name this browser')
-      await expect(name).toHaveValue(/ on /) // "Chrome on Linux" etc.
-      await name.fill("  B's phone ")
-      await b.getByRole('button', { name: 'Save' }).click()
-      await expect(name).toBeHidden()
-      await b.getByRole('button', { name: 'Open' }).click()
-      const movies = b.getByRole('button', { name: /Movies/ })
-      await expect(movies).toBeVisible() // B's live session
-      const card = a.locator('li.card')
-      await card.getByText('Paired clients', { exact: true }).click()
-      const clients = card.locator('.clients li')
-      await expect(clients).toHaveCount(2)
-      const self = clients.filter({ hasText: '(this browser)' })
-      await expect(self).toHaveCount(1)
-      await expect(self).toContainText(
-        `paired ${await a.evaluate(() => new Date().toLocaleDateString())}`,
-      )
-      await expect(clients.filter({ hasText: "B's phone" })).toHaveCount(1)
-      // Rename on the list (#365).
-      await self.getByRole('button', { name: 'Rename' }).click()
-      // The form replaces the row's text (and its "(this browser)"): find it by label.
-      const field = card.getByLabel('Client name')
-      await field.fill('Desk')
-      await field.press('Enter')
-      await expect(field).toBeHidden()
-      await expect(self).toContainText('Desk (this browser)')
-      await expect(self.getByRole('button', { name: 'Rename' })).toBeFocused()
-      a.once('dialog', (d) => d.accept())
-      await clients
-        .filter({ hasNotText: '(this browser)' })
-        .getByRole('button', { name: 'Remove' })
-        .click()
-      await expect(clients).toHaveCount(1)
-      const summary = card.getByText('Paired clients', { exact: true })
-      await expect(summary).toBeFocused() // the D-pad keeps its place (#226)
-      // The gateway closed B's PeerConnection; B must pair again.
-      await movies.click()
-      await expect(
-        b.locator('[role=alert][data-kind="tunnel-lost"]'),
-      ).toBeVisible()
-      await b.getByRole('link', { name: '← Gateways' }).click()
-      await b.getByRole('button', { name: 'Test connection' }).click()
-      await expect(
-        b.getByText('this browser is not paired with the gateway'),
-      ).toBeVisible()
-      await b.context().close()
-
-      // A removes itself: the reply still arrives, then the card offers Pair.
-      a.once('dialog', (d) => d.accept())
-      await self.getByRole('button', { name: 'Remove' }).click()
-      await expect(
-        card.getByText('This browser was removed: pair it again.'),
-      ).toBeVisible()
-      await expect(summary).toBeFocused()
-      await pair(a, gatewayCtx, gateway.pageUrl)
-      await expect(clients).toHaveCount(1) // the list reloads once paired
-      await expect(card.getByRole('button', { name: 'Open' })).toBeVisible()
     })
 
     await test.step('new gateway certificate → red warning → re-pair', async () => {

@@ -134,8 +134,8 @@ func TestScreenRefusals(t *testing.T) {
 		{"POST", ScreenPath + "/state", `{"paused":true}`, laptop, 404},
 		{"GET", ScreenPath, "", Session{}, 404},
 		{"GET", ScreenPath, "", tv, 409},
-		{"GET", ScreensPath + "/" + sid, "", laptop, 404},
-		{"POST", ScreensPath, `{"type":"pause"}`, laptop, 404},
+		{"GET", ScreensPath + "/" + sid, "", laptop, 405}, // wrong method (#436)
+		{"POST", ScreensPath, `{"type":"pause"}`, laptop, 405},
 		{"POST", ScreensPath + "/" + sid, `{"type":"jump"}`, laptop, 400},
 		{"POST", ScreensPath + "/" + sid, `not json`, laptop, 400},
 		{"POST", ScreensPath + "/" + sid, `{"type":"play","itemId":"../x"}`, laptop, 400},

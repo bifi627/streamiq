@@ -50,7 +50,9 @@ Then:
 
 **Jellyfin image pin is NOT a routine bump.** The gateway drives Jellyfin's
 API; a Jellyfin bump needs the integration tests against the new pin and a
-manual play/seek check — treat it as a major, always its own wave.
+manual play/seek check — treat it as a major, always its own wave. CI's
+`gateway-jellyfin` restores a backup made by the last release's pin into the new
+one (#453): if it fails, Jellyfin refuses old backups, and the PR says so.
 
 ## Per-wave verify (default, don't skip)
 

@@ -179,7 +179,7 @@ per session (several browsers at once).
 ## ICE servers + tunnel telemetry
 
 **ICE servers come per session, in the broker's `ready`** (there is no
-free-standing TURN endpoint; item 6). Prod: Cloudflare `generate-ice-servers`
+free-standing TURN endpoint). Prod: Cloudflare `generate-ice-servers`
 mints a fresh credential for each broker socket, passed through, and the broker
 revokes it when the socket closes (= the session ends: the gateway gets `bye`).
 TTL 4 h is only the backstop for a failed revoke; it must outlast a relayed

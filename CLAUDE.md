@@ -196,7 +196,7 @@ Copy `.env.example` only to override.
   - Security-sensitive findings never go in a public issue (public repo): tell the owner.
 - **Current state above and `docs/architecture.md` are not a status log.** Don't append
   per-PR progress there (it was the merge-conflict hotspot); open work lives in
-  `gh issue list`. Edit them only when a lasting fact changes (new item complete, new
+  `gh issue list`. Edit them only when a lasting fact changes (new area complete, new
   architecture piece goes in `docs/architecture.md`).
 - **Done means:** `scripts/check.sh` ran and its output was read; the changed flow was
   actually driven (curl / UI / test output shown); docs invalidated by the change updated

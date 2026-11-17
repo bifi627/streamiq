@@ -72,8 +72,9 @@ a privacy indicator (direct vs relayed).
 - `install.sh` / `install.ps1`: install = update, SHA256-checked. Config in `gateway.env`.
   Every update keeps the old binary and a state backup in `backups/` for
   `gateway rollback`. JSON logs. User guide: `docs/install.md`.
-- Daily update *notice* (Windows: a logon task); an admin starts the update from the
-  gateway card.
+- Daily update *notice* on every platform (log + local gateway page). On Windows with the
+  logon task (`gateway service install`) a household admin can start the update from the
+  gateway card; Linux/macOS update by hand.
 - Dev ports 18096 (Jellyfin) / 18097 (local gateway page), so an installed copy runs on
   the defaults alongside dev.
 

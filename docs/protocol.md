@@ -437,6 +437,8 @@ The updater installs the latest release when it runs, which can be newer than th
 `version` in the reply (the daily check's); the web app counts any other version as done.
 A gateway older than this answers `404`.
 
+**`GET /streamiq/route`** (privacy badge, #428): `200`, JSON `{"route": "lan" | "direct" | "relay"}` for the tunnel the request came on, from its selected candidate pair at that moment. `lan` = not relayed and the browser's address is inside a subnet of one of the gateway's up interfaces (loopback, point-to-point links and interfaces without a MAC, i.e. WireGuard/Tailscale tunnels, excluded), or an mDNS `.local` name (pion resolves those only over link-local multicast). The player asks every 10 s; a gateway older than this answers `404` and the badge shows only direct / relayed.
+
 **`GET /streamiq/burst[?size=N]`** (throughput test, #90): `200`,
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
 bytes through the normal chunking and backpressure above. `size` defaults to

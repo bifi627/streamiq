@@ -10,7 +10,7 @@ import { tunnelJson } from '../../tunnel'
 
 export function Privacy({ pc }: { pc: RTCPeerConnection }) {
   const [p, setP] = useState<PairInfo | null>(null)
-  const [lan, setLan] = useState(false)
+  const [lan, setLan] = useState<boolean | null>(null) // null: not asked yet
   const [open, setOpen] = useState(false)
   useEffect(() => {
     const poll = () =>
@@ -22,7 +22,7 @@ export function Privacy({ pc }: { pc: RTCPeerConnection }) {
     const ask = () =>
       tunnelJson<{ route: string }>(pc, '/streamiq/route').then(
         (r) => setLan(r.route === 'lan'),
-        () => setLan(false),
+        () => setLan((l) => l ?? false), // keep the last answer over a hiccup
       )
     poll()
     ask()
@@ -34,7 +34,7 @@ export function Privacy({ pc }: { pc: RTCPeerConnection }) {
       clearInterval(u)
     }
   }, [pc])
-  if (!p) return null
+  if (!p || lan === null) return null
   const mb = ((p.bytesReceived + p.bytesSent) / 1e6).toLocaleString(undefined, {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,

@@ -155,7 +155,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await a.getByRole('button', { name: 'On your network' }).click()
       await expect(
         a.getByText(/end-to-end encrypted · never leaves the house/),
-      ).toBeVisible() // same host: host ↔ host candidates (#428)
+      ).toBeVisible() // same host: the gateway sees the browser on its own subnet (#428)
       // Device profile (#115): probe + Jellyfin's decision in the diagnostics.
       // Diagnostics panel: on once in Settings, the flag persists (#201).
       await a.getByRole('link', { name: 'Settings' }).click()

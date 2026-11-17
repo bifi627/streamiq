@@ -60,7 +60,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 One row per tunnel in `tunnels`: the broker writes the row and its end, the gateway
 reports route and bytes, the browser adds only its measured throughput. The web app shows
-a privacy indicator: on your network (the gateway reached on its private address or this device's IPv6 /64, #428), direct, or relayed.
+a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, or relayed.
 
 ## Gateway (native binary)
 

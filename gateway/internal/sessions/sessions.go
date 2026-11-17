@@ -485,25 +485,38 @@ func report(id string, pc *webrtc.PeerConnection, cands *signaled, failure *stri
 // candidates, stale ones); the gateway sees the real address.
 func route(pc *webrtc.PeerConnection, cands *signaled) string {
 	r := report("", pc, cands, nil)
-	p, err := pc.SCTP().Transport().ICETransport().GetSelectedCandidatePair()
+	remote := ""
+	if p, err := pc.SCTP().Transport().ICETransport().GetSelectedCandidatePair(); err == nil && p != nil {
+		remote = p.Remote.Address
+	}
+	return decide(r.Relay, remote, ownNets())
+}
+
+// decide: relay first; then lan when the browser's address is on one of nets.
+// An mDNS name (Chrome hides its host address behind one) is lan as is: pion
+// keeps the name after resolving it, and it only resolves over link-local
+// multicast, so a selected .local candidate is on this link.
+func decide(relay bool, remote string, nets []*net.IPNet) string {
 	switch {
-	case r.Relay:
+	case relay:
 		return "relay"
-	case err == nil && p != nil && onLink(net.ParseIP(p.Remote.Address), ownNets()):
+	case strings.HasSuffix(remote, ".local") || onLink(net.ParseIP(remote), nets):
 		return "lan"
 	}
 	return "direct"
 }
 
-// ownNets: the subnets of this machine's up interfaces, without loopback and
-// point-to-point links (WireGuard, Tailscale and other VPN tunnels), which
-// would make a client that is far away read as lan.
-// ponytail: read per request (the badge polls every few seconds); cache if it shows.
+// ownNets: the subnets of this machine's up interfaces, without loopback,
+// point-to-point links, and interfaces without a hardware address: the
+// WireGuard/Tailscale (wintun on Windows) tunnels the gateway may run, which
+// would make a far-away client read as lan.
+// ponytail: a TAP VPN (OpenVPN TAP, ZeroTier) has a MAC and still counts;
+// read per request (the badge asks every 10 s), cache if it shows.
 func ownNets() []*net.IPNet {
 	var nets []*net.IPNet
 	ifs, _ := net.Interfaces()
 	for _, i := range ifs {
-		if i.Flags&net.FlagUp == 0 || i.Flags&(net.FlagLoopback|net.FlagPointToPoint) != 0 {
+		if i.Flags&net.FlagUp == 0 || i.Flags&(net.FlagLoopback|net.FlagPointToPoint) != 0 || len(i.HardwareAddr) == 0 {
 			continue
 		}
 		addrs, _ := i.Addrs()
@@ -516,7 +529,7 @@ func ownNets() []*net.IPNet {
 	return nets
 }
 
-// onLink: ip is inside one of nets (nil ip, e.g. an unresolved mDNS name: no).
+// onLink: ip is inside one of nets (nil ip: no).
 func onLink(ip net.IP, nets []*net.IPNet) bool {
 	for _, n := range nets {
 		if ip != nil && n.Contains(ip) {

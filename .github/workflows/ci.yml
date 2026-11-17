@@ -1,9 +1,13 @@
 # Same checks as scripts/check.sh — if they disagree, that's a harness bug. CI is authoritative.
+# Job names backend / frontend / gateway / e2e are required checks in the "main: merge gate"
+# ruleset: renaming, removing or matrix-splitting one (or a workflow-level `paths:` filter)
+# leaves PRs waiting forever. Update the ruleset in the same PR. Skip with job `if:` only.
 name: ci
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # Least privilege for every job: checkout only. upload-artifact uses the runtime
 # token, not GITHUB_TOKEN. Widen per job, never here.
@@ -12,6 +16,7 @@ permissions:
 
 jobs:
   backend:
+    if: ${{ !github.event.pull_request.draft }} # drafts skip CI; ready_for_review runs it
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,6 +27,7 @@ jobs:
       - run: docker compose config --quiet && docker compose --profile relay config --quiet
 
   frontend:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -44,6 +50,7 @@ jobs:
         working-directory: frontend
 
   gateway:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -60,6 +67,7 @@ jobs:
   # e2e/playwright.config.ts). Containers via testcontainers-node, backend/Vite/gateway as
   # real processes — see e2e/global-setup.ts.
   e2e:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

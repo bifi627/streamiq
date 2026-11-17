@@ -82,6 +82,7 @@ It writes no code itself.
      sub-issue instead; stop.
   4. Hand over: give the owner the PR link, its review verdict and its CI status
      (`gh pr checks <pr>`) here; CI red → send the worker back to fix it first (`t3_thread_send`).
+     A draft (device test pending) has CI skipped: it runs when the owner marks it ready.
      LOW findings are the worker's call alone (`build-issue` section 3): don't triage
      them, don't recommend fixing any, and never send the worker back for one. If its
      report names a commit pushed after the review, pass that on as it is (sha + its

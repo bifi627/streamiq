@@ -32,6 +32,7 @@ type Session struct {
 	Role   string // the user's role in this gateway's household, from the broker's offer: Admin | Member
 	Key    string // the client key fp the session authed with (which device)
 	Name   func() string
+	Route  func() string // relay | lan | direct, decided at call time (#428); nil outside a tunnel
 	Closed <-chan struct{}
 }
 

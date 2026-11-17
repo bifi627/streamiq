@@ -256,7 +256,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
 			s.serveAuth(id, user, pc, d, &authed, &why)
 		case d.Label() != "auth" && authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Key: s.key(id), Name: func() string { return s.name(id) }}, slots)
+			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Key: s.key(id), Name: func() string { return s.name(id) }, Route: func() string { return route(pc, &cands) }}, slots)
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`; a second `auth`: never
 		}
@@ -477,6 +477,53 @@ func report(id string, pc *webrtc.PeerConnection, cands *signaled, failure *stri
 	st := ice.Stats()
 	r.BytesSent, r.BytesReceived = st.BytesSent, st.BytesReceived
 	return r
+}
+
+// route is the privacy badge's state (#428, GET /streamiq/route): relay, lan
+// (the browser's address is on one of this gateway's own subnets), or direct.
+// The browser can't tell lan from its own stats (mDNS names, hidden host
+// candidates, stale ones); the gateway sees the real address.
+func route(pc *webrtc.PeerConnection, cands *signaled) string {
+	r := report("", pc, cands, nil)
+	p, err := pc.SCTP().Transport().ICETransport().GetSelectedCandidatePair()
+	switch {
+	case r.Relay:
+		return "relay"
+	case err == nil && p != nil && onLink(net.ParseIP(p.Remote.Address), ownNets()):
+		return "lan"
+	}
+	return "direct"
+}
+
+// ownNets: the subnets of this machine's up interfaces, without loopback and
+// point-to-point links (WireGuard, Tailscale and other VPN tunnels), which
+// would make a client that is far away read as lan.
+// ponytail: read per request (the badge polls every few seconds); cache if it shows.
+func ownNets() []*net.IPNet {
+	var nets []*net.IPNet
+	ifs, _ := net.Interfaces()
+	for _, i := range ifs {
+		if i.Flags&net.FlagUp == 0 || i.Flags&(net.FlagLoopback|net.FlagPointToPoint) != 0 {
+			continue
+		}
+		addrs, _ := i.Addrs()
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok {
+				nets = append(nets, n)
+			}
+		}
+	}
+	return nets
+}
+
+// onLink: ip is inside one of nets (nil ip, e.g. an unresolved mDNS name: no).
+func onLink(ip net.IP, nets []*net.IPNet) bool {
+	for _, n := range nets {
+		if ip != nil && n.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func ptr(s string) *string { return &s }

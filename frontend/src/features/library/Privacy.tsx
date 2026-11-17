@@ -1,13 +1,16 @@
 // Privacy badge (#205): what StreamIQ can see of this stream, from the live
-// selected candidate pair: on your network (host ↔ host, #428), direct, or
-// relayed. Every way the tunnel is DTLS end to end (pinned both ways).
+// selected candidate pair: relayed or direct, and on your network when the
+// gateway sees this device on one of its own subnets (GET /streamiq/route,
+// #428: the browser's own stats hide its address). Every way the tunnel is DTLS end to end (pinned both ways).
 // Focusing or clicking the badge shows the one-line explanation
 // (CSS: .badge:focus / [aria-expanded] + .explain); the relayed MB live there.
 import { useEffect, useState } from 'react'
-import { pairInfo, route, type PairInfo } from '../../stats'
+import { pairInfo, type PairInfo } from '../../stats'
+import { tunnelJson } from '../../tunnel'
 
 export function Privacy({ pc }: { pc: RTCPeerConnection }) {
   const [p, setP] = useState<PairInfo | null>(null)
+  const [lan, setLan] = useState(false)
   const [open, setOpen] = useState(false)
   useEffect(() => {
     const poll = () =>
@@ -15,9 +18,21 @@ export function Privacy({ pc }: { pc: RTCPeerConnection }) {
         (s) => setP(pairInfo(s)),
         () => {},
       )
+    // A gateway older than #428 answers 404: two states, as before.
+    const ask = () =>
+      tunnelJson<{ route: string }>(pc, '/streamiq/route').then(
+        (r) => setLan(r.route === 'lan'),
+        () => setLan(false),
+      )
     poll()
+    ask()
     const t = setInterval(poll, 2000)
-    return () => clearInterval(t)
+    // ponytail: every 10 s, a changed network shows up that late; each ask is a request
+    const u = setInterval(ask, 10_000)
+    return () => {
+      clearInterval(t)
+      clearInterval(u)
+    }
   }, [pc])
   if (!p) return null
   const mb = ((p.bytesReceived + p.bytesSent) / 1e6).toLocaleString(undefined, {
@@ -43,7 +58,7 @@ export function Privacy({ pc }: { pc: RTCPeerConnection }) {
       icon: 'M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6z',
       explain: `Your networks couldn't connect directly, so the stream passes an encrypted relay that can't see it · ${mb} MB relayed`,
     },
-  }[route(p)]
+  }[p.relay ? 'relay' : lan ? 'lan' : 'direct']
   return (
     <span className="privacy" data-relay={p.relay}>
       <button

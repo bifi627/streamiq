@@ -24,6 +24,7 @@ type Router struct{ mux *http.ServeMux }
 func NewRouter() *Router {
 	r := &Router{http.NewServeMux()}
 	r.Handle("GET "+BurstPath, http.HandlerFunc(serveBurst))
+	r.Handle("GET "+RoutePath, http.HandlerFunc(serveRoute))
 	r.Handle("GET "+ScreenPath, http.HandlerFunc(serveScreen))
 	r.Handle("POST "+ScreenPath+"/state", http.HandlerFunc(serveScreenState))
 	r.Handle("GET "+ScreensPath, http.HandlerFunc(serveScreens))

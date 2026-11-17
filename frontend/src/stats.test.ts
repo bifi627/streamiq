@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pairInfo, route } from './stats.ts'
+import { pairInfo } from './stats.ts'
 
 const report = (pair: Record<string, unknown>, localType: string) =>
   new Map<string, Record<string, any>>([
@@ -41,7 +41,6 @@ test('selected pair: relay, IPv6, bytes, RTT', () => {
     ),
     {
       relay: true,
-      lan: false,
       ipv6: true,
       local: 'relay',
       remote: 'host',
@@ -64,50 +63,4 @@ test('Firefox shape (pair.selected) and no pair yet', () => {
   assert.equal(pairInfo(ff), null)
   ff.set('P', { ...ff.get('P')!, selected: true })
   assert.equal(pairInfo(ff)!.local, 'host')
-})
-
-test('badge route: gateway host on a private address → lan, else direct; relay → relayed', () => {
-  const lan = (l: string, r: string, type = 'host') => {
-    const m = report({}, type)
-    m.set('L', { candidateType: type, address: l })
-    m.set('R', { candidateType: 'host', address: r })
-    return route(pairInfo(m)!)
-  }
-  assert.equal(lan('0f1e2d3c-mdns.local', '192.168.1.5'), 'lan')
-  assert.equal(lan('10.0.0.2', '172.20.0.3'), 'lan')
-  assert.equal(lan('fd00::2', 'fe80::1'), 'lan')
-  // Brave hides its host candidates: its side is srflx/prflx, still the LAN.
-  assert.equal(lan('203.0.113.7', '192.168.0.106', 'srflx'), 'lan')
-  assert.equal(lan('192.168.0.50', '192.168.0.106', 'prflx'), 'lan')
-  // Global IPv6 on one /64 = one link (a home with IPv6).
-  assert.equal(
-    lan('2a02:8070:998a:2a40::1', '2a02:8070:998a:2a40:7d0b:b01d:189f:e5bc'),
-    'lan',
-  )
-  assert.equal(
-    lan('2a02:8070:998a:2a40::1', '2a02:8070:998a:2a41::1'),
-    'direct',
-  )
-  // Chrome on IPv6 Wi-Fi: the selected local is an mDNS name; our own srflx
-  // candidate carries the real address, in the gateway's /64.
-  const mdns = report({}, 'host')
-  mdns.set('L', { candidateType: 'host', address: 'a1b2-mdns.local' })
-  mdns.set('R', { candidateType: 'host', address: '2a02:8070:998a:2a40::5' })
-  assert.equal(route(pairInfo(mdns)!), 'direct')
-  mdns.set('S', {
-    type: 'local-candidate',
-    candidateType: 'srflx',
-    address: '2a02:8070:998a:2a40:1111:2222:3333:4444',
-  })
-  assert.equal(route(pairInfo(mdns)!), 'lan')
-  // Public host candidates (global IPv6 over cellular, public IPv4): not the LAN.
-  assert.equal(route(pairInfo(report({}, 'host'))!), 'direct')
-  assert.equal(lan('2a01:598::1', '2003:e0::1'), 'direct')
-  assert.equal(lan('192.168.1.9', '172.32.0.1'), 'direct')
-  assert.equal(route(pairInfo(report({}, 'srflx'))!), 'direct')
-  assert.equal(route(pairInfo(report({}, 'prflx'))!), 'direct')
-  assert.equal(route(pairInfo(report({}, 'relay'))!), 'relay')
-  const hairpin = report({}, 'host')
-  hairpin.set('R', { candidateType: 'srflx', address: '192.0.2.1' })
-  assert.equal(route(pairInfo(hairpin)!), 'direct')
 })

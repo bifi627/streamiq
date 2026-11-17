@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
+	"streamiq/gateway/internal/onboarding"
+	"streamiq/gateway/internal/pairing"
+	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
 )
 
@@ -89,5 +94,39 @@ func TestRemoteUpdateStatus(t *testing.T) {
 	r.Task = func() bool { return false }
 	if got, ok := remoteUpdate(r).(string); !ok || !strings.HasPrefix(got, "no logon task") {
 		t.Fatalf("no task: %v, want the reason", remoteUpdate(r))
+	}
+}
+
+// The shipped route table (#434): name and update are admin-only (a member gets
+// 403 and nothing happens), the rest answer a member too.
+func TestGatewayAPIRoutes(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "gateway.json"), []byte(`{"gatewayId":"g1","credential":"c","name":"nas"}`), 0o600)
+	st, err := onboarding.LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, _ := pairing.Open(dir)
+	started := 0
+	remote := &update.Remote{Version: "1.4.0", Supported: true, Newer: func() string { return "1.5.0" }, Task: func() bool { return true },
+		Start: func() (func(), error) { started++; return func() {}, nil }}
+	rt := gatewayAPI(st, remote, store, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	for _, c := range []struct {
+		role, method, path, body string
+		want                     int
+	}{
+		{tunnel.Member, "POST", onboarding.NamePath, `{"name":"mine"}`, http.StatusForbidden},
+		{tunnel.Member, "POST", update.Path, "", http.StatusForbidden},
+		{tunnel.Member, "GET", tunnel.StatusPath, "", http.StatusNoContent},
+		{tunnel.Member, "GET", pairing.ClientsPath, "", http.StatusOK},
+		{tunnel.Admin, "POST", onboarding.NamePath, `{"name":"Den"}`, http.StatusOK},
+		{tunnel.Admin, "POST", update.Path, "", http.StatusAccepted},
+	} {
+		if s, _, _, _ := tunnel.Do(rt, tunnel.Session{Role: c.role}, c.method, c.path, c.body); s != c.want {
+			t.Errorf("%s %s %s: %d, want %d", c.role, c.method, c.path, s, c.want)
+		}
+	}
+	if st.CurrentName() != "Den" || started != 1 {
+		t.Fatalf("name %q, updates started %d: a member's call went through", st.CurrentName(), started)
 	}
 }

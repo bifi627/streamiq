@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/websocket"
 
 	"streamiq/gateway/internal/pairing"
+	"streamiq/gateway/internal/tunnel"
 )
 
 const heartbeatEvery = 30 * time.Second
@@ -216,4 +218,27 @@ func LANURL(port string) string {
 		}
 	}
 	return "http://" + net.JoinHostPort("localhost", port)
+}
+
+// NamePath renames the gateway (#310, gateway API, admin-only): POST
+// {"name": "…"} → 200 {"name": stored}, a bad name (or body) 400. The gateway
+// owns its name; the heartbeat tells the API.
+const NamePath = "/streamiq/name"
+
+// ServeName is POST NamePath.
+func (s *State) ServeName(w http.ResponseWriter, r *http.Request) {
+	var in struct{ Name string }
+	if b, _ := io.ReadAll(r.Body); json.Unmarshal(b, &in) != nil {
+		tunnel.Fail(w, http.StatusBadRequest, errors.New("gateway API: rename: bad body"))
+		return
+	}
+	name, err := s.SetName(in.Name)
+	switch {
+	case errors.Is(err, ErrBadName):
+		tunnel.Fail(w, http.StatusBadRequest, fmt.Errorf("gateway API: rename: %w", err))
+	case err != nil:
+		tunnel.Fail(w, http.StatusInternalServerError, fmt.Errorf("gateway API: rename: %w", err))
+	default:
+		tunnel.JSON(w, http.StatusOK, map[string]string{"name": name})
+	}
 }

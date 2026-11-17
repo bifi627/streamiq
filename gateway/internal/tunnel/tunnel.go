@@ -6,9 +6,7 @@
 package tunnel
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -20,8 +18,6 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v4"
-
-	"streamiq/gateway/internal/pairing"
 )
 
 const (
@@ -164,13 +160,11 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 		return http.StatusRequestEntityTooLarge, nil, nil, fmt.Errorf("body %d bytes", len(rq.Body))
 	}
 	if u, err := url.Parse(rq.URL); err == nil && isGatewayAPI(u.Path) {
-		status, hdr, body, err := gatewayAPI(j, rq, u, who)
-		if status == 0 && err != nil {
-			// The gateway's own failure (#327): 500, not the 502 handleReq
-			// gives a failed Jellyfin call, which the web app shows as "media server down".
-			status = http.StatusInternalServerError
+		api := j.API
+		if api == nil {
+			api = builtin
 		}
-		return status, hdr, body, err
+		return gatewayAPI(api, rq, u, who)
 	}
 	c := j.credFor(who.User)
 	req, status, err := j.prepare(rq, c)
@@ -198,204 +192,11 @@ func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.Rea
 	return resp.StatusCode, hdr, body, nil
 }
 
-// gatewayAPI answers /streamiq/* (docs/protocol.md, "Gateway API"): the gateway
-// itself, never Jellyfin, and without a Jellyfin token. Only an exact, unencoded
-// path matches (GET, or POST on the screen endpoints, /streamiq/name,
-// /streamiq/clients/remove, /streamiq/clients/rename and /streamiq/update);
-// anything else under the prefix is 404.
-func gatewayAPI(j *Jellyfin, rq tunnelReq, u *url.URL, who Session) (int, map[string]string, io.ReadCloser, error) {
-	method := rq.Method
-	switch {
-	case u.RawPath != "":
-	case isAdminOnly(u.Path) && who.Role != Admin:
-		return http.StatusForbidden, nil, nil, fmt.Errorf("gateway API: %s %s is admin-only", method, u.Path)
-	case isScreenPath(u.Path):
-		return screenAPI(method, u.Path, rq.Body, who)
-	case u.Path == NamePath && method == "POST" && j.Rename != nil:
-		return rename(j.Rename, rq.Body)
-	case u.Path == ClientsRemovePath && method == "POST" && j.Clients != nil:
-		return removeClient(j.Clients, rq.Body, who)
-	case u.Path == ClientsRenamePath && method == "POST" && j.Clients != nil:
-		return renameClient(j.Clients, rq.Body, who)
-	case u.Path == UpdatePath && method == "POST" && j.Update != nil:
-		return startUpdate(j.Update)
-	case method != "GET":
-	case u.Path == BurstPath:
-		return burst(u.Query().Get("size"))
-	case u.Path == ClientsPath && j.Clients != nil:
-		return clients(j.Clients, who)
-	case u.Path == StatusPath && j.Status != nil:
-		b, err := json.Marshal(j.Status(who.User))
-		if err != nil {
-			return 0, nil, nil, err
-		}
-		hdr := map[string]string{"Content-Type": "application/json", "Content-Length": strconv.Itoa(len(b)), "Cache-Control": "no-store"}
-		return http.StatusOK, hdr, io.NopCloser(bytes.NewReader(b)), nil
-	}
-	return http.StatusNotFound, nil, nil, fmt.Errorf("gateway API: no %s %s", method, u.Path)
-}
-
 // Roles in the broker's offer (docs/protocol.md, "Device + user").
 const (
 	Admin  = "admin"
 	Member = "member"
 )
-
-// AdminOnly marks gateway API paths (exact, any method) that only a household
-// admin may call; a member gets 403. #89 decides per endpoint.
-// ponytail: exact paths only; a prefix/pattern match when an admin-only path takes an id.
-// A sync.Map so tests can mark a path while tunnel goroutines read it.
-var AdminOnly sync.Map // path -> true
-
-func init() {
-	for _, p := range []string{NamePath, UpdatePath} {
-		AdminOnly.Store(p, true)
-	}
-}
-
-// NamePath renames the gateway (#310): POST {"name": "…"} → 200 {"name": stored}.
-// The gateway owns its name; the heartbeat tells the API.
-const NamePath = "/streamiq/name"
-
-// ErrBadRequest from a gateway API hook (Jellyfin.Rename) answers 400.
-var ErrBadRequest = errors.New("bad request")
-
-var errNotFound = errors.New("gateway API: not found")
-
-func rename(set func(string) (string, error), body string) (int, map[string]string, io.ReadCloser, error) {
-	var in struct{ Name string }
-	if json.Unmarshal([]byte(body), &in) != nil {
-		return http.StatusBadRequest, nil, nil, errors.New("gateway API: rename: bad body")
-	}
-	name, err := set(in.Name)
-	if errors.Is(err, ErrBadRequest) {
-		return http.StatusBadRequest, nil, nil, err
-	}
-	if errors.Is(err, errNotFound) {
-		return http.StatusNotFound, nil, nil, err
-	}
-	if err != nil {
-		return 0, nil, nil, err
-	}
-	b, _ := json.Marshal(map[string]string{"name": name})
-	hdr := map[string]string{"Content-Type": "application/json", "Content-Length": strconv.Itoa(len(b)), "Cache-Control": "no-store"}
-	return http.StatusOK, hdr, io.NopCloser(bytes.NewReader(b)), nil
-}
-
-// ClientsPath lists the paired clients (#311): GET → [{keyFp, name, addedAt, self}],
-// self = the calling session's client key. ClientsRemovePath removes one: POST
-// {"keyFp": "…"} → 200 {}, unknown → 404. The allowlist lives on the gateway only.
-// A member sees and removes only its own client key (#341): any other key → 403.
-// ClientsRenamePath renames one (#365): POST {"keyFp", "name"} → 200 {"name": stored},
-// same access and 404 as remove, a bad name 400.
-const (
-	ClientsPath       = "/streamiq/clients"
-	ClientsRemovePath = "/streamiq/clients/remove"
-	ClientsRenamePath = "/streamiq/clients/rename"
-)
-
-func clients(st *pairing.Store, who Session) (int, map[string]string, io.ReadCloser, error) {
-	type client struct {
-		pairing.Paired
-		Self bool `json:"self"`
-	}
-	out := []client{}
-	for _, p := range st.Paired() {
-		if self := p.KeyFp == who.Key; self || who.Role == Admin {
-			out = append(out, client{p, self})
-		}
-	}
-	return okJSON(out)
-}
-
-// removeClient removes another client at once (its sessions closed, a failed
-// save is 500). The calling client itself is removed only after the reply is
-// delivered (afterReply): its removal closes this very session, which would
-// swallow the reply. The browser closes the channel at once, at worst EOFGrace;
-// a failed save is then only logged (the in-memory allowlist refuses it anyway).
-func removeClient(st *pairing.Store, body string, who Session) (int, map[string]string, io.ReadCloser, error) {
-	self := who.Key
-	var in struct{ KeyFp string }
-	if json.Unmarshal([]byte(body), &in) != nil || in.KeyFp == "" {
-		return http.StatusBadRequest, nil, nil, errors.New("gateway API: remove client: bad body")
-	}
-	if in.KeyFp != self && who.Role != Admin { // before the lookup: a member learns nothing about other keys
-		return http.StatusForbidden, nil, nil, errors.New("gateway API: remove client: a member removes only its own")
-	}
-	if !st.Allowed(in.KeyFp) {
-		return http.StatusNotFound, nil, nil, errors.New("gateway API: remove client: not paired")
-	}
-	if in.KeyFp != self {
-		if err := st.Remove(in.KeyFp); err != nil {
-			return 0, nil, nil, fmt.Errorf("gateway API: remove client: %w", err)
-		}
-		return okJSON(struct{}{})
-	}
-	status, hdr, body2, err := okJSON(struct{}{})
-	return status, hdr, afterReply{body2, func() {
-		if err := st.Remove(in.KeyFp); err != nil {
-			log.Printf("gateway: remove client: %v", err) // the in-memory allowlist refuses it anyway
-		}
-	}}, err
-}
-
-func renameClient(st *pairing.Store, body string, who Session) (int, map[string]string, io.ReadCloser, error) {
-	var in struct{ KeyFp, Name string }
-	if json.Unmarshal([]byte(body), &in) != nil || in.KeyFp == "" {
-		return http.StatusBadRequest, nil, nil, errors.New("gateway API: rename client: bad body")
-	}
-	if in.KeyFp != who.Key && who.Role != Admin { // before the lookup, like removeClient
-		return http.StatusForbidden, nil, nil, errors.New("gateway API: rename client: a member renames only its own")
-	}
-	return rename(func(name string) (string, error) {
-		n, err := st.Rename(in.KeyFp, name)
-		switch {
-		case errors.Is(err, pairing.ErrNotPaired):
-			return "", errNotFound
-		case errors.Is(err, pairing.ErrBadName):
-			return "", fmt.Errorf("%w: %w", ErrBadRequest, err)
-		}
-		return n, err
-	}, body)
-}
-
-// afterReply is a response body whose after runs once the reply is delivered
-// (handleReq, after the channel closes).
-type afterReply struct {
-	io.ReadCloser
-	after func()
-}
-
-// UpdatePath starts a gateway update (#312): POST → 202 {"version": target}, the
-// gateway goes down for the swap right after; refused → 409 {"reason": "…"}.
-const UpdatePath = "/streamiq/update"
-
-// Conflict from a gateway API hook (Jellyfin.Update) answers 409 {"reason": text}.
-type Conflict string
-
-func (c Conflict) Error() string { return string(c) }
-
-func startUpdate(start func() (string, error)) (int, map[string]string, io.ReadCloser, error) {
-	v, err := start()
-	if c, ok := errors.AsType[Conflict](err); ok {
-		return replyJSON(http.StatusConflict, map[string]string{"reason": string(c)})
-	}
-	if err != nil {
-		return 0, nil, nil, fmt.Errorf("gateway API: update: %w", err)
-	}
-	return replyJSON(http.StatusAccepted, map[string]string{"version": v})
-}
-
-func okJSON(v any) (int, map[string]string, io.ReadCloser, error) { return replyJSON(http.StatusOK, v) }
-
-func replyJSON(status int, v any) (int, map[string]string, io.ReadCloser, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return 0, nil, nil, err
-	}
-	hdr := map[string]string{"Content-Type": "application/json", "Content-Length": strconv.Itoa(len(b)), "Cache-Control": "no-store"}
-	return status, hdr, io.NopCloser(bytes.NewReader(b)), nil
-}
 
 // isGatewayAPI: the prefix is matched case-insensitively, like Jellyfin's
 // routing, so no spelling of it reaches Jellyfin.
@@ -416,21 +217,22 @@ const (
 	BurstMax     = 16 << 20
 )
 
-func burst(size string) (int, map[string]string, io.ReadCloser, error) {
+func serveBurst(w http.ResponseWriter, r *http.Request) {
 	n := int64(BurstDefault)
-	if size != "" {
+	if size := r.URL.Query().Get("size"); size != "" {
 		v, err := strconv.ParseInt(size, 10, 64)
 		if err != nil || v < 0 || v > BurstMax {
-			return http.StatusBadRequest, nil, nil, fmt.Errorf("burst size %q (0..%d)", size, BurstMax)
+			Fail(w, http.StatusBadRequest, fmt.Errorf("burst size %q (0..%d)", size, BurstMax))
+			return
 		}
 		n = v
 	}
-	hdr := map[string]string{
-		"Content-Type":   "application/octet-stream",
-		"Content-Length": strconv.FormatInt(n, 10),
-		"Cache-Control":  "no-store",
-	}
-	return http.StatusOK, hdr, io.NopCloser(io.LimitReader(zeros{}, n)), nil // ponytail: zeros; the tunnel never compresses
+	h := w.Header()
+	h.Set("Content-Type", "application/octet-stream")
+	h.Set("Content-Length", strconv.FormatInt(n, 10))
+	h.Set("Cache-Control", "no-store")
+	// ponytail: zeros; the tunnel never compresses. ChunkSize writes: one frame each.
+	io.CopyBuffer(w, io.LimitReader(zeros{}, n), make([]byte, ChunkSize))
 }
 
 // zeros is an endless stream of zero bytes: the burst is generated a chunk at a
@@ -472,5 +274,3 @@ func streamBody(d *webrtc.DataChannel, body io.Reader, closed <-chan struct{}) e
 		}
 	}
 }
-
-func isAdminOnly(p string) bool { _, ok := AdminOnly.Load(p); return ok }

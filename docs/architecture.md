@@ -48,8 +48,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
 - Tenant-scoped broker at `/api/broker/ws`, routing sessions to gateways; session-bound
   connection auth.
 - The broker checks membership for the offered gateway's household, never one the
-  browser names, and puts the user's `role` in the gateway's offer: `tunnel.AdminOnly`
-  endpoints answer a member `403`.
+  browser names, and puts the user's `role` in the gateway's offer: gateway API routes registered
+  `tunnel.AdminOnly` answer a member `403`.
 - Rate limits: per client IP (`STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`), per-socket
   message buckets, 10 s auth deadline.
 - TURN: credentials minted per broker session in `ready` and revoked at its end; no

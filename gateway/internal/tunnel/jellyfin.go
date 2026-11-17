@@ -10,8 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"sync/atomic"
-
-	"streamiq/gateway/internal/pairing"
 )
 
 // Jellyfin is the tunnel's only origin, plus the policy that keeps a paired
@@ -26,20 +24,9 @@ import (
 type Jellyfin struct {
 	Client *http.Client
 	URL    string // e.g. http://localhost:8096
-	// Status is the body of the gateway API's GET /streamiq/status, built on each
-	// request for a session of user (users.id). ponytail: lives here because the
-	// tunnel has one config struct.
-	Status func(user string) any
-	// Rename is POST /streamiq/name (#310): stores the trimmed name and returns
-	// it; ErrBadRequest = out of bounds. nil = the endpoint 404s.
-	Rename func(name string) (string, error)
-	// Clients is the pairing allowlist behind GET /streamiq/clients and POST
-	// /streamiq/clients/remove (#311). nil = both 404.
-	Clients *pairing.Store
-	// Update is POST /streamiq/update (#312): starts the updater and returns the
-	// version it installs; a Conflict error = refused (409, its text the reason).
-	// nil = the endpoint 404s.
-	Update func() (string, error)
+	// API answers /streamiq/* (api.go); nil = the gateway-native endpoints only.
+	// ponytail: lives here because the tunnel has one config struct (#437 moves Jellyfin onto handlers).
+	API *Router
 	// Viewer is a StreamIQ user's own token and Jellyfin user id; "" = none, use
 	// the shared one (SetKey). nil = everyone shares it.
 	Viewer func(user string) (key, userID string)

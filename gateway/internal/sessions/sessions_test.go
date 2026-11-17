@@ -532,18 +532,18 @@ func TestScreenOverTunnel(t *testing.T) {
 	tv, phone := pair("tv", "Living room TV"), pair("phone", "Phone")
 
 	// The offer's role stays on the session (#194): on an admin-only endpoint a
-	// member's tunnel request is refused, an admin's passes the gate (no status
-	// source in this test, so it then gets 404).
-	tunnel.AdminOnly.Store(tunnel.StatusPath, true)
-	t.Cleanup(func() { tunnel.AdminOnly.Delete(tunnel.StatusPath) })
-	for b, want := range map[*browser]string{phone: `"status":403`, pair("admin-laptop", "Laptop"): `"status":404`} {
+	// member's tunnel request is refused, an admin's passes the gate.
+	gateway.Jellyfin.API = tunnel.NewRouter()
+	gateway.Jellyfin.API.Handle("GET "+tunnel.StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}), tunnel.AdminOnly)
+	for b, want := range map[*browser]string{phone: `"status":403`, pair("admin-laptop", "Laptop"): `"status":204`} {
 		got, d := b.open(`{"method":"GET","url":"/streamiq/status"}`)
 		if head := b.frame(got); !strings.Contains(head, want) {
 			t.Fatalf("admin-only endpoint: head = %s, want %s", head, want)
 		}
 		d.Close()
 	}
-	tunnel.AdminOnly.Delete(tunnel.StatusPath)
 
 	frames, _ := tv.open(`{"method":"GET","url":"/streamiq/screen"}`)
 	if head := tv.frame(frames); !strings.Contains(head, `"status":200`) {

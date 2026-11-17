@@ -1,6 +1,12 @@
 package update
 
-import "sync/atomic"
+import (
+	"fmt"
+	"net/http"
+	"sync/atomic"
+
+	"streamiq/gateway/internal/tunnel"
+)
 
 // Remote is an update started from the web app (#312, gateway API POST
 // /streamiq/update): only where the logon task brings the new binary back up.
@@ -50,4 +56,22 @@ func (r *Remote) Run() (target, refused string, err error) {
 	}
 	go func() { wait(); r.running.Store(false) }()
 	return target, "", nil
+}
+
+// Path starts a remote update (#312, gateway API, admin-only): POST → 202
+// {"version": target}, the gateway goes down for the swap right after; refused →
+// 409 {"reason": "…"}.
+const Path = "/streamiq/update"
+
+// ServeHTTP is POST Path.
+func (r *Remote) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	v, refused, err := r.Run()
+	switch {
+	case refused != "":
+		tunnel.JSON(w, http.StatusConflict, map[string]string{"reason": refused})
+	case err != nil:
+		tunnel.Fail(w, http.StatusInternalServerError, fmt.Errorf("gateway API: update: %w", err))
+	default:
+		tunnel.JSON(w, http.StatusAccepted, map[string]string{"version": v})
+	}
 }

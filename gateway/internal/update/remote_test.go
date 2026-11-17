@@ -1,8 +1,12 @@
 package update
 
 import (
+	"errors"
+	"net/http"
 	"testing"
 	"time"
+
+	"streamiq/gateway/internal/tunnel"
 )
 
 // Each refusal reason, then one start; a second Run while the updater runs is
@@ -46,5 +50,38 @@ func TestRemote(t *testing.T) {
 	}
 	if _, why, _ := r.Run(); why != "" || starts != 2 {
 		t.Fatalf("after exit: %q starts=%d", why, starts)
+	}
+}
+
+// POST /streamiq/update (#312): admin-only, 202 with the target version, a
+// refusal is 409 with its reason, a failed start 500.
+func TestRemoteAPI(t *testing.T) {
+	started, fail := 0, error(nil)
+	r := &Remote{Version: "1.4.0", Supported: true, Newer: func() string { return "1.5.0" }, Task: func() bool { return true },
+		Start: func() (func(), error) { started++; return func() {}, fail }}
+	api := tunnel.NewRouter()
+	api.Handle("POST "+Path, r, tunnel.AdminOnly)
+	call := func(role string) (int, string) {
+		s, _, body, _ := tunnel.Do(api, tunnel.Session{Role: role}, "POST", Path, "")
+		return s, body
+	}
+	for _, role := range []string{tunnel.Member, ""} {
+		if st, _ := call(role); st != http.StatusForbidden || started != 0 {
+			t.Fatalf("%q: %d started=%d, want 403 and nothing started", role, st, started)
+		}
+	}
+	if st, body := call(tunnel.Admin); st != http.StatusAccepted || body != `{"version":"1.5.0"}` || started != 1 {
+		t.Fatalf("admin: %d %s started=%d", st, body, started)
+	}
+	for r.running.Load() { // the fake updater exits at once
+		time.Sleep(time.Millisecond)
+	}
+	r.Version = "1.5.0"
+	if st, body := call(tunnel.Admin); st != http.StatusConflict || body != `{"reason":"already up to date"}` {
+		t.Fatalf("refused: %d %s", st, body)
+	}
+	r.Version, fail = "1.4.0", errors.New("exec: access denied")
+	if st, _ := call(tunnel.Admin); st != http.StatusInternalServerError {
+		t.Fatalf("failing start: %d, want 500", st)
 	}
 }

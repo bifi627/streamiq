@@ -179,7 +179,7 @@ func (s *Sessions) end(id string) {
 
 // User is the session's user id (from the broker's offer) for gateway API
 // handlers; "" for an unknown session. (The offer's user also picks the Jellyfin viewer, #195;
-// the role gates admin-only endpoints: tunnel.Session.Role, tunnel.AdminOnly.)
+// the role gates admin-only endpoints: tunnel.Session.Role, the route option tunnel.AdminOnly.)
 func (s *Sessions) User(session string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -34,8 +34,8 @@ const confirmNext = (p: Page) => p.once('dialog', (d) => d.accept())
 /** A (admin, alias Alice) and B (alias Bob, a member of A's household with one of
  * its own), A signed in on A's household page. */
 async function adminWithMember(browser: Browser) {
-  const A = await signUp(uniqueEmail('house-a'), 'Alice')
-  const B = await signUp(uniqueEmail('house-b'), 'Bob')
+  const A = await signUp(uniqueEmail('house-a'), { alias: 'Alice' })
+  const B = await signUp(uniqueEmail('house-b'), { alias: 'Bob' })
   await join(A, B)
   const a = await signedInPage(browser, A, '/household')
   return { A, B, a }
@@ -83,6 +83,9 @@ test('leave: a member lands in its own household, no picker @households', async 
   await b.getByRole('link', { name: 'Household' }).click()
   await expect(h1(b)).toHaveText(label(B))
   await expect(b.getByLabel('Switch household')).toHaveCount(0) // after /me
+  expect(
+    (await A.api<{ userId: string }[]>('/members')).map((m) => m.userId),
+  ).toEqual([A.userId]) // gone from A's household, nothing else changed
 })
 
 test('rename: an admin renames, a member sees no Rename @households', async ({
@@ -175,7 +178,7 @@ test('no household: the screen, Gateways locked, Settings opens @households', as
   browser,
 }) => {
   const A = await signUp(uniqueEmail('none-a'))
-  const C = await signUp(uniqueEmail('none-c'), undefined, false)
+  const C = await signUp(uniqueEmail('none-c'), { household: false })
   await join(A, C)
   const c = await signedInPage(browser, C, '/household')
   await expect(h1(c)).toHaveText(label(A))
@@ -195,7 +198,7 @@ test('no household: paste an invite link, Open, Join @households', async ({
   browser,
 }) => {
   const A = await signUp(uniqueEmail('paste-a'))
-  const C = await signUp(uniqueEmail('paste-c'), undefined, false)
+  const C = await signUp(uniqueEmail('paste-c'), { household: false })
   const c = await signedInPage(browser, C, '/')
   await expect(none(c)).toBeVisible()
   const { token } = await A.api('/invites', { method: 'POST' })
@@ -211,7 +214,7 @@ test('no household: paste an invite link, Open, Join @households', async ({
 test('no household: Create a household, its admin, Gateways opens @households', async ({
   browser,
 }) => {
-  const C = await signUp(uniqueEmail('create-c'), undefined, false)
+  const C = await signUp(uniqueEmail('create-c'), { household: false })
   const c = await signedInPage(browser, C, '/')
   await c.getByRole('button', { name: 'Create a household' }).click()
   await expect(c.getByRole('heading', { name: 'Gateways' })).toBeVisible()
@@ -224,7 +227,7 @@ test('alias: asked first, others see it not the email, renamed in Settings @hous
   browser,
 }) => {
   const A = await signUp(uniqueEmail('alias-a'))
-  const C = await signUp(uniqueEmail('alias-c'), null) // no alias yet
+  const C = await signUp(uniqueEmail('alias-c'), { alias: null }) // no alias yet
   await join(A, C)
   const c = await signedInPage(browser, C, '/household', A.tenantId)
   const alias = c.getByLabel('Your name')

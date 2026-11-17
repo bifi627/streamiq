@@ -60,8 +60,10 @@ export type User = {
  * the app asks for one first. */
 export async function signUp(
   email: string,
-  alias: string | null = email,
-  household = true,
+  {
+    alias = email,
+    household = true,
+  }: { alias?: string | null; household?: boolean } = {},
 ): Promise<User> {
   const r = await fetch(
     `${process.env.E2E_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,

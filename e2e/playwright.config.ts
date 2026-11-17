@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test'
 
-// The e2e specs (golden path, multi-user, gateways, households, library, shell, compat): the whole stack — testcontainers for Postgres,
+// The e2e specs (golden path, multi-user, gateways, households, library, player, shell, compat): the whole stack — testcontainers for Postgres,
 // Firebase Auth emulator, coturn, Jellyfin; backend, Vite, and the gateway as real
 // processes — is started by global-setup.ts, not `webServer` (it needs the
 // containers' random ports, which only exist after setup runs). Jellyfin only

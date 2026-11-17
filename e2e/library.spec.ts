@@ -7,19 +7,13 @@
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
-import { appUrl, videoTime } from './helpers.ts'
+import { appUrl, openLibrary as open, videoTime } from './helpers.ts'
 
 const movies = (p: Page) => p.getByRole('button', { name: /Movies/ })
 const recent = (p: Page) =>
   p.locator('section.shelf', {
     has: p.getByRole('heading', { name: 'Recently added' }),
   })
-/** Opens the gateway's library from the Gateways card; its id. */
-async function open(p: Page) {
-  await p.locator('li.card').getByRole('button', { name: 'Open' }).click()
-  await expect(movies(p)).toBeVisible()
-  return p.url().match(/\/g\/([^/]+)$/)![1]
-}
 /** From a title page: Play (or Resume), plays past `secs`, back to the title
  * page. Leaving the player saves the position (whole seconds, #330's guard
  * off unless the test sets it). */

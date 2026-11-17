@@ -70,6 +70,30 @@ jobs:
       - run: go vet ./... && go build ./... && go test -race ./...
         working-directory: gateway
 
+  # #452: Windows-only code (service, update, rollback) runs here; the update test
+  # starts from the last release's real binary. Not a required check (yet): the ruleset names it.
+  gateway-windows:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: gateway
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: gateway/go.mod
+          cache-dependency-path: gateway/go.sum
+      - run: gh release download --repo "$GITHUB_REPOSITORY" --pattern streamiq-gateway-windows-amd64.exe --dir "$RUNNER_TEMP"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: |
+          race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race
+          go vet ./... && go build ./... && go test $race ./...
+        env:
+          STREAMIQ_TEST_OLD_GATEWAY: ${{ runner.temp }}/streamiq-gateway-windows-amd64.exe
+
   # The e2e specs (golden path, multi-user, households), 3 workers on one stack (no sharding:
   # e2e/playwright.config.ts). Containers via testcontainers-node, backend/Vite/gateway as
   # real processes — see e2e/global-setup.ts.
@@ -133,7 +157,7 @@ jobs:
   # #274: a gateway change on main releases itself, but only once every check passed.
   # Add any new check job to `needs`, or it won't gate the release.
   release-gateway:
-    needs: [changes, backend, frontend, gateway, e2e]
+    needs: [changes, backend, frontend, gateway, gateway-windows, e2e]
     if: needs.changes.outputs.release == 'true'
     permissions:
       contents: write

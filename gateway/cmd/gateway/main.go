@@ -261,7 +261,7 @@ func selfUpdate(ctx context.Context, exe string) error {
 	if version == "dev" {
 		return errors.New("dev build: rebuild it instead")
 	}
-	latest, err := update.Latest(ctx, update.LatestURL)
+	latest, err := update.Latest(ctx, env("STREAMIQ_LATEST", update.LatestURL))
 	if err != nil {
 		return err
 	}
@@ -604,7 +604,7 @@ func checkUpdates(ctx context.Context, notice, newer *atomic.Pointer[string]) {
 		return
 	}
 	for {
-		latest, err := update.Latest(ctx, update.LatestURL)
+		latest, err := update.Latest(ctx, env("STREAMIQ_LATEST", update.LatestURL))
 		if err != nil {
 			slog.Warn("gateway: release check failed", "err", err)
 		} else if update.Newer(latest, version) {

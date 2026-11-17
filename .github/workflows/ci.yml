@@ -119,7 +119,7 @@ jobs:
         env:
           STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE: ${{ runner.temp }}/jellyfin-compose.yml
 
-  # The e2e specs (golden path, multi-user, households, compat: the last gateway release), 4 workers on one stack (no sharding:
+  # The e2e specs (golden path, multi-user, households, compat: the last gateway release), 3 workers on one stack (no sharding:
   # e2e/playwright.config.ts). Containers via testcontainers-node, backend/Vite/gateway as
   # real processes — see e2e/global-setup.ts.
   e2e:

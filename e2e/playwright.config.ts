@@ -20,9 +20,9 @@ export default defineConfig({
   // ponytail: no CI sharding: each shard would start its own stack (~1.5 min).
   // CI: a GitHub runner has 4 vCPUs (16 GB) for Chromes, gateways and up to one
   // transcoding Jellyfin per worker (fixtures.ts), each generating its fixture
-  // media on first use. One worker per vCPU (#469, 3 before); flakes from CPU
-  // contention would be the sign to step back. Locally: Playwright's default (half the cores).
-  workers: process.env.CI ? 4 : undefined,
+  // media on first use. 4 was tried (#469): every test got slower and the job
+  // took 7m06s / 7m34s vs ~5.5 min at 3. Locally: Playwright's default (half the cores).
+  workers: process.env.CI ? 3 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     // Branded Chrome, not bundled Chromium: item 5's <video> needs H.264/AAC,

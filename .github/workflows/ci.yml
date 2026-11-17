@@ -1,4 +1,7 @@
 # Same checks as scripts/check.sh — if they disagree, that's a harness bug. CI is authoritative.
+# Job names backend / frontend / gateway / e2e are required checks in the "main: merge gate"
+# ruleset: renaming, removing or matrix-splitting one (or a workflow-level `paths:` filter)
+# leaves PRs waiting forever. Update the ruleset in the same PR. Skip with job `if:` only.
 name: ci
 on:
   push:

@@ -63,23 +63,7 @@ import {
   householdLabel,
   switchHousehold,
 } from './features/households/household'
-
-// Readable text for the auth failures a user can cause; anything else keeps
-// Firebase's message (still useful when reported).
-const authErrors: Record<string, string> = {
-  'auth/invalid-email': 'Enter a valid email address.',
-  'auth/missing-email': 'Enter your email address.',
-  'auth/popup-closed-by-user': 'Sign-in window was closed before finishing.',
-  'auth/cancelled-popup-request': 'Sign-in window was closed before finishing.',
-  'auth/popup-blocked':
-    'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.',
-}
-function authMessage(e: unknown) {
-  const code = (e as { code?: string }).code
-  return (
-    (code && authErrors[code]) ?? (e instanceof Error ? e.message : String(e))
-  )
-}
+import { authMessage } from './authErrors'
 
 function SignIn() {
   const [email, setEmail] = useState('')

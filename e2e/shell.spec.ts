@@ -33,9 +33,7 @@ test('sign-in: a wrong password shows the error, stays on the form @shell', asyn
   await p.getByLabel('Email').fill(user.email)
   await p.getByLabel('Password', { exact: true }).fill('not-the-password')
   await p.getByRole('button', { name: 'Sign in' }).click()
-  await expect(p.getByRole('alert')).toContainText(
-    /auth\/(invalid-credential|wrong-password)/,
-  )
+  await expect(p.getByRole('alert')).toHaveText('Wrong email or password.')
   await expect(p.getByRole('button', { name: 'Sign in' })).toBeVisible()
   await expect(gatewaysHeading(p)).toHaveCount(0)
 })

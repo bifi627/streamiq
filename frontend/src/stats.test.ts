@@ -66,16 +66,19 @@ test('Firefox shape (pair.selected) and no pair yet', () => {
   assert.equal(pairInfo(ff)!.local, 'host')
 })
 
-test('badge route: private host/host → lan, srflx or prflx → direct, relay → relayed', () => {
-  const lan = (l: string, r: string) => {
-    const m = report({}, 'host')
-    m.set('L', { candidateType: 'host', address: l })
+test('badge route: gateway host on a private address → lan, else direct; relay → relayed', () => {
+  const lan = (l: string, r: string, type = 'host') => {
+    const m = report({}, type)
+    m.set('L', { candidateType: type, address: l })
     m.set('R', { candidateType: 'host', address: r })
     return route(pairInfo(m)!)
   }
   assert.equal(lan('0f1e2d3c-mdns.local', '192.168.1.5'), 'lan')
   assert.equal(lan('10.0.0.2', '172.20.0.3'), 'lan')
   assert.equal(lan('fd00::2', 'fe80::1'), 'lan')
+  // Brave hides its host candidates: its side is srflx/prflx, still the LAN.
+  assert.equal(lan('203.0.113.7', '192.168.0.106', 'srflx'), 'lan')
+  assert.equal(lan('192.168.0.50', '192.168.0.106', 'prflx'), 'lan')
   // Global IPv6 on one /64 = one link (a home with IPv6).
   assert.equal(
     lan('2a02:8070:998a:2a40::1', '2a02:8070:998a:2a40:7d0b:b01d:189f:e5bc'),

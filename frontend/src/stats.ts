@@ -4,7 +4,7 @@ type Stats = ReadonlyMap<string, Record<string, any>>
 
 export type PairInfo = {
   relay: boolean
-  /** host ↔ host, both on private / link-local / mDNS addresses (#428) */
+  /** the gateway's host candidate is on this device's network (#428) */
   lan: boolean
   ipv6: boolean
   local?: string
@@ -33,10 +33,12 @@ export function pairInfo(report: Stats): PairInfo | null {
       local?.candidateType === 'relay' ||
       local?.relayProtocol != null ||
       remote?.candidateType === 'relay',
+    // Only the gateway's side counts: reaching its private address directly
+    // means this device is on that network, whatever its own candidate type
+    // (Brave hides its host candidates, so its side shows as srflx/prflx).
     lan:
-      local?.candidateType === 'host' &&
       remote?.candidateType === 'host' &&
-      ((isPrivate(local) && isPrivate(remote)) || sameV6Link(local, remote)),
+      (isPrivate(remote) || sameV6Link(local, remote)),
     ipv6: String(local?.address ?? local?.ip ?? '').includes(':'),
     local: local?.candidateType,
     remote: remote?.candidateType,
@@ -51,9 +53,10 @@ export function pairInfo(report: Stats): PairInfo | null {
 }
 
 // A host candidate is any interface address, global IPv6 and public IPv4
-// included, so host ↔ host alone doesn't mean the home network (#428).
-// Private addresses, or two global IPv6 addresses in one /64 (one link) are.
-// ponytail: RFC 1918 + link-local + ULA + mDNS; CGNAT/VPN ranges read as direct.
+// included. Reached directly, a private one, or a global IPv6 in this device's
+// /64 (one link), means the home network (#428).
+// ponytail: RFC 1918 + link-local + ULA + mDNS; a VPN routed into the home
+// subnet also reads as LAN, CGNAT/VPN addresses read as direct.
 const addr = (c?: Record<string, any>) =>
   String(c?.address ?? c?.ip ?? '').toLowerCase()
 

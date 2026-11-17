@@ -1,12 +1,14 @@
-// Web-app household flows, no gateway or Jellyfin needed (#232): join through an
-// invite link (#191), the switcher (#193), leave and removal by an admin (#192),
-// the "no longer a member" recovery while the app is open (#210), and life
-// without a household (#387). The
-// invite UI itself is driven in multi-user.spec.ts.
-import type { Page } from '@playwright/test'
+// The household page and the no-household screen, no gateway or Jellyfin (#407):
+// members and roles, remove and leave (#192), rename (#384), invites (#228, #337),
+// join (#191), invite-first sign-up and life without a household (#387), the
+// alias (#388), the switcher (#193), and a membership lost while the app is open
+// (#210). Permission and edge cases (member refused, last admin, single-use,
+// expired) are the backend's Members / Invites / Provisioning features.
+import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   appUrl,
+  join,
   newPage,
   password,
   signedInPage,
@@ -17,188 +19,279 @@ import {
 
 // householdLabel() in api.ts: an unnamed household (none renamed yet, #384).
 const label = (u: User) => `Household …${u.tenantId.slice(-6)}`
+const h1 = (p: Page) => p.getByRole('heading', { level: 1 })
+const members = (p: Page) =>
+  p.locator('section.card', {
+    has: p.getByRole('heading', { name: 'Members' }),
+  })
+const row = (p: Page, name: string) =>
+  members(p).getByRole('listitem').filter({ hasText: name })
+const none = (p: Page) =>
+  p.getByRole('heading', { name: "You're not in a household yet" })
+/** Accepts the next confirm() ("Remove …?", "Leave this household?"). */
+const confirmNext = (p: Page) => p.once('dialog', (d) => d.accept())
 
-test('households: join, switch, removed while open, leave @households', async ({
+/** A (admin, alias Alice) and B (alias Bob, a member of A's household with one of
+ * its own), A signed in on A's household page. */
+async function adminWithMember(browser: Browser) {
+  const A = await signUp(uniqueEmail('house-a'), 'Alice')
+  const B = await signUp(uniqueEmail('house-b'), 'Bob')
+  await join(A, B)
+  const a = await signedInPage(browser, A, '/household')
+  return { A, B, a }
+}
+
+test('members: listed by alias, Make admin / Make member @households', async ({
   browser,
 }) => {
-  const A = await signUp(uniqueEmail('house-a'))
-  const B = await signUp(uniqueEmail('house-b'))
-  const b = await signedInPage(browser, B, '/household')
-  const heading = b.getByRole('heading', { level: 1 })
-  await expect(heading).toHaveText(label(B))
-  const picker = b.getByLabel('Switch household')
-  await expect(picker).toHaveCount(0) // one household: no picker
+  const { A, B, a } = await adminWithMember(browser)
+  await expect(members(a).getByText('Alice (you)')).toBeVisible()
+  await expect(members(a).getByText(A.email)).toBeVisible() // own row: own email
+  await expect(row(a, 'Bob')).toBeVisible()
+  await expect(members(a).getByText(B.email)).toHaveCount(0) // others: alias only
 
-  // A (admin of A's household) makes a link; B, signed in, opens and joins it.
-  const join = async (p: Page) => {
-    const { token } = await A.api('/invites', { method: 'POST' })
-    await p.goto(appUrl(`/join#${token}`))
-    await p.getByRole('button', { name: 'Join' }).click()
-    await expect(p).not.toHaveURL(/\/join/)
-    await p.getByRole('link', { name: 'Household' }).click()
-    await expect(p.getByRole('heading', { level: 1 })).toHaveText(label(A))
-    await expect(p.getByText('You are a member')).toBeVisible()
-    await expect(p.getByRole('button', { name: 'Rename' })).toHaveCount(0) // admin only (#384)
-  }
-
-  await test.step('B joins A’s household through an invite link (#191)', async () => {
-    await join(b)
-    await expect(picker).toHaveValue(A.tenantId)
-  })
-
-  await test.step('B switches household with the picker, and back (#193)', async () => {
-    await picker.selectOption(B.tenantId) // reloads /
-    await expect(picker).toHaveValue(B.tenantId)
-    await b.getByRole('link', { name: 'Household' }).click()
-    await expect(heading).toHaveText(label(B))
-    await expect(b.getByText('You are an admin')).toBeVisible()
-    await picker.selectOption(A.tenantId)
-    await expect(picker).toHaveValue(A.tenantId)
-  })
-
-  await test.step('A removes B while B’s app is open: next action → notice (#210)', async () => {
-    await A.api(`/members/${B.userId}`, { method: 'DELETE' })
-    await b.getByRole('link', { name: 'Household' }).click() // /members: not a member
-    await expect(
-      b.getByRole('status').filter({ hasText: 'no longer a member' }),
-    ).toContainText(`You're no longer a member of ${label(A)}.`)
-    await b.getByRole('link', { name: 'Household' }).click()
-    await expect(heading).toHaveText(label(B))
-    await expect(picker).toHaveCount(0) // after /me: the Shell renders it then
-  })
-
-  await test.step('B leaves a household: back in its own (#192)', async () => {
-    await join(b)
-    const members = b.locator('section.card', {
-      has: b.getByRole('heading', { name: 'Members' }),
-    })
-    await expect(members.getByText(A.email)).toBeVisible()
-    b.once('dialog', (d) => d.accept()) // "Leave this household?"
-    await members.getByRole('button', { name: 'Leave' }).click()
-    // Leaving reloads home, which goes on to /gateways: a click before that is lost.
-    await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
-    await b.getByRole('link', { name: 'Household' }).click()
-    await expect(heading).toHaveText(label(B))
-    await expect(picker).toHaveCount(0) // after /me: the Shell renders it then
-    expect(
-      (await A.api<{ userId: string }[]>('/members')).map((m) => m.userId),
-    ).toEqual([A.userId])
-  })
-
-  await test.step('B, an admin, renames its household (#384)', async () => {
-    await b.getByRole('button', { name: 'Rename' }).click()
-    await b.getByLabel('Household name').fill('  The B family  ')
-    await b.getByRole('button', { name: 'Save' }).click()
-    await expect(heading).toHaveText('The B family') // at once, no reload
-    await b.reload()
-    await expect(heading).toHaveText('The B family') // stored
-  })
+  const bob = row(a, 'Bob')
+  await bob.getByRole('button', { name: 'Make admin' }).click()
+  await expect(bob.getByText('Admin', { exact: true })).toBeVisible()
+  await a.reload()
+  await expect(bob.getByText('Admin', { exact: true })).toBeVisible() // stored
+  await bob.getByRole('button', { name: 'Make member' }).click()
+  await expect(bob.getByText('Member', { exact: true })).toBeVisible()
+  await a.reload()
+  await expect(bob.getByText('Member', { exact: true })).toBeVisible()
 })
 
-// Sign-up makes no household (#387): invite-first sign-up joins only that one;
-// without a household the app is the no-household screen (Settings still opens);
-// leaving the last household lands there; Create a household makes the user admin.
-test('households: sign up through an invite, none left, create one @households', async ({
+test('remove: an admin removes a member @households', async ({ browser }) => {
+  const { a } = await adminWithMember(browser)
+  confirmNext(a) // "Remove Bob from this household?"
+  await row(a, 'Bob').getByRole('button', { name: 'Remove' }).click()
+  await expect(row(a, 'Bob')).toHaveCount(0)
+})
+
+test('leave: a member lands in its own household, no picker @households', async ({
   browser,
 }) => {
-  const A = await signUp(uniqueEmail('house-owner'))
-  const email = uniqueEmail('house-joiner')
+  const A = await signUp(uniqueEmail('leave-a'))
+  const B = await signUp(uniqueEmail('leave-b'))
+  await join(A, B)
+  const b = await signedInPage(browser, B, '/household', A.tenantId)
+  await expect(h1(b)).toHaveText(label(A))
+  confirmNext(b) // "Leave this household?"
+  await members(b).getByRole('button', { name: 'Leave' }).click()
+  // Leaving reloads home, which goes on to /gateways: a click before that is lost.
+  await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
+  await b.getByRole('link', { name: 'Household' }).click()
+  await expect(h1(b)).toHaveText(label(B))
+  await expect(b.getByLabel('Switch household')).toHaveCount(0) // after /me
+})
+
+test('rename: an admin renames, a member sees no Rename @households', async ({
+  browser,
+}) => {
+  const { A, B, a } = await adminWithMember(browser)
+  await a.getByRole('button', { name: 'Rename' }).click()
+  await a.getByLabel('Household name').fill('  The A family  ')
+  await a.getByRole('button', { name: 'Save' }).click()
+  await expect(h1(a)).toHaveText('The A family') // at once, no reload
+  await a.reload()
+  await expect(h1(a)).toHaveText('The A family') // stored
+
+  const b = await signedInPage(browser, B, '/household', A.tenantId)
+  await expect(h1(b)).toHaveText('The A family')
+  await expect(b.getByText('You are a member')).toBeVisible()
+  await expect(b.getByRole('button', { name: 'Rename' })).toHaveCount(0)
+})
+
+test('invites: make, revoke, make another; a member sees none @households', async ({
+  browser,
+}) => {
+  const { A, B, a } = await adminWithMember(browser)
+  await expect(a.getByText('You are an admin')).toBeVisible()
+  const box = a.locator('.invite-link')
+  await a.getByRole('button', { name: 'Invite someone' }).click()
+  await expect(box.locator('pre')).toContainText('/join#')
+  await a.getByRole('button', { name: 'Revoke' }).click()
+  await expect(box).toHaveCount(0) // its link box goes with it
+  await expect(a.getByText(/No open invites/)).toBeVisible()
+  await a.getByRole('button', { name: 'Invite someone' }).click()
+  await expect(box.locator('pre')).toContainText('/join#')
+  await expect(a.getByRole('button', { name: 'Revoke' })).toHaveCount(1)
+
+  const b = await signedInPage(browser, B, '/household', A.tenantId)
+  await expect(b.getByText('You are a member')).toBeVisible()
+  await expect(b.getByRole('heading', { name: 'Invites' })).toHaveCount(0)
+})
+
+test('join: Join lands in the household; a revoked link is refused @households', async ({
+  browser,
+}) => {
+  const A = await signUp(uniqueEmail('join-a'))
+  const B = await signUp(uniqueEmail('join-b'))
+  const { token } = await A.api('/invites', { method: 'POST' })
+  const b = await signedInPage(browser, B, `/join#${token}`)
+  await b.getByRole('button', { name: 'Join' }).click()
+  await expect(b).not.toHaveURL(/\/join/)
+  await b.getByRole('link', { name: 'Household' }).click()
+  await expect(h1(b)).toHaveText(label(A))
+  await expect(b.getByText('You are a member')).toBeVisible()
+
+  // The API answers 404 for unknown, expired, used and revoked alike: one render.
+  const revoked = await A.api('/invites', { method: 'POST' })
+  await A.api(`/invites/${revoked.id}`, { method: 'DELETE' })
+  await b.goto(appUrl(`/join#${revoked.token}`))
+  await expect(
+    b.getByText(/This invite link isn't valid anymore/),
+  ).toBeVisible()
+  await expect(b.getByRole('button', { name: 'Join' })).toHaveCount(0)
+})
+
+test('invite-first sign-up: only that household, no picker @households', async ({
+  browser,
+}) => {
+  const A = await signUp(uniqueEmail('first-a'))
+  const email = uniqueEmail('first-new')
+  const { token } = await A.api('/invites', { method: 'POST' })
   const c = await newPage(browser)
-  const heading = c.getByRole('heading', { level: 1 })
-  const none = c.getByRole('heading', { name: "You're not in a household yet" })
-
-  await test.step('a new account opens an invite link first: joins only that household', async () => {
-    const { token } = await A.api('/invites', { method: 'POST' })
-    await c.goto(appUrl(`/join#${token}`))
-    await c.getByRole('button', { name: 'Create an account' }).click()
-    await c.getByLabel('Email').fill(email)
-    await c.getByLabel('Password', { exact: true }).fill(password)
-    await c.getByRole('button', { name: 'Create account' }).click()
-    await expect(c.getByLabel('Your name')).toHaveValue(email) // alias first (#388)
-    await c.getByRole('button', { name: 'Continue' }).click()
-    await c.getByRole('button', { name: 'Join' }).click()
-    await expect(c).not.toHaveURL(/\/join/)
-    await c.getByRole('link', { name: 'Household' }).click()
-    await expect(heading).toHaveText(label(A))
-    await expect(c.getByText('You are a member')).toBeVisible()
-    await expect(c.getByLabel('Switch household')).toHaveCount(0) // exactly one
-  })
-
-  await test.step('leaving the last household: the no-household screen, no new household', async () => {
-    c.once('dialog', (d) => d.accept()) // "Leave this household?"
-    await c.getByRole('button', { name: 'Leave' }).click()
-    await expect(none).toBeVisible()
-    await expect(c.getByRole('link', { name: 'Gateways' })).toHaveCount(0)
-    await c.goto(appUrl('/gateways'))
-    await expect(none).toBeVisible() // household pages are locked
-    await c.getByRole('link', { name: 'Settings' }).click()
-    await expect(c.getByRole('heading', { name: 'Settings' })).toBeVisible() // per-device settings still open
-    await c.goto(appUrl())
-    await expect(none).toBeVisible()
-  })
-
-  await test.step('pasting an invite link joins again', async () => {
-    const { token } = await A.api('/invites', { method: 'POST' })
-    await c.getByLabel('Invite link').fill(appUrl(`/join#${token}`))
-    await c.getByRole('button', { name: 'Open' }).click()
-    await c.getByRole('button', { name: 'Join' }).click()
-    await expect(c).not.toHaveURL(/\/join/)
-    await c.getByRole('link', { name: 'Household' }).click()
-    await expect(heading).toHaveText(label(A))
-    c.once('dialog', (d) => d.accept())
-    await c.getByRole('button', { name: 'Leave' }).click()
-    await expect(none).toBeVisible()
-  })
-
-  await test.step('Create a household: its admin, the Gateways page opens', async () => {
-    await c.getByRole('button', { name: 'Create a household' }).click()
-    await expect(c.getByRole('heading', { name: 'Gateways' })).toBeVisible()
-    await c.getByRole('link', { name: 'Household' }).click()
-    await expect(c.getByText('You are an admin')).toBeVisible()
-    expect(
-      (await A.api<{ email: string }[]>('/members')).map((m) => m.email),
-    ).toEqual([A.email]) // A's household: C left it, nothing else changed
-  })
+  await c.goto(appUrl(`/join#${token}`))
+  await c.getByRole('button', { name: 'Create an account' }).click()
+  await c.getByLabel('Email').fill(email)
+  await c.getByLabel('Password', { exact: true }).fill(password)
+  await c.getByRole('button', { name: 'Create account' }).click()
+  await expect(c.getByLabel('Your name')).toHaveValue(email) // alias first (#388)
+  await c.getByLabel('Your name').fill('Dana')
+  await c.getByRole('button', { name: 'Continue' }).click()
+  await c.getByRole('button', { name: 'Join' }).click()
+  await expect(c).not.toHaveURL(/\/join/)
+  await c.getByRole('link', { name: 'Household' }).click()
+  await expect(h1(c)).toHaveText(label(A))
+  await expect(members(c).getByText('Dana (you)')).toBeVisible()
+  await expect(c.getByLabel('Switch household')).toHaveCount(0) // exactly one
 })
 
-test('a new account picks an alias; others see it, not the email (#388) @households', async ({
+// Leaving the last household through the UI is how this user gets to have none.
+test('no household: the screen, Gateways locked, Settings opens @households', async ({
+  browser,
+}) => {
+  const A = await signUp(uniqueEmail('none-a'))
+  const C = await signUp(uniqueEmail('none-c'), undefined, false)
+  await join(A, C)
+  const c = await signedInPage(browser, C, '/household')
+  await expect(h1(c)).toHaveText(label(A))
+  confirmNext(c) // "Leave this household?"
+  await members(c).getByRole('button', { name: 'Leave' }).click()
+  await expect(none(c)).toBeVisible()
+  await expect(c.getByRole('link', { name: 'Gateways' })).toHaveCount(0)
+  await c.goto(appUrl('/gateways'))
+  await expect(none(c)).toBeVisible() // household pages are locked
+  await c.getByRole('link', { name: 'Settings' }).click()
+  await expect(c.getByRole('heading', { name: 'Settings' })).toBeVisible() // per-device settings
+  await c.goto(appUrl())
+  await expect(none(c)).toBeVisible()
+})
+
+test('no household: paste an invite link, Open, Join @households', async ({
+  browser,
+}) => {
+  const A = await signUp(uniqueEmail('paste-a'))
+  const C = await signUp(uniqueEmail('paste-c'), undefined, false)
+  const c = await signedInPage(browser, C, '/')
+  await expect(none(c)).toBeVisible()
+  const { token } = await A.api('/invites', { method: 'POST' })
+  await c.getByLabel('Invite link').fill(appUrl(`/join#${token}`))
+  await c.getByRole('button', { name: 'Open' }).click()
+  await c.getByRole('button', { name: 'Join' }).click()
+  await expect(c).not.toHaveURL(/\/join/)
+  await c.getByRole('link', { name: 'Household' }).click()
+  await expect(h1(c)).toHaveText(label(A))
+  await expect(c.getByText('You are a member')).toBeVisible()
+})
+
+test('no household: Create a household, its admin, Gateways opens @households', async ({
+  browser,
+}) => {
+  const C = await signUp(uniqueEmail('create-c'), undefined, false)
+  const c = await signedInPage(browser, C, '/')
+  await c.getByRole('button', { name: 'Create a household' }).click()
+  await expect(c.getByRole('heading', { name: 'Gateways' })).toBeVisible()
+  await c.getByRole('link', { name: 'Household' }).click()
+  await expect(c.getByText('You are an admin')).toBeVisible()
+  await expect(members(c).getByText(`${C.email} (you)`)).toBeVisible()
+})
+
+test('alias: asked first, others see it not the email, renamed in Settings @households', async ({
   browser,
 }) => {
   const A = await signUp(uniqueEmail('alias-a'))
   const C = await signUp(uniqueEmail('alias-c'), null) // no alias yet
-  const { token } = await A.api('/invites', { method: 'POST' })
-  await C.api('/invites/accept', {
-    method: 'POST',
-    body: JSON.stringify({ token }),
-  })
+  await join(A, C)
   const c = await signedInPage(browser, C, '/household', A.tenantId)
   const alias = c.getByLabel('Your name')
 
-  await test.step('asked before the app, again after a reload, email prefilled', async () => {
-    await expect(alias).toHaveValue(C.email)
-    await c.reload()
-    await expect(alias).toHaveValue(C.email)
-    await expect(c.getByRole('link', { name: 'Household' })).toHaveCount(0)
-  })
+  // Asked before the app, again after a reload, email prefilled.
+  await expect(alias).toHaveValue(C.email)
+  await c.reload()
+  await expect(alias).toHaveValue(C.email)
+  await expect(c.getByRole('link', { name: 'Household' })).toHaveCount(0)
 
-  await test.step('types one: the app opens, members show it', async () => {
-    await alias.fill('Carol')
-    await c.getByRole('button', { name: 'Continue' }).click()
-    await expect(c.getByText('Carol (you)')).toBeVisible()
-    await expect(c.getByText(C.email)).toBeVisible() // own row: own email
-    const seen = await A.api<{ name: string; email?: string }[]>('/members')
-    expect(seen.map((m) => m.name)).toEqual([A.email, 'Carol'])
-    expect(seen[1].email).toBeUndefined()
-  })
+  // Picked: the app opens, members show it; others get the alias, not the email.
+  await alias.fill('Carol')
+  await c.getByRole('button', { name: 'Continue' }).click()
+  await expect(c.getByText('Carol (you)')).toBeVisible()
+  await expect(c.getByText(C.email)).toBeVisible() // own row: own email
+  const seen = await A.api<{ name: string; email?: string }[]>('/members')
+  expect(seen.map((m) => m.name)).toEqual([A.email, 'Carol'])
+  expect(seen[1].email).toBeUndefined()
 
-  await test.step('changes it later in Settings', async () => {
-    await c.getByRole('link', { name: 'Settings' }).click()
-    await c.getByRole('button', { name: 'Rename' }).click()
-    await alias.fill('Caro')
-    await c.getByRole('button', { name: 'Save' }).click()
-    await expect(c.getByText('Caro', { exact: true })).toBeVisible()
-    await expect
-      .poll(async () => (await A.api<{ name: string }[]>('/members'))[1].name)
-      .toBe('Caro')
-  })
+  // Renamed later in Settings.
+  await c.getByRole('link', { name: 'Settings' }).click()
+  await c.getByRole('button', { name: 'Rename' }).click()
+  await alias.fill('Caro')
+  await c.getByRole('button', { name: 'Save' }).click()
+  await expect(c.getByText('Caro', { exact: true })).toBeVisible()
+  await expect
+    .poll(async () => (await A.api<{ name: string }[]>('/members'))[1].name)
+    .toBe('Caro')
+})
+
+test('switcher: two households switch and back; one, no picker @households', async ({
+  browser,
+}) => {
+  const A = await signUp(uniqueEmail('switch-a'))
+  const B = await signUp(uniqueEmail('switch-b'))
+  const b = await signedInPage(browser, B, '/household')
+  await expect(h1(b)).toHaveText(label(B))
+  const picker = b.getByLabel('Switch household')
+  await expect(picker).toHaveCount(0) // one household: no picker
+
+  await join(A, B)
+  await b.reload() // /me again: two households
+  await expect(picker).toHaveValue(B.tenantId)
+  await picker.selectOption(A.tenantId) // reloads /
+  await expect(picker).toHaveValue(A.tenantId)
+  await b.getByRole('link', { name: 'Household' }).click()
+  await expect(h1(b)).toHaveText(label(A))
+  await expect(b.getByText('You are a member')).toBeVisible()
+  await picker.selectOption(B.tenantId)
+  await expect(picker).toHaveValue(B.tenantId)
+  await b.getByRole('link', { name: 'Household' }).click()
+  await expect(h1(b)).toHaveText(label(B))
+  await expect(b.getByText('You are an admin')).toBeVisible()
+})
+
+test('lost membership: removed while open, next action shows the notice @households', async ({
+  browser,
+}) => {
+  const A = await signUp(uniqueEmail('lost-a'))
+  const B = await signUp(uniqueEmail('lost-b'))
+  await join(A, B)
+  const b = await signedInPage(browser, B, '/gateways', A.tenantId)
+  await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
+  await A.api(`/members/${B.userId}`, { method: 'DELETE' })
+  await b.getByRole('link', { name: 'Household' }).click() // /members: not a member
+  await expect(
+    b.getByRole('status').filter({ hasText: 'no longer a member' }),
+  ).toContainText(`You're no longer a member of ${label(A)}.`)
+  await b.getByRole('link', { name: 'Household' }).click()
+  await expect(h1(b)).toHaveText(label(B))
+  await expect(b.getByLabel('Switch household')).toHaveCount(0) // after /me
 })

@@ -1,11 +1,12 @@
-// Two users of one household over the real tunnel (#243): B joins through the
-// Household page's invite link (#345), each plays as their own Jellyfin viewer
+// Two users of one household over the real tunnel (#243): B joins over the API
+// (the invite UI is households.spec.ts), each plays as their own Jellyfin viewer
 // (#195), and switching accounts in one tab reloads, so no open tunnel carries
 // the old user into the new one (App.tsx).
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   appUrl,
+  join,
   keepPcs,
   newPage,
   pair,
@@ -57,33 +58,10 @@ test(
     await keepPcs(a) // from its next navigation on (connect)
     const b = await client()
 
-    await test.step('A invites from the Household page, revokes, invites again (#228, #337)', async () => {
-      await a.getByRole('link', { name: 'Household' }).click()
-      await expect(a.getByText('You are an admin')).toBeVisible()
-      const box = a.locator('.invite-link')
-      await a.getByRole('button', { name: 'Invite someone' }).click()
-      await expect(box).toBeVisible()
-      await a.getByRole('button', { name: 'Revoke' }).click()
-      await expect(box).toHaveCount(0) // its link box goes with it
-      await expect(a.getByText(/No open invites/)).toBeVisible()
-      await a.getByRole('button', { name: 'Invite someone' }).click()
-      const link = (await box.locator('pre').textContent())!
-
-      // B opens the link, signs in, joins: lands in A's household (#191).
-      await b.goto(link)
-      await signIn(b, B)
-      await expect(b.getByRole('heading', { name: /^Join/ })).toBeVisible()
-      await b.getByRole('button', { name: 'Join' }).click()
-      await expect(b).not.toHaveURL(/\/join/)
-      await b.getByRole('link', { name: 'Household' }).click()
-      await expect(b.getByText('You are a member')).toBeVisible()
-      const members = b.locator('section.card', {
-        has: b.getByRole('heading', { name: 'Members' }),
-      })
-      await expect(members.getByText(A.email)).toBeVisible()
-      await expect(members.getByText(B.email)).toBeVisible()
-      await expect(b.getByRole('heading', { name: 'Invites' })).toHaveCount(0)
-    })
+    // B joins A's household over the API (the invite UI: households.spec.ts).
+    await join(A, B)
+    await b.goto(appUrl('/gateways'))
+    await signIn(b, B, A.tenantId)
     await connect(a)
     await connect(b)
 

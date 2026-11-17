@@ -670,8 +670,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       ).toBeVisible()
       await a.goto(`${process.env.E2E_APP_URL!}/settings`)
       await a
-        .getByRole('group', { name: 'Data saver' })
-        .getByRole('button', { name: 'Automatic' })
+        .getByRole('radiogroup', { name: 'Data saver' }) // spike #432: SegmentedControl
+        .getByRole('radio', { name: 'Automatic' })
         .click()
       await expect(a.getByText(/^Off now/)).toBeVisible() // desktop: no cellular
       await a.goto(process.env.E2E_APP_URL! + '/gateways')

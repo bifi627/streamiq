@@ -221,11 +221,11 @@
   background: var(--text);
 }
 
-/* Settings popover (#108, #153): floats above the gear, over the picture. */
+/* Settings popover (#108, #153): the SDK places it above the gear. */
 .player .popover {
-  position: absolute;
-  right: 3.75rem;
-  bottom: calc(100% - 1rem); /* above the seek row */
+  margin: 0;
+  border: 0;
+  color: inherit;
   min-width: 12.5rem;
   padding: var(--sp-2) 0;
   background: rgba(24, 24, 27, 0.95);
@@ -237,7 +237,7 @@
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
 }
-.player .bar .popover button {
+.player .popover [role^='menuitem'] {
   display: flex;
   align-items: center;
   width: 100%;
@@ -247,7 +247,7 @@
   text-align: left;
   font-weight: 500;
 }
-.player .bar .popover button:focus {
+.player .popover [data-highlighted] {
   background: var(--surface-2);
   outline-offset: -3px;
 }
@@ -261,7 +261,7 @@
   padding-left: var(--sp-4);
   color: var(--text-muted);
 }
-.player .bar .popover button:disabled {
+.player .popover [data-disabled] {
   opacity: 0.5;
   cursor: default;
 }
@@ -276,10 +276,7 @@
   .player .volume {
     display: none;
   }
-  .player .popover {
-    bottom: var(--sp-2);
-  }
-  .player .bar .popover button {
+  .player .popover [role^='menuitem'] {
     min-height: 2.25rem;
   }
   .player .bar .play {

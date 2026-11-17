@@ -1,3 +1,10 @@
+import { Field, FieldLabel } from '@ui-sdk/react/field'
+import {
+  SegmentedControl,
+  SegmentedControlIndicator,
+  SegmentedControlItem,
+} from '@ui-sdk/react/segmented-control'
+import { Switch, SwitchThumb } from '@ui-sdk/react/switch'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   onAuthStateChanged,
@@ -253,16 +260,17 @@ function Settings() {
         <ul className="rows">
           <li>
             <label className="setting">
-              <input
-                type="checkbox"
+              Compatible mode
+              <Switch
                 autoFocus
                 checked={compatible}
-                onChange={(e) => {
-                  setCompatible(e.target.checked)
-                  setOn(e.target.checked)
+                onCheckedChange={(on) => {
+                  setCompatible(on)
+                  setOn(on)
                 }}
-              />{' '}
-              Compatible mode
+              >
+                <SwitchThumb />
+              </Switch>
             </label>
             <p className="muted">
               For old TVs: plays everything in the safest format, costs more
@@ -270,32 +278,25 @@ function Settings() {
             </p>
           </li>
           <li>
-            {/* Buttons, not a select: a select keeps the D-pad's arrows
-                (focus.ts), so focus could never leave it (#229). */}
-            <div className="setting">
-              <span id="saver">Data saver</span>
-              <div role="group" aria-labelledby="saver" className="choice">
-                {(
-                  [
-                    ['auto', 'Automatic'],
-                    ['on', 'On'],
-                    ['off', 'Off'],
-                  ] as const
-                ).map(([v, name]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    aria-pressed={saver === v}
-                    onClick={() => {
-                      setDataSaver(v)
-                      setSaver(v)
-                    }}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <Field className="setting">
+              <FieldLabel>Data saver</FieldLabel>
+              <SegmentedControl
+                className="choice"
+                value={saver}
+                onValueChange={(v) => {
+                  if (v === null) return
+                  setDataSaver(v as ReturnType<typeof dataSaver>)
+                  setSaver(v as ReturnType<typeof dataSaver>)
+                }}
+              >
+                <SegmentedControlIndicator />
+                <SegmentedControlItem value="auto">
+                  Automatic
+                </SegmentedControlItem>
+                <SegmentedControlItem value="on">On</SegmentedControlItem>
+                <SegmentedControlItem value="off">Off</SegmentedControlItem>
+              </SegmentedControl>
+            </Field>
             <p className="muted">
               {dataSaverOn() ? 'On now' : 'Off now'}: Auto quality stays at 480p
               and the speed test uses ~3 MB instead of up to ~50 MB. Automatic
@@ -309,15 +310,16 @@ function Settings() {
           </li>
           <li>
             <label className="setting">
-              <input
-                type="checkbox"
-                checked={raw}
-                onChange={(e) => {
-                  setRaw(e.target.checked)
-                  setRawOn(e.target.checked)
-                }}
-              />{' '}
               Raw quality option
+              <Switch
+                checked={raw}
+                onCheckedChange={(on) => {
+                  setRaw(on)
+                  setRawOn(on)
+                }}
+              >
+                <SwitchThumb />
+              </Switch>
             </label>
             <p className="muted">
               Adds Raw to the player's quality menu: plays original streams with
@@ -332,15 +334,16 @@ function Settings() {
         <ul className="rows">
           <li>
             <label className="setting">
-              <input
-                type="checkbox"
-                checked={tv}
-                onChange={(e) => {
-                  setTv(e.target.checked)
-                  setTvOn(e.target.checked)
-                }}
-              />{' '}
               TV mode
+              <Switch
+                checked={tv}
+                onCheckedChange={(on) => {
+                  setTv(on)
+                  setTvOn(on)
+                }}
+              >
+                <SwitchThumb />
+              </Switch>
             </label>
             <p className="muted">
               Larger text and a margin for TVs that crop the picture edges.

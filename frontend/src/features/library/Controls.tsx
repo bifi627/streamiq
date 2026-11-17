@@ -25,6 +25,17 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
+import {
+  Menu,
+  MenuContent,
+  MenuItemIndicator,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
+  MenuTrigger,
+} from '@ui-sdk/react/menu'
 import { clock, isBack } from './items'
 import './Player.css'
 
@@ -119,9 +130,7 @@ export function Controls({
   const [volume, setVolume] = useState(1)
   const [full, setFull] = useState(false)
   const [page, setPage] = useState<Page>(null)
-  const [from, setFrom] = useState(0) // setting whose page was open last (main focuses it)
-  const menuRow = useRef<HTMLDivElement>(null)
-  const qBtn = useRef<HTMLButtonElement>(null)
+  const pageNow = useRef<Page>(null) // for the key listener
   const timer = useRef(0)
   // Handlers live in refs (stable for the key listener); these keep them current.
   const back = useRef(onBack)
@@ -132,6 +141,7 @@ export function Controls({
     back.current = onBack
     dur.current = duration
     isBlocked.current = blocked
+    pageNow.current = page
   })
 
   // Handlers for clicks and the key listener; only touch refs and setters.
@@ -202,18 +212,18 @@ export function Controls({
       const t = e.target as Element
       if (t !== document.body && !root.current?.contains(t)) return // other UI
       const inBar = !!bar.current?.contains(document.activeElement)
-      const pop = menuRow.current
+      const pg = pageNow.current
       if (isBack(e)) {
         e.preventDefault() // the browser's own Back would leave the player too
-        if (pop?.dataset.page === 'main') {
-          setPage(null)
-          qBtn.current?.focus({ preventScroll: true })
-        } else if (pop) setPage('main')
+        // webOS Back (461) isn't Escape: the SDK only knows Escape.
+        if (pg === 'main') setPage(null)
+        else if (pg !== null) setPage('main')
         else if (inBar || bar.current?.dataset.shown === 'true') ui.hide()
         else back.current()
         return
       }
       ui.poke()
+      if (document.activeElement?.closest('[role="menu"]')) return // the SDK's keys
       const k = e.key.toLowerCase()
       const left = k === 'arrowleft'
       const horizontal = left || k === 'arrowright'
@@ -225,23 +235,6 @@ export function Controls({
       if (k === 'f') return act(ui.fullscreen)
       if (k === 'm') return act(ui.mute)
       if (k === 'k') return act(ui.toggle)
-      if (pop?.contains(document.activeElement)) {
-        // The popover: ↑/↓ through its options, ←/→ do nothing.
-        if (!horizontal && !vertical) return
-        e.preventDefault()
-        const its = Array.from(
-          pop.querySelectorAll<HTMLElement>('button:not(:disabled)'),
-        )
-        const i = its.indexOf(document.activeElement as HTMLElement)
-        if (vertical)
-          its[
-            Math.max(
-              0,
-              Math.min(its.length - 1, i + (k === 'arrowup' ? -1 : 1)),
-            )
-          ].focus()
-        return
-      }
       if (!inBar) {
         if (horizontal) act(() => ui.seek(left ? -SKIP : SKIP))
         else if (k === 'enter' || k === ' ') act(ui.toggle)
@@ -294,14 +287,6 @@ export function Controls({
     if (blocked) play.current?.focus({ preventScroll: true })
   }, [blocked])
 
-  // Each page focuses its [data-focus] item (D-pad lands in it): on the main
-  // page the setting just left, on an options page the current option.
-  useEffect(() => {
-    menuRow.current
-      ?.querySelector<HTMLElement>('[data-focus="true"]')
-      ?.focus({ preventScroll: true })
-  }, [page])
-
   const visible = shown || blocked
   const onPicture = (e: { target: unknown }) =>
     !bar.current?.contains(e.target as Node)
@@ -314,9 +299,6 @@ export function Controls({
       onPointerMove={(e) => e.pointerType === 'mouse' && ui.poke()}
       onPointerDown={(e) => {
         pointer.current = e.pointerType
-        const t = e.target as Element
-        if (!menuRow.current?.contains(t) && !qBtn.current?.contains(t))
-          setPage(null) // a click outside closes the popover
         // Touch: a tap on the picture toggles the bar (a hidden bar ignores
         // touches, see Player.css); mouse/pointer just shows it.
         if (e.pointerType === 'mouse' || !onPicture(e)) ui.poke()
@@ -369,74 +351,6 @@ export function Controls({
               {clock(time)} / {clock(duration)}
             </span>
           </div>
-          {page === 'main' && (
-            <div
-              ref={menuRow}
-              className="popover"
-              data-page="main"
-              role="menu"
-              aria-label="Settings"
-            >
-              {settings.map((st, i) => (
-                <button
-                  key={st.name}
-                  type="button"
-                  role="menuitem"
-                  data-focus={i === from}
-                  onClick={() => {
-                    setFrom(i)
-                    setPage(i)
-                  }}
-                >
-                  {st.name}
-                  <small>
-                    {st.options.find((o) => o.value === st.value)?.label}
-                    {st.status && ` · ${st.status}`} ›
-                  </small>
-                </button>
-              ))}
-            </div>
-          )}
-          {typeof page === 'number' && settings[page] && (
-            <div
-              ref={menuRow}
-              className="popover"
-              role="menu"
-              aria-label={settings[page].name}
-            >
-              <button
-                type="button"
-                role="menuitem"
-                className="heading"
-                onClick={() => setPage('main')}
-              >
-                ‹ {settings[page].name}
-              </button>
-              {settings[page].options.map((o) => {
-                const st = settings[page]
-                const on = o.value === st.value
-                return (
-                  <button
-                    key={o.value}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={on}
-                    data-focus={on}
-                    disabled={o.disabled}
-                    onClick={() => {
-                      setPage(null)
-                      qBtn.current?.focus({ preventScroll: true })
-                      if (!on) st.pick(o.value)
-                    }}
-                  >
-                    <span className="check">{on ? '✓' : ''}</span>
-                    {o.label}
-                    {o.hint && <small>{o.hint}</small>}
-                  </button>
-                )
-              })}
-            </div>
-          )}
           <div data-row className="row">
             <button
               ref={play}
@@ -494,16 +408,63 @@ export function Controls({
                 <span>Next episode</span>
               </button>
             )}
-            <button
-              ref={qBtn}
-              type="button"
-              aria-label="Playback options"
-              aria-haspopup="menu"
-              aria-expanded={page !== null}
-              onClick={() => setPage(page === null ? 'main' : null)}
+            <Menu
+              open={page !== null}
+              onOpenChange={(o) => setPage(o ? 'main' : null)}
+              modal={false}
             >
-              <Icon d={ICON.gear} />
-            </button>
+              <MenuTrigger aria-label="Playback options">
+                <Icon d={ICON.gear} />
+              </MenuTrigger>
+              <MenuContent
+                className="popover"
+                side="top"
+                align="end"
+                aria-label="Settings"
+              >
+                {settings.map((st, i) => (
+                  <MenuSub
+                    key={st.name}
+                    open={page === i}
+                    onOpenChange={(o) => setPage(o ? i : 'main')}
+                  >
+                    <MenuSubTrigger>
+                      {st.name}
+                      <small>
+                        {st.options.find((o) => o.value === st.value)?.label}
+                        {st.status && ` · ${st.status}`} ›
+                      </small>
+                    </MenuSubTrigger>
+                    <MenuSubContent
+                      className="popover"
+                      side="top"
+                      align="end"
+                      aria-label={st.name}
+                    >
+                      <MenuRadioGroup
+                        value={st.value}
+                        onValueChange={(v) => v !== st.value && st.pick(v)}
+                      >
+                        {st.options.map((o) => (
+                          <MenuRadioItem
+                            key={o.value}
+                            value={o.value}
+                            disabled={o.disabled}
+                            closeOnSelect
+                          >
+                            <span className="check">
+                              <MenuItemIndicator>✓</MenuItemIndicator>
+                            </span>
+                            {o.label}
+                            {o.hint && <small>{o.hint}</small>}
+                          </MenuRadioItem>
+                        ))}
+                      </MenuRadioGroup>
+                    </MenuSubContent>
+                  </MenuSub>
+                ))}
+              </MenuContent>
+            </Menu>
             <button
               type="button"
               aria-label={full ? 'Exit fullscreen' : 'Fullscreen'}

@@ -6,9 +6,12 @@
 // deliberate MinGatewayProtocol bump, the web app says "Update required"; neither →
 // an accidental break, the test fails.
 //
-// The launch below is what the release expects, not startGateway's: a `!` change
-// to gateway.env or the CLI fails here until the next release ships it (installed
-// gateways break the same way). Update it only together with that release.
+// The launch below is what the release expects, not startGateway's. A `!` change
+// to gateway.env or the CLI still passes here in its own PR (the old release, the
+// old launch); once release-gateway ships it, this fails on every PR and on main
+// (installed gateways break the same way). So: in the `!` PR, give the launch both
+// forms where it can (an unknown env var is harmless); otherwise fix the launch in
+// a follow-up PR right after that release ships.
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -25,10 +28,12 @@ import {
 import { JELLYFIN_ADMIN } from './jellyfin.ts'
 import { freePort, root, start, waitHttp } from './stack.ts'
 
-const goos = { win32: 'windows', darwin: 'darwin', linux: 'linux' }[
-  process.platform as string
-]
-const goarch = { x64: 'amd64', arm64: 'arm64' }[process.arch as string]
+const goos =
+  { win32: 'windows', darwin: 'darwin', linux: 'linux' }[
+    process.platform as string
+  ] ?? process.platform
+const goarch =
+  { x64: 'amd64', arm64: 'arm64' }[process.arch as string] ?? process.arch
 const asset = `streamiq-gateway-${goos}-${goarch}${goos === 'windows' ? '.exe' : ''}`
 
 /** The latest release's asset, as the gateway-windows CI job gets it; null = none. */
@@ -45,9 +50,9 @@ function download(dir: string) {
       '--dir',
       dir,
     ],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', timeout: 120_000 }, // sync: Playwright's timeout can't fire
   )
-  if (r.error) throw r.error // gh missing
+  if (r.error || r.signal) throw r.error ?? new Error(`gh: ${r.signal}`) // gh missing, timed out
   if (r.status === 0) return path.join(dir, asset)
   // A fork or a repo before its first release: nothing to test against.
   if (/release not found|no assets/i.test(r.stderr)) return null
@@ -58,7 +63,10 @@ test('the last released gateway works with this API, or is told to update @compa
   browser,
   jellyfin,
 }) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'streamiq-e2e-compat-'))
+  // A fixed path, overwritten each run: on Windows a new exe path means a new
+  // firewall prompt (and a stale rule) per run.
+  const dir = path.join(import.meta.dirname, '.bin', 'release')
+  fs.rmSync(dir, { recursive: true, force: true })
   const bin = download(dir)
   test.skip(!bin, `no ${asset} in a gateway release: nothing to test against`)
   fs.chmodSync(bin!, 0o755)
@@ -72,7 +80,9 @@ test('the last released gateway works with this API, or is told to update @compa
   const gateway = start(`gateway-release-${port}`, bin!, [], {
     cwd: root,
     env: {
-      STREAMIQ_STATE_DIR: path.join(dir, 'state'),
+      STREAMIQ_STATE_DIR: fs.mkdtempSync(
+        path.join(os.tmpdir(), 'streamiq-e2e-compat-'),
+      ),
       STREAMIQ_PAGE_PORT: String(port),
       STREAMIQ_LAN_URL: pageUrl,
       STREAMIQ_ORIGIN: jellyfin,
@@ -123,7 +133,7 @@ test('the last released gateway works with this API, or is told to update @compa
       .poll(() => videoTime(page), { timeout: 30_000 })
       .toBeGreaterThan(2)
   } finally {
-    await Promise.all(ctxs.map((c) => c.close()))
+    await Promise.allSettled(ctxs.map((c) => c.close()))
     await gateway.stop()
   }
 })

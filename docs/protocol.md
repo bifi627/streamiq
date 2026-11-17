@@ -355,8 +355,11 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename` and `/streamiq/update`) matches an endpoint; anything else under the prefix (unknown path, other method,
-percent-encoded) is `404`. A `body` over 64 KB is `413`. A handler's own failure
+`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
+percent-encoded path under the prefix is `404`; a known path with another method
+is `405` with an `Allow` header listing its methods, no body (#436; `HEAD` is never
+served, so a `GET` path answers it `405` with `Allow: GET`), checked before the
+admin-only role check. A `body` over 64 KB is `413`. A handler's own failure
 (e.g. `/streamiq/name` can't write `state/gateway.json`) is `500`, never the `502`
 that means Jellyfin is unreachable (#327). Like every
 tunnel request it exists only after connection auth: an unpaired browser gets

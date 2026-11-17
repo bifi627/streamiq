@@ -223,8 +223,8 @@ func TestBurst(t *testing.T) {
 }
 
 // The gateway API (#146): /streamiq/* is answered by the gateway, never
-// Jellyfin (any spelling of the prefix, any method), unknown paths are 404, and
-// status is built per request without a Jellyfin token.
+// Jellyfin (any spelling of the prefix, any method), unknown paths are 404, a
+// wrong method (HEAD included) 405 + Allow (#436), and status is built per request without a Jellyfin token.
 func TestGatewayAPI(t *testing.T) {
 	j, last := fakeJellyfin(t)
 	j.SetKey("", "")
@@ -249,18 +249,30 @@ func TestGatewayAPI(t *testing.T) {
 		{Method: "GET", URL: "/streamiq"},
 		{Method: "GET", URL: "/StreamIQ/status"},
 		{Method: "GET", URL: "/streamiq/%73tatus"},
-		{Method: "POST", URL: StatusPath, Body: "{}"},
 		{Method: "GET", URL: "/streamiq/../streamiq/status"},
 		{Method: "GET", URL: "/streamiq//status"},
 		{Method: "GET", URL: StatusPath + "/"},
-		{Method: "HEAD", URL: StatusPath},
-		{Method: "", URL: StatusPath},
 		{Method: "POST", URL: ScreensPath + "/"},
 		{Method: "POST", URL: ScreensPath + "/a/b"},
 	} {
 		raw, _ := json.Marshal(rq)
 		if status, _, _, _ := run(j, raw, Session{}); status != http.StatusNotFound {
 			t.Errorf("%s %s: status %d, want 404", rq.Method, rq.URL, status)
+		}
+	}
+	for _, c := range []struct{ method, url, allow string }{
+		{"POST", StatusPath, "GET"},
+		{"HEAD", StatusPath, "GET"}, // never served, never in Allow (the tunnel writer doesn't drop bodies)
+		{"", StatusPath, "GET"},
+		{"DELETE", StatusPath, "GET"},
+		{"GET", ScreensPath + "/a", "POST"}, // a {id} pattern
+		{"HEAD", ScreensPath + "/a", "POST"},
+	} {
+		raw, _ := json.Marshal(tunnelReq{Method: c.method, URL: c.url})
+		status, hdr, body, _ := run(j, raw, Session{})
+		b, _ := io.ReadAll(body)
+		if status != http.StatusMethodNotAllowed || hdr["Allow"] != c.allow || len(b) != 0 || len(hdr) != 1 {
+			t.Errorf("%s %s: status %d %v %q, want 405 Allow: %s", c.method, c.url, status, hdr, b, c.allow)
 		}
 	}
 	if last.URL != nil || n != 1 {
@@ -329,8 +341,8 @@ func TestAdminOnly(t *testing.T) {
 	j, _ := fakeJellyfin(t)
 	j.API = NewRouter()
 	j.API.Handle("GET "+StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { JSON(w, 200, map[string]any{}) }), AdminOnly)
-	call := func(role, path string) int {
-		raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: path})
+	call := func(role, method, path string) int {
+		raw, _ := json.Marshal(tunnelReq{Method: method, URL: path})
 		status, _, body, _ := run(j, raw, Session{Role: role})
 		if body != nil {
 			body.Close()
@@ -338,17 +350,18 @@ func TestAdminOnly(t *testing.T) {
 		return status
 	}
 	for _, c := range []struct {
-		role, path string
-		want       int
+		role, method, path string
+		want               int
 	}{
-		{Admin, StatusPath, 200},
-		{Member, StatusPath, http.StatusForbidden},
-		{"", StatusPath, http.StatusForbidden},
-		{Member, BurstPath + "?size=1", 200},
-		{Admin, BurstPath + "?size=1", 200},
+		{Admin, "GET", StatusPath, 200},
+		{Member, "GET", StatusPath, http.StatusForbidden},
+		{"", "GET", StatusPath, http.StatusForbidden},
+		{Member, "GET", BurstPath + "?size=1", 200},
+		{Admin, "GET", BurstPath + "?size=1", 200},
+		{Member, "POST", StatusPath, http.StatusMethodNotAllowed}, // method before role (#436)
 	} {
-		if got := call(c.role, c.path); got != c.want {
-			t.Errorf("%q GET %s: status %d, want %d", c.role, c.path, got, c.want)
+		if got := call(c.role, c.method, c.path); got != c.want {
+			t.Errorf("%q %s %s: status %d, want %d", c.role, c.method, c.path, got, c.want)
 		}
 	}
 }

@@ -11,18 +11,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 )
 
 // Router is the gateway API: a stdlib ServeMux (Go 1.22 patterns, e.g.
-// "POST /streamiq/screens/{id}") that answers 404 for anything it doesn't
-// route (an unknown path or a wrong method; #436 makes the latter 405).
-type Router struct{ mux *http.ServeMux }
+// "POST /streamiq/screens/{id}"). An unknown path is 404, a known one called
+// with a method it isn't registered for 405 + Allow (#436).
+type Router struct {
+	mux     *http.ServeMux
+	methods []string // every method a pattern names, for Allow
+}
 
 // NewRouter has the gateway-native endpoints (burst, screens) registered.
 func NewRouter() *Router {
-	r := &Router{http.NewServeMux()}
+	r := &Router{mux: http.NewServeMux()}
 	r.Handle("GET "+BurstPath, http.HandlerFunc(serveBurst))
 	r.Handle("GET "+RoutePath, http.HandlerFunc(serveRoute))
 	r.Handle("GET "+ScreenPath, http.HandlerFunc(serveScreen))
@@ -56,18 +61,36 @@ func (rt *Router) Handle(pattern string, h http.Handler, opts ...Option) {
 		h = opts[i](h)
 	}
 	rt.mux.Handle(pattern, h)
+	if m, _, ok := strings.Cut(pattern, " "); ok && !slices.Contains(rt.methods, m) {
+		rt.methods = append(rt.methods, m)
+	}
 }
 
-// ServeHTTP routes r; whatever the mux doesn't route is 404.
+// ServeHTTP routes r: an unknown path is 404, a known path with a wrong method 405.
 func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Only an exact, unencoded path is routed: an unclean one would get the mux's redirect.
-	// ponytail: the mux's GET also routes HEAD, which was always 404 here; #436 decides.
-	if _, pattern := rt.mux.Handler(r); pattern == "" || r.Method == http.MethodHead ||
-		r.URL.RawPath != "" || r.URL.Path != path.Clean(r.URL.Path) {
+	if r.URL.RawPath != "" || r.URL.Path != path.Clean(r.URL.Path) {
 		Fail(w, http.StatusNotFound, fmt.Errorf("gateway API: no %s %s", r.Method, r.URL.Path))
 		return
 	}
-	rt.mux.ServeHTTP(w, r)
+	// HEAD is never served: the mux's GET would route it, but the tunnel writer doesn't drop bodies.
+	if _, pattern := rt.mux.Handler(r); pattern != "" && r.Method != http.MethodHead {
+		rt.mux.ServeHTTP(w, r)
+		return
+	}
+	var allow []string // the methods the mux routes this path for (a {id} pattern needs matching, not a lookup)
+	for _, m := range rt.methods {
+		if _, pattern := rt.mux.Handler(&http.Request{Method: m, URL: r.URL, Host: r.Host}); pattern != "" {
+			allow = append(allow, m)
+		}
+	}
+	if len(allow) == 0 {
+		Fail(w, http.StatusNotFound, fmt.Errorf("gateway API: no %s %s", r.Method, r.URL.Path))
+		return
+	}
+	clear(w.Header())
+	w.Header().Set("Allow", strings.Join(allow, ", "))
+	refuse(w, http.StatusMethodNotAllowed, fmt.Errorf("gateway API: %s %s: allowed %v", r.Method, r.URL.Path, allow))
 }
 
 type callKey struct{}
@@ -112,12 +135,17 @@ func AfterReply(r *http.Request, f func()) {
 // Jellyfin proxy's 502 means just that) with no headers or body; err goes to
 // the gateway log only.
 func Fail(w http.ResponseWriter, status int, err error) {
+	clear(w.Header())
+	refuse(w, status, err)
+}
+
+// refuse is Fail keeping the headers already set (405's Allow).
+func refuse(w http.ResponseWriter, status int, err error) {
 	if fw, ok := w.(*frameWriter); ok && fw.status == 0 {
 		fw.err = err // handleReq logs it
 	} else {
 		log.Printf("gateway: tunnel: %v", err)
 	}
-	clear(w.Header())
 	w.WriteHeader(status)
 }
 

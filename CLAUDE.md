@@ -92,6 +92,8 @@ image). Hosting = Railway. TURN = Cloudflare (local coturn in dev).
 
 ```bash
 bash scripts/check.sh                   # GOLDEN PATH: all checks (mirrors CI). Run + read output before claiming done.
+E2E_GREP='@player|@library' bash scripts/check.sh  # same, e2e only for the area tags the change touched (a build's default)
+SKIP_E2E=1 bash scripts/check.sh        # same, no e2e stage: a change without e2e impact (CI still runs every spec)
 powershell -File scripts/dev.ps1        # run the app: emulator + backend (:5028) + frontend (:5173); Ctrl+C stops all
 powershell -File scripts/prune-worktrees.ps1 [-DryRun]  # remove worktrees + local branches already on main (merged PR / no commits); skips dirty ones
 
@@ -199,7 +201,9 @@ Copy `.env.example` only to override.
   per-PR progress there (it was the merge-conflict hotspot); open work lives in
   `gh issue list`. Edit them only when a lasting fact changes (new area complete, new
   architecture piece goes in `docs/architecture.md`).
-- **Done means:** `scripts/check.sh` ran and its output was read; the changed flow was
+- **Done means:** `scripts/check.sh` ran and its output was read (its e2e stage narrowed
+  to the touched areas with `E2E_GREP`, or `SKIP_E2E=1` for a change without e2e impact;
+  the full local e2e run, a Jellyfin per worker, only when the owner asks); the changed flow was
   actually driven (curl / UI / test output shown); docs invalidated by the change updated
   in the same diff. "It should work" is not evidence.
 - **Questions to the owner go through `AskUserQuestion`** (2–4 options, your pick first),

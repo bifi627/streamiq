@@ -9,7 +9,7 @@ import { defineConfig } from '@playwright/test'
 // Tests run in parallel on that one stack, so each is independent: own accounts
 // (uniqueEmail), own gateway. Area tags pick a slice while working on it:
 // `npm test -- --grep @households` (tags: @golden @gateways @library @player @diagnostics @shell
-// @households @compat). CI and check.sh run everything.
+// @households @compat). CI runs everything; check.sh too unless E2E_GREP / SKIP_E2E narrow it.
 export default defineConfig({
   testDir: '.',
   globalSetup: './global-setup.ts',
@@ -20,8 +20,9 @@ export default defineConfig({
   // ponytail: no CI sharding: each shard would start its own stack (~1.5 min).
   // CI: a GitHub runner has 4 vCPUs (16 GB) for Chromes, gateways and up to one
   // transcoding Jellyfin per worker (fixtures.ts), each generating its fixture
-  // media on first use. Locally: Playwright's default (half the cores).
-  workers: process.env.CI ? 3 : undefined,
+  // media on first use. One worker per vCPU (#469, 3 before); flakes from CPU
+  // contention would be the sign to step back. Locally: Playwright's default (half the cores).
+  workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     // Branded Chrome, not bundled Chromium: item 5's <video> needs H.264/AAC,

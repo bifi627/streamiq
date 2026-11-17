@@ -151,10 +151,25 @@ test('continue watching: newest first; the click-through guard keeps the order (
     })
   }).toPass()
   // The guard: a playback shorter than 60 s saves nothing, so the clip
-  // doesn't move up.
-  await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '60'))
+  // doesn't move up. Each save is a `req:/UserItems/<id>/UserData` channel:
+  // record them, so a late exit save can't land after the reload below.
+  await a.evaluate(() => {
+    localStorage.setItem('streamiq.watchMin', '60')
+    const w = window as unknown as { saves: string[] }
+    w.saves = []
+    const make = RTCPeerConnection.prototype.createDataChannel
+    RTCPeerConnection.prototype.createDataChannel = function (l, o) {
+      if (l.endsWith('/UserData')) w.saves.push(l)
+      return make.call(this, l, o)
+    }
+  })
   await tile('streamiq e2e clip')
   await play(a, 5)
+  // The movie page's button waits for its refetch after the exit save (#378).
+  await expect(a.getByRole('button', { name: 'Resume' })).toBeVisible()
+  expect(
+    await a.evaluate(() => (window as unknown as { saves: string[] }).saves),
+  ).toEqual([])
   await a.goBack()
   await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '0'))
   await a.reload()

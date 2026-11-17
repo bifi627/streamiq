@@ -1,7 +1,7 @@
-// THE golden path (dev-env spec: exactly one E2E; edge cases belong in the
-// integration layer). Real browser → broker → gateway → Jellyfin: onboard, pair,
-// install check, browse, play, resume, re-pair, re-pair after an evicted key,
-// remove (kills open sessions).
+// THE golden path: the one critical-path E2E. Real browser → broker → gateway →
+// Jellyfin: onboard, pair, browse, play, resume, re-pair, re-pair after an evicted
+// key, remove (kills open sessions). Supporting features have per-page specs
+// (shell, gateways, households, …); edge cases belong in the integration layer.
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -78,18 +78,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
   let posts = 0
   a.on('request', (r) => {
     if (r.method() === 'POST' && r.url().includes('/tunnels')) posts++
-  })
-
-  await test.step('installable as a PWA (manifest + icons)', async () => {
-    const cdp = await a.context().newCDPSession(a)
-    const { installabilityErrors } = await cdp.send(
-      'Page.getInstallabilityErrors',
-    )
-    // Playwright contexts are always incognito: that error is the harness, not the app.
-    expect(
-      installabilityErrors.filter((e) => e.errorId !== 'in-incognito'),
-    ).toEqual([])
-    expect((await cdp.send('Page.getAppManifest')).errors).toEqual([])
   })
 
   // Onboarding: Add gateway → run the shown install command.
@@ -280,16 +268,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       ).toBeVisible()
       await a.getByRole('link', { name: 'Settings' }).click()
       await a.getByLabel('Compatible mode').uncheck()
-      // The D-pad leaves a checkbox (#229), Left/Right too (no caret to
-      // keep them), and Down goes on past Data saver.
-      await a.keyboard.press('ArrowLeft')
-      await expect(a.getByLabel('Compatible mode')).not.toBeFocused()
-      await a.getByLabel('Compatible mode').focus()
-      await a.keyboard.press('ArrowDown')
-      const saver = a.getByRole('group', { name: 'Data saver' })
-      await expect(saver.getByRole('button', { name: 'Off' })).toBeFocused()
-      await a.keyboard.press('ArrowDown')
-      await expect(a.getByLabel('Raw quality option')).toBeFocused()
       await a.getByRole('button', { name: 'Back' }).click()
       // Quality (#108, #161): the picker says what plays and hides rungs that
       // would not scale the 360p clip down (480p too); a switch reloads at the
@@ -779,15 +757,13 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     })
 
     await test.step('browser B (same account, never paired) is refused', async () => {
-      // Signed out on a deep link: sign-in, then that same route loads.
+      // Signed out on the gateway's deep link: sign-in lands B on it.
       const id = (await a.locator('li code').first().textContent())!
       const b = await signIn(browser, false, `/g/${id}`)
       await expect(
         b.locator('[role=alert][data-kind="not-paired"]'),
       ).toContainText('this browser is not paired with the gateway')
-      expect(new URL(b.url()).pathname).toBe(`/g/${id}`)
-      await b.goto(process.env.E2E_APP_URL! + '/no-such-page')
-      await b.getByRole('link', { name: 'Go to your gateways' }).click()
+      await b.getByRole('link', { name: 'Gateways', exact: true }).click()
       await b.getByRole('button', { name: 'Test connection' }).click()
       await expect(
         b.getByText('this browser is not paired with the gateway'),

@@ -525,7 +525,7 @@ export async function startStack(o: StackOptions) {
   }
 }
 
-// TURN for the forced-relay step. Host port must equal container port: coturn
+// TURN for every tunnel (each side allocates; the forced-relay steps use it). Host port must equal container port: coturn
 // advertises 127.0.0.1 (--external-ip). Random base per run (not fixed) so
 // concurrent runs from other worktrees don't collide; retry on a taken port.
 async function startCoturn(labeled: (c: GenericContainer) => GenericContainer) {

@@ -55,11 +55,15 @@ export type User = {
 }
 
 /** A new emulator account, provisioned by the API (first /me), with a household
- * of its own as its admin (Create a household, #387). Its alias (displayName,
- * #388) is its email unless given: null = none yet, so the app asks for one first. */
+ * of its own as its admin (Create a household, #387) unless household is false.
+ * Its alias (displayName, #388) is its email unless given: null = none yet, so
+ * the app asks for one first. */
 export async function signUp(
   email: string,
-  alias: string | null = email,
+  {
+    alias = email,
+    household = true,
+  }: { alias?: string | null; household?: boolean } = {},
 ): Promise<User> {
   const r = await fetch(
     `${process.env.E2E_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
@@ -89,7 +93,7 @@ export async function signUp(
     const text = await res.text()
     return text ? JSON.parse(text) : null
   }
-  await api('/households', { method: 'POST' })
+  if (household) await api('/households', { method: 'POST' })
   const me = await api('/me')
   return {
     email,
@@ -98,6 +102,15 @@ export async function signUp(
     tenantId: me.tenantId ?? '',
     api,
   }
+}
+
+/** user joins host's household over the API (#191): host's invite, user accepts. */
+export async function join(host: User, user: User) {
+  const { token } = await host.api('/invites', { method: 'POST' })
+  await user.api('/invites/accept', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  })
 }
 
 /**

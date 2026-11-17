@@ -88,6 +88,18 @@ test('badge route: gateway host on a private address → lan, else direct; relay
     lan('2a02:8070:998a:2a40::1', '2a02:8070:998a:2a41::1'),
     'direct',
   )
+  // Chrome on IPv6 Wi-Fi: the selected local is an mDNS name; our own srflx
+  // candidate carries the real address, in the gateway's /64.
+  const mdns = report({}, 'host')
+  mdns.set('L', { candidateType: 'host', address: 'a1b2-mdns.local' })
+  mdns.set('R', { candidateType: 'host', address: '2a02:8070:998a:2a40::5' })
+  assert.equal(route(pairInfo(mdns)!), 'direct')
+  mdns.set('S', {
+    type: 'local-candidate',
+    candidateType: 'srflx',
+    address: '2a02:8070:998a:2a40:1111:2222:3333:4444',
+  })
+  assert.equal(route(pairInfo(mdns)!), 'lan')
   // Public host candidates (global IPv6 over cellular, public IPv4): not the LAN.
   assert.equal(route(pairInfo(report({}, 'host'))!), 'direct')
   assert.equal(lan('2a01:598::1', '2003:e0::1'), 'direct')

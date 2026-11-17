@@ -38,7 +38,12 @@ export function pairInfo(report: Stats): PairInfo | null {
     // (Brave hides its host candidates, so its side shows as srflx/prflx).
     lan:
       remote?.candidateType === 'host' &&
-      (isPrivate(remote) || sameV6Link(local, remote)),
+      (isPrivate(remote) ||
+        // our own addresses: the selected one, or (Chrome hides that behind
+        // mDNS) any other local candidate, e.g. the IPv6 srflx = our real one
+        [local, ...all.filter((s) => s.type === 'local-candidate')].some((l) =>
+          sameV6Link(l, remote),
+        )),
     ipv6: String(local?.address ?? local?.ip ?? '').includes(':'),
     local: local?.candidateType,
     remote: remote?.candidateType,
@@ -53,8 +58,8 @@ export function pairInfo(report: Stats): PairInfo | null {
 }
 
 // A host candidate is any interface address, global IPv6 and public IPv4
-// included. Reached directly, a private one, or a global IPv6 in this device's
-// /64 (one link), means the home network (#428).
+// included. Reached directly, a private one, or a global IPv6 in one of this
+// device's /64s (one link), means the home network (#428).
 // ponytail: RFC 1918 + link-local + ULA + mDNS; a VPN routed into the home
 // subnet also reads as LAN, CGNAT/VPN addresses read as direct.
 const addr = (c?: Record<string, any>) =>

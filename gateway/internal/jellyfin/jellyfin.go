@@ -21,8 +21,6 @@
 // resume and played state are per user; "streamiq-viewer" is the fallback.
 //
 // The viewers' own passwords are stored, so a revoked token repairs itself.
-// Files from before #50 hold an admin API key: it keeps working until the next
-// page login, which replaces it and deletes the key in Jellyfin.
 //
 // Transcoding settings (#82): only on a Jellyfin the gateway set up, never on
 // one the user brought (BYO), though both store an admin password. See configure.
@@ -67,10 +65,9 @@ type Creds struct {
 	Viewer         string            `json:"viewer,omitempty"`
 	ViewerID       string            `json:"viewerId,omitempty"`
 	ViewerPassword string            `json:"viewerPassword,omitempty"` // re-sign-in when the token is revoked
-	User           string            `json:"user,omitempty"`           // the admin the gateway created; before #50: the user the key was pinned to
+	User           string            `json:"user,omitempty"`           // the admin the gateway created
 	Password       string            `json:"password,omitempty"`       // the admin the gateway created (wizard, or its own on BYO)
 	BYO            bool              `json:"byo,omitempty"`            // the user brought this Jellyfin: hands off its settings
-	APIKey         string            `json:"apiKey,omitempty"`         // before #50: an admin API key
 	ConfigSteps    int               `json:"configSteps,omitempty"`    // len(configSteps) applied (managed Jellyfin only)
 	ServerSteps    int               `json:"serverSteps,omitempty"`    // len(serverSteps) applied (managed Jellyfin only)
 	HWAccel        string            `json:"hwAccel,omitempty"`        // STREAMIQ_JELLYFIN_HWACCEL last applied
@@ -147,7 +144,6 @@ func hwAccel(enc map[string]any, kind string) {
 // View is what the status page shows.
 type View struct {
 	Reachable, NeedsLogin, HasKey bool
-	LegacyKey                     bool // still on a pre-#50 admin API key
 	Untested                      bool // reachable, but not the Tested major.minor
 	Version, Tested, Err          string
 	User, Viewer                  string
@@ -168,7 +164,6 @@ type Setup struct {
 	vmu       sync.Mutex // held by whoever rewrites creds or signs in as the gateway's admin: EnsureViewer, check, configure, Login, bootstrap, Load
 	mu        sync.Mutex
 	creds     Creds
-	legacyID  string // user id resolved for a pre-#50 API key
 	reachable bool
 	wizard    bool // wizard completed
 	version   string
@@ -221,7 +216,7 @@ func (s *Setup) Load() error {
 	s.mu.Unlock()
 	if c.Token != "" {
 		s.OnKey(c.Token, c.ViewerID)
-	} // a pre-#50 API key is installed by poll once its user id is resolved
+	}
 	return nil
 }
 
@@ -273,7 +268,7 @@ func (s *Setup) poll(ctx context.Context) {
 	err := s.call(ctx, "GET", "/System/Info/Public", "", "", &info)
 	s.mu.Lock()
 	s.reachable, s.version, s.wizard = err == nil, info.Version, info.StartupWizardCompleted
-	c, legacyID := s.creds, s.legacyID
+	c := s.creds
 	warn := err == nil && untested(info.Version) && s.warned != info.Version
 	if warn {
 		s.warned = info.Version
@@ -295,10 +290,6 @@ func (s *Setup) poll(ctx context.Context) {
 	case c.Token != "" || len(c.Users) > 0:
 		s.check(ctx)
 		s.configure(ctx)
-	case c.APIKey != "":
-		if legacyID == "" {
-			s.legacy(ctx, c)
-		}
 	}
 	if v := s.View(); !s.logged && v.Reachable && v.HasKey {
 		s.logged = true
@@ -310,7 +301,7 @@ func (s *Setup) poll(ctx context.Context) {
 // A booting Jellyfin briefly reports the wizard not done too, but answers 503,
 // not 401, so a restart never replaces working creds.
 func (s *Setup) wiped(ctx context.Context, c Creds) bool {
-	tok := cmp.Or(c.Token, c.APIKey)
+	tok := c.Token
 	for _, v := range c.Users {
 		tok = cmp.Or(tok, v.Token)
 	}
@@ -362,7 +353,7 @@ func (s *Setup) bootstrap(ctx context.Context) error {
 			return err
 		}
 	}
-	c, err := s.connect(ctx, adminName, pw, "", false)
+	c, err := s.connect(ctx, adminName, pw, false)
 	if err != nil {
 		return err
 	}
@@ -371,7 +362,7 @@ func (s *Setup) bootstrap(ctx context.Context) error {
 		return err
 	}
 	s.mu.Lock() // under vmu: EnsureViewer must not see the old admin's refusal
-	s.err, s.refused, s.legacyID = "", false, ""
+	s.err, s.refused = "", false
 	s.mu.Unlock()
 	return nil
 }
@@ -379,7 +370,7 @@ func (s *Setup) bootstrap(ctx context.Context) error {
 // Login connects with an existing admin's login (from the local page). The
 // password typed is not stored, except on a Jellyfin the gateway set up when the
 // login is as its own admin (streamiq): that password was in the file already,
-// and storing it recovers one a human changed (#240). A pre-#50 API key is deleted in Jellyfin.
+// and storing it recovers one a human changed (#240).
 func (s *Setup) Login(ctx context.Context, user, pw string) error {
 	s.vmu.Lock()
 	defer s.vmu.Unlock()
@@ -391,7 +382,7 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 		// the gateway resets this user's password below, which ends the very session it signs in with
 		return fmt.Errorf("sign in with your own Jellyfin administrator, not %s", byoAdmin)
 	}
-	c, err := s.connect(ctx, user, pw, old.APIKey, byo)
+	c, err := s.connect(ctx, user, pw, byo)
 	if err != nil {
 		return err
 	}
@@ -413,9 +404,9 @@ func (s *Setup) Login(ctx context.Context, user, pw string) error {
 }
 
 // connect signs in as an admin, ensures the gateway's own admin (ownAdmin, on
-// BYO) and the viewer user, signs in as the viewer, deletes oldKey (if any)
-// and logs the admin session out again.
-func (s *Setup) connect(ctx context.Context, user, pw, oldKey string, ownAdmin bool) (Creds, error) {
+// BYO) and the viewer user, signs in as the viewer and logs the admin
+// session out again.
+func (s *Setup) connect(ctx context.Context, user, pw string, ownAdmin bool) (Creds, error) {
 	admin, err := s.signIn(ctx, user, pw)
 	if err != nil {
 		return Creds{}, err
@@ -424,12 +415,6 @@ func (s *Setup) connect(ctx context.Context, user, pw, oldKey string, ownAdmin b
 	v, err := s.makeViewer(ctx, admin, ViewerName)
 	if err != nil {
 		return Creds{}, fmt.Errorf("create the viewer user (needs a Jellyfin administrator): %w", err)
-	}
-	if oldKey != "" {
-		// No err in the log: the request URL (in a transport error) holds the key.
-		if s.call(ctx, "DELETE", "/Auth/Keys/"+oldKey, admin, "", nil) != nil {
-			slog.Warn("gateway: could not delete the old Jellyfin API key; delete streamiq-gateway in Dashboard → API Keys")
-		}
 	}
 	c := Creds{Token: v.Token, Viewer: v.Name, ViewerID: v.ID, ViewerPassword: v.Password}
 	if ownAdmin { // last: a failure before this leaves its stored password valid
@@ -746,25 +731,6 @@ func (s *Setup) ViewerState(user string) map[string]any {
 	return map[string]any{"shared": true, "reason": reason}
 }
 
-// legacy resolves the user a pre-#50 API key is pinned to and installs the key.
-func (s *Setup) legacy(ctx context.Context, c Creds) {
-	var users []struct{ Name, Id string }
-	if err := s.call(ctx, "GET", "/Users", c.APIKey, "", &users); err != nil {
-		s.setErr("Jellyfin API key: " + err.Error())
-		return
-	}
-	for _, u := range users {
-		if strings.EqualFold(u.Name, c.User) {
-			s.mu.Lock()
-			s.legacyID = u.Id
-			s.mu.Unlock()
-			s.OnKey(c.APIKey, u.Id)
-			return
-		}
-	}
-	s.setErr(fmt.Sprintf("Jellyfin user %q not found: reconnect Jellyfin", c.User))
-}
-
 // httpErr is a non-2xx Jellyfin response.
 type httpErr struct {
 	method, path string
@@ -822,11 +788,10 @@ func (s *Setup) View() View {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := s.creds
-	legacy := c.Token == "" && c.APIKey != ""
 	v := View{
 		Reachable: s.reachable, Version: s.version, Tested: Tested, Err: s.err,
-		HasKey: c.Token != "" || legacy, LegacyKey: legacy, Untested: s.reachable && untested(s.version),
-		// also offered to move off a legacy key, and on BYO until the gateway has its own admin (#195)
+		HasKey: c.Token != "", Untested: s.reachable && untested(s.version),
+		// also offered on BYO until the gateway has its own admin (#195)
 		// and when the gateway's admin was refused (BYO: a login makes it again; managed: one as it stores its new password, #240)
 		NeedsLogin: s.reachable && s.wizard && (c.Token == "" || c.Password == "" || s.refused),
 		User:       c.User, Viewer: c.Viewer,
@@ -852,13 +817,9 @@ func (v View) Transcoding() string {
 	return v.HWAccel
 }
 
-// Token is the credential state for the heartbeat: "ok", "legacy" (pre-#50
-// admin API key) or "missing".
+// Token is the credential state for the heartbeat: "ok" or "missing".
 func (v View) Token() string {
-	switch {
-	case v.LegacyKey:
-		return "legacy"
-	case v.HasKey:
+	if v.HasKey {
 		return "ok"
 	}
 	return "missing"

@@ -381,7 +381,7 @@ Fields are added over time; a client ignores ones it doesn't know.
 | `transcoding` | `"nvenc"` / `"none"`: the `STREAMIQ_JELLYFIN_HWACCEL` the gateway applied to a Jellyfin it set up; `"unmanaged"`: a Jellyfin the user brought (the gateway doesn't own its settings) |
 | `os`, `arch` | Go's `GOOS` / `GOARCH` |
 | `startedAt` | gateway process start, ISO 8601 UTC |
-| `jellyfin` | `reachable`, `untested` (version outside the tested line), `version`, `token`: `ok` / `missing` / `legacy` (pre-#50 admin API key), `offline` (#321, from `jellyfin-compose.yml` on each request): `enforced` (the jail is on: Jellyfin has no internet access) / `allowed` (online lookups possible); absent when the gateway has no compose file (a Jellyfin the user brought, or native) |
+| `jellyfin` | `reachable`, `untested` (version outside the tested line), `version`, `token`: `ok` / `missing`, `offline` (#321, from `jellyfin-compose.yml` on each request): `enforced` (the jail is on: Jellyfin has no internet access) / `allowed` (online lookups possible); absent when the gateway has no compose file (a Jellyfin the user brought, or native) |
 | `pairedClients`, `activeSessions` | counts only, no client names (#65) |
 | `viewer` | the calling session's Jellyfin viewer (#242): `shared: false` = the user's own; `shared: true` = the shared `streamiq-viewer` (#195 fallback), with a `reason` code: `admin-refused` (Jellyfin refused the gateway's admin sign-in), `no-admin` (the gateway has no Jellyfin admin of its own), `failed` (anything else; retried on the user's next session). The web app words it; an unknown code shows no reason. No credentials, no Jellyfin ids. The web app shows a guest-mode banner on the library and player while `shared` is true; no field (older gateway) = no banner |
 | `remoteUpdate` | `true` = `POST /streamiq/update` would start an update now (#312); else a sentence saying why not, shown as it is: not Windows, dev build, an update already running, already up to date, no logon task. No field (older gateway) = update by hand |
@@ -536,9 +536,7 @@ stays a *viewer*:
   lyric or Live TV management; all libraries.
 - **User pinning.** Every request gets `userId=<id of the session's viewer>`, and any
   browser-sent `userId` is dropped (Jellyfin also answers `403` to another
-  user's id with this token). Resume and played state are per StreamIQ user. A
-  gateway set up before #50 still runs on an admin API key pinned to the user
-  stored with it, until the next admin login on its local gateway page replaces it.
+  user's id with this token). Resume and played state are per StreamIQ user.
 - **Allowlist.** Defense in depth on top of the viewer token: only these pass
   (anything else is `403`):
 
@@ -567,7 +565,7 @@ stays a *viewer*:
   login again; a user's own viewer is dropped and made again on their next session.
 
 Resume goes through `UserData` (`PlaybackPositionTicks`). `/Sessions/Playing*`
-isn't allowlisted (Jellyfin ignored it from the pre-#50 API key; not needed).
+isn't allowlisted (not needed).
 
 ### Browser mechanism: hls.js custom loader, not a Service Worker (decided)
 

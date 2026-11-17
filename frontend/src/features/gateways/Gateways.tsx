@@ -522,7 +522,6 @@ export function EditableName({
 const tokenText = {
   ok: 'token set',
   missing: 'token missing: open the gateway page and Connect Jellyfin',
-  legacy: 'admin API key: reconnect Jellyfin on the gateway page',
 }
 
 // Liveness from the heartbeat (works unpaired); the details from the gateway API

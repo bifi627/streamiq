@@ -61,8 +61,8 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 	var upd atomic.Pointer[string]
 	upd.Store(new(string))
 	jf := struct {
-		Reachable, HasKey, NeedsLogin, Untested, LegacyKey, Managed bool
-		Version, Tested, Err, User, Viewer, PasswordFile, HWAccel   string
+		Reachable, HasKey, NeedsLogin, Untested, Managed          bool
+		Version, Tested, Err, User, Viewer, PasswordFile, HWAccel string
 	}{Reachable: true, HasKey: true, Managed: true, User: "streamiq", Viewer: "streamiq-viewer", PasswordFile: "/home/u/state/jellyfin.json"}
 	h := Handler(Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
 	w := httptest.NewRecorder()
@@ -154,8 +154,8 @@ func TestLibrariesPage(t *testing.T) {
 	c := Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store,
 		Jellyfin: func() any {
 			return struct {
-				Reachable, HasKey, NeedsLogin, Untested, LegacyKey, Managed bool
-				Version, Tested, Err, User, Viewer, PasswordFile, HWAccel   string
+				Reachable, HasKey, NeedsLogin, Untested, Managed          bool
+				Version, Tested, Err, User, Viewer, PasswordFile, HWAccel string
 			}{Reachable: true, HasKey: true, Managed: true}
 		},
 		Libraries: func(context.Context) (any, error) {

@@ -28,7 +28,7 @@ export type GatewayStatus = {
     reachable?: boolean
     version?: string
     untested?: boolean
-    token?: 'ok' | 'missing' | 'legacy'
+    token?: 'ok' | 'missing'
     offline?: 'enforced' | 'allowed' // #321: absent = no compose Jellyfin
   }
   viewer?: { shared?: boolean; reason?: string } // this session's (#242); reason: see guest.ts

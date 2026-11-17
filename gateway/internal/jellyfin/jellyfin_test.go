@@ -23,13 +23,12 @@ type fakeUser struct {
 }
 
 // fake speaks just enough Jellyfin: the wizard, users with policies and
-// passwords, sign-in tokens (one per user, like one DeviceId), and API keys.
+// passwords, and sign-in tokens (one per user, like one DeviceId).
 type fake struct {
 	mu        sync.Mutex
 	wizard    bool
 	users     map[string]*fakeUser
 	tokens    map[string]string // token → user name
-	keys      map[string]bool   // pre-#50 admin API keys
 	n         int
 	loggedOut []string       // users whose session was logged out
 	enc       map[string]any // /System/Configuration/encoding
@@ -47,7 +46,7 @@ type fake struct {
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
-	f := &fake{wizard: wizardDone, users: map[string]*fakeUser{}, tokens: map[string]string{}, keys: map[string]bool{},
+	f := &fake{wizard: wizardDone, users: map[string]*fakeUser{}, tokens: map[string]string{},
 		enc: map[string]any{"HardwareAccelerationType": "none", "EnableThrottling": false, "EncoderPreset": "auto", "QsvDevice": "keep me"},
 		cfg: map[string]any{"ServerName": "keep me", "PluginRepositories": []any{map[string]any{"Name": "Jellyfin Stable"}},
 			"MetadataOptions": []any{map[string]any{"ItemType": "Movie", "DisabledMetadataFetchers": []any{}}}}}
@@ -75,14 +74,11 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		tok = m[1]
 	}
 	caller := f.users[f.tokens[tok]]
-	admin := (caller != nil && caller.admin) || f.keys[tok]
+	admin := caller != nil && caller.admin
 	path := r.URL.Path
 	var id string
 	if m := regexp.MustCompile(`^/Users/(id-[^/]+)/(Password|Policy)$`).FindStringSubmatch(path); m != nil {
 		id, path = m[1], "/Users/{id}/"+m[2]
-	}
-	if strings.HasPrefix(path, "/Auth/Keys/") {
-		id, path = strings.TrimPrefix(path, "/Auth/Keys/"), "/Auth/Keys/{key}"
 	}
 	byID := func() *fakeUser {
 		for _, u := range f.users {
@@ -181,12 +177,6 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		u.policy, u.admin = p, p["IsAdministrator"] == true
-	case "DELETE /Auth/Keys/{key}":
-		if !admin || !f.keys[id] {
-			deny(404)
-			return
-		}
-		delete(f.keys, id)
 	case "GET /System/Configuration/encoding":
 		if !admin {
 			deny(401)
@@ -445,11 +435,10 @@ func TestRevokedTokenRepairs(t *testing.T) {
 	}
 }
 
-// A pre-#50 install keeps streaming on its admin API key (pinned to its user)
-// until the next page login, which moves it to the viewer and deletes the key.
-func TestLegacyKeyMigrates(t *testing.T) {
+// A state from before #50 (an admin API key, no viewer token) is like no token:
+// nothing is installed and the page asks to Connect Jellyfin (#440).
+func TestLegacyKeyNeedsLogin(t *testing.T) {
 	f, srv := newFake(t, true)
-	f.keys["legacy-key"] = true
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
 	f.users["streamiq"] = &fakeUser{id: "id-admin", pw: "pw", admin: true} // the gateway set Jellyfin up
@@ -458,15 +447,14 @@ func TestLegacyKeyMigrates(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.poll(context.Background())
-	if v := s.View(); got != [2]string{"legacy-key", "id-admin"} || !v.LegacyKey || !v.HasKey || !v.NeedsLogin {
+	if v := s.View(); got != [2]string{} || v.HasKey || !v.NeedsLogin || v.Token() != "missing" {
 		t.Fatalf("legacy key: onKey %v, view %+v", got, v)
 	}
 	if err := s.Login(context.Background(), "streamiq", "pw"); err != nil {
 		t.Fatal(err)
 	}
-	c := connected(t, f, s, got)
-	if f.keys["legacy-key"] || c.APIKey != "" || s.View().LegacyKey || c.Password != "pw" {
-		t.Fatalf("after migration: keys %v, creds %+v", f.keys, c)
+	if c := connected(t, f, s, got); c.Password != "pw" {
+		t.Fatalf("after login: creds %+v", c)
 	}
 }
 

@@ -1,7 +1,8 @@
 # Database backup & recovery
 
-The control plane's Postgres runs on Railway. It holds tenants, users, gateway credential
-hashes + DTLS pins, enrollment tokens, and tunnel telemetry. **Media never touches it.**
+The control plane's Postgres runs on Railway. It holds households (`tenants`), users (pseudonymous
+`firebase_uid` only), memberships, invites, gateway credential hashes + DTLS pins,
+enrollment tokens, and tunnel telemetry. **Media never touches it.**
 Credentials for everything below: `docs/tools.md`.
 
 ## What exists
@@ -59,8 +60,8 @@ Same as A without step 6: fresh Postgres → restore the newest dump → repoint
 
 An untested backup isn't a backup. Do it quarterly and before any major DB change.
 
-**Against the Railway dev DB** (what #44 asked for). This overwrites dev and copies prod's
-data (emails, tenant names) into it. Only ever copy prod → dev, never the other way.
+**Against the Railway dev DB.** This overwrites dev and copies prod's data (household
+and gateway names, telemetry) into it. Only ever copy prod → dev, never the other way.
 
 ```powershell
 ./scripts/restore-db.ps1 -DumpPath .\streamiq-production-<stamp>.dump -TargetUrl '<dev DATABASE_PUBLIC_URL>' -Clean

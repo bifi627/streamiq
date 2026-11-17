@@ -86,15 +86,11 @@ shared hidden user `streamiq-viewer` and the page says why.
   signs out. It never stores your password, so changing it later doesn't break
   anything. The gateway needs its own admin to create the members' Jellyfin
   users; it doesn't touch your Jellyfin's settings.
-  A gateway connected before this change shows **Connect Jellyfin** once more:
-  sign in again, and playback keeps working until you do.
 
 If the token stops working (for example you signed the gateway out under
 Dashboard → Devices), the gateway signs in again by itself. If you deleted
 `streamiq-viewer` or changed its password, the page asks you to **Connect
-Jellyfin** again. A gateway set up before this change uses an admin API key
-and shows **admin API key: reconnect Jellyfin**: sign in once, and the
-gateway switches over and deletes the old key.
+Jellyfin** again.
 
 **Without the page** (a headless NAS or server over SSH): run
 `gateway jellyfin login` on the gateway's computer. It asks for a Jellyfin
@@ -450,24 +446,3 @@ enrolled) or over the same release.
   again now with `schtasks /Run /TN streamiq-gateway`. `gateway service uninstall`
   stops it and removes the task; `state\` and `gateway.env` stay.
 - Linux / macOS (manual for now): `crontab -e`, add `@reboot cd ~/.local/share/streamiq && ./gateway >> gateway.log 2>&1`
-
-## Releasing (maintainers)
-
-Automatic (#274): after CI passed on a push to `main` (the last job of `ci.yml`), the
-gateway releases if `gateway/` (`*_test.go` aside) changed since the last stable release.
-It releases what `main` is, so a change whose own push didn't release (red CI, a cancelled
-run, `[skip release]` in the subject) goes out with the next one. Version
-(`scripts/next-gateway-version.sh`): the highest stable `gateway-v*` tag, minor bumped if any
-gateway commit since it is marked breaking with `!` right after the type (`feat!: …`,
-`fix(gateway)!: …`, `feat!: gateway: …`; not `feat: gateway!: …`), else patch bumped. The
-subject is the PR title (repo setting: squash commit = PR title). A re-run or an older commit never releases over a newer one.
-
-The major never changes automatically: to bump it, push a tag `gateway-vN.0.0` by hand on a
-commit on `main`; that releases it, and later automatic releases build on it.
-
-Either way CI (`release-gateway.yml`) tests, builds all six
-binaries, and publishes the GitHub Release with `SHA256SUMS`, both install
-scripts and `jellyfin-compose.yml`. When bumping the Jellyfin pin, update
-`docker-compose.yml`, `gateway/install/jellyfin-compose.yml`,
-`jellyfin.Image` and `jellyfin.Tested` together (a gateway test enforces it). A tag with a suffix (`gateway-v1.5.0-rc.1`) becomes a prerelease,
-which `latest` and the update check skip.

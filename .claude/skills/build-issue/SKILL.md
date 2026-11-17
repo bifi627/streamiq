@@ -113,6 +113,10 @@ Report the rounds (findings per round, what you fixed) in the thread.
 
 ## 4. Finish
 
+- Before marking anything ready, give the PR body a `## Noticed` section: what you
+  noticed outside the task but didn't touch (ranked, at most 3 plus a line of nits, each
+  with the issue you proposed or why not), or `none`. Security-sensitive items never go
+  there: tell the owner privately (CLAUDE.md).
 - Non-device issues: mark the PR ready, `bash scripts/issue-status.sh N "In review"`.
   Report the PR link with its verdict and stop.
 - DEVICE issues (the issue has `device:tv` and/or `device:phone`): build and verify

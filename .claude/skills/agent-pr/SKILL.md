@@ -83,7 +83,9 @@ headRefOid.
   settle). Only on `ready to merge`, next line: `Merge risk: ` + the merge risk line
   `agent-review` returned. Then one line `Acceptance criteria: all met` or
   `Acceptance criteria: not met — <which>`. Then a short answer to anything the PR body
-  asked reviewers to check. Then the CI status from `gh pr checks N` (pass / failing
+  asked reviewers to check. If an agent built the PR (its body ends with the agent
+  signature) and the body has no `## Noticed` section, one line `Noticed: missing`.
+  Then the CI status from `gh pr checks N` (pass / failing
   check names / pending). Last line, in exactly this form (it is what later analysis
   of the reviews reads), with the counts `agent-review` returned:
   `Review stats: level=high candidates=9 blocker=0 spec=1 low=8`, with

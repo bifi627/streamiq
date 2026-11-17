@@ -9,7 +9,7 @@ belongs to the SPA's client routes (prod serves `index.html` for them, unknown
 `/api/*` paths are 404). `/healthz` stays at the root. `STREAMIQ_API_URL` is the
 origin only; clients append `/api/…` themselves.
 
-## Gateway onboarding (MVP item 2)
+## Gateway onboarding
 
 Design: `superpowers/specs/2026-11-01-streamiq-agent-pairing-design.md`.
 Fingerprints everywhere use the form `sha-256 AA:BB:…` (32 upper-case hex
@@ -122,7 +122,7 @@ bucket (browser: burst 50, 10/s; gateway: burst 200, 50/s) closes it with
 `GET /api/gateways` reports `online` = last heartbeat within 90 s. The same socket
 carries the gateway's half of the broker (below).
 
-## Broker (MVP item 3)
+## Broker
 
 Tenant-scoped signaling. One JSON object per WebSocket text frame. The browser
 socket picks no household: the `offer`'s gateway decides it, and the broker checks
@@ -176,7 +176,7 @@ per session (several browsers at once).
   compromised API alone gets nothing without a paired device. The role is fixed for the session: a demoted admin keeps it until the
   session ends (like a removed membership, #192).
 
-## ICE servers + tunnel telemetry (MVP item 5)
+## ICE servers + tunnel telemetry
 
 **ICE servers come per session, in the broker's `ready`** (there is no
 free-standing TURN endpoint; item 6). Prod: Cloudflare `generate-ice-servers`
@@ -233,7 +233,7 @@ browser's own reading of its pair (`getStats()`; Chrome can report a relayed loc
 as `prflx`, only relay candidates carry `relayProtocol`, so that counts too) drives the
 player's privacy indicator (polled every 2 s) and Diagnostics, not telemetry.
 
-## Pairing + connection auth (MVP item 3)
+## Pairing + connection auth
 
 Design: `superpowers/specs/2026-11-01-streamiq-agent-pairing-design.md`. Browser
 identity = non-extractable WebCrypto ECDSA P-256 **client key**; its
@@ -300,7 +300,7 @@ code(gatewayFp, keyFp, nA="11"×32, nB="22"×32) = 138781
 
 Once authorized, tunnel requests use the framing below, one channel each.
 
-## Tunnel framing (MVP item 5)
+## Tunnel framing
 
 The browser tunnels HTTP to the gateway's local Jellyfin over data channels.
 **One data channel per request**: the channel *is* the request/response

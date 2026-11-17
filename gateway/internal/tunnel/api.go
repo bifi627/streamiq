@@ -5,16 +5,13 @@ package tunnel
 // Router. Each feature package owns its handlers; cmd/gateway registers them.
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"net/url"
+	"net/http/httptest"
 	"path"
 	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -60,11 +57,12 @@ func (rt *Router) Handle(pattern string, h http.Handler, opts ...Option) {
 	rt.mux.Handle(pattern, h)
 }
 
-// ServeHTTP routes r; whatever the mux doesn't route is 404. The path must be
-// clean: an unclean one would get the mux's redirect.
+// ServeHTTP routes r; whatever the mux doesn't route is 404.
 func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Only an exact, unencoded path is routed: an unclean one would get the mux's redirect.
 	// ponytail: the mux's GET also routes HEAD, which was always 404 here; #436 decides.
-	if _, pattern := rt.mux.Handler(r); pattern == "" || r.Method == http.MethodHead {
+	if _, pattern := rt.mux.Handler(r); pattern == "" || r.Method == http.MethodHead ||
+		r.URL.RawPath != "" || r.URL.Path != path.Clean(r.URL.Path) {
 		Fail(w, http.StatusNotFound, fmt.Errorf("gateway API: no %s %s", r.Method, r.URL.Path))
 		return
 	}
@@ -88,6 +86,15 @@ func SessionOf(r *http.Request) Session {
 	return Session{}
 }
 
+// run runs the AfterReply hooks.
+func (c *reqState) run() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, f := range c.after {
+		f()
+	}
+}
+
 // AfterReply runs f once the reply to r is delivered (the browser closed the
 // channel, at worst EOFGrace after the reply ended): for work that would cut the
 // reply off, like removing the calling client, which closes its own session.
@@ -99,15 +106,17 @@ func AfterReply(r *http.Request, f func()) {
 	}
 }
 
-// Fail refuses a request: status (500 for the handler's own failure, never
-// 502, which the web app shows as "media server down", #327) with no headers or
-// body; err goes to the gateway log only.
+// Fail refuses a request: status (500 for a gateway API handler's own failure,
+// never 502, which the web app shows as "media server down", #327; the
+// Jellyfin proxy's 502 means just that) with no headers or body; err goes to
+// the gateway log only.
 func Fail(w http.ResponseWriter, status int, err error) {
-	if rw, ok := w.(*replyWriter); ok && rw.status == 0 {
-		rw.err = err // handleReq logs it
+	if fw, ok := w.(*frameWriter); ok && fw.status == 0 {
+		fw.err = err // handleReq logs it
 	} else {
 		log.Printf("gateway: tunnel: %v", err)
 	}
+	clear(w.Header())
 	w.WriteHeader(status)
 }
 
@@ -126,123 +135,14 @@ func JSON(w http.ResponseWriter, status int, v any) {
 	w.Write(b)
 }
 
-// replyWriter adapts a handler to handleReq: the status and headers become the
-// head frame once the handler writes (or returns), the body is a pipe that
-// streamBody relays in ChunkSize frames under backpressure (Gate). The pipe
-// has no buffer, so every Write is already flushed.
-type replyWriter struct {
-	hdr    http.Header
-	pw     *io.PipeWriter
-	head   chan struct{} // closed once status is set
-	status int
-	sent   map[string]string // hdr as the head frame carries it
-	err    error             // from Fail
-}
-
-func (w *replyWriter) Header() http.Header { return w.hdr }
-
-func (w *replyWriter) WriteHeader(status int) {
-	if w.status != 0 {
-		return
-	}
-	for k, v := range w.hdr {
-		if len(v) == 0 {
-			continue
-		}
-		if w.sent == nil {
-			w.sent = map[string]string{}
-		}
-		w.sent[k] = v[0]
-	}
-	w.status = status
-	close(w.head)
-}
-
-func (w *replyWriter) Write(b []byte) (int, error) {
-	w.WriteHeader(http.StatusOK)
-	return w.pw.Write(b)
-}
-
-func (w *replyWriter) Flush() {}
-
-// gatewayAPI runs the request frame rq on api. Only an exact, unencoded path is
-// routed; anything else under the prefix is 404.
-func gatewayAPI(api *Router, rq tunnelReq, u *url.URL, who Session) (int, map[string]string, io.ReadCloser, error) {
-	if u.RawPath != "" || u.Path != path.Clean(u.Path) {
-		return http.StatusNotFound, nil, nil, fmt.Errorf("gateway API: no %s %s", rq.Method, u.Path)
-	}
-	c := &reqState{who: who}
-	// r.Context() ends when the channel closes, the reply body is closed (the
-	// reply can't be sent on), or the handler returns.
-	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), callKey{}, c))
-	if who.Closed != nil {
-		go func() {
-			select {
-			case <-who.Closed:
-				cancel()
-			case <-ctx.Done():
-			}
-		}()
-	}
-	r := (&http.Request{
-		Method: rq.Method, URL: u, RequestURI: rq.URL, Proto: "HTTP/1.1", ProtoMajor: 1, ProtoMinor: 1,
-		Header: http.Header{}, Body: io.NopCloser(strings.NewReader(rq.Body)), ContentLength: int64(len(rq.Body)),
-	}).WithContext(ctx)
-	for k, v := range rq.Headers {
-		r.Header.Set(k, v)
-	}
-	pr, pw := io.Pipe()
-	w := &replyWriter{hdr: http.Header{}, pw: pw, head: make(chan struct{})}
-	go func() {
-		defer cancel()
-		defer pw.Close()
-		defer w.WriteHeader(http.StatusOK) // a handler that wrote nothing: 200, empty
-		api.ServeHTTP(w, r)
-	}()
-	<-w.head
-	if w.err != nil {
-		cancel()
-		pr.Close()
-		return w.status, nil, nil, w.err
-	}
-	return w.status, w.sent, afterReply{replyBody{pr, cancel}, func() {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		for _, f := range c.after {
-			f()
-		}
-	}}, nil
-}
-
-// afterReply is a response body whose after runs once the reply is delivered
-// (handleReq, after the channel closes).
-type afterReply struct {
-	io.ReadCloser
-	after func()
-}
-
-// replyBody is the reply's read end; closing it ends the handler's context.
-type replyBody struct {
-	*io.PipeReader
-	cancel func()
-}
-
-func (b replyBody) Close() error { b.cancel(); return b.PipeReader.Close() }
-
 // Do runs one gateway API request on api the way the tunnel does, minus WebRTC,
 // and reads the whole reply: for handler tests in the packages that own them.
 // after runs the handler's AfterReply hooks.
 func Do(api *Router, who Session, method, url, body string) (status int, hdr map[string]string, reply string, after func()) {
 	raw, _ := json.Marshal(tunnelReq{Method: method, URL: url, Body: body})
-	status, hdr, rc, _ := proxy(&Jellyfin{API: api}, raw, who)
-	after = func() {}
-	if rc != nil {
-		if a, ok := rc.(afterReply); ok {
-			after = a.after
-		}
-		b, _ := io.ReadAll(rc)
-		rc.Close()
-		reply = string(b)
-	}
-	return status, hdr, reply, after
+	st := &reqState{who: who}
+	rec := httptest.NewRecorder()
+	serve(rec, &Jellyfin{API: api}, raw, st)
+	res := rec.Result()
+	return res.StatusCode, firstValues(res.Header), rec.Body.String(), st.run
 }

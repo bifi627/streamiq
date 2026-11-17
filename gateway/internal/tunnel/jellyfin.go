@@ -2,12 +2,15 @@ package tunnel
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync/atomic"
 )
@@ -24,8 +27,8 @@ import (
 type Jellyfin struct {
 	Client *http.Client
 	URL    string // e.g. http://localhost:8096
-	// API answers /streamiq/* (api.go); nil = the gateway-native endpoints only.
-	// ponytail: lives here because the tunnel has one config struct (#437 moves Jellyfin onto handlers).
+	// API answers /streamiq/* (api.go; ServeHTTP routes it there); nil = the
+	// gateway-native endpoints only.
 	API *Router
 	// Viewer is a StreamIQ user's own token and Jellyfin user id; "" = none, use
 	// the shared one (SetKey). nil = everyone shares it.
@@ -95,16 +98,67 @@ func allow(method, p string) bool {
 	return false
 }
 
-// prepare turns a browser request frame into the origin request, or returns
-// the HTTP status to refuse it with.
-func (j *Jellyfin) prepare(rq tunnelReq, c cred) (*http.Request, int, error) {
+// ServeHTTP is the tunnel's root handler: the /streamiq prefix (any spelling,
+// so none of it reaches Jellyfin) goes to the gateway API, the rest to Jellyfin.
+func (j *Jellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !isGatewayAPI(r.URL.Path) {
+		j.proxy(w, r)
+		return
+	}
+	api := j.API
+	if api == nil {
+		api = builtin
+	}
+	api.ServeHTTP(w, r)
+}
+
+// proxy applies the Jellyfin policy, calls Jellyfin forwarding headers (Range
+// included, so seek survives) and copies its response into w, redacted.
+func (j *Jellyfin) proxy(w http.ResponseWriter, r *http.Request) {
+	c := j.credFor(SessionOf(r).User)
+	req, status, err := j.prepare(r, c)
+	if err != nil {
+		Fail(w, status, err)
+		return
+	}
+	resp, err := j.Client.Do(req)
+	if err != nil {
+		Fail(w, http.StatusBadGateway, err)
+		return
+	}
+	defer resp.Body.Close()
+	hdr := w.Header()
+	for k := range resp.Header {
+		hdr.Set(k, resp.Header.Get(k))
+	}
+	// Go's Transport promotes Content-Length out of Header into resp.ContentLength;
+	// re-add it so the browser (and hls.js) knows the body size. -1 = unknown.
+	if resp.ContentLength >= 0 {
+		hdr.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
+	}
+	body, err := redact(hdr, resp.Body, c.key)
+	if err != nil {
+		Fail(w, http.StatusBadGateway, err)
+		return
+	}
+	w.WriteHeader(resp.StatusCode)
+	// ChunkSize reads: one frame each, as before (#258).
+	if _, err := io.CopyBuffer(w, body, make([]byte, ChunkSize)); err != nil && !errors.Is(err, errClosed) {
+		log.Printf("gateway: tunnel: %v", err)
+		panic(http.ErrAbortHandler) // handleReq: the body was cut off
+	}
+}
+
+// prepare turns a browser request into the origin request, or returns the
+// HTTP status to refuse it with. It reads the frame's URL as sent (RequestURI).
+func (j *Jellyfin) prepare(r *http.Request, c cred) (*http.Request, int, error) {
 	if c.key == "" || c.userID == "" {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("no Jellyfin token yet (see the gateway's local page)")
 	}
-	u, err := url.Parse(rq.URL)
+	u, err := url.Parse(r.RequestURI)
 	if err != nil || u.IsAbs() || u.Host != "" || u.User != nil || u.RawPath != "" || u.Path != path.Clean(u.Path) ||
-		!allow(rq.Method, u.Path) {
-		return nil, http.StatusForbidden, fmt.Errorf("refused %s %s", rq.Method, rq.URL)
+		!allow(r.Method, u.Path) {
+		return nil, http.StatusForbidden, fmt.Errorf("refused %s %s", r.Method, r.RequestURI)
 	}
 	q := u.Query()
 	for k := range q {
@@ -117,14 +171,16 @@ func (j *Jellyfin) prepare(rq tunnelReq, c cred) (*http.Request, int, error) {
 	u.RawQuery = q.Encode()
 
 	var body io.Reader
-	if rq.Body != "" {
-		body = strings.NewReader(rq.Body)
+	b := readBody(r)
+	if len(b) > 0 {
+		body = bytes.NewReader(b)
 	}
-	req, err := http.NewRequest(rq.Method, j.URL+u.String(), body)
+	req, err := http.NewRequest(r.Method, j.URL+u.String(), body)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
-	for k, v := range rq.Headers {
+	for k, vs := range r.Header {
+		v := vs[0]
 		switch lk := strings.ToLower(k); {
 		case lk == "authorization", lk == "cookie", strings.HasPrefix(lk, "x-emby"),
 			strings.HasPrefix(lk, "x-mediabrowser"):
@@ -136,7 +192,7 @@ func (j *Jellyfin) prepare(rq tunnelReq, c cred) (*http.Request, int, error) {
 			req.Header.Set(k, v)
 		}
 	}
-	if rq.Body != "" && req.Header.Get("Content-Type") == "" {
+	if len(b) > 0 && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Authorization", `MediaBrowser Token="`+c.key+`"`)
@@ -145,8 +201,8 @@ func (j *Jellyfin) prepare(rq tunnelReq, c cred) (*http.Request, int, error) {
 
 // redact buffers text responses (JSON, playlists) and removes the token key.
 // Media (video/*, image/*) streams through untouched.
-func redact(hdr map[string]string, body io.ReadCloser, key string) (io.ReadCloser, error) {
-	ct := strings.ToLower(hdr["Content-Type"])
+func redact(hdr http.Header, body io.ReadCloser, key string) (io.ReadCloser, error) {
+	ct := strings.ToLower(hdr.Get("Content-Type"))
 	if !strings.Contains(ct, "json") && !strings.Contains(ct, "mpegurl") && !strings.HasPrefix(ct, "text/") {
 		return body, nil
 	}
@@ -161,6 +217,6 @@ func redact(hdr map[string]string, body io.ReadCloser, key string) (io.ReadClose
 	if key != "" {
 		b = bytes.ReplaceAll(b, []byte(key), []byte("redacted"))
 	}
-	hdr["Content-Length"] = fmt.Sprint(len(b))
+	hdr.Set("Content-Length", fmt.Sprint(len(b)))
 	return io.NopCloser(bytes.NewReader(b)), nil
 }

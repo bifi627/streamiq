@@ -11,6 +11,7 @@ import { expect, test } from './fixtures.ts'
 import {
   gatewayTab,
   keepPcs,
+  newContext,
   newPage,
   pair,
   password,
@@ -104,7 +105,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     await expect(
       a.getByRole('listitem').filter({ hasText: 'Version' }),
     ).toContainText('Online')
-    const gatewayCtx = await browser.newContext()
+    const gatewayCtx = await newContext(browser)
     if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
 
     await test.step('browser A pairs; codes match on both sides', async () => {

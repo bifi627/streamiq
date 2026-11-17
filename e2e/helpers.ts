@@ -149,15 +149,22 @@ export async function signIn(page: Page, user: User, household?: string) {
 /** A new browser (own client key) whose playbacks save from the first second:
  * the player's 60 s click-through guard (#330) off unless a step sets it. */
 export async function newPage(browser: Browser) {
-  const ctx = await browser.newContext()
+  const ctx = await newContext(browser)
   await ctx.addInitScript(() => {
     if (localStorage.getItem('streamiq.watchMin') === null)
       localStorage.setItem('streamiq.watchMin', '0')
   })
-  // Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
-  // interfaces change, e.g. Docker adding a container for another worker on CI;
-  // a failed module never renders the app (#419). Reload once per tab, for that
-  // error on the page or its modules only: anything else still fails the test.
+  return ctx.newPage()
+}
+
+/** browser.newContext() for every context a test opens (app or local gateway page).
+ * Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
+ * interfaces change, e.g. Docker adding a container for another worker on CI:
+ * a failed module never renders the app, a failed meta refresh leaves the
+ * gateway page on Chrome's error page (#419). Reload once per tab, for that
+ * error on a page or its scripts only: anything else still fails the test. */
+export async function newContext(browser: Browser) {
+  const ctx = await browser.newContext()
   const reloaded = new WeakSet<Page>()
   ctx.on('requestfailed', (r) => {
     if (
@@ -171,7 +178,7 @@ export async function newPage(browser: Browser) {
     console.warn(`e2e: ${r.url()} hit ERR_NETWORK_CHANGED, reloading once`)
     void p.reload().catch(() => {}) // a test's own navigation may overtake it
   })
-  return ctx.newPage()
+  return ctx
 }
 
 export const videoTime = (p: Page) =>

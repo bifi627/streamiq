@@ -93,6 +93,10 @@ test('rename: an admin renames, a member sees no Rename @households', async ({
 }) => {
   const { A, B, a } = await adminWithMember(browser)
   await a.getByRole('button', { name: 'Rename' }).click()
+  // Stored by us: the field says so (#413).
+  await expect(a.getByLabel('Household name')).toHaveAccessibleDescription(
+    'Saved by StreamIQ.',
+  )
   await a.getByLabel('Household name').fill('  The A family  ')
   await a.getByRole('button', { name: 'Save' }).click()
   await expect(h1(a)).toHaveText('The A family') // at once, no reload

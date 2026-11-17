@@ -136,6 +136,7 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   // "(this browser)"): find it by label.
   await self.getByRole('button', { name: 'Rename' }).click()
   const field = card(a).getByLabel('Client name')
+  await expect(field).toHaveAccessibleDescription('') // only the gateway keeps it (#413)
   await field.fill('Desk')
   await field.press('Enter')
   await expect(field).toBeHidden()

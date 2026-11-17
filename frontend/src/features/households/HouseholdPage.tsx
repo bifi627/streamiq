@@ -5,7 +5,7 @@ import { createHousehold, renameHousehold } from '../../api'
 import { AppError, describe, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { arrowFocus } from '../../focus'
-import { EditableName } from '../gateways/Gateways'
+import { EditableName, STORED } from '../gateways/Gateways'
 import {
   householdLabel,
   SetMeContext,
@@ -48,6 +48,7 @@ export function Household() {
           <EditableName
             name={current.name ?? ''}
             label="Household name"
+            hint={STORED}
             rename={current.role === 'admin' ? rename : undefined}
           >
             <h1>{householdLabel(current)}</h1>

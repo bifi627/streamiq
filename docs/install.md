@@ -90,9 +90,7 @@ shared hidden user `streamiq-viewer` and the page says why.
 If the token stops working (for example you signed the gateway out under
 Dashboard → Devices), the gateway signs in again by itself. If you deleted
 `streamiq-viewer` or changed its password, the page asks you to **Connect
-Jellyfin** again. A gateway set up before #50 uses an admin API key
-and shows **admin API key: reconnect Jellyfin**: sign in once, and the
-gateway switches over and deletes the old key.
+Jellyfin** again.
 
 **Without the page** (a headless NAS or server over SSH): run
 `gateway jellyfin login` on the gateway's computer. It asks for a Jellyfin

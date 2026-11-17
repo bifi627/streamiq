@@ -56,7 +56,7 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 <li>Jellyfin: {{if .Reachable}}<b>reachable</b> · version {{.Version}}
 {{if .Untested}} · <b style="color:#c80">not tested with this gateway (tested: {{.Tested}}.x)</b>{{end}}
 {{else}}<b style="color:#c00">not reachable</b>{{end}}
-· token: {{if .LegacyKey}}<b style="color:#c80">admin API key: reconnect Jellyfin</b>{{else if .HasKey}}<b>set</b> (user {{.Viewer}}){{else}}<b style="color:#c00">missing</b>, playback refused{{end}}</li>
+· token: {{if .HasKey}}<b>set</b> (user {{.Viewer}}){{else}}<b style="color:#c00">missing</b>, playback refused{{end}}</li>
 {{if and .Managed $.Libraries}}<li><a href="/libraries">Libraries</a>: offline state and extras</li>{{end}}
 {{if .HasKey}}<li>Transcoding settings: {{if .Managed}}<b>managed</b> · hardware acceleration {{or .HWAccel "off"}}
 (<code>STREAMIQ_JELLYFIN_HWACCEL</code> in gateway.env){{else}}not managed (your Jellyfin: Dashboard → Playback → Transcoding){{end}}</li>{{end}}
@@ -258,8 +258,8 @@ func PrintStatus(ctx context.Context, w io.Writer, port, pageLink string) error 
 	var s struct {
 		Status
 		Jellyfin struct {
-			Reachable, HasKey, LegacyKey, NeedsLogin bool
-			Version, Err                             string
+			Reachable, HasKey, NeedsLogin bool
+			Version, Err                  string
 		}
 	}
 	if res.StatusCode != http.StatusOK {
@@ -276,8 +276,6 @@ func PrintStatus(ctx context.Context, w io.Writer, port, pageLink string) error 
 	if j := s.Jellyfin; j.Reachable {
 		jf = "reachable, version " + j.Version + ", token "
 		switch {
-		case j.LegacyKey:
-			jf += "admin API key (reconnect Jellyfin on the local page)"
 		case j.HasKey:
 			jf += "set"
 		case j.NeedsLogin:

@@ -20,8 +20,7 @@ import (
 //     token and strips any the browser sends; response text that echoes the
 //     token (Jellyfin writes ApiKey= into subtitle playlist URLs) is redacted;
 //   - the token belongs to a non-admin viewer user (internal/jellyfin), and an
-//     allowlist of consumption endpoints still applies (defense in depth; a
-//     pre-#50 install runs on an admin API key until it reconnects);
+//     allowlist of consumption endpoints still applies (defense in depth);
 //   - every request is pinned to the token's Jellyfin user (userId);
 //   - the token is the session user's own viewer's (#195), else the shared one.
 type Jellyfin struct {

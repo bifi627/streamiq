@@ -37,8 +37,9 @@ done
 rc=0; routes=$(grep -rhoE --include='*.go' --exclude='*_test.go' --exclude-dir=testdata '"/streamiq/[^"]+"' gateway | tr -d '"' | sort -u) || rc=$?
 [ "$rc" -le 1 ] || exit "$rc"
 for r in $routes; do
-  # Not followed by more path: /streamiq/clients must not pass on /streamiq/clients/remove alone.
-  grep -qE "${r}([^a-z/_-]|$)" docs/protocol.md || { echo "  $r: gateway route missing from docs/protocol.md" >&2; fail=1; }
+  # Not followed by more path or a wildcard: /streamiq/clients must not pass on /streamiq/clients/remove
+  # or /streamiq/clients* alone.
+  grep -qE "${r}([^A-Za-z0-9/_*.-]|$)" docs/protocol.md || { echo "  $r: gateway route missing from docs/protocol.md" >&2; fail=1; }
 done
 
 if [ "$fail" -ne 0 ]; then

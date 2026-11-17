@@ -428,6 +428,19 @@ func stopGateway(exe string) {
 	exec.Command("pkill", "-f", "^"+regexp.QuoteMeta(exe)+"$").Run()
 }
 
+// gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
+// screens are tunnel's own. status is GET /streamiq/status.
+func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler) *tunnel.Router {
+	rt := tunnel.NewRouter()
+	rt.Handle("GET "+tunnel.StatusPath, status)
+	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
+	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
+	rt.Handle("GET "+pairing.ClientsPath, http.HandlerFunc(store.ServeClients))
+	rt.Handle("POST "+pairing.ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
+	rt.Handle("POST "+pairing.ClientsRenamePath, http.HandlerFunc(store.ServeRename))
+	return rt
+}
+
 // run is the gateway daemon; compose is jellyfin-compose.yml next to the binary.
 func run(ctx context.Context, compose string) {
 	stateDir := stateDir()
@@ -508,9 +521,7 @@ func run(ctx context.Context, compose string) {
 		remote := &update.Remote{Version: version, Supported: service.Supported(), Task: service.Installed,
 			Newer: func() string { return *newer.Load() }, Start: startUpdater}
 		started := time.Now().UTC()
-		// The gateway API (docs/protocol.md): burst + screens are tunnel's own.
-		routes := tunnel.NewRouter()
-		routes.Handle("GET "+tunnel.StatusPath, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jf.API = gatewayAPI(st, remote, store, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			v := setup.View()
 			jfs := map[string]any{"reachable": v.Reachable, "version": v.Version, "untested": v.Untested, "token": v.Token()}
 			if o := jellyfin.Offline(compose); o != "" { // no compose Jellyfin: no field
@@ -526,12 +537,6 @@ func run(ctx context.Context, compose string) {
 				"remoteUpdate": remoteUpdate(remote),
 			})
 		}))
-		routes.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
-		routes.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
-		routes.Handle("GET "+pairing.ClientsPath, http.HandlerFunc(store.ServeClients))
-		routes.Handle("POST "+pairing.ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
-		routes.Handle("POST "+pairing.ClientsRenamePath, http.HandlerFunc(store.ServeRename))
-		jf.API = routes
 		token, err := localpage.Token(stateDir, lan)
 		if err != nil {
 			log.Fatalf("gateway: page token: %v", err)

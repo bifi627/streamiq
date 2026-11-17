@@ -146,6 +146,9 @@ func (w *replyWriter) WriteHeader(status int) {
 		return
 	}
 	for k, v := range w.hdr {
+		if len(v) == 0 {
+			continue
+		}
 		if w.sent == nil {
 			w.sent = map[string]string{}
 		}

@@ -167,9 +167,15 @@ test('Settings D-pad: off a checkbox, Down past Data saver to Raw @shell', async
 /** Signs in with Google on p through the Auth emulator's popup: a new account
  * (name, email) the first time, the listed one after that. */
 async function google(p: Page, email: string, name: string) {
-  const popup = p.waitForEvent('popup')
-  await p.getByRole('button', { name: 'Continue with Google' }).click()
-  const g = await popup
+  // The first popup sign-in loads apis.google.com/js/api.js (even against the
+  // emulator); once that failed on CI and newContext's reload dropped the
+  // pending sign-in (#483). Click again until a popup opens.
+  let g!: Page
+  await expect(async () => {
+    const popup = p.waitForEvent('popup', { timeout: 5_000 })
+    await p.getByRole('button', { name: 'Continue with Google' }).click()
+    g = await popup
+  }).toPass({ timeout: 30_000 })
   await g.waitForLoadState() // a click before its script runs does nothing
   const listed = g.getByText(email)
   await expect(g.getByText('Add new account').or(listed).first()).toBeVisible()

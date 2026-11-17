@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"streamiq/gateway/internal/tunnel"
 )
 
 // Enrolls once against a fake control plane, then a second start with the
@@ -194,5 +196,40 @@ func TestRunControlUpgradeRequired(t *testing.T) {
 		func() string { return "" }, func([]byte, func(any)) {})
 	if !errors.Is(err, ErrUpgradeRequired) {
 		t.Fatalf("want ErrUpgradeRequired, got %v", err)
+	}
+}
+
+// POST /streamiq/name (#310): admin-only, answers the stored name, a bad name
+// (or body) is 400, a failed save 500, never 502 (#327).
+func TestNameAPI(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "gateway.json"), []byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600)
+	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := tunnel.NewRouter()
+	api.Handle("POST "+NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
+	for _, c := range []struct {
+		role, body string
+		want       int
+		reply      string
+	}{
+		{tunnel.Admin, `{"name":"  Living room  "}`, 200, `{"name":"Living room"}`},
+		{tunnel.Member, `{"name":"hijack"}`, http.StatusForbidden, ""},
+		{"", `{"name":"hijack"}`, http.StatusForbidden, ""},
+		{tunnel.Admin, `{"name":"   "}`, http.StatusBadRequest, ""},
+		{tunnel.Admin, `not json`, http.StatusBadRequest, ""},
+	} {
+		if s, _, reply, _ := tunnel.Do(api, tunnel.Session{Role: c.role}, "POST", NamePath, c.body); s != c.want || reply != c.reply {
+			t.Errorf("%q %s: %d %s, want %d %s", c.role, c.body, s, reply, c.want, c.reply)
+		}
+	}
+	if st.CurrentName() != "Living room" {
+		t.Fatalf("stored %q", st.CurrentName())
+	}
+	st.path = filepath.Join(dir, "missing", "gateway.json") // the state dir unwritable
+	if s, _, _, _ := tunnel.Do(api, tunnel.Session{Role: tunnel.Admin}, "POST", NamePath, `{"name":"x"}`); s != http.StatusInternalServerError {
+		t.Fatalf("failed save: %d, want 500", s)
 	}
 }

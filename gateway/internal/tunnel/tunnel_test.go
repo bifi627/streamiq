@@ -8,17 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pion/webrtc/v4"
-
-	"streamiq/gateway/internal/pairing"
 )
 
 const (
@@ -234,7 +229,11 @@ func TestGatewayAPI(t *testing.T) {
 	j, last := fakeJellyfin(t)
 	j.SetKey("", "")
 	n := 0
-	j.Status = func(user string) any { n++; return map[string]any{"transcoding": "nvenc", "user": user} }
+	j.API = NewRouter()
+	j.API.Handle("GET "+StatusPath, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		JSON(w, http.StatusOK, map[string]any{"transcoding": "nvenc", "user": SessionOf(r).User})
+	}))
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: StatusPath})
 	status, hdr, rc, err := proxy(j, raw, Session{User: "u1"}) // built for the session's user (#242)
 	if err != nil {
@@ -252,6 +251,12 @@ func TestGatewayAPI(t *testing.T) {
 		{Method: "GET", URL: "/streamiq/%73tatus"},
 		{Method: "POST", URL: StatusPath, Body: "{}"},
 		{Method: "GET", URL: "/streamiq/../streamiq/status"},
+		{Method: "GET", URL: "/streamiq//status"},
+		{Method: "GET", URL: StatusPath + "/"},
+		{Method: "HEAD", URL: StatusPath},
+		{Method: "", URL: StatusPath},
+		{Method: "POST", URL: ScreensPath + "/"},
+		{Method: "POST", URL: ScreensPath + "/a/b"},
 	} {
 		raw, _ := json.Marshal(rq)
 		if status, _, _, _ := proxy(j, raw, Session{}); status != http.StatusNotFound {
@@ -279,7 +284,8 @@ func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte
 // member (or a session without a role) with 403; unmarked ones answer both.
 func TestAdminOnly(t *testing.T) {
 	j, _ := fakeJellyfin(t)
-	j.Status = func(string) any { return map[string]any{} }
+	j.API = NewRouter()
+	j.API.Handle("GET "+StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { JSON(w, 200, map[string]any{}) }), AdminOnly)
 	call := func(role, path string) int {
 		raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: path})
 		status, _, body, _ := proxy(j, raw, Session{Role: role})
@@ -288,8 +294,6 @@ func TestAdminOnly(t *testing.T) {
 		}
 		return status
 	}
-	AdminOnly.Store(StatusPath, true)
-	t.Cleanup(func() { AdminOnly.Delete(StatusPath) })
 	for _, c := range []struct {
 		role, path string
 		want       int
@@ -475,185 +479,5 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 		case <-time.After(30 * time.Second):
 			t.Fatalf("frame %d never arrived", i)
 		}
-	}
-}
-
-// POST /streamiq/name (#310): admin-only, answers the stored name, a hook's
-// ErrBadRequest (or a bad body) is 400, any other hook error 500, and without
-// the hook it 404s.
-func TestRename(t *testing.T) {
-	j, _ := fakeJellyfin(t)
-	stored := ""
-	call := func(role, body string) (int, string) {
-		raw, _ := json.Marshal(tunnelReq{Method: "POST", URL: NamePath, Body: body})
-		status, _, rc, _ := proxy(j, raw, Session{Role: role})
-		if rc == nil {
-			return status, ""
-		}
-		defer rc.Close()
-		b, _ := io.ReadAll(rc)
-		return status, string(b)
-	}
-	if st, _ := call(Admin, `{"name":"x"}`); st != http.StatusNotFound {
-		t.Fatalf("no hook: %d, want 404", st)
-	}
-	j.Rename = func(n string) (string, error) {
-		if n = strings.TrimSpace(n); n == "" {
-			return "", ErrBadRequest
-		}
-		stored = n
-		return n, nil
-	}
-	for _, c := range []struct {
-		role, body string
-		want       int
-		reply      string
-	}{
-		{Admin, `{"name":"  Living room  "}`, 200, `{"name":"Living room"}`},
-		{Member, `{"name":"hijack"}`, http.StatusForbidden, ""},
-		{"", `{"name":"hijack"}`, http.StatusForbidden, ""},
-		{Admin, `{"name":"   "}`, http.StatusBadRequest, ""},
-		{Admin, `not json`, http.StatusBadRequest, ""},
-	} {
-		if st, reply := call(c.role, c.body); st != c.want || reply != c.reply {
-			t.Errorf("%q %s: %d %s, want %d %s", c.role, c.body, st, reply, c.want, c.reply)
-		}
-	}
-	if stored != "Living room" {
-		t.Fatalf("stored %q", stored)
-	}
-	// The hook's own failure (state dir unwritable) is 500, never 502 (#327).
-	j.Rename = func(string) (string, error) { return "", fmt.Errorf("disk full") }
-	if st, _ := call(Admin, `{"name":"x"}`); st != http.StatusInternalServerError {
-		t.Fatalf("failing hook: %d, want 500", st)
-	}
-}
-
-// GET /streamiq/clients + POST /streamiq/clients/remove (#311) and /rename (#365): a member only its
-// own key (#341), the list marks the caller's own key, remove 404s an unknown key, removes another
-// client at once (closing its sessions via OnRemove) and the caller's own key
-// only after the reply is delivered.
-func TestClients(t *testing.T) {
-	j, _ := fakeJellyfin(t)
-	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[
-		{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z"},
-		{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z"}]`), 0o600)
-	store, err := pairing.Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var dropped []string
-	store.OnRemove = func(fp string) { dropped = append(dropped, fp) }
-	call := func(role, method, path, body string) (int, string, io.ReadCloser) {
-		raw, _ := json.Marshal(tunnelReq{Method: method, URL: path, Body: body})
-		status, _, rc, _ := proxy(j, raw, Session{Role: role, Key: "aa"})
-		if rc == nil {
-			return status, "", nil
-		}
-		b, _ := io.ReadAll(rc)
-		return status, string(b), rc
-	}
-	if s, _, _ := call(Admin, "GET", ClientsPath, ""); s != http.StatusNotFound {
-		t.Fatalf("no store: %d, want 404", s)
-	}
-	j.Clients = store
-	// A member (#341): sees only its own key, removing any other is 403 (known or not).
-	if s, list, _ := call(Member, "GET", ClientsPath, ""); s != 200 || list != `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true}]` {
-		t.Fatalf("member list: %d %s", s, list)
-	}
-	for _, fp := range []string{"bb", "zz"} {
-		if s, _, _ := call(Member, "POST", ClientsRemovePath, `{"keyFp":"`+fp+`"}`); s != http.StatusForbidden || !store.Allowed("bb") {
-			t.Errorf("member removes %s: %d, want 403", fp, s)
-		}
-	}
-	s, list, _ := call(Admin, "GET", ClientsPath, "")
-	want := `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true},{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z","self":false}]`
-	if s != 200 || list != want {
-		t.Fatalf("list: %d %s", s, list)
-	}
-	// Rename (#365): same access as remove, the name rule of /streamiq/name, saved.
-	for _, fp := range []string{"bb", "zz"} {
-		if s, _, _ := call(Member, "POST", ClientsRenamePath, `{"keyFp":"`+fp+`","name":"Mine"}`); s != http.StatusForbidden {
-			t.Errorf("member renames %s: %d, want 403", fp, s)
-		}
-	}
-	for body, want := range map[string]int{
-		`{"keyFp":"zz","name":"X"}`:                               http.StatusNotFound,
-		`{"keyFp":"bb","name":"  "}`:                              http.StatusBadRequest,
-		`{"keyFp":"bb","name":"a\u0000b"}`:                        http.StatusBadRequest,
-		`{"keyFp":"bb","name":"` + strings.Repeat("😀", 51) + `"}`: http.StatusBadRequest,
-		`{"name":"X"}`: http.StatusBadRequest,
-		`nope`:         http.StatusBadRequest,
-	} {
-		if s, _, _ := call(Admin, "POST", ClientsRenamePath, body); s != want {
-			t.Errorf("rename %s: %d, want %d", body, s, want)
-		}
-	}
-	if s, out, _ := call(Member, "POST", ClientsRenamePath, `{"keyFp":"aa","name":" Anna's phone "}`); s != 200 || out != `{"name":"Anna's phone"}` {
-		t.Fatalf("member renames own: %d %s", s, out)
-	}
-	if s, out, _ := call(Admin, "POST", ClientsRenamePath, `{"keyFp":"bb","name":"Living room TV"}`); s != 200 || out != `{"name":"Living room TV"}` {
-		t.Fatalf("admin renames other: %d %s", s, out)
-	}
-	if again, _ := pairing.Open(dir); fmt.Sprint(again.Paired()[0].Name, "|", again.Paired()[1].Name) != "Anna's phone|Living room TV" {
-		t.Fatalf("not saved: %v", again.Paired())
-	}
-	if s, _, _ := call(Admin, "POST", ClientsRemovePath, `{"keyFp":"zz"}`); s != http.StatusNotFound {
-		t.Errorf("unknown key: %d, want 404", s)
-	}
-	if s, _, _ := call(Admin, "POST", ClientsRemovePath, `nope`); s != http.StatusBadRequest {
-		t.Errorf("bad body: %d, want 400", s)
-	}
-	// Another client: gone at once, its sessions closed.
-	s, _, rc := call(Admin, "POST", ClientsRemovePath, `{"keyFp":"bb"}`)
-	if _, deferred := rc.(afterReply); s != 200 || deferred || store.Allowed("bb") || !slices.Equal(dropped, []string{"bb"}) {
-		t.Fatalf("remove other: %d deferred=%v allowed=%v dropped=%v", s, deferred, store.Allowed("bb"), dropped)
-	}
-	// The caller itself (Key "aa", here a member): only after the reply is delivered.
-	s, _, rc = call(Member, "POST", ClientsRemovePath, `{"keyFp":"aa"}`)
-	if s != 200 || !store.Allowed("aa") || len(dropped) != 1 {
-		t.Fatalf("remove self: %d, before the reply is out: allowed=%v dropped=%v", s, store.Allowed("aa"), dropped)
-	}
-	rc.(afterReply).after() // handleReq: once the reply is delivered
-	if store.Allowed("aa") || !slices.Equal(dropped, []string{"bb", "aa"}) {
-		t.Fatalf("after: allowed aa=%v, dropped=%v", store.Allowed("aa"), dropped)
-	}
-}
-
-// POST /streamiq/update (#312): admin-only, 202 with the target version, a
-// Conflict from the hook is 409 with its reason, any other error 500, no hook 404.
-func TestUpdate(t *testing.T) {
-	j, _ := fakeJellyfin(t)
-	call := func(role string) (int, string) {
-		raw, _ := json.Marshal(tunnelReq{Method: "POST", URL: UpdatePath})
-		status, _, rc, _ := proxy(j, raw, Session{Role: role})
-		if rc == nil {
-			return status, ""
-		}
-		defer rc.Close()
-		b, _ := io.ReadAll(rc)
-		return status, string(b)
-	}
-	if st, _ := call(Admin); st != http.StatusNotFound {
-		t.Fatalf("no hook: %d, want 404", st)
-	}
-	started := 0
-	j.Update = func() (string, error) { started++; return "1.5.0", nil }
-	for _, role := range []string{Member, ""} {
-		if st, _ := call(role); st != http.StatusForbidden || started != 0 {
-			t.Fatalf("%q: %d started=%d, want 403 and nothing started", role, st, started)
-		}
-	}
-	if st, body := call(Admin); st != http.StatusAccepted || body != `{"version":"1.5.0"}` || started != 1 {
-		t.Fatalf("admin: %d %s started=%d", st, body, started)
-	}
-	j.Update = func() (string, error) { return "", Conflict("already up to date") }
-	if st, body := call(Admin); st != http.StatusConflict || body != `{"reason":"already up to date"}` {
-		t.Fatalf("refused: %d %s", st, body)
-	}
-	j.Update = func() (string, error) { return "", fmt.Errorf("exec: access denied") }
-	if st, _ := call(Admin); st != http.StatusInternalServerError {
-		t.Fatalf("failing start: %d, want 500", st)
 	}
 }

@@ -361,10 +361,12 @@ percent-encoded) is `404`. A `body` over 64 KB is `413`. A handler's own failure
 that means Jellyfin is unreachable (#327). Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
-known to handlers. An endpoint can be marked **admin-only** (`tunnel.AdminOnly`, exact
-path, any method): a session whose role isn't `admin` gets `403`: `/streamiq/name`
+known to handlers. An endpoint can be marked **admin-only** (the route option
+`tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name`
 and `/streamiq/update` so far; #89 decides per endpoint. `/streamiq/clients*` is
-open to a member for its own client key only (#341, below). Code: `gateway/internal/tunnel/tunnel.go`.
+open to a member for its own client key only (#341, below). Code: the router in
+`gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
+its feature, registered in `gateway/cmd/gateway/main.go`).
 
 **`GET /streamiq/status`** (#146, #140): `200`, JSON, built on each request.
 Fields are added over time; a client ignores ones it doesn't know.

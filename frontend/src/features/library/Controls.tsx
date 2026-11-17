@@ -72,6 +72,29 @@ const setVol = (v: HTMLVideoElement, x: number) => {
   v.muted = v.volume === 0
 }
 
+// Volume + mute per device (#479): restored when the player opens, 50 % when
+// unset. A stored 0 (slider dragged down = muted) comes back as muted at 50 %,
+// so unmuting is audible.
+const VOL = 'streamiq.volume'
+const MUTED = 'streamiq.muted'
+const loadVol = (v: HTMLVideoElement) => {
+  try {
+    const x = Number(localStorage.getItem(VOL) ?? NaN)
+    v.volume = x > 0 && x <= 1 ? x : 0.5
+    v.muted = localStorage.getItem(MUTED) === '1'
+  } catch {
+    v.volume = 0.5 // storage blocked (private mode)
+  }
+}
+const saveVol = (v: HTMLVideoElement) => {
+  try {
+    localStorage.setItem(VOL, String(v.volume))
+    localStorage.setItem(MUTED, v.muted ? '1' : '0')
+  } catch {
+    /* storage blocked: this session only */
+  }
+}
+
 /** A slider's filled part (Player.css paints it; Chrome 87: no accent-color). */
 const fill = (x: number) =>
   ({ '--p': `${Math.min(1, Math.max(0, x)) * 100}%` }) as CSSProperties
@@ -116,7 +139,7 @@ export function Controls({
   const [paused, setPaused] = useState(true)
   const [time, setTime] = useState(0)
   const [muted, setMuted] = useState(false)
-  const [volume, setVolume] = useState(1)
+  const [volume, setVolume] = useState(0.5)
   const [full, setFull] = useState(false)
   const [page, setPage] = useState<Page>(null)
   const [from, setFrom] = useState(0) // setting whose page was open last (main focuses it)
@@ -194,7 +217,11 @@ export function Controls({
     }
     const fs = () => setFull(!!document.fullscreenElement)
     const evs = ['pause', 'timeupdate', 'volumechange', 'seeked'] as const
+    loadVol(v)
+    sync() // no volumechange when the stored level is the element's own (1)
     evs.forEach((e) => v.addEventListener(e, sync))
+    const save = () => saveVol(v)
+    v.addEventListener('volumechange', save)
     v.addEventListener('play', playing)
     document.addEventListener('fullscreenchange', fs)
 
@@ -281,6 +308,7 @@ export function Controls({
     window.addEventListener('keydown', key)
     return () => {
       evs.forEach((e) => v.removeEventListener(e, sync))
+      v.removeEventListener('volumechange', save)
       v.removeEventListener('play', playing)
       document.removeEventListener('fullscreenchange', fs)
       window.removeEventListener('keydown', key)

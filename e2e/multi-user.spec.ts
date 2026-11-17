@@ -5,6 +5,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
+  appUrl,
   keepPcs,
   newPage,
   pair,
@@ -15,8 +16,6 @@ import {
   viaTunnel,
 } from './helpers.ts'
 import { jellyfinAdminGet } from './jellyfin.ts'
-
-const app = () => process.env.E2E_APP_URL!
 
 /** Plays the fixture from the library home to sec, then leaves (saves it). */
 async function playTo(p: Page, sec: number) {
@@ -50,7 +49,7 @@ test(
       return p
     }
     const connect = async (p: Page) => {
-      await p.goto(app() + '/gateways')
+      await p.goto(appUrl('/gateways'))
       if (p !== a) await pair(p, gatewayCtx, gateway.pageUrl)
       await p.getByRole('button', { name: 'Open' }).click()
       await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible() // a live session
@@ -147,7 +146,7 @@ test(
     })
 
     await test.step('B (member) unpairs its own browser from the card (#341)', async () => {
-      await b.goto(app() + '/gateways')
+      await b.goto(appUrl('/gateways'))
       const card = b.locator('li.card')
       await card.getByText('Paired clients', { exact: true }).click()
       const clients = card.locator('.clients li')

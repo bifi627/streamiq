@@ -146,6 +146,22 @@ export async function signIn(page: Page, user: User, household?: string) {
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 
+/** The web app's URL for path (Vite on this stack). */
+export const appUrl = (path = '') => process.env.E2E_APP_URL! + path
+
+/** A new browser (newPage) opened at path, user signed in there. */
+export async function signedInPage(
+  browser: Browser,
+  user: User,
+  path: string,
+  household?: string,
+) {
+  const page = await newPage(browser)
+  await page.goto(appUrl(path))
+  await signIn(page, user, household)
+  return page
+}
+
 /** A new browser (own client key) whose playbacks save from the first second:
  * the player's 60 s click-through guard (#330) off unless a step sets it. */
 export async function newPage(browser: Browser) {

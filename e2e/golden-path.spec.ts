@@ -1,12 +1,12 @@
 // THE golden path: the one critical-path E2E. Real browser → broker → gateway →
 // Jellyfin: onboard, pair, browse, play, resume, re-pair, re-pair after an evicted
 // key, remove (kills open sessions). Supporting features have per-page specs
-// (shell, gateways, households, library, player, screen, …); edge cases belong in the integration layer.
+// (shell, gateways, households, library, player, screen, diagnostics); edge cases belong in the integration layer.
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import type { Browser, WebSocket } from '@playwright/test'
+import type { Browser } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   gatewayTab,
@@ -16,7 +16,6 @@ import {
   pair,
   password,
   tunnelOk,
-  tunnelRow,
   uniqueEmail,
   videoTime,
 } from './helpers.ts'
@@ -57,11 +56,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     path.join(os.tmpdir(), 'streamiq-e2e-gateway-'),
   )
   const a = await signIn(browser, true)
-  // The broker and the gateway record tunnels; the browser never creates one (#390).
-  let posts = 0
-  a.on('request', (r) => {
-    if (r.method() === 'POST' && r.url().includes('/tunnels')) posts++
-  })
 
   // Onboarding: Add gateway → run the shown install command.
   await a.getByRole('button', { name: 'Add gateway' }).click()
@@ -149,7 +143,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     })
 
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
-    await test.step('diagnostics panel: force relay → tunnel works, panel logs it', async () => {
+    await test.step('diagnostics panel: force relay → tunnel works over TURN', async () => {
       // Diagnostics panel: on once in Settings, the flag persists (#201).
       await a.getByRole('link', { name: 'Settings' }).click()
       await a.getByLabel('Diagnostics panel').check()
@@ -164,73 +158,8 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         a.getByText(/encrypted relay that can't see it · [\d.,]+ MB relayed/),
       ).toBeVisible()
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible() // a tunnel request made it
-      await expect(a.getByText('peer: connected / connected')).toBeVisible()
-      await expect(
-        a.getByRole('row', { name: /opened.*HTTP 200.*\/UserViews/ }).first(), // newest first; earlier sessions' rows are kept too
-      ).toBeVisible()
       await a.getByRole('link', { name: '← Gateways' }).click()
       await a.getByLabel('Force relay (TURN) on next connect').uncheck()
-    })
-
-    await test.step('diagnostics page (#90): direct vs relayed, burst throughput, report', async () => {
-      await a
-        .getByRole('link', { name: 'Client info + connection test' })
-        .click()
-      const report = a.locator('pre', { hasText: 'StreamIQ diagnostics' })
-      await expect(report).toContainText(/codecs: h264 .* L\d/) // the #115 probe
-      const run = async (path: RegExp, relay: boolean) => {
-        // This test's tunnel id arrives in its broker `answer` (#390); other
-        // sessions (the shared one, dropped by the relay toggle) PATCH theirs too.
-        const tunnel = new Promise<string>((resolve) => {
-          const onWs = (ws: WebSocket) => {
-            if (!ws.url().endsWith('/broker/ws')) return
-            a.off('websocket', onWs)
-            ws.on('framereceived', (f) => {
-              const m = JSON.parse(String(f.payload))
-              if (m.type === 'answer') resolve(m.tunnel)
-            })
-          }
-          a.on('websocket', onWs)
-        })
-        // Closing the test's session sends its measurement to telemetry (#162).
-        const end = a.waitForRequest(
-          async (r) =>
-            r.method() === 'PATCH' &&
-            r.url().endsWith(`/tunnels/${await tunnel}`),
-        )
-        await a.getByRole('button', { name: 'Test connection' }).click()
-        await expect(report).toContainText(
-          /throughput: [\d.]+ Mbps \(median of 3 ~2 s bursts after a warm-up; Auto caps at [\d.]+ Mbps\)/,
-          { timeout: 30_000 },
-        )
-        expect((await end).postDataJSON().throughputKbps).toBeGreaterThan(0)
-        await expect(report).toContainText('paired: yes')
-        await expect(report).toContainText(path)
-        // The row: written by the broker, ended when the browser's socket closed,
-        // route + bytes from the gateway's report (#390).
-        const id = await tunnel
-        await expect
-          .poll(() => tunnelRow(id), { timeout: 15_000 })
-          .toMatchObject({
-            EndedAt: expect.any(String),
-            BytesSent: expect.any(Number),
-          })
-        const row = tunnelRow(id)!
-        expect(row, JSON.stringify(row)).toMatchObject({
-          Relay: relay,
-          Failure: null,
-          ThroughputKbps: expect.any(Number),
-        })
-        expect(row.BytesSent).toBeGreaterThan(0)
-        expect(row.BytesReceived).toBeGreaterThan(0)
-        expect(posts).toBe(0)
-      }
-      await run(/path: direct .* RTT \d+ ms/, false)
-      await a.getByLabel('Force relay (TURN)', { exact: true }).check()
-      await run(/relay forced: yes[\s\S]*path: relayed \(TURN\)/, true)
-      await a.getByLabel('Force relay (TURN)', { exact: true }).uncheck()
-      await expect(report).not.toContainText(email())
-      await a.goto(process.env.E2E_APP_URL! + '/gateways')
     })
 
     await test.step('pin + key survive a reload (IndexedDB)', async () => {
@@ -251,13 +180,6 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await expect(
         b.getByText('this browser is not paired with the gateway'),
       ).toBeVisible()
-
-      // The diagnostics page says so too, and names the failed step.
-      await b.goto(process.env.E2E_APP_URL! + '/diagnostics')
-      await b.getByRole('button', { name: 'Test connection' }).click()
-      await expect(b.locator('pre')).toContainText(
-        /paired: no\s+failed at connect .*not paired/,
-      )
     })
 
     await test.step('new gateway certificate → red warning → re-pair', async () => {

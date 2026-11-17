@@ -886,7 +886,7 @@ html.tv .no-tv {
   gap: var(--sp-4);
 }
 
-/* Privacy badge (#205): direct / relayed; focus or click shows the line. */
+/* Privacy badge (#205): on your network / direct / relayed; focus or click shows the line. */
 .privacy {
   --c: var(--direct);
   position: relative;

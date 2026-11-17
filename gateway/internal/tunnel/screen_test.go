@@ -201,3 +201,14 @@ func TestScreenAcrossUsers(t *testing.T) {
 		t.Fatalf("A's screen got %q", got)
 	}
 }
+
+func TestRoute(t *testing.T) {
+	for who, want := range map[*Session]string{
+		{}:                                      `{"route":"direct"}`, // no tunnel
+		{Route: func() string { return "lan" }}: `{"route":"lan"}`,
+	} {
+		if s, _, reply, _ := Do(NewRouter(), *who, "GET", RoutePath, ""); s != 200 || reply != want {
+			t.Errorf("GET %s = %d %q, want 200 %q", RoutePath, s, reply, want)
+		}
+	}
+}

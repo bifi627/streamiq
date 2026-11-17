@@ -43,15 +43,15 @@ const language = (p: Page, code: string) =>
     code,
   )
 
-test('privacy badge (#205): Direct from home, StreamIQ carried 0 bytes @player', async ({
+test('privacy badge (#205, #428): On your network, never leaves the house @player', async ({
   paired,
 }) => {
   const { page } = paired
   await play(page)
-  await page.getByRole('button', { name: 'Direct from home' }).click()
+  await page.getByRole('button', { name: 'On your network' }).click()
   await expect(
-    page.getByText(/end-to-end encrypted · StreamIQ carried 0 bytes/),
-  ).toBeVisible() // same host: host candidates, no relay
+    page.getByText(/end-to-end encrypted · never leaves the house/),
+  ).toBeVisible() // same host: the gateway sees the browser on its own subnet (#428)
 })
 
 test("profile line (#115): the probe and Jellyfin's decision in the dock @player", async ({

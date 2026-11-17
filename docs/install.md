@@ -378,6 +378,23 @@ the first install to change the gateway's name or page port. `STREAMIQ_NAME` set
 first name: later, a household admin renames the gateway on the web app's Gateways page
 (**Rename**, while it is online), and the gateway keeps that name in `state/gateway.json`.
 
+## Command line
+
+Run `gateway` from the install dir (Linux / macOS: `./gateway`). `gateway -h` lists the commands, and
+`gateway <command> -h` (or `gateway help <command>`) explains one, with examples.
+
+Tab completion for your shell (commands, `on|off`, `nvidia|off`, backup files):
+
+- PowerShell: add `& "$env:LOCALAPPDATA\streamiq\gateway.exe" completion powershell | Out-String | Invoke-Expression`
+  to your profile (`notepad $PROFILE`).
+- bash: add `source <(~/.local/share/streamiq/gateway completion bash)` to `~/.bashrc`.
+- zsh: add `source <(~/.local/share/streamiq/gateway completion zsh)` to `~/.zshrc`
+  (after `compinit`).
+- fish: `~/.local/share/streamiq/gateway completion fish > ~/.config/fish/completions/gateway.fish`
+
+Completion works for the name `gateway`: put the install dir on your `PATH` (or
+call it through an alias named `gateway`).
+
 ## Update
 
 The gateway checks GitHub once a day. When a newer release exists, it logs

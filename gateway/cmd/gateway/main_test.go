@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -28,9 +30,53 @@ func TestLoadEnvFile(t *testing.T) {
 // install.sh / install.ps1 look for this line in `gateway -h` to know the
 // installed binary can back itself up before an update (#296).
 func TestUsageListsBackup(t *testing.T) {
-	if !strings.Contains(usage, "\n  backup ") {
-		t.Fatal("usage lost its '  backup ' line: the installers' pre-update backup check reads it")
+	out, err := execute(t, "-h")
+	if err != nil || !regexp.MustCompile(`(?m)^  backup `).MatchString(out) {
+		t.Fatalf("gateway -h lost its '  backup ' line (the installers' pre-update backup check reads it): %v\n%s", err, out)
 	}
+}
+
+// Wrong input is a usage error (main prints the usage, exits 2); a typo gets a hint.
+func TestUsageErrors(t *testing.T) {
+	for _, tc := range []struct{ args, want string }{
+		{"bakup", "Did you mean this?\n\tbackup"},
+		{"jellyfin", `"gateway jellyfin" needs a command`},
+		{"jellyfin ofline on", "Did you mean this?\n\toffline"},
+		{"jellyfin offline maybe", `invalid argument "maybe"`},
+		{"jellyfin offline", "accepts 1 arg(s), received 0"},
+		{"service install now", "unknown command"},
+		{"backup a b", "accepts at most 1 arg(s)"},
+		{"restore", "accepts 1 arg(s), received 0"},
+		{"restore --frce x", "unknown flag: --frce"},
+	} {
+		_, err := execute(t, strings.Fields(tc.args)...)
+		if !errors.As(err, new(usageError)) || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("gateway %s: %v, want a usage error with %q", tc.args, err, tc.want)
+		}
+	}
+}
+
+// Help per command, with its Example section.
+func TestCommandHelp(t *testing.T) {
+	out, err := execute(t, "help", "jellyfin", "gpu")
+	if err != nil || !strings.Contains(out, "Examples:\n  gateway jellyfin gpu nvidia") {
+		t.Fatalf("help jellyfin gpu: %v\n%s", err, out)
+	}
+	// "help" as an argument is a help request, not a backup file named help.
+	if out, err := execute(t, "backup", "help"); err != nil || !strings.Contains(out, "Examples:\n  gateway backup") {
+		t.Fatalf("backup help: %v\n%s", err, out)
+	}
+}
+
+func execute(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	var out strings.Builder
+	root := newRoot(t.Context(), filepath.Join(t.TempDir(), "gateway"))
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(args)
+	_, err := root.ExecuteC()
+	return out.String(), err
 }
 
 // /streamiq/status's remoteUpdate (#312): true when possible, else the reason.

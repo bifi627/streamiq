@@ -72,6 +72,10 @@ a privacy indicator (direct vs relayed).
 - `install.sh` / `install.ps1`: install = update, SHA256-checked. Config in `gateway.env`.
   Every update keeps the old binary and a state backup in `backups/` for
   `gateway rollback`. JSON logs. User guide: `docs/install.md`.
+- CLI: spf13/cobra, wired in `cmd/gateway/commands.go` (#433): per-command help,
+  shell completion, usage errors exit 2. No command = `run`; Explorer double-click
+  runs it too (mousetrap off). The installers detect a binary that can back itself
+  up by a `^  backup ` line in `gateway -h` (#296): keep that line.
 - Daily update *notice* on every platform (log + local gateway page). On Windows with the
   logon task (`gateway service install`) a household admin can start the update from the
   gateway card; Linux/macOS update by hand.

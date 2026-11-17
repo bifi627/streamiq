@@ -7,11 +7,14 @@ toolchain go1.27.4
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/pion/webrtc/v4 v4.2.26
+	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.9
 	golang.org/x/term v0.48.0
 )
 
 require (
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pion/datachannel v1.6.3 // indirect
 	github.com/pion/dtls/v3 v3.1.15 // indirect
 	github.com/pion/ice/v4 v4.4.8 // indirect

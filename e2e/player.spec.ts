@@ -1,6 +1,6 @@
 // The player (#410), on a paired browser with its own gateway (fixtures.ts
 // `paired`): the privacy badge, the profile line, the deep link + Back key,
-// the bar's controls, quality, compatible mode, Auto on a slow link, data
+// the bar's controls, volume, quality, compatible mode, Auto on a slow link, data
 // saver, audio, auto audio, subtitles and next episode. Per-device settings
 // are arranged in localStorage before the app loads (the Settings toggles are
 // shell.spec's). Movies → clip → Play and the Resume spot are the golden path's;
@@ -146,6 +146,27 @@ test('controls: ±10 s and Play / Pause, by button and by key @player', async ({
   await expect.poll(at).toBeCloseTo(t, 0)
   await button('Play').click()
   await expect.poll(paused).toBe(false)
+})
+
+test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reload @player', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await play(page)
+  const video = page.locator('video')
+  const vol = () =>
+    video.evaluate((v: HTMLVideoElement) => [v.volume, v.muted] as const)
+  await expect.poll(vol).toEqual([0.5, false])
+  await page.getByRole('slider', { name: 'Volume' }).fill('0.3')
+  await page.getByRole('slider', { name: 'Volume' }).press('ArrowDown') // −10 %
+  await expect.poll(async () => (await vol())[0]).toBeCloseTo(0.2, 2)
+  await page.reload() // the deep link plays it again
+  await expect.poll(async () => (await vol())[0]).toBeCloseTo(0.2, 2)
+  await page.keyboard.press('m')
+  await expect.poll(async () => (await vol())[1]).toBe(true)
+  await page.reload()
+  await expect.poll(async () => (await vol())[1]).toBe(true)
+  expect((await vol())[0]).toBeCloseTo(0.2, 2) // mute keeps the level
 })
 
 test('quality (#108, #161): Auto and Source only; Source reloads at the playhead, remembered @player', async ({

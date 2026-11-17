@@ -80,11 +80,19 @@ test('Settings Back: home after a direct open, else back in history @shell', asy
   await back.click()
   await expect(gatewaysHeading(p)).toBeVisible()
   // Gateways → Settings → Back: history, here Gateways again.
-  await p.getByRole('link', { name: 'Settings', exact: true }).click()
+  const settings = p.getByRole('link', { name: 'Settings', exact: true })
+  await settings.click()
   await expect(p).toHaveURL(/\/settings$/)
   await back.click()
   await expect(p).toHaveURL(/\/gateways$/)
   await expect(gatewaysHeading(p)).toBeVisible()
+  // Home is /gateways too, so only a page other than home proves history.
+  await p.getByRole('link', { name: 'Household', exact: true }).click()
+  await expect(p).toHaveURL(/\/household$/)
+  await settings.click()
+  await expect(p).toHaveURL(/\/settings$/)
+  await back.click()
+  await expect(p).toHaveURL(/\/household$/)
 })
 
 test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {

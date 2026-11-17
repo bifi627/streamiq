@@ -44,8 +44,17 @@ else
   echo "!! SKIPPED: go not installed locally â€” gateway is UNVERIFIED here, CI will run it" >&2
 fi
 
-echo "== e2e: all specs, in parallel (Docker + Chrome; no Chrome? npx playwright install chrome in e2e/) =="
-npm test --prefix e2e
+# #469: a build narrows this to the areas it touched (E2E_GREP=@player) or skips it for a change
+# without e2e impact (SKIP_E2E=1); a full local run only when the owner asks. CI sets neither.
+if [ -n "${SKIP_E2E:-}" ]; then
+  echo "!! SKIPPED: e2e (SKIP_E2E set) — the browser specs are UNVERIFIED here, CI will run them" >&2
+elif [ -n "${E2E_GREP:-}" ]; then
+  echo "== e2e: only --grep \"$E2E_GREP\" (E2E_GREP set; CI runs all specs) =="
+  npm test --prefix e2e -- --grep "$E2E_GREP"
+else
+  echo "== e2e: all specs, in parallel (Docker + Chrome; no Chrome? npx playwright install chrome in e2e/) =="
+  npm test --prefix e2e
+fi
 
 echo "== compose config =="
 docker compose config --quiet

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import {
   createEnrollmentToken,
   listClients,
@@ -216,6 +216,7 @@ export function Gateways() {
                 <EditableName
                   name={d.name ?? 'gateway'}
                   label="Gateway name"
+                  hint={STORED}
                   rename={
                     admin && d.online && pinned.has(d.id)
                       ? (n) => rename(d, n)
@@ -432,21 +433,29 @@ const RemoveButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 )
 
+// The hint on inputs whose text leaves the user's hardware: our DB or Firebase
+// (#413). Not on what only the gateway keeps (client names): that's their box.
+export const STORED = 'Saved by StreamIQ.'
+
 // The name, plus an inline Rename: a gateway's for an admin while it is online
 // and this browser is paired with it (#310, #329), a paired client's (#365).
 // Enter saves (form submit), Escape / the remote's Back cancels; arrowFocus
 // reaches the controls. children replaces the shown name (the <h2> by default).
+// hint: a line under the input while editing (#413).
 export function EditableName({
   name,
   label,
   rename,
+  hint,
   children,
 }: {
   name: string
   label: string
   rename?: (name: string) => Promise<string | null>
+  hint?: string
   children?: ReactNode
 }) {
+  const hintId = useId()
   const [draft, setDraft] = useState<string | null>(null) // null = not editing
   const [error, setError] = useState<string | null>(null)
   const renameBtn = useRef<HTMLButtonElement>(null)
@@ -494,6 +503,7 @@ export function EditableName({
     >
       <input
         aria-label={label}
+        aria-describedby={hint && hintId}
         value={draft}
         onChange={(e) => {
           setDraft(e.target.value)
@@ -510,6 +520,11 @@ export function EditableName({
       <button type="button" onClick={() => setDraft(null)}>
         Cancel
       </button>
+      {hint && (
+        <p id={hintId} className="hint muted">
+          {hint}
+        </p>
+      )}
       {error && (
         <p className="notice" role="alert">
           {error}

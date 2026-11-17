@@ -476,6 +476,10 @@ html.tv .no-tv {
   gap: var(--sp-2);
   min-width: 0;
 }
+.name .hint {
+  flex-basis: 100%;
+  margin: 0;
+}
 .card-head .name input,
 .card .clients .name input,
 .household .head .name input {

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/term"
 
 	"streamiq/gateway/internal/backup"
@@ -22,9 +24,13 @@ import (
 // prints the command's usage after it and exits 2.
 type usageError struct{ error }
 
-// args wraps a cobra argument validator so its errors are usage errors.
+// args wraps a cobra argument validator so its errors are usage errors. A "help"
+// argument shows the help (not a file named help: gateway backup help).
 func args(v cobra.PositionalArgs) cobra.PositionalArgs {
 	return func(c *cobra.Command, a []string) error {
+		if slices.Contains(a, "help") {
+			return pflag.ErrHelp // cobra prints the help, exit 0
+		}
 		if err := v(c, a); err != nil {
 			return usageError{err}
 		}
@@ -244,7 +250,7 @@ gateway page does; docs/install.md). Needs a terminal: the password isn't shown.
 				Long: `Put the Jellyfin data of a gateway backup back into the Jellyfin the gateway set
 up (users, libraries, watch state). Replaces what it has. Refuses while the
 gateway runs; docs/install.md for the order.`,
-				Example: "  gateway jellyfin restore streamiq-gateway-home-20261117-0930.zip",
+				Example: "  gateway jellyfin restore streamiq-gateway-home-2026-11-17-093000.zip",
 				RunE:    func(_ *cobra.Command, a []string) error { return jellyfinRestore(ctx, a[0], compose) },
 			},
 		),

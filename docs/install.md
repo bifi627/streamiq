@@ -380,7 +380,7 @@ first name: later, a household admin renames the gateway on the web app's Gatewa
 
 ## Command line
 
-Run `gateway` from the install dir. `gateway -h` lists the commands, and
+Run `gateway` from the install dir (Linux / macOS: `./gateway`). `gateway -h` lists the commands, and
 `gateway <command> -h` (or `gateway help <command>`) explains one, with examples.
 
 Tab completion for your shell (commands, `on|off`, `nvidia|off`, backup files):

@@ -62,6 +62,10 @@ func TestCommandHelp(t *testing.T) {
 	if err != nil || !strings.Contains(out, "Examples:\n  gateway jellyfin gpu nvidia") {
 		t.Fatalf("help jellyfin gpu: %v\n%s", err, out)
 	}
+	// "help" as an argument is a help request, not a backup file named help.
+	if out, err := execute(t, "backup", "help"); err != nil || !strings.Contains(out, "Examples:\n  gateway backup") {
+		t.Fatalf("backup help: %v\n%s", err, out)
+	}
 }
 
 func execute(t *testing.T, args ...string) (string, error) {

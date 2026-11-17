@@ -13,7 +13,7 @@ import (
 func call(t *testing.T, method, url, body string, who Session) (int, io.ReadCloser) {
 	t.Helper()
 	raw, _ := json.Marshal(tunnelReq{Method: method, URL: url, Body: body})
-	status, _, rc, _ := proxy(&Jellyfin{}, raw, who) // screens never touch Jellyfin
+	status, _, rc, _ := run(&Jellyfin{}, raw, who) // screens never touch Jellyfin
 	return status, rc
 }
 
@@ -94,7 +94,9 @@ func TestScreenRelay(t *testing.T) {
 	if s, _ := call(t, "POST", ScreensPath+"/"+sid, `{"type":"stop"}`, phone); s != 404 {
 		t.Fatalf("command to closed screen: %d", s)
 	}
-	tv.Closed = make(chan struct{}) // same session reopens on a new channel: no 409
+	reopened := make(chan struct{})
+	defer close(reopened) // its channel closes: the screen is gone for the next test
+	tv.Closed = reopened  // same session reopens on a new channel: no 409
 	if s, rc := call(t, "GET", ScreenPath, "", tv); s != 200 {
 		t.Fatalf("reopen: %d", s)
 	} else {

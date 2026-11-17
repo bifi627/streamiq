@@ -114,7 +114,7 @@ func TestAllowlist(t *testing.T) {
 	} {
 		j, _ := fakeJellyfin(t)
 		raw, _ := json.Marshal(tunnelReq{Method: c.method, URL: c.url})
-		status, _, body, err := proxy(j, raw, Session{})
+		status, _, body, err := run(j, raw, Session{})
 		if body != nil {
 			body.Close()
 		}
@@ -162,7 +162,7 @@ func TestPostBody(t *testing.T) {
 		t.Fatalf("forwarded body %q, type %q", last.Header.Get("X-Test-Body"), last.Header.Get("Content-Type"))
 	}
 	raw, _ := json.Marshal(tunnelReq{Method: "POST", URL: "/Items/" + vid + "/PlaybackInfo", Body: strings.Repeat("x", MaxBody+1)})
-	if status, _, _, err := proxy(j, raw, Session{}); status != http.StatusRequestEntityTooLarge || err == nil {
+	if status, _, _, err := run(j, raw, Session{}); status != http.StatusRequestEntityTooLarge || err == nil {
 		t.Fatalf("oversized body: status %d", status)
 	}
 }
@@ -173,7 +173,7 @@ func TestNoToken(t *testing.T) {
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: "/UserViews"})
 	for _, c := range []struct{ key, user string }{{"", ""}, {key, ""}, {"", uid}} {
 		j.SetKey(c.key, c.user)
-		if status, _, _, _ := proxy(j, raw, Session{}); status != http.StatusServiceUnavailable {
+		if status, _, _, _ := run(j, raw, Session{}); status != http.StatusServiceUnavailable {
 			t.Errorf("SetKey(%q, %q): status %d, want 503", c.key, c.user, status)
 		}
 	}
@@ -197,7 +197,7 @@ func TestBurst(t *testing.T) {
 		{Method: "GET", URL: BurstPath + "?size=lots"},
 	} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, err := proxy(j, raw, Session{}); status != http.StatusBadRequest || err == nil {
+		if status, _, _, err := run(j, raw, Session{}); status != http.StatusBadRequest || err == nil {
 			t.Errorf("%s: status %d, want 400", rq.URL, status)
 		}
 	}
@@ -205,7 +205,7 @@ func TestBurst(t *testing.T) {
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: fmt.Sprintf("%s?size=%d", BurstPath, BurstMax)})
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	_, _, big, err := proxy(j, raw, Session{})
+	_, _, big, err := run(j, raw, Session{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestBurst(t *testing.T) {
 	}
 	for _, rq := range []tunnelReq{{Method: "POST", URL: BurstPath}, {Method: "GET", URL: "/streamiq/%62urst"}} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, _ := proxy(j, raw, Session{}); status == 200 {
+		if status, _, _, _ := run(j, raw, Session{}); status == 200 {
 			t.Errorf("%s %s: got 200", rq.Method, rq.URL)
 		}
 	}
@@ -235,7 +235,7 @@ func TestGatewayAPI(t *testing.T) {
 		JSON(w, http.StatusOK, map[string]any{"transcoding": "nvenc", "user": SessionOf(r).User})
 	}))
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: StatusPath})
-	status, hdr, rc, err := proxy(j, raw, Session{User: "u1"}) // built for the session's user (#242)
+	status, hdr, rc, err := run(j, raw, Session{User: "u1"}) // built for the session's user (#242)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestGatewayAPI(t *testing.T) {
 		{Method: "POST", URL: ScreensPath + "/a/b"},
 	} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, _ := proxy(j, raw, Session{}); status != http.StatusNotFound {
+		if status, _, _, _ := run(j, raw, Session{}); status != http.StatusNotFound {
 			t.Errorf("%s %s: status %d, want 404", rq.Method, rq.URL, status)
 		}
 	}
@@ -268,10 +268,53 @@ func TestGatewayAPI(t *testing.T) {
 	}
 }
 
+// pipeWriter streams a handler's reply into a pipe: the tunnel minus WebRTC.
+type pipeWriter struct {
+	hdr    http.Header
+	pw     *io.PipeWriter
+	head   chan struct{} // closed once status is set
+	status int
+}
+
+func (w *pipeWriter) Header() http.Header { return w.hdr }
+func (w *pipeWriter) Flush()              {}
+func (w *pipeWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+		close(w.head)
+	}
+}
+func (w *pipeWriter) Write(b []byte) (int, error) { w.WriteHeader(200); return w.pw.Write(b) }
+
+// run serves the request frame raw the way handleReq does, returning once the
+// head is set; the body streams from the reader (closing it ends the handler's
+// next Write; who.Closed is what ends its context). err is set for a refusal (4xx/5xx).
+func run(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.ReadCloser, error) {
+	pr, pw := io.Pipe()
+	w := &pipeWriter{hdr: http.Header{}, pw: pw, head: make(chan struct{})}
+	go func() {
+		defer func() {
+			if p := recover(); p != nil {
+				w.WriteHeader(http.StatusBadGateway)
+				pw.CloseWithError(fmt.Errorf("aborted: %v", p))
+				return
+			}
+			pw.Close()
+		}()
+		serve(w, j, raw, &reqState{who: who})
+	}()
+	<-w.head
+	var err error
+	if w.status >= 400 {
+		err = fmt.Errorf("status %d", w.status)
+	}
+	return w.status, firstValues(w.hdr), pr, err
+}
+
 func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte) {
 	t.Helper()
 	raw, _ := json.Marshal(rq)
-	status, hdr, body, err := proxy(j, raw, Session{})
+	status, hdr, body, err := run(j, raw, Session{})
 	if err != nil {
 		t.Fatalf("proxy %s %s: %v", rq.Method, rq.URL, err)
 	}
@@ -288,7 +331,7 @@ func TestAdminOnly(t *testing.T) {
 	j.API.Handle("GET "+StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { JSON(w, 200, map[string]any{}) }), AdminOnly)
 	call := func(role, path string) int {
 		raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: path})
-		status, _, body, _ := proxy(j, raw, Session{Role: role})
+		status, _, body, _ := run(j, raw, Session{Role: role})
 		if body != nil {
 			body.Close()
 		}
@@ -417,7 +460,7 @@ func TestPerUserViewer(t *testing.T) {
 	j.SetKey(key, uid)
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: "/Videos/" + vid + "/main.m3u8"})
 	for _, c := range []struct{ user, tok, id string }{{"alice", "alicetoken", "alice-jf-id"}, {"bob", key, uid}, {"", key, uid}} {
-		status, _, body, err := proxy(j, raw, Session{User: c.user})
+		status, _, body, err := run(j, raw, Session{User: c.user})
 		if err != nil || status != 200 {
 			t.Fatalf("%s: %d %v", c.user, status, err)
 		}

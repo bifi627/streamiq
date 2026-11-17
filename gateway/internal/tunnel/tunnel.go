@@ -6,7 +6,9 @@
 package tunnel
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -105,15 +107,27 @@ func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session, slots chan struct{})
 	})
 }
 
-// handleReq ends with an explicit EOF frame (or an error frame when the body
-// broke off part-way) and lets the browser close the channel: closing right
-// after the last frame loses it on old Chromium (Chrome 87 on webOS drops
-// frames still in flight on a remote close, #71/#72).
+// handleReq serves one request frame on j (the root handler: gateway API or
+// Jellyfin) with a ResponseWriter that sends the frames itself. It ends with an
+// explicit EOF frame (or an error frame when the body broke off part-way) and
+// lets the browser close the channel: closing right after the last frame loses
+// it on old Chromium (Chrome 87 on webOS drops frames still in flight on a
+// remote close, #71/#72).
 func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
-	end := `{"eof":true}`
-	after := func() {}
+	w := &frameWriter{d: d, hdr: http.Header{}, wait: Gate(d, who.Closed)}
+	st := &reqState{who: who}
 	defer func() {
-		defer after() // afterReply: once the browser has the reply and closed the channel
+		defer st.run() // AfterReply: once the browser has the reply and closed the channel
+		end := `{"eof":true}`
+		switch {
+		case w.err != nil:
+			log.Printf("gateway: tunnel: %v", w.err)
+		case w.cut:
+			log.Printf("gateway: tunnel -> %d, body cut off", w.status)
+			end = `{"error":"body cut off"}` // ponytail: details stay in the log (they name LAN addresses)
+		default:
+			log.Printf("gateway: tunnel -> %d", w.status)
+		}
 		if err := d.SendText(end); err == nil {
 			select {
 			case <-who.Closed:
@@ -122,74 +136,58 @@ func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 		}
 		d.Close()
 	}()
-
-	status, hdr, body, err := proxy(j, raw, who)
-	if a, ok := body.(afterReply); ok {
-		after = a.after
-	}
-	if err != nil {
-		log.Printf("gateway: tunnel: %v", err)
-		if status == 0 {
-			status = http.StatusBadGateway
+	// A handler that gives up part-way panics with http.ErrAbortHandler, as under
+	// net/http's server: the body is incomplete.
+	defer func() {
+		if p := recover(); p != nil {
+			if p != http.ErrAbortHandler {
+				panic(p)
+			}
+			w.cut = true
+			w.WriteHeader(http.StatusBadGateway) // no-op once the head is out
 		}
-		sendHead(d, status, nil)
-		return
-	}
-	defer body.Close()
-
-	sendHead(d, status, hdr)
-	if err := streamBody(d, body, who.Closed); err != nil {
-		log.Printf("gateway: tunnel -> %d, body cut off: %v", status, err)
-		end = `{"error":"body cut off"}` // ponytail: details stay in the log (they name LAN addresses)
-		return
-	}
-	log.Printf("gateway: tunnel -> %d", status)
+	}()
+	serve(w, j, raw, st)
 }
 
-// proxy is the tunnel's pure core: decode the request frame, apply the
-// Jellyfin policy, call Jellyfin forwarding headers (Range included, so seek
-// survives), and hand back the response status/headers/body for the caller to
-// stream. No WebRTC here, so it is unit-tested directly (tunnel_test.go). On
-// error, a non-zero status is the refusal to send (e.g. 403, 413, 503).
-func proxy(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.ReadCloser, error) {
+// serve decodes the request frame into an *http.Request (st in its context)
+// and runs it on h; a frame it can't take is refused here. A handler that
+// wrote nothing answers 200, empty.
+func serve(w http.ResponseWriter, h http.Handler, raw []byte, st *reqState) {
 	var rq tunnelReq
 	if err := json.Unmarshal(raw, &rq); err != nil {
-		return http.StatusBadRequest, nil, nil, fmt.Errorf("bad request frame: %w", err)
+		Fail(w, http.StatusBadRequest, fmt.Errorf("bad request frame: %w", err))
+		return
 	}
 	if len(rq.Body) > MaxBody {
-		return http.StatusRequestEntityTooLarge, nil, nil, fmt.Errorf("body %d bytes", len(rq.Body))
+		Fail(w, http.StatusRequestEntityTooLarge, fmt.Errorf("body %d bytes", len(rq.Body)))
+		return
 	}
-	if u, err := url.Parse(rq.URL); err == nil && isGatewayAPI(u.Path) {
-		api := j.API
-		if api == nil {
-			api = builtin
-		}
-		return gatewayAPI(api, rq, u, who)
-	}
-	c := j.credFor(who.User)
-	req, status, err := j.prepare(rq, c)
+	u, err := url.Parse(rq.URL)
 	if err != nil {
-		return status, nil, nil, err
+		u = new(url.URL) // ponytail: Jellyfin's prepare re-parses RequestURI and refuses it (403)
 	}
-	resp, err := j.Client.Do(req)
-	if err != nil {
-		return 0, nil, nil, err
+	// r.Context() ends when the channel closes or the handler returns.
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), callKey{}, st))
+	defer cancel()
+	if st.who.Closed != nil {
+		go func() {
+			select {
+			case <-st.who.Closed:
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
 	}
-	hdr := make(map[string]string, len(resp.Header)+1)
-	for k := range resp.Header {
-		hdr[k] = resp.Header.Get(k) // ponytail: last value wins; Jellyfin sends no dup headers that matter
+	r := (&http.Request{
+		Method: rq.Method, URL: u, RequestURI: rq.URL, Proto: "HTTP/1.1", ProtoMajor: 1, ProtoMinor: 1,
+		Header: http.Header{}, Body: io.NopCloser(strings.NewReader(rq.Body)), ContentLength: int64(len(rq.Body)),
+	}).WithContext(ctx)
+	for k, v := range rq.Headers {
+		r.Header.Set(k, v)
 	}
-	// Go's Transport promotes Content-Length out of Header into resp.ContentLength;
-	// re-add it so the browser (and hls.js) knows the body size. -1 = unknown.
-	if resp.ContentLength >= 0 {
-		hdr["Content-Length"] = strconv.FormatInt(resp.ContentLength, 10)
-	}
-	body, err := redact(hdr, resp.Body, c.key)
-	if err != nil {
-		resp.Body.Close()
-		return 0, nil, nil, err
-	}
-	return resp.StatusCode, hdr, body, nil
+	h.ServeHTTP(w, r)
+	w.WriteHeader(http.StatusOK)
 }
 
 // Roles in the broker's offer (docs/protocol.md, "Device + user").
@@ -241,36 +239,67 @@ type zeros struct{}
 
 func (zeros) Read(p []byte) (int, error) { clear(p); return len(p), nil }
 
-func sendHead(d *webrtc.DataChannel, status int, headers map[string]string) {
-	b, _ := json.Marshal(map[string]any{"status": status, "headers": headers})
-	if err := d.SendText(string(b)); err != nil {
+// errClosed: the channel (or its connection) is gone; nobody is left to send to.
+var errClosed = errors.New("tunnel: channel closed")
+
+// frameWriter is the tunnel's http.ResponseWriter: the status and headers go
+// out as the head frame (text) on the first Write or WriteHeader, the body as
+// binary frames of at most ChunkSize under backpressure (Gate) — the browser
+// tells them apart by type. Every Write is sent before it returns, so Flush has
+// nothing to do.
+type frameWriter struct {
+	d      *webrtc.DataChannel
+	hdr    http.Header
+	wait   func() bool
+	status int
+	err    error // from Fail: the refusal handleReq logs
+	cut    bool  // the body broke off: a send failed or the handler aborted
+}
+
+func (w *frameWriter) Header() http.Header { return w.hdr }
+
+func (w *frameWriter) WriteHeader(status int) {
+	if w.status != 0 {
+		return
+	}
+	w.status = status
+	b, _ := json.Marshal(map[string]any{"status": status, "headers": firstValues(w.hdr)})
+	if err := w.d.SendText(string(b)); err != nil {
 		log.Printf("gateway: send head: %v", err)
 	}
 }
 
-// streamBody relays the response body as backpressured binary chunks. The head
-// frame is text; body frames are binary — the browser tells them apart by type.
-// It stops when closed is closed, also while it waits on backpressure. A send or
-// read error is returned: the body is incomplete. A closed channel is not an
-// error (nobody is left to tell).
-func streamBody(d *webrtc.DataChannel, body io.Reader, closed <-chan struct{}) error {
-	buf := make([]byte, ChunkSize)
-	wait := Gate(d, closed)
-	for {
-		n, err := body.Read(buf)
-		if n > 0 {
-			if !wait() {
-				return nil
-			}
-			if e := d.Send(buf[:n]); e != nil {
-				return fmt.Errorf("send body: %w", e)
-			}
+func (w *frameWriter) Write(b []byte) (int, error) {
+	w.WriteHeader(http.StatusOK)
+	n := 0
+	for len(b) > 0 {
+		c := b[:min(len(b), ChunkSize)]
+		if !w.wait() {
+			return n, errClosed
 		}
-		if err == io.EOF {
-			return nil
+		if err := w.d.Send(c); err != nil {
+			w.cut = true
+			return n, fmt.Errorf("send body: %w", err)
 		}
-		if err != nil {
-			return fmt.Errorf("read body: %w", err)
-		}
+		n += len(c)
+		b = b[len(c):]
 	}
+	return n, nil
+}
+
+func (w *frameWriter) Flush() {}
+
+// firstValues is h as the head frame carries it: one value per header (nil if none).
+func firstValues(h http.Header) map[string]string {
+	var m map[string]string
+	for k, v := range h {
+		if len(v) == 0 {
+			continue
+		}
+		if m == nil {
+			m = map[string]string{}
+		}
+		m[k] = v[0] // ponytail: first value wins; Jellyfin sends no dup headers that matter
+	}
+	return m
 }

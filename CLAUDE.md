@@ -172,7 +172,8 @@ Copy `.env.example` only to override.
     runs that review on its own PR as its last step, so the label on a PR is for PRs no
     agent built and for re-reviews. The owner
     approves a spec in the refinement thread or by removing `needs-spec` by hand.
-    Unresolved `[blocker]`/`[spec]` review threads block the merge (ruleset on `main`).
+    Unresolved `[blocker]`/`[spec]` review threads and red CI block the merge (ruleset on `main`);
+    the owner can arm auto-merge per PR (`gh pr merge N --auto --squash`).
     Wiring: `docs/tools.md`.
   - **Agent signature:** the agent posts with the owner's login, so everything it writes
     on GitHub says so. Every comment, review, review comment and reply starts with the line

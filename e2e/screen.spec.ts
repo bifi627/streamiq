@@ -118,14 +118,16 @@ test('remote commands (#181): play / pause, audio, subtitles, position, ±10 s, 
     (await audio.locator('option', { hasText: de }).getAttribute('value'))!,
   )
   await expect.poll(() => pitch(tv), { timeout: 30_000 }).toBeCloseTo(880, -2)
+  // From here paused: a track pick keeps a paused TV paused, and seeks move
+  // the playhead by the command alone.
+  await button('Pause').click()
+  await expect.poll(() => paused(tv)).toBe(true)
   // Subtitles: the clip's cue (0–30 s) shows on the TV.
   await phone.getByLabel('Subtitles').selectOption({ index: 1 })
   await expect
     .poll(() => cue(tv), { timeout: 15_000 })
     .toBe('streamiq e2e subtitle')
-  // Seeks while paused: the playhead moves by the command alone.
-  await button('Pause').click()
-  await expect.poll(() => paused(tv)).toBe(true)
+  expect(await paused(tv)).toBe(true)
   await phone.getByLabel('Position').fill('20')
   await expect.poll(() => videoTime(tv)).toBeGreaterThan(19.5)
   await expect(phone.getByText(/^0:2\d \/ 0:30$/)).toBeVisible()
@@ -163,6 +165,15 @@ test("two phones (#181): either one's command reaches the TV, both show it; so d
   await tv.keyboard.press('k')
   await expect.poll(() => paused(tv)).toBe(true)
   await both('Play', 2_500)
+  // Tracks and position from the second phone: the TV's state shows on the
+  // first one too (not just the sender's own optimistic view).
+  await phone2.getByLabel('Subtitles').selectOption({ index: 1 })
+  await expect.poll(() => cue(tv), { timeout: 15_000 }).not.toBe('')
+  for (const p of [phone, phone2])
+    await expect(p.getByLabel('Subtitles')).not.toHaveValue('-1')
+  await phone2.getByLabel('Position').fill('20')
+  await expect.poll(() => videoTime(tv)).toBeGreaterThan(19.5)
+  await expect(phone.getByText(/^0:2\d \/ 0:30$/)).toBeVisible()
 })
 
 test('closing: Back on the TV ends screen mode; the phones say so, Play on… lists none @player', async ({

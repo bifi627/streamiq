@@ -86,7 +86,8 @@ headRefOid.
   asked reviewers to check. If an agent built the PR (its body ends with the agent
   signature) and the body has no `## Noticed` section, one line `Noticed: missing`.
   Then the CI status from `gh pr checks N` (pass / failing
-  check names / pending). Last line, in exactly this form (it is what later analysis
+  check names / pending / `skipped (draft)`: CI skips drafts and runs once the PR is
+  marked ready, so no result yet, not a failure). Last line, in exactly this form (it is what later analysis
   of the reviews reads), with the counts `agent-review` returned:
   `Review stats: level=high candidates=9 blocker=0 spec=1 low=8`, with
   ` risk=<n> floor=<f>` appended on `ready to merge`.

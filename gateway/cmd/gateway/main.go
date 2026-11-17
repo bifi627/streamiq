@@ -16,8 +16,7 @@
 //	backup      `gateway backup` / `gateway restore`: the state dir + jellyfin-compose.yml + Jellyfin's
 //	            database as one zip (#52, #297, #298)
 //
-// Commands: gateway [run] | service install|uninstall | update | rollback | version | status | jellyfin up|upgrade|offline on|off|gpu nvidia|off|login|restore <file> | reset-identity |
-// backup [file] | restore [--force] <file>.
+// Commands: cobra, in commands.go (gateway -h lists them).
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
 // env wins): STREAMIQ_API_URL (required), STREAMIQ_ENROLL_TOKEN, STREAMIQ_NAME, STREAMIQ_STATE_DIR,
@@ -47,7 +46,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/term"
+	"github.com/spf13/cobra"
 
 	"streamiq/gateway/internal/backup"
 	"streamiq/gateway/internal/identity"
@@ -75,120 +74,18 @@ func main() {
 	}
 	loadEnvFile("gateway.env") // dev: gateway/gateway.env from scripts/setup-jellyfin.sh
 
-	cmd := "run"
-	if len(os.Args) > 1 {
-		cmd = os.Args[1]
+	cobra.MousetrapHelpText = "" // started from Explorer (double-click): run the gateway, as before
+	cmd, err := newRoot(ctx, exe).ExecuteC()
+	if err == nil {
+		return
 	}
-	// ponytail: one usage text for every command; per-command help when a command grows flags.
-	help := slices.ContainsFunc(os.Args[1:], func(a string) bool {
-		return a == "-h" || a == "--help" || a == "-help" || a == "help"
-	})
-	switch {
-	case help:
-		fmt.Println(usage)
-	case cmd == "run":
-		run(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
-	case cmd == "service" && len(os.Args) == 3 && os.Args[2] == "install":
-		err = serviceInstall(ctx, exe)
-	case cmd == "service" && len(os.Args) == 3 && os.Args[2] == "uninstall":
-		err = service.Uninstall(exe)
-		if err == nil {
-			fmt.Println("Removed the logon task and stopped the gateway. state/ and gateway.env are kept.")
-		}
-	case cmd == "update":
-		err = selfUpdate(ctx, exe)
-	case cmd == "rollback" && len(os.Args) == 2:
-		err = rollback(ctx, exe)
-	case cmd == "version" && len(os.Args) == 2:
-		fmt.Println(version) // install.sh / install.ps1 name the pre-update backup with it
-	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "up":
-		err = jellyfinUp(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
-	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "upgrade":
-		err = jellyfin.Upgrade(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), os.Stdout)
-	case cmd == "jellyfin" && len(os.Args) == 4 && os.Args[2] == "offline" && (os.Args[3] == "on" || os.Args[3] == "off"):
-		err = jellyfin.OfflineCLI(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), os.Args[3] == "on", os.Stdout)
-	case cmd == "jellyfin" && len(os.Args) == 4 && os.Args[2] == "gpu" && (os.Args[3] == "nvidia" || os.Args[3] == "off"):
-		err = jellyfin.GPUCLI(ctx, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), filepath.Join(filepath.Dir(exe), "gateway.env"),
-			os.Args[3] == "nvidia", func() error { return restartGateway(exe) }, os.Stdout)
-	case cmd == "jellyfin" && len(os.Args) == 3 && os.Args[2] == "login":
-		if !term.IsTerminal(int(os.Stdin.Fd())) {
-			err = errors.New("run it in a terminal: it reads the password without showing it")
-			break
-		}
-		// The user name prompt doesn't watch ctx: Ctrl+C there (caught by
-		// NotifyContext) exits here. At the password prompt it is a byte (raw mode).
-		go func() {
-			<-ctx.Done()
-			fmt.Println()
-			os.Exit(130)
-		}()
-		err = jellyfin.LoginCLI(ctx, jellyfinSetup(), os.Stdin, os.Stdout, func() (string, error) { return jellyfin.ReadPassword(os.Stdin) })
-		if errors.Is(err, jellyfin.ErrInterrupted) {
-			os.Exit(130)
-		}
-	case cmd == "jellyfin" && len(os.Args) == 4 && os.Args[2] == "restore" && !strings.HasPrefix(os.Args[3], "-"):
-		err = jellyfinRestore(ctx, os.Args[3], filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
-	case cmd == "reset-identity":
-		err = resetIdentity()
-	case cmd == "backup" && (len(os.Args) == 2 || len(os.Args) == 3 && !strings.HasPrefix(os.Args[2], "-")):
-		file := backup.FileName(stateDir(), time.Now())
-		if len(os.Args) == 3 {
-			file = os.Args[2]
-		}
-		err = backupState(ctx, file, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
-	case cmd == "restore" && len(os.Args) == 3 && !strings.HasPrefix(os.Args[2], "-"):
-		err = restoreState(os.Args[2], filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), false)
-	case cmd == "restore" && len(os.Args) == 4 && slices.Contains(os.Args[2:], "--force"):
-		file := os.Args[2]
-		if file == "--force" {
-			file = os.Args[3]
-		}
-		err = restoreState(file, filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile), true)
-	case cmd == "status":
-		link, _ := os.ReadFile(filepath.Join(stateDir(), "page-link"))
-		err = localpage.PrintStatus(ctx, os.Stdout, pagePort(), strings.TrimSpace(string(link)))
-	default:
-		fmt.Fprintln(os.Stderr, usage)
+	fmt.Fprintln(os.Stderr, "gateway:", err)
+	if errors.As(err, new(usageError)) {
+		fmt.Fprint(os.Stderr, "\n"+cmd.UsageString())
 		os.Exit(2)
 	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "gateway:", err)
-		os.Exit(1)
-	}
+	os.Exit(1)
 }
-
-const usage = `usage: gateway [command] [-h]
-  run                        run the gateway (default)
-  service install|uninstall  start it at logon in its own window (Windows)
-  update                     install the latest release (Windows); keeps the old binary and a
-                             state backup in backups/ (the last 3 updates)
-  rollback                   go back to the version before the last update: stops the gateway,
-                             puts the old binary and its state back, starts it again
-  version                    print this binary's version
-  status                     show the running gateway's status
-  jellyfin up                start Jellyfin in Docker (downloads jellyfin-compose.yml once)
-  jellyfin upgrade           pin jellyfin-compose.yml to the tested Jellyfin (and move a file from
-                             before the offline jail into it), then restart it
-  jellyfin offline on|off    on (the default): Jellyfin has no internet access, nothing leaves it;
-                             off: online lookups (posters, descriptions) allowed. Restarts Jellyfin
-  jellyfin gpu nvidia|off    transcode on an NVIDIA GPU (checks Jellyfin sees it, else changes
-                             nothing) or on the CPU again. Restarts Jellyfin and the gateway
-  jellyfin login             sign in with a Jellyfin admin to repair the gateway's access
-                             (as the local gateway page does; docs/install.md)
-  jellyfin restore <file>    put the Jellyfin data of a gateway backup back into the Jellyfin the
-                             gateway set up (users, libraries, watch state). Replaces what it has.
-                             Refuses while the gateway runs; docs/install.md for the order.
-  reset-identity             new certificate + empty paired-browser list: every browser pairs
-                             again (after a leak; docs/install.md). Refuses while the gateway runs.
-  backup [file]              write the state dir (identity, credential, paired browsers, Jellyfin
-                             login), jellyfin-compose.yml and, for the Jellyfin the gateway set up,
-                             Jellyfin's database to one zip; works while the gateway runs. NOT encrypted.
-  restore [--force] <file>   put a backup back into the state dir. Refuses while the gateway runs,
-                             and over an existing gateway unless --force. Writes jellyfin-compose.yml
-                             only if there is none (never over one, not even with --force).
-                             Jellyfin's data stays in the zip: gateway jellyfin restore.
-
-Config: gateway.env next to the binary (see docs/install.md).`
 
 func stateDir() string { return env("STREAMIQ_STATE_DIR", "streamiq-state") }
 func pagePort() string { return env("STREAMIQ_PAGE_PORT", "8097") }               // Jellyfin owns 8096

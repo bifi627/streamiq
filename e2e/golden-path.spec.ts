@@ -152,10 +152,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(3)
       // Privacy badge (#205) in the player's overlay; a click shows its line.
-      await a.getByRole('button', { name: 'Direct from home' }).click()
+      await a.getByRole('button', { name: 'On your network' }).click()
       await expect(
-        a.getByText(/end-to-end encrypted · StreamIQ carried 0 bytes/),
-      ).toBeVisible() // same host: host candidates, no relay
+        a.getByText(/end-to-end encrypted · never leaves the house/),
+      ).toBeVisible() // same host: host ↔ host candidates (#428)
       // Device profile (#115): probe + Jellyfin's decision in the diagnostics.
       // Diagnostics panel: on once in Settings, the flag persists (#201).
       await a.getByRole('link', { name: 'Settings' }).click()

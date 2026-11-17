@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pairInfo } from './stats.ts'
+import { pairInfo, route } from './stats.ts'
 
 const report = (pair: Record<string, unknown>, localType: string) =>
   new Map<string, Record<string, any>>([
@@ -63,4 +63,14 @@ test('Firefox shape (pair.selected) and no pair yet', () => {
   assert.equal(pairInfo(ff), null)
   ff.set('P', { ...ff.get('P')!, selected: true })
   assert.equal(pairInfo(ff)!.local, 'host')
+})
+
+test('badge route: host/host → lan, srflx or prflx → direct, relay → relayed', () => {
+  assert.equal(route(pairInfo(report({}, 'host'))!), 'lan')
+  assert.equal(route(pairInfo(report({}, 'srflx'))!), 'direct')
+  assert.equal(route(pairInfo(report({}, 'prflx'))!), 'direct')
+  assert.equal(route(pairInfo(report({}, 'relay'))!), 'relay')
+  const hairpin = report({}, 'host')
+  hairpin.set('R', { candidateType: 'srflx', address: '192.0.2.1' })
+  assert.equal(route(pairInfo(hairpin)!), 'direct')
 })

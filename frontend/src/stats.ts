@@ -43,3 +43,9 @@ export function pairInfo(report: Stats): PairInfo | null {
         : Math.round(pair.currentRoundTripTime * 1000),
   }
 }
+
+/** The privacy badge's state (#428): host ↔ host never passes the router's NAT. */
+export function route(p: PairInfo): 'lan' | 'direct' | 'relay' {
+  if (p.relay) return 'relay'
+  return p.local === 'host' && p.remote === 'host' ? 'lan' : 'direct'
+}

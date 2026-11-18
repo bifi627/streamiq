@@ -96,6 +96,7 @@ E2E_GREP='@player|@library' bash scripts/check.sh  # same, e2e only for the area
 SKIP_E2E=1 bash scripts/check.sh        # same, no e2e stage: a change without e2e impact (CI still runs every spec)
 powershell -File scripts/dev.ps1        # run the app: emulator + backend (:5028) + frontend (:5173); Ctrl+C stops all
 powershell -File scripts/prune-worktrees.ps1 [-DryRun]  # remove worktrees + local branches already on main (merged PR / no commits); skips dirty ones
+bash scripts/issue-lint.sh              # open issues breaking a tracking rule (labels, needs-spec vs AC, board column); exit 1 on findings, fixes nothing
 
 docker compose up -d                    # deps: postgres, jellyfin, firebase auth emulator
 docker compose --profile relay up -d    # + local coturn (force relay via iceTransportPolicy)

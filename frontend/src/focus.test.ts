@@ -30,7 +30,7 @@ test('up and left: straight beats a closer diagonal too', () => {
   assert.equal(nearest(box(0, 0), [up], 'ArrowUp'), -1) // below, not above
   const left = box(40, 0)
   assert.equal(nearest(left, [box(20, 20), box(0, 0)], 'ArrowLeft'), 1)
-  // right too, and the best one first keeps it
+  // right too, and a worse one after the best doesn't replace it
   assert.equal(nearest(box(0, 0), [box(40, 0), box(20, 20)], 'ArrowRight'), 0)
 })
 

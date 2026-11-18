@@ -76,13 +76,13 @@ test('relay seen only on the remote side; stats in any order; no RTT yet', () =>
         remoteCandidateId: 'R',
       },
     ],
-    ['L', { candidateType: 'srflx', ip: '192.0.2.7', protocol: 'udp' }],
+    ['L', { candidateType: 'srflx', ip: '2001:db8::7', protocol: 'udp' }],
     ['R', { candidateType: 'relay', address: '192.0.2.1' }],
     ['T', { type: 'transport', selectedCandidatePairId: 'P' }],
   ])
   assert.deepEqual(pairInfo(r), {
     relay: true,
-    ipv6: false,
+    ipv6: true, // from \`ip\` when there's no \`address\`
     local: 'srflx',
     remote: 'relay',
     protocol: 'udp',

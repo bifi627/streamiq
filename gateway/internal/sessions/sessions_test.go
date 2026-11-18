@@ -84,8 +84,12 @@ func TestPairThenTunnel(t *testing.T) {
 		t.Fatalf("tunnel after approve = %q, viewers ensured %q", got, ensured())
 	}
 
-	if connect(t, gateway, "s2", key, false).say(nil)["type"] != "ok" || ensured() != "user-s1,user-s2" {
+	s2 := connect(t, gateway, "s2", key, false)
+	if s2.say(nil)["type"] != "ok" || ensured() != "user-s1,user-s2" {
 		t.Fatalf("paired key not recognised on a new session (viewers ensured %q)", ensured())
+	}
+	if m, _ := s2.commit(); m["type"] != "rejected" {
+		t.Fatalf("commit on an authorized connection = %v, want rejected", m)
 	}
 	// A browser whose pin doesn't match (gateway cert changed) forces the code
 	// comparison even though its key is allowlisted.
@@ -298,6 +302,30 @@ func TestSecondAuthChannelRefused(t *testing.T) {
 	}
 }
 
+// Out of order is refused: a second auth on the channel, a commit before any
+// auth, a reveal before any commit (a commit once authorized: TestPairThenTunnel).
+func TestOutOfOrderAuthRefused(t *testing.T) {
+	gateway, store := newGateway(t)
+	b, _ := unpaired(t, gateway, "again")
+	if m := b.say(b.auth1); m["type"] != "rejected" {
+		t.Fatalf("second auth = %v, want rejected", m)
+	}
+	if m, _ := connect(t, gateway, "early-commit", nil, false).commit(); m["type"] != "rejected" {
+		t.Fatalf("commit before auth = %v, want rejected", m)
+	}
+	b, _ = unpaired(t, gateway, "early-reveal")
+	if m := b.say(map[string]any{"type": "reveal", "n": pairing.Nonce()}); m["type"] != "rejected" {
+		t.Fatalf("reveal before commit = %v, want rejected", m)
+	}
+	b, _ = unpaired(t, gateway, "two-reveals")
+	_, nB := b.commit()
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	if m := b.say(map[string]any{"type": "reveal", "n": nB}); m["type"] != "rejected" {
+		t.Fatalf("second reveal = %v, want rejected", m)
+	}
+	slotsFree(t, store)
+}
+
 // One commit per channel: a second one is refused, gets no second nonce, and
 // the slot of the first is given back.
 func TestSecondCommitRefused(t *testing.T) {
@@ -363,20 +391,25 @@ func TestPairingSlotReservedAtCommit(t *testing.T) {
 }
 
 type browser struct {
-	t    *testing.T
-	pc   *webrtc.PeerConnection
-	auth *webrtc.DataChannel
-	in   chan map[string]any
+	t     *testing.T
+	pc    *webrtc.PeerConnection
+	auth  *webrtc.DataChannel
+	in    chan map[string]any
+	auth1 map[string]any // the auth message connect sent
 
 	mu    sync.Mutex                // gateway → browser signaling arrives from several goroutines
 	early []webrtc.ICECandidateInit // gateway candidates that beat the answer
 }
 
 // connect wires a browser peer to the gateway through Handle (no network broker)
-// and answers the challenge with a session-bound signature.
+// and answers the challenge with a session-bound signature (none if key is nil).
 func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, pair bool) *browser {
 	t.Helper()
-	bcert, _ := webrtc.GenerateCertificate(key) // any cert; its fp is what gets signed
+	certKey := key
+	if certKey == nil {
+		certKey, _ = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	}
+	bcert, _ := webrtc.GenerateCertificate(certKey) // any cert; its fp is what gets signed
 	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{Certificates: []webrtc.Certificate{*bcert}})
 	if err != nil {
 		t.Fatal(err)
@@ -416,12 +449,16 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 	if ch["type"] != "challenge" {
 		t.Fatalf("first auth message = %v", ch)
 	}
+	if key == nil {
+		return b
+	}
 	pemStr, _ := bcert.PEM()
 	blk, _ := pem.Decode([]byte(pemStr))
 	msg := sha256.Sum256(pairing.AuthMessage(gateway.Fp, identity.Fingerprint(blk.Bytes), ch["n"].(string)))
 	r, s, _ := ecdsa.Sign(rand.Reader, key, msg[:])
 	sig := append(r.FillBytes(make([]byte, 32)), s.FillBytes(make([]byte, 32))...) // P1363, like WebCrypto
-	b.send(map[string]any{"type": "auth", "spki": spki(key), "sig": sig, "pair": pair})
+	b.auth1 = map[string]any{"type": "auth", "spki": spki(key), "sig": sig, "pair": pair}
+	b.send(b.auth1)
 	return b
 }
 

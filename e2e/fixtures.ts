@@ -81,7 +81,7 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
         const t5 = Date.now()
         const s = (ms: number) => (ms / 1000).toFixed(1)
         console.log(
-          `paired: signup ${s(t1 - t0)}s gateway ${s(t2 - t1)}s pairing ${s(t3 - t2)}s teardown ${s(t5 - t4)}s total ${s(t3 - t0 + t5 - t4)}s :: ${testInfo.titlePath.slice(1).join(' > ')}`,
+          `paired: signup ${s(t1 - t0)}s gateway ${s(t2 - t1)}s signin+pair ${s(t3 - t2)}s teardown ${s(t5 - t4)}s total ${s(t3 - t0 + t5 - t4)}s :: ${testInfo.titlePath.slice(1).join(' > ')}`,
         )
       }
     }

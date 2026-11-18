@@ -135,6 +135,9 @@ export async function startGateway(
   return { ...p, pageUrl, pageCookie }
 }
 
+/** jellyfinLogin calls in this worker (one Jellyfin per worker, fixtures.ts). */
+export let jellyfinLogins = 0
+
 /**
  * The local page's Jellyfin admin login. Each one resets the gateway's hidden
  * Jellyfin users' passwords, which locks out any other gateway on that Jellyfin
@@ -157,6 +160,7 @@ export async function jellyfinLogin(
     throw new Error(
       `gateway Jellyfin login: HTTP ${res.status} ${await res.text()}`,
     )
+  jellyfinLogins++
 }
 
 /**

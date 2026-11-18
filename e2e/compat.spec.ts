@@ -25,8 +25,7 @@ import {
   uniqueEmail,
   videoTime,
 } from './helpers.ts'
-import { JELLYFIN_ADMIN } from './jellyfin.ts'
-import { freePort, root, start, waitHttp } from './stack.ts'
+import { freePort, jellyfinLogin, root, start, waitHttp } from './stack.ts'
 
 const goos =
   { win32: 'windows', darwin: 'darwin', linux: 'linux' }[
@@ -93,13 +92,7 @@ test('the last released gateway works with this API, or is told to update @compa
   const ctxs: { close: () => Promise<void> }[] = []
   try {
     await waitHttp(pageUrl, gateway)
-    const login = await fetch(pageUrl + '/jellyfin/login', {
-      method: 'POST',
-      headers: { Origin: pageUrl },
-      body: new URLSearchParams(JELLYFIN_ADMIN),
-      redirect: 'manual',
-    })
-    expect(login.status, await login.text()).toBe(303)
+    await jellyfinLogin(pageUrl)
 
     let outcome = ''
     await expect

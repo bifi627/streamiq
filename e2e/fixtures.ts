@@ -26,7 +26,7 @@ import {
   uniqueEmail,
   type User,
 } from './helpers.ts'
-import { jellyfinLogin, startJellyfin } from './stack.ts'
+import { jellyfinLogin, jellyfinLogins, startJellyfin } from './stack.ts'
 
 type Paired = {
   user: User
@@ -34,7 +34,7 @@ type Paired = {
   gateway: Awaited<ReturnType<typeof onboardGateway>>
   gatewayCtx: BrowserContext // where the local gateway page opens (pair())
 }
-type Pairing = Omit<Paired, 'page'> & { ctx: BrowserContext }
+type Pairing = Omit<Paired, 'page'> & { ctx: BrowserContext; logins: number }
 const secs = (ms: number) => (ms / 1000).toFixed(1)
 
 export const test = base.extend<
@@ -116,7 +116,13 @@ export const test = base.extend<
         await pair(page, gatewayCtx, gateway.pageUrl)
         await page.close() // each test opens its own
         console.log(`pairing (worker): total ${secs(Date.now() - t0)}s`)
-        await use({ user, gateway, gatewayCtx, ctx: page.context() })
+        await use({
+          user,
+          gateway,
+          gatewayCtx,
+          ctx: page.context(),
+          logins: jellyfinLogins, // its own was the last
+        })
       } finally {
         await Promise.all([gatewayCtx.close(), page?.context().close()])
         await gateway.stop()
@@ -126,20 +132,28 @@ export const test = base.extend<
   ],
   sharedPaired: async ({ pairing }, use, testInfo) => {
     const t0 = Date.now()
-    const { ctx, ...rest } = pairing
-    // A `paired` test since the last one started a gateway on this worker's
-    // Jellyfin, whose login reset the shared viewer and admin passwords: log
-    // this gateway in again, as a person would on its local page.
-    await jellyfinLogin(rest.gateway.pageUrl, rest.gateway.pageCookie)
+    const { ctx, logins, ...rest } = pairing
+    // Another gateway logged in to this worker's Jellyfin since (a `paired`
+    // test's), which reset the shared viewer and admin passwords: log this
+    // gateway in again, as a person would on its local page.
+    if (jellyfinLogins !== logins) {
+      await jellyfinLogin(rest.gateway.pageUrl, rest.gateway.pageCookie)
+      pairing.logins = jellyfinLogins
+    }
     const t1 = Date.now()
     let t2 = 0 // page ready at
     try {
       const page = await ctx.newPage()
-      await page.goto(appUrl('/gateways'))
       // Per-device settings (quality, data saver, compatible mode, the speed
-      // hint, …) start clean; sign-in and the client key are in IndexedDB.
-      await page.evaluate(() => localStorage.clear())
-      await page.reload()
+      // hint, …) start clean, once per tab: a test's own reloads keep what it
+      // set. Sign-in and the client key are in IndexedDB.
+      await page.addInitScript(() => {
+        if (sessionStorage.getItem('e2e.cleared')) return
+        sessionStorage.setItem('e2e.cleared', '1')
+        localStorage.clear()
+        localStorage.setItem('streamiq.watchMin', '0') // as newPage() does
+      })
+      await page.goto(appUrl('/gateways'))
       await expect(
         page.locator('li.card').getByRole('button', { name: 'Open' }),
       ).toBeVisible()

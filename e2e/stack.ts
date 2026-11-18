@@ -2,12 +2,7 @@
 // and preview.ts. Every process logs to e2e/logs/<name>.log (uploaded by CI on
 // failure; the preview's: e2e/.preview/logs) — the first place to look.
 // Imports carry .ts: preview.ts runs this under plain Node (type stripping).
-import {
-  execFileSync,
-  spawn,
-  spawnSync,
-  type ChildProcess,
-} from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { createHash, createHmac } from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
@@ -235,8 +230,97 @@ export type StackOptions = {
   label?: string
   /** Give Jellyfin all NVIDIA GPUs (`--gpus all`) and turn on NVENC. */
   nvenc?: boolean
-  /** No Jellyfin: the e2e's workers start their own (startJellyfin, fixtures.ts). */
-  noJellyfin?: boolean
+  /** How many Jellyfins start with the stack (default 1; their URLs go to
+   *  E2E_JELLYFIN_URLS). The e2e: one per worker in CI, else 0 and a worker
+   *  starts its own on first use (fixtures.ts). */
+  jellyfins?: number
+}
+
+/** Runs a command to its end without blocking the event loop (the builds). */
+function run(cmd: string, args: string[], cwd: string) {
+  return new Promise<void>((resolve, reject) => {
+    const p = spawn(cmd, args, { cwd, stdio: 'inherit' })
+    p.on('error', reject)
+    p.on('exit', (code) =>
+      code === 0
+        ? resolve()
+        : reject(new Error(`${cmd} ${args.join(' ')}: exit ${code}`)),
+    )
+  })
+}
+
+// Fixture media, made by Jellyfin's own ffmpeg (no host ffmpeg in CI) into /out:
+// a 30 s H.264 clip with two AAC tracks (English 440 Hz, German 880 Hz: the audio
+// menu, #109) + sidecar English subtitle, in Jellyfin's one-folder-per-movie
+// layout. Auto audio (#252): a clip whose default track (440 Hz) is MP2, which
+// the browser probe never lists; the second (880 Hz) is AAC in the same
+// language. Its name sorts after the main clip: other steps take the first movie.
+// The series (#344): gen-test-media.sh's own script.
+const FFMPEG = '/usr/lib/jellyfin-ffmpeg/ffmpeg'
+const ENCODE =
+  'D="/out/media/streamiq e2e clip" && mkdir -p "$D" && ' +
+  `${FFMPEG} -loglevel error -y ` +
+  '-f lavfi -i testsrc=duration=30:size=640x360:rate=30 -f lavfi -i sine=frequency=440:duration=30 ' +
+  '-f lavfi -i sine=frequency=880:duration=30 -map 0:v -map 1:a -map 2:a ' +
+  '-c:v libx264 -pix_fmt yuv420p -c:a aac -shortest -metadata:s:a:0 language=eng -metadata:s:a:1 language=deu ' +
+  '-metadata title="streamiq e2e clip" "$D/streamiq e2e clip.mp4" && ' +
+  `printf '1\\n00:00:00,000 --> 00:00:30,000\\nstreamiq e2e subtitle\\n' > "$D/streamiq e2e clip.en.srt" && ` +
+  'D="/out/media/streamiq e2e mp2 default" && mkdir -p "$D" && ' +
+  `${FFMPEG} -loglevel error -y ` +
+  '-f lavfi -i testsrc=duration=30:size=640x360:rate=30 -f lavfi -i sine=frequency=440:duration=30 ' +
+  '-f lavfi -i sine=frequency=880:duration=30 -map 0:v -map 1:a -map 2:a ' +
+  '-c:v libx264 -pix_fmt yuv420p -c:a:0 mp2 -c:a:1 aac -shortest -metadata:s:a language=eng ' +
+  '-metadata title="streamiq e2e mp2 default" "$D/streamiq e2e mp2 default.mkv" && ' +
+  `FFMPEG=${FFMPEG} sh /scripts/gen-test-series.sh /out/shows`
+
+let media: Promise<string> | undefined
+/**
+ * The fixture media (ENCODE), encoded once per checkout in a one-off container of
+ * the pinned Jellyfin image and cached in e2e/.bin under a hash of the commands,
+ * the series script and the pin; startJellyfin copies it in before Jellyfin
+ * starts. ponytail: old caches stay until .bin is deleted (a few MB each).
+ */
+export function fixtureMedia() {
+  return (media ??= (async () => {
+    const image = pin('jellyfin/jellyfin')
+    const scripts = path.join(root, 'scripts')
+    const hash = createHash('sha256')
+      .update(image)
+      .update(ENCODE)
+      .update(fs.readFileSync(path.join(scripts, 'gen-test-series.sh')))
+      .digest('hex')
+      .slice(0, 12)
+    const dir = path.join(import.meta.dirname, '.bin', `media-${hash}`)
+    if (fs.existsSync(dir)) return dir
+    // Into a temp dir, then one rename: a concurrent run never sees half a cache.
+    const tmp = `${dir}-${process.pid}`
+    fs.rmSync(tmp, { recursive: true, force: true })
+    fs.mkdirSync(tmp, { recursive: true })
+    await run(
+      'docker',
+      [
+        'run',
+        '--rm',
+        ...(process.getuid ? ['--user', String(process.getuid())] : []), // host-owned output
+        '-v',
+        `${tmp}:/out`,
+        '-v',
+        `${scripts}:/scripts:ro`,
+        '--entrypoint',
+        'sh',
+        image,
+        '-c',
+        ENCODE,
+      ],
+      root,
+    )
+    try {
+      fs.renameSync(tmp, dir)
+    } catch {
+      fs.rmSync(tmp, { recursive: true, force: true }) // another run made it first
+    }
+    return dir
+  })())
 }
 
 // tmpfs over every VOLUME the image declares, so no run leaves an anonymous
@@ -276,14 +360,32 @@ async function emulatorImage() {
 export async function startJellyfin(
   o: Partial<StackOptions> = {},
   labeled = (c: GenericContainer) => c,
+  name = 'jellyfin',
 ) {
+  // One line per step, so the CI log shows where the time goes (#494).
+  const t0 = Date.now()
+  let last = t0
+  const step = (s: string) => {
+    const now = Date.now()
+    const secs = (ms: number) => (ms / 1000).toFixed(1)
+    console.log(
+      `${new Date(now).toISOString()} ${name}: ${s} ${secs(now - last)}s (total ${secs(now - t0)}s)`,
+    )
+    last = now
+  }
+  const cache = await fixtureMedia()
+  step('media')
   const jellyfinContainer = labeled(
     new GenericContainer(pin('jellyfin/jellyfin'))
       .withExposedPorts(8096)
       .withWaitStrategy(
         Wait.forHttp('/System/Info/Public', 8096).forStatusCode(200),
       )
-      .withStartupTimeout(180_000),
+      .withStartupTimeout(180_000)
+      .withCopyDirectoriesToContainer([
+        { source: path.join(cache, 'media'), target: '/media' },
+        { source: path.join(cache, 'shows'), target: '/shows' },
+      ]),
   )
   // Not in the preview: a long 4K stream keeps GBs of segments in /cache. Its
   // anonymous volumes go with `preview down` (docker rm -v) instead.
@@ -310,45 +412,14 @@ export async function startJellyfin(
     ])
   }
   const jellyfin = await jellyfinContainer.start()
+  step('start')
   const url = `http://${jellyfin.getHost()}:${jellyfin.getMappedPort(8096)}`
-  // Fixture media, made in the container by Jellyfin's own ffmpeg (no host
-  // ffmpeg in CI): a 30 s H.264 clip with two AAC tracks (English 440 Hz,
-  // German 880 Hz: the audio menu, #109) + sidecar English subtitle, in
-  // Jellyfin's one-folder-per-movie layout.
-  const sh = (cmd: string) =>
-    jellyfin.exec(['sh', '-c', cmd]).then((r) => {
-      if (r.exitCode !== 0) throw new Error(`jellyfin exec: ${r.output}`)
-    })
-  await sh(
-    'D="/media/streamiq e2e clip" && mkdir -p "$D" && /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -y ' +
-      '-f lavfi -i testsrc=duration=30:size=640x360:rate=30 -f lavfi -i sine=frequency=440:duration=30 ' +
-      '-f lavfi -i sine=frequency=880:duration=30 -map 0:v -map 1:a -map 2:a ' +
-      '-c:v libx264 -pix_fmt yuv420p -c:a aac -shortest -metadata:s:a:0 language=eng -metadata:s:a:1 language=deu ' +
-      '-metadata title="streamiq e2e clip" "$D/streamiq e2e clip.mp4" && ' +
-      `printf '1\n00:00:00,000 --> 00:00:30,000\nstreamiq e2e subtitle\n' > "$D/streamiq e2e clip.en.srt"`,
-  )
-  // Auto audio (#252): the default track (440 Hz) is MP2, which the browser
-  // probe never lists; the second (880 Hz) is AAC in the same language.
-  // Its name sorts after the main clip: other steps take the first movie.
-  await sh(
-    'D="/media/streamiq e2e mp2 default" && mkdir -p "$D" && /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -y ' +
-      '-f lavfi -i testsrc=duration=30:size=640x360:rate=30 -f lavfi -i sine=frequency=440:duration=30 ' +
-      '-f lavfi -i sine=frequency=880:duration=30 -map 0:v -map 1:a -map 2:a ' +
-      '-c:v libx264 -pix_fmt yuv420p -c:a:0 mp2 -c:a:1 aac -shortest -metadata:s:a language=eng ' +
-      '-metadata title="streamiq e2e mp2 default" "$D/streamiq e2e mp2 default.mkv"',
-  )
-  // The series (#344): gen-test-media.sh's own script, with Jellyfin's ffmpeg.
-  await jellyfin.copyFilesToContainer([
-    {
-      source: path.join(root, 'scripts', 'gen-test-series.sh'),
-      target: '/tmp/gen-test-series.sh',
-    },
-  ])
-  await sh(
-    'FFMPEG=/usr/lib/jellyfin-ffmpeg/ffmpeg sh /tmp/gen-test-series.sh /shows',
-  )
-  if (o.nvenc) await sh('nvidia-smi -L') // the GPU really is in the container
-  await setupJellyfin(url, o.nvenc)
+  if (o.nvenc) {
+    // The GPU really is in the container.
+    const r = await jellyfin.exec(['nvidia-smi', '-L'])
+    if (r.exitCode !== 0) throw new Error(`nvidia-smi: ${r.output}`)
+  }
+  await setupJellyfin(url, o.nvenc, step)
 
   process.env.E2E_JELLYFIN_URL = url
   return { container: jellyfin, url }
@@ -362,16 +433,17 @@ export async function startJellyfin(
 export async function startStack(o: StackOptions) {
   fs.rmSync(logs, { recursive: true, force: true })
   fs.mkdirSync(logs, { recursive: true })
-  const build = (cmd: string, args: string[], cwd: string) =>
-    execFileSync(cmd, args, { cwd, stdio: 'inherit' })
   const labeled = (c: GenericContainer) =>
     o.label ? c.withLabels({ 'streamiq.preview': o.label }) : c
 
-  const firebaseImage = await emulatorImage()
-
   const apiOut = path.join(o.dir, 'api')
-  const jellyfin = o.noJellyfin ? undefined : startJellyfin(o, labeled)
-  jellyfin?.catch(() => {}) // rejects at its await below
+  const n = o.jellyfins ?? 1
+  const jellyfins = Promise.all(
+    Array.from({ length: n }, (_, i) =>
+      startJellyfin(o, labeled, n > 1 ? `jellyfin ${i}` : 'jellyfin'),
+    ),
+  )
+  jellyfins.catch(() => {}) // rejects at its await below
   const [pg, firebase, { coturn, turnPort }] = await Promise.all([
     labeled(
       new GenericContainer(pin('postgres'))
@@ -390,46 +462,49 @@ export async function startStack(o: StackOptions) {
           ),
         ),
     ).start(),
-    labeled(
-      firebaseImage
-        .withCopyFilesToContainer([
-          {
-            source: path.join(root, 'dev', 'firebase', 'firebase.json'),
-            target: '/app/firebase.json',
-          },
-        ])
-        .withWorkingDir('/app')
-        .withCommand([
-          'firebase',
-          'emulators:start',
-          '--only',
-          'auth',
-          '--project',
-          'demo-streamiq',
-        ])
-        .withExposedPorts(9099)
-        .withWaitStrategy(Wait.forLogMessage('All emulators ready')),
-    ).start(),
+    emulatorImage().then((firebaseImage) =>
+      labeled(
+        firebaseImage
+          .withCopyFilesToContainer([
+            {
+              source: path.join(root, 'dev', 'firebase', 'firebase.json'),
+              target: '/app/firebase.json',
+            },
+          ])
+          .withWorkingDir('/app')
+          .withCommand([
+            'firebase',
+            'emulators:start',
+            '--only',
+            'auth',
+            '--project',
+            'demo-streamiq',
+          ])
+          .withExposedPorts(9099)
+          .withWaitStrategy(Wait.forLogMessage('All emulators ready')),
+      ).start(),
+    ),
     startCoturn(labeled),
     // Build while the containers boot.
+    run(
+      'dotnet',
+      ['build', 'src/StreamIq.Api', '--nologo', '-v', 'q', '-o', apiOut],
+      path.join(root, 'backend'),
+    ),
     (async () => {
-      build(
-        'dotnet',
-        ['build', 'src/StreamIq.Api', '--nologo', '-v', 'q', '-o', apiOut],
-        path.join(root, 'backend'),
-      )
       const bin = path.join(
         o.dir,
         `streamiq-e2e-gateway${process.platform === 'win32' ? '.exe' : ''}`,
       )
       fs.mkdirSync(path.dirname(bin), { recursive: true })
-      build(
+      await run(
         'go',
         ['build', '-o', bin, './cmd/gateway'],
         path.join(root, 'gateway'),
       )
       process.env.E2E_GATEWAY_BIN = bin
     })(),
+    fixtureMedia(), // here, so no worker encodes it (outside CI they start Jellyfin)
   ])
 
   process.env.E2E_TURN_PORT = String(turnPort) // stack.ts: Docker-gateway mode
@@ -500,13 +575,14 @@ export async function startStack(o: StackOptions) {
     },
   )
 
-  await Promise.all([
-    jellyfin, // its start ran alongside everything above
+  const [js] = await Promise.all([
+    jellyfins, // their start ran alongside everything above
     waitHttp(`${api}/healthz`, backend),
     // 127.0.0.1: Vite listens on IPv4 only. LAN: the caller trusts the
     // self-signed cert (NODE_EXTRA_CA_CERTS).
     waitHttp(app.replace('localhost', '127.0.0.1'), vite),
   ])
+  process.env.E2E_JELLYFIN_URLS = js.map((j) => j.url).join(',') // fixtures.ts
 
   return {
     app,
@@ -519,10 +595,7 @@ export async function startStack(o: StackOptions) {
       await Promise.all([
         pg.stop(),
         firebase.stop(),
-        jellyfin?.then(
-          (j) => j.container.stop(),
-          () => {}, // failed to start: nothing to stop, stop the rest
-        ),
+        ...js.map((j) => j.container.stop()),
         coturn.stop(),
       ])
     },

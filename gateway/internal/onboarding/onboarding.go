@@ -27,6 +27,11 @@ import (
 
 const heartbeatEvery = 30 * time.Second
 
+// dialTimeout bounds the control socket's handshake (#475): an API (or network)
+// that never answers the upgrade must fail the dial so forever retries, not hang
+// the gateway offline until restarted. A var so tests can shorten it.
+var dialTimeout = 20 * time.Second
+
 // Protocol is the gateway ↔ API protocol version (docs/protocol.md). Bump it on a
 // breaking change; the API refuses a gateway below its minimum ("upgrade required").
 const Protocol = 2 // 2: tunnel reports (#390)
@@ -150,9 +155,13 @@ type heartbeat struct {
 // lastBeat holds the last heartbeat's unix time, 0 while disconnected (status page).
 func RunControl(ctx context.Context, api string, st *State, lanURL, version string, lastBeat *atomic.Int64,
 	update func() string, handle func(raw []byte, send func(any))) error {
-	conn, res, err := websocket.Dial(ctx, api+"/api/gateways/ws", &websocket.DialOptions{
+	// Dial's context bounds only the handshake: cancelling it once Dial returned
+	// leaves the socket open (coder/websocket does the same for HTTPClient.Timeout).
+	dialCtx, cancelDial := context.WithTimeout(ctx, dialTimeout)
+	conn, res, err := websocket.Dial(dialCtx, api+"/api/gateways/ws", &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + st.Credential}},
 	})
+	cancelDial()
 	if res != nil && res.StatusCode == http.StatusUnauthorized {
 		// Removed in the web app (or enrolled against another API). Keeps retrying,
 		// harmlessly, until someone re-enrolls; the state dir's cert (pins) survives.

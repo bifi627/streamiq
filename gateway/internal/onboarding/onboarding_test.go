@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -67,6 +68,55 @@ func TestRunControlRevokedCredential(t *testing.T) {
 	err := RunControl(context.Background(), srv.URL, &State{Credential: "old"}, "", "dev", new(atomic.Int64), nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "revoked") {
 		t.Fatalf("want a revoked-credential error, got %v", err)
+	}
+}
+
+// A handshake the API never answers ends in an error (#475), so forever retries
+// instead of hanging the gateway offline; a socket that did open outlives the
+// dial timeout.
+func TestRunControlDialTimeout(t *testing.T) {
+	defer func(d time.Duration) { dialTimeout = d }(dialTimeout)
+	dialTimeout = 100 * time.Millisecond
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "Bearer hang" {
+			<-release // accepts TCP, never answers the upgrade
+			return
+		}
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		c.Read(r.Context()) // the first heartbeat
+		time.Sleep(3 * dialTimeout)
+		c.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
+		c.Close(websocket.StatusNormalClosure, "")
+	}))
+	defer srv.Close()
+	defer close(release) // before srv.Close, which waits for the handler
+
+	done := make(chan error, 1)
+	go func() {
+		done <- RunControl(context.Background(), srv.URL, &State{Credential: "hang"}, "", "dev", new(atomic.Int64), nil, nil)
+	}()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "dial control") {
+			t.Fatalf("want a dial control error, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("RunControl still dialing after the timeout")
+	}
+
+	got := make(chan []byte, 1)
+	err := RunControl(context.Background(), srv.URL, &State{Credential: "ok", renamed: make(chan struct{}, 1)}, "", "dev", new(atomic.Int64),
+		func() string { return "" }, func(raw []byte, _ func(any)) {
+			if raw != nil {
+				got <- raw
+			}
+		})
+	if !strings.Contains(fmt.Sprint(err), "control closed") || len(got) != 1 {
+		t.Fatalf("want a message after the dial timeout, then a close; got %d messages, %v", len(got), err)
 	}
 }
 

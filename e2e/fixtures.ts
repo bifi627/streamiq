@@ -26,7 +26,7 @@ import {
   uniqueEmail,
   type User,
 } from './helpers.ts'
-import { startJellyfin } from './stack.ts'
+import { jellyfinLogin, startJellyfin } from './stack.ts'
 
 type Paired = {
   user: User
@@ -34,6 +34,7 @@ type Paired = {
   gateway: Awaited<ReturnType<typeof onboardGateway>>
   gatewayCtx: BrowserContext // where the local gateway page opens (pair())
 }
+type Pairing = Omit<Paired, 'page'> & { ctx: BrowserContext }
 
 export const test = base.extend<
   { paired: Paired; sharedPaired: Paired },
@@ -50,7 +51,9 @@ export const test = base.extend<
       }
       // One per worker, not one per run: each gateway's Jellyfin login
       // resets the shared streamiq-admin / streamiq-viewer passwords, so two
-      // gateways alive on one Jellyfin lock each other out (HTTP 401). The
+      // gateways alive on one Jellyfin lock each other out (HTTP 401; the
+      // sharedPaired gateway outlives tests, so it logs in again before each
+      // of its own). The
       // same holds for library state (offline / extras, scans): tests running
       // at the same time never share a Jellyfin. A test that changes it puts it
       // back; the next test in its worker gets the same Jellyfin.
@@ -64,9 +67,9 @@ export const test = base.extend<
     // startup never eats into the first test's budget (#397).
     { scope: 'worker' },
   ],
-  // ponytail: per test (~10 s: a gateway + one pairing). The client key is a
+  // Per test (~5 s in CI: a gateway + one pairing, #506). The client key is a
   // non-extractable CryptoKey in IndexedDB, so neither storageState nor the API
-  // can carry a pairing; a per-worker live context is the upgrade if this adds up.
+  // can carry a pairing; tests that only read share one (sharedPaired below).
   paired: async ({ browser, jellyfin: _ }, use, testInfo) => {
     const t0 = Date.now()
     const user = await signUp(uniqueEmail('paired'))
@@ -121,6 +124,10 @@ export const test = base.extend<
   ],
   sharedPaired: async ({ pairing }, use) => {
     const { ctx, ...rest } = pairing
+    // A `paired` test since the last one started a gateway on this worker's
+    // Jellyfin, whose login reset the shared viewer and admin passwords: log
+    // this gateway in again, as a person would on its local page.
+    await jellyfinLogin(rest.gateway.pageUrl, rest.gateway.pageCookie)
     try {
       const page = await ctx.newPage()
       await page.goto(appUrl('/gateways'))

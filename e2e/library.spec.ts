@@ -62,7 +62,7 @@ test('library → back → library within 30 s: one shared session (#152) @libra
   let rows = 0 // one broker socket per tunnel
   const count = (ws: WebSocket) => ws.url().endsWith('/broker/ws') && rows++
   a.on('websocket', count)
-  // A fresh page: pairing left the card's own shared session open.
+  // A fresh page: the fixture's own load may have left a session open.
   await a.reload()
   await a.getByRole('button', { name: 'Open' }).click()
   await expect(movies(a)).toBeVisible()

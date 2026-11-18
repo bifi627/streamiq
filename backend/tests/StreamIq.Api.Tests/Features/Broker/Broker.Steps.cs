@@ -274,7 +274,8 @@ public class BrokerSteps(IntegrationFixture fx)
     public async Task ThenGatewayDisconnected(string name, string reason)
     {
         var ws = _gateways[name].Ws;
-        var r = await ws.ReceiveAsync(new byte[1024], CancellationToken.None);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));   // a gateway left open fails, not hangs
+        var r = await ws.ReceiveAsync(new byte[1024], cts.Token);
         Assert.Equal(WebSocketMessageType.Close, r.MessageType);
         Assert.Equal(reason, ws.CloseStatusDescription);
     }

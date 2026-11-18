@@ -8,6 +8,8 @@
 //   diagnostics dock, if it's on).
 // - Back (Escape, webOS 461/GoBack): in the popover goes up one page, then
 //   closes it; else hides the bar if shown, else exits.
+// - With Ctrl, Cmd or Alt held a key is the browser's (Ctrl+F find, …); held
+//   down, a toggle (F, M, K, Enter/Space) fires once, arrows repeat (#549).
 // - F fullscreen, M mute, K play-pause, anywhere (the popover too). Any key /
 //   mouse move shows the bar; it hides after HIDE_MS (playing or paused; it
 //   stays only while autoplay is blocked).
@@ -252,6 +254,10 @@ export function Controls({
         volume: !!a.dataset.volume,
         lastRow: row === rows.length - 1,
         dock: !!dock && !document.fullscreenElement,
+        ctrl: e.ctrlKey,
+        meta: e.metaKey,
+        alt: e.altKey,
+        repeat: e.repeat,
       })
       if (!goBack) ui.poke()
       if (!action) return

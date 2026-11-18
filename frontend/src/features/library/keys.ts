@@ -15,6 +15,10 @@ export type KeyAt = {
   volume: boolean // focus on the volume slider
   lastRow: boolean // focus in the bar's last row
   dock: boolean // the diagnostics dock is there to go down to (#230)
+  ctrl: boolean // modifiers held (e.ctrlKey, e.metaKey, e.altKey)
+  meta: boolean
+  alt: boolean
+  repeat: boolean // the key is held down (e.repeat)
 }
 
 export type Action =
@@ -51,8 +55,12 @@ export function keyAction(x: KeyAt): Action | null {
         : x.inBar || x.shown
           ? { do: 'hide' }
           : { do: 'exit' }
+  // The browser's shortcuts (Ctrl+F find, Alt+← back, …) stay the browser's (#549).
+  if (x.ctrl || x.meta || x.alt) return null
+  // Held down, a toggle fires once (the repeats are swallowed); arrows repeat.
+  const once = (a: Action): Action => (x.repeat ? { do: 'stay' } : a)
   const anywhere = ANYWHERE.get(x.key)
-  if (anywhere) return anywhere
+  if (anywhere) return once(anywhere)
   const by = x.key === 'arrowleft' || x.key === 'arrowup' ? -1 : 1
   const horizontal = x.key === 'arrowleft' || x.key === 'arrowright'
   const vertical = x.key === 'arrowup' || x.key === 'arrowdown'
@@ -60,7 +68,7 @@ export function keyAction(x: KeyAt): Action | null {
     return vertical ? { do: 'option', by } : horizontal ? { do: 'stay' } : null
   if (!x.inBar) {
     if (horizontal) return { do: 'seek', by: by * SKIP }
-    if (x.key === 'enter' || x.key === ' ') return { do: 'toggle' }
+    if (x.key === 'enter' || x.key === ' ') return once({ do: 'toggle' })
     return vertical ? { do: 'focusPlay' } : null
   }
   // Roving focus inside the bar; Enter/Space activate the focused control.

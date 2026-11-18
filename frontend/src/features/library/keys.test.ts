@@ -14,6 +14,10 @@ const at = (x: Partial<KeyAt>): KeyAt => ({
   volume: false,
   lastRow: false,
   dock: false,
+  ctrl: false,
+  meta: false,
+  alt: false,
+  repeat: false,
   ...x,
 })
 const k = (key: string, x: Partial<KeyAt> = {}) => keyAction(at({ key, ...x }))
@@ -79,6 +83,31 @@ test('in the bar: ↑/↓ switch rows, change volume, or go down to the dock', (
   assert.deepEqual(k('arrowdown', { ...last, dock: true }), { do: 'dock' })
   assert.deepEqual(k('arrowdown', last), { do: 'row', by: 1 }) // no dock: wraps
   assert.deepEqual(k('arrowup', { ...last, dock: true }), { do: 'row', by: -1 })
+})
+
+test('a modifier leaves the key to the browser; Back still works (#549)', () => {
+  assert.equal(k('f', { ctrl: true }), null) // find
+  assert.equal(k('k', { meta: true }), null)
+  assert.equal(k('m', { ctrl: true, inBar: true }), null)
+  assert.equal(k('arrowleft', { alt: true }), null) // history Back
+  assert.equal(k('arrowdown', { ctrl: true, inPopover: true }), null)
+  assert.deepEqual(keyAction(at({ back: true, ctrl: true })), { do: 'exit' })
+})
+
+test('held down: a toggle fires once, arrows keep going (#549)', () => {
+  for (const key of ['f', 'm', 'k'])
+    assert.deepEqual(k(key, { repeat: true }), { do: 'stay' })
+  assert.deepEqual(k(' ', { repeat: true }), { do: 'stay' })
+  assert.deepEqual(k('enter', { repeat: true }), { do: 'stay' })
+  assert.deepEqual(k('arrowright', { repeat: true }), { do: 'seek', by: SKIP })
+  assert.deepEqual(k('arrowdown', { repeat: true, inPopover: true }), {
+    do: 'option',
+    by: 1,
+  })
+  assert.deepEqual(k('arrowup', { repeat: true, inBar: true, volume: true }), {
+    do: 'volume',
+    by: 0.1,
+  })
 })
 
 test('clamp keeps an index inside the list', () => {

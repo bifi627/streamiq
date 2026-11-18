@@ -1,12 +1,16 @@
 // Own control bar over <video> (#91): one UI for TV remote (D-pad), touch,
-// mouse and keyboard. Key model:
+// mouse and keyboard. Key model (decided in keyAction(), keys.ts; the handler
+// below only reads the DOM and runs the result):
 // - Focus outside the bar (bar hidden, or shown by a pointer/seek key):
-//   ←/→ seek ±10 s, Enter/Space/K play-pause, ↑/↓ focus play/pause.
+//   ←/→ seek ±10 s, Enter/Space play-pause, ↑/↓ focus play/pause.
 // - Focus inside the bar: ←/→ move focus within a row (on the seek bar: seek),
-//   ↑/↓ switch between the seek row and the button row (on volume: ±10 %).
-// - Back (Escape, webOS 461/GoBack): hides the bar if shown, else exits.
-// - F fullscreen, M mute, anywhere. Any key / mouse move shows the bar; it hides
-//   after HIDE_MS (playing or paused; it stays only while autoplay is blocked).
+//   ↑/↓ switch rows (on volume: ±10 %; down from the last row: the
+//   diagnostics dock, if it's on).
+// - Back (Escape, webOS 461/GoBack): in the popover goes up one page, then
+//   closes it; else hides the bar if shown, else exits.
+// - F fullscreen, M mute, K play-pause, anywhere (the popover too). Any key /
+//   mouse move shows the bar; it hides after HIDE_MS (playing or paused; it
+//   stays only while autoplay is blocked).
 // - Mouse (and Magic Remote pointer) on the picture: click play-pause, double
 //   click fullscreen. Touch: tap toggles the bar.
 // - Settings (#108, #153): the gear opens a popover over the picture: a main
@@ -26,10 +30,10 @@ import {
   type RefObject,
 } from 'react'
 import { clock, isBack } from './items'
+import { clamp, keyAction, SKIP, type Action } from './keys'
 import './Player.css'
 
 const HIDE_MS = 4000
-const SKIP = 10
 
 // Material icon paths (24×24); the remote and Play on… use them too.
 export const ICON = {
@@ -226,86 +230,66 @@ export function Controls({
     v.addEventListener('play', playing)
     document.addEventListener('fullscreenchange', fs)
 
-    // oxlint-disable-next-line complexity -- key model, moves to keyAction() in #534
     const key = (e: KeyboardEvent) => {
       const t = e.target as Element
       if (t !== document.body && !root.current?.contains(t)) return // other UI
-      const inBar = !!bar.current?.contains(document.activeElement)
-      const pop = menuRow.current
-      if (isBack(e)) {
-        e.preventDefault() // the browser's own Back would leave the player too
-        if (pop?.dataset.page === 'main') {
-          setPage(null)
-          qBtn.current?.focus({ preventScroll: true })
-        } else if (pop) setPage('main')
-        else if (inBar || bar.current?.dataset.shown === 'true') ui.hide()
-        else back.current()
-        return
-      }
-      ui.poke()
-      const k = e.key.toLowerCase()
-      const left = k === 'arrowleft'
-      const horizontal = left || k === 'arrowright'
-      const vertical = k === 'arrowup' || k === 'arrowdown'
-      const act = (f: () => unknown) => {
-        e.preventDefault()
-        f()
-      }
-      if (k === 'f') return act(ui.fullscreen)
-      if (k === 'm') return act(ui.mute)
-      if (k === 'k') return act(ui.toggle)
-      if (pop?.contains(document.activeElement)) {
-        // The popover: ↑/↓ through its options, ←/→ do nothing.
-        if (!horizontal && !vertical) return
-        e.preventDefault()
-        const its = Array.from(
-          pop.querySelectorAll<HTMLElement>('button:not(:disabled)'),
-        )
-        const i = its.indexOf(document.activeElement as HTMLElement)
-        if (vertical)
-          its[
-            Math.max(
-              0,
-              Math.min(its.length - 1, i + (k === 'arrowup' ? -1 : 1)),
-            )
-          ].focus()
-        return
-      }
-      if (!inBar) {
-        if (horizontal) act(() => ui.seek(left ? -SKIP : SKIP))
-        else if (k === 'enter' || k === ' ') act(ui.toggle)
-        else if (vertical) act(() => play.current?.focus())
-        return
-      }
-      // Roving focus inside the bar; Enter/Space activate the focused control.
-      if (!horizontal && !vertical) return
-      e.preventDefault()
       const a = document.activeElement as HTMLElement
-      const rows = Array.from(bar.current!.querySelectorAll('[data-row]'))
+      const pop = menuRow.current
+      const rows = Array.from(bar.current?.querySelectorAll('[data-row]') ?? [])
       const row = rows.findIndex((r) => r.contains(a))
+      // Down from the last row: the diagnostics dock, if it's on (#230); not
+      // in fullscreen, where it isn't shown.
+      const dock = document.querySelector<HTMLElement>('.dock-bar')
+      const goBack = isBack(e)
+      const action = keyAction({
+        back: goBack,
+        key: e.key.toLowerCase(),
+        page: pop ? (pop.dataset.page === 'main' ? 'main' : 'options') : null,
+        inPopover: !!pop?.contains(a),
+        inBar: !!bar.current?.contains(a),
+        shown: bar.current?.dataset.shown === 'true',
+        seek: !!a.dataset.seek,
+        volume: !!a.dataset.volume,
+        lastRow: row === rows.length - 1,
+        dock: !!dock && !document.fullscreenElement,
+      })
+      if (!goBack) ui.poke()
+      if (!action) return
+      e.preventDefault() // also Back: the browser's own would leave the player
+      const move = (its: HTMLElement[], by: number) =>
+        its[clamp(its.indexOf(a) + by, its.length)]?.focus()
       const items = (r: Element) =>
         Array.from(r.querySelectorAll<HTMLElement>('button, input'))
-      if (horizontal) {
-        if (a.dataset.seek) return ui.seek(left ? -SKIP : SKIP)
-        const its = items(rows[row])
-        const i = its.indexOf(a) + (left ? -1 : 1)
-        its[Math.max(0, Math.min(its.length - 1, i))].focus()
-      } else if (a.dataset.volume) {
-        setVol(v, v.volume + (k === 'arrowup' ? 0.1 : -0.1))
-      } else {
-        // Down from the last row: the diagnostics dock, if it's on (#230);
-        // not in fullscreen, where it isn't shown.
-        const dock = document.querySelector<HTMLElement>('.dock-bar')
-        if (
-          dock &&
-          !document.fullscreenElement &&
-          k === 'arrowdown' &&
-          row === rows.length - 1
-        )
-          return dock.focus()
-        const next = row + (k === 'arrowup' ? -1 : 1) + rows.length
-        items(rows[next % rows.length])[0].focus()
+      const run: {
+        [K in Action['do']]: (x: Extract<Action, { do: K }>) => unknown
+      } = {
+        close: () => {
+          setPage(null)
+          qBtn.current?.focus({ preventScroll: true })
+        },
+        up: () => setPage('main'),
+        hide: ui.hide,
+        exit: () => back.current(),
+        fullscreen: ui.fullscreen,
+        mute: ui.mute,
+        toggle: ui.toggle,
+        seek: (x) => ui.seek(x.by),
+        focusPlay: () => play.current?.focus(),
+        stay: () => {},
+        option: (x) =>
+          move(
+            Array.from(
+              pop?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [],
+            ),
+            x.by,
+          ),
+        item: (x) => move(items(rows[row]), x.by),
+        row: (x) =>
+          items(rows[(row + x.by + rows.length) % rows.length])[0].focus(),
+        volume: (x) => setVol(v, v.volume + x.by),
+        dock: () => dock?.focus(),
       }
+      ;(run[action.do] as (x: Action) => unknown)(action)
     }
     window.addEventListener('keydown', key)
     return () => {

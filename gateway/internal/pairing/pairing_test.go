@@ -117,3 +117,46 @@ func TestRemovePersists(t *testing.T) {
 		t.Fatal("Remove not persisted")
 	}
 }
+
+// A name is 1–100 UTF-16 units after trimming (#520): exactly 100 is fine, an emoji counts 2.
+func TestCleanNameLength(t *testing.T) {
+	for name, ok := range map[string]bool{
+		strings.Repeat("a", 100):       true,
+		strings.Repeat("a", 101):       false,
+		strings.Repeat("😀", 50):        true,
+		strings.Repeat("😀", 50) + "a":  false,
+		" " + strings.Repeat("a", 100): true,
+		"":                             false,
+	} {
+		if _, err := CleanName(name); (err == nil) != ok {
+			t.Errorf("CleanName(%d bytes): err %v, want ok=%v", len(name), err, ok)
+		}
+	}
+}
+
+// Decide (#520): a reject pairs nothing, and approving a key that is already
+// paired (a second pairing, e.g. after a pin mismatch) adds no second entry.
+func TestDecideAllowlist(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	decide := func(fp string, approve bool) {
+		t.Helper()
+		done := make(chan struct{})
+		go func() { s.Ask("phone", fp, "123456", nil); close(done) }()
+		for len(s.Pending()) == 0 {
+			time.Sleep(time.Millisecond)
+		}
+		if err := s.Decide(s.Pending()[0].ID, approve); err != nil {
+			t.Fatal(err)
+		}
+		<-done
+	}
+	decide("fp-1", false)
+	if s.Allowed("fp-1") || len(s.Paired()) != 0 {
+		t.Fatalf("rejected key paired: %v", s.Paired())
+	}
+	decide("fp-1", true)
+	decide("fp-1", true)
+	if len(s.Paired()) != 1 {
+		t.Fatalf("key approved twice: %v", s.Paired())
+	}
+}

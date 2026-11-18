@@ -2,6 +2,7 @@ package pairing
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -94,5 +95,32 @@ func TestClientsAPI(t *testing.T) {
 	after() // handleReq: once the reply is delivered
 	if store.Allowed("aa") || !slices.Equal(dropped, []string{"bb", "aa"}) {
 		t.Fatalf("after: allowed aa=%v, dropped=%v", store.Allowed("aa"), dropped)
+	}
+}
+
+// Removing the calling client (#520): a failed save after the reply is logged,
+// a successful one logs nothing.
+func TestRemoveSelfLogsFailedSave(t *testing.T) {
+	var buf strings.Builder
+	defer log.SetOutput(log.Writer())
+	log.SetOutput(&buf)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[{"keyFp":"aa","name":"Phone"},{"keyFp":"bb","name":"TV"}]`), 0o600)
+	store, _ := Open(dir)
+	api := tunnel.NewRouter()
+	api.Handle("POST "+ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
+	remove := func(fp string) {
+		_, _, _, after := tunnel.Do(api, tunnel.Session{Role: tunnel.Admin, Key: fp}, "POST", ClientsRemovePath, `{"keyFp":"`+fp+`"}`)
+		after()
+	}
+	remove("aa")
+	if buf.Len() != 0 || store.Allowed("aa") {
+		t.Fatalf("saved self-removal: allowed=%v, logged %q", store.Allowed("aa"), buf.String())
+	}
+	os.Remove(filepath.Join(dir, "allowlist.json"))
+	os.Mkdir(filepath.Join(dir, "allowlist.json"), 0o700) // the save can't write a directory
+	remove("bb")
+	if !strings.Contains(buf.String(), "gateway: remove client:") || store.Allowed("bb") {
+		t.Fatalf("failed save: allowed=%v, logged %q", store.Allowed("bb"), buf.String())
 	}
 }

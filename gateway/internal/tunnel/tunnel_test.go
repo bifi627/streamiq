@@ -164,6 +164,9 @@ func TestPostBody(t *testing.T) {
 	if last.Header.Get("X-Test-Body") != `{"PlaybackPositionTicks":10}` || last.Header.Get("Content-Type") != "application/json" {
 		t.Fatalf("forwarded body %q, type %q", last.Header.Get("X-Test-Body"), last.Header.Get("Content-Type"))
 	}
+	if status, _, _ := do(t, rt, tunnelReq{Method: "POST", URL: "/Items/" + vid + "/PlaybackInfo", Body: strings.Repeat("x", MaxBody)}); status != 200 || len(last.Header.Get("X-Test-Body")) != MaxBody {
+		t.Fatalf("body of exactly MaxBody: status %d, forwarded %d bytes", status, len(last.Header.Get("X-Test-Body")))
+	}
 	raw, _ := json.Marshal(tunnelReq{Method: "POST", URL: "/Items/" + vid + "/PlaybackInfo", Body: strings.Repeat("x", MaxBody+1)})
 	if status, _, _, err := run(rt, raw, Session{}); status != http.StatusRequestEntityTooLarge || err == nil {
 		t.Fatalf("oversized body: status %d", status)
@@ -191,8 +194,10 @@ func TestBurst(t *testing.T) {
 	if status != 200 || len(body) != BurstDefault || hdr["Content-Length"] != fmt.Sprint(BurstDefault) || last.URL != nil {
 		t.Fatalf("default burst = %d, %d bytes, %v, jellyfin hit %v", status, len(body), hdr, last.URL)
 	}
-	if status, _, body := do(t, rt, tunnelReq{Method: "GET", URL: BurstPath + "?size=1000"}); status != 200 || len(body) != 1000 {
-		t.Fatalf("size=1000 = %d, %d bytes", status, len(body))
+	for _, n := range []int{1000, 0} {
+		if status, _, body := do(t, rt, tunnelReq{Method: "GET", URL: fmt.Sprintf("%s?size=%d", BurstPath, n)}); status != 200 || len(body) != n {
+			t.Fatalf("size=%d = %d, %d bytes", n, status, len(body))
+		}
 	}
 	for _, rq := range []tunnelReq{
 		{Method: "GET", URL: fmt.Sprintf("%s?size=%d", BurstPath, BurstMax+1)},
@@ -586,5 +591,37 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 		case <-time.After(30 * time.Second):
 			t.Fatalf("frame %d never arrived", i)
 		}
+	}
+}
+
+// frameWriter.Write reports every byte it sent, across ChunkSize frames (#520).
+func TestFrameWriterCount(t *testing.T) {
+	browser, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
+	gateway, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
+	t.Cleanup(func() { browser.Close(); gateway.Close() })
+	opened := make(chan *webrtc.DataChannel, 1)
+	gateway.OnDataChannel(func(d *webrtc.DataChannel) { d.OnOpen(func() { opened <- d }) })
+	browser.CreateDataChannel("req", nil)
+
+	offer, _ := browser.CreateOffer(nil)
+	gathered := webrtc.GatheringCompletePromise(browser)
+	browser.SetLocalDescription(offer)
+	<-gathered
+	gateway.SetRemoteDescription(*browser.LocalDescription())
+	answer, _ := gateway.CreateAnswer(nil)
+	gathered = webrtc.GatheringCompletePromise(gateway)
+	gateway.SetLocalDescription(answer)
+	<-gathered
+	browser.SetRemoteDescription(*gateway.LocalDescription())
+
+	var d *webrtc.DataChannel
+	select {
+	case d = <-opened:
+	case <-time.After(30 * time.Second):
+		t.Fatal("no data channel on the gateway")
+	}
+	w := &frameWriter{d: d, hdr: http.Header{}, wait: func() bool { return true }}
+	if n, err := w.Write(make([]byte, 2*ChunkSize+5)); n != 2*ChunkSize+5 || err != nil {
+		t.Fatalf("Write = %d, %v, want %d", n, err, 2*ChunkSize+5)
 	}
 }

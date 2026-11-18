@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -780,5 +781,145 @@ func TestSignaledKinds(t *testing.T) {
 	c.saw("candidate:2 1 udp 2122260223 192.168.1.5 50000 typ host generation 0")
 	if !c.other.Load() {
 		t.Fatal("a host candidate must count as other")
+	}
+}
+
+// The tunnel row's relay and IPv6 flags (#520): either side relayed, a prflx
+// remote only when the browser signaled nothing but relays, and IPv6 on either side.
+func TestClassify(t *testing.T) {
+	relayOnly, mixed, none := &signaled{}, &signaled{}, &signaled{}
+	relayOnly.relay.Store(true)
+	mixed.relay.Store(true)
+	mixed.other.Store(true)
+	const v4, v6 = "192.0.2.1", "2001:db8::1"
+	host, relay, prflx, srflx := webrtc.ICECandidateTypeHost, webrtc.ICECandidateTypeRelay, webrtc.ICECandidateTypePrflx, webrtc.ICECandidateTypeSrflx
+	for _, c := range []struct {
+		name                  string
+		local, remote         webrtc.ICECandidateType
+		localAddr, remoteAddr string
+		cands                 *signaled
+		wantRelay, wantIpv6   bool
+	}{
+		{"host pair", host, host, v4, v4, mixed, false, false},
+		{"our relay", relay, host, v4, v4, none, true, false},
+		{"their relay", host, relay, v4, v4, none, true, false},
+		{"prflx, relays only signaled", host, prflx, v4, v4, relayOnly, true, false},
+		{"prflx, relays and others signaled", host, prflx, v4, v4, mixed, false, false},
+		{"prflx, nothing signaled", host, prflx, v4, v4, none, false, false},
+		{"srflx, relays only signaled", host, srflx, v4, v4, relayOnly, false, false},
+		{"IPv6 here", host, host, v6, v4, none, false, true},
+		{"IPv6 there", host, host, v4, v6, none, false, true},
+		{"mDNS there", host, host, v4, "abc.local", none, false, false},
+	} {
+		p := &webrtc.ICECandidatePair{
+			Local:  &webrtc.ICECandidate{Typ: c.local, Address: c.localAddr},
+			Remote: &webrtc.ICECandidate{Typ: c.remote, Address: c.remoteAddr},
+		}
+		if relay, ipv6 := classify(p, c.cands); relay != c.wantRelay || ipv6 != c.wantIpv6 {
+			t.Errorf("%s: relay %v ipv6 %v, want %v %v", c.name, relay, ipv6, c.wantRelay, c.wantIpv6)
+		}
+	}
+}
+
+// A served tunnel the browser closes (its PeerConnection, no bye) is reported
+// without a failure (#520): only ICE failing is "ice failed".
+func TestBrowserCloseReportsNoFailure(t *testing.T) {
+	gateway, store := newGateway(t)
+	reps := make(chan Report, 4)
+	gateway.Handle(nil, func(v any) { reps <- v.(Report) })
+	b, _ := unpaired(t, gateway, "s1")
+	_, nB := b.commit()
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	for len(store.Pending()) == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	store.Decide(store.Pending()[0].ID, true)
+	if b.say(nil)["type"] != "approved" {
+		t.Fatal("want approved")
+	}
+	b.pc.Close()
+	select {
+	case r := <-reps:
+		if r.Failure != nil {
+			t.Fatalf("report of a tunnel the browser closed = failure %q", *r.Failure)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("no tunnel report after the browser closed")
+	}
+}
+
+// Handle ignores what it can't act on (#520): an offer without a session id, a
+// second offer for a running session, and candidates without a session or
+// without a candidate. None of them answers, starts a session or panics.
+func TestSignalingIgnored(t *testing.T) {
+	gateway, _ := newGateway(t)
+	pc, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
+	t.Cleanup(func() { pc.Close() })
+	pc.CreateDataChannel("auth", nil)
+	offer, _ := pc.CreateOffer(nil)
+	pc.SetLocalDescription(offer)
+	var answers atomic.Int32
+	handle := func(m Msg) {
+		raw, _ := json.Marshal(m)
+		gateway.Handle(raw, func(v any) {
+			if m, ok := v.(Msg); ok && m.Type == "answer" {
+				answers.Add(1)
+			}
+		})
+	}
+	offerFor := func(id string) Msg {
+		return Msg{Type: "offer", Session: id, User: "u", Role: tunnel.Member, SDP: pc.LocalDescription()}
+	}
+	handle(offerFor(""))
+	if answers.Load() != 0 || gateway.Active() != 0 {
+		t.Fatal("an offer without a session id was answered")
+	}
+	handle(offerFor("s"))
+	handle(offerFor("s"))
+	if answers.Load() != 1 || gateway.Active() != 1 {
+		t.Fatalf("two offers for one session: %d answers, %d sessions", answers.Load(), gateway.Active())
+	}
+	handle(Msg{Type: "ice", Session: "other", Candidate: &webrtc.ICECandidateInit{Candidate: "candidate:1 1 udp 1 192.0.2.1 1 typ host"}})
+	handle(Msg{Type: "ice", Session: "s"})
+	handle(Msg{Type: "bye", Session: "s"})
+}
+
+// Reports held while no control socket is up stop at 1000 (#520).
+func TestBacklogCap(t *testing.T) {
+	var s Sessions
+	for range 1001 {
+		s.report(Report{Type: "tunnel"})
+	}
+	n := 0
+	s.Handle(nil, func(any) { n++ })
+	if n != 1000 {
+		t.Fatalf("backlog sent %d reports, want 1000", n)
+	}
+}
+
+// Drop of a key without open sessions closes nothing and says nothing (#520).
+func TestDropNoSessions(t *testing.T) {
+	var buf strings.Builder
+	orig := log.Writer()
+	log.SetOutput(&buf)
+	gateway, _ := newGateway(t)
+	gateway.Drop("no-such-key")
+	log.SetOutput(orig) // under the logger's lock: no later write (pion's goroutines from other tests) races the read
+	if strings.Contains(buf.String(), "removed browser") {
+		t.Fatalf("Drop without sessions logged %q", buf.String())
+	}
+}
+
+// A pairing name is trimmed and cut to 60 bytes; an empty one is "browser" (#520).
+func TestTrim(t *testing.T) {
+	for in, want := range map[string]string{
+		"  phone  ":             "phone",
+		"   ":                   "browser",
+		strings.Repeat("a", 60): strings.Repeat("a", 60),
+		strings.Repeat("a", 61): strings.Repeat("a", 60),
+	} {
+		if got := trim(in); got != want {
+			t.Errorf("trim(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

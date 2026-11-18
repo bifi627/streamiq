@@ -465,18 +465,24 @@ func report(id string, pc *webrtc.PeerConnection, cands *signaled, failure *stri
 	ice := pc.SCTP().Transport().ICETransport()
 	if p, err := ice.GetSelectedCandidatePair(); err == nil && p != nil {
 		r.LocalCandidateType, r.RemoteCandidateType = p.Local.Typ.String(), p.Remote.Typ.String()
-		r.Relay = p.Local.Typ == webrtc.ICECandidateTypeRelay || p.Remote.Typ == webrtc.ICECandidateTypeRelay ||
-			// The browser's relay reached us from an address it never signaled (a NAT in
-			// front of the TURN server: Docker in the e2e), so pion calls it prflx. If the
-			// browser offered nothing but relays (forced relay), it can only be one.
-			p.Remote.Typ == webrtc.ICECandidateTypePrflx && cands.relay.Load() && !cands.other.Load()
-		// A browser's host candidate may be an mDNS name: the gateway's own address decides then.
-		r.Ipv6 = strings.Contains(p.Local.Address, ":") || strings.Contains(p.Remote.Address, ":")
+		r.Relay, r.Ipv6 = classify(p, cands)
 		r.Protocol = p.Local.Protocol.String()
 	}
 	st := ice.Stats()
 	r.BytesSent, r.BytesReceived = st.BytesSent, st.BytesReceived
 	return r
+}
+
+// classify: does the selected pair p run over a relay, and over IPv6.
+func classify(p *webrtc.ICECandidatePair, cands *signaled) (relay, ipv6 bool) {
+	relay = p.Local.Typ == webrtc.ICECandidateTypeRelay || p.Remote.Typ == webrtc.ICECandidateTypeRelay ||
+		// The browser's relay reached us from an address it never signaled (a NAT in
+		// front of the TURN server: Docker in the e2e), so pion calls it prflx. If the
+		// browser offered nothing but relays (forced relay), it can only be one.
+		p.Remote.Typ == webrtc.ICECandidateTypePrflx && cands.relay.Load() && !cands.other.Load()
+	// A browser's host candidate may be an mDNS name: the gateway's own address decides then.
+	ipv6 = strings.Contains(p.Local.Address, ":") || strings.Contains(p.Remote.Address, ":")
+	return relay, ipv6
 }
 
 // route is the privacy badge's state (#428, GET /streamiq/route): relay, lan

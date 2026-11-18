@@ -27,6 +27,7 @@ export async function jellyfinAdminGet(base: string, path: string) {
 export async function setupJellyfin(
   base: string,
   nvenc = false,
+  step = (_: string) => {}, // logs the time each step took (stack.ts)
 ): Promise<void> {
   const call = async (path: string, init: RequestInit = {}, token?: string) => {
     const res = await fetch(base + path, {
@@ -44,7 +45,7 @@ export async function setupJellyfin(
     call(path, { method: 'POST', body: JSON.stringify(body) }, token)
 
   // /System/Info/Public answers before the server is fully up; the wizard
-  // returns 503 until then.
+  // returns 503 (or the socket closes: "fetch failed") until then.
   for (let i = 0; ; i++) {
     try {
       await post('/Startup/Configuration', {
@@ -54,7 +55,7 @@ export async function setupJellyfin(
       })
       break
     } catch (e) {
-      if (i >= 60 || !String(e).includes('HTTP 503')) throw e
+      if (i >= 60 || !/HTTP 503|fetch failed/.test(String(e))) throw e
       await new Promise((r) => setTimeout(r, 1000))
     }
   }
@@ -65,6 +66,7 @@ export async function setupJellyfin(
   })
   await post('/Startup/RemoteAccess', { EnableRemoteAccess: true })
   await post('/Startup/Complete', {})
+  step('wizard')
 
   const login = await post('/Users/AuthenticateByName', {
     Username: JELLYFIN_ADMIN.user,
@@ -126,7 +128,8 @@ export async function setupJellyfin(
         token,
       ).then((r) => r.TotalRecordCount)
     // All 4 episodes (stack.ts): a half-scanned series has no next one yet.
-    if ((await count('Movie')) > 0 && (await count('Episode')) >= 4) return
+    if ((await count('Movie')) > 0 && (await count('Episode')) >= 4)
+      return step('scan')
     await new Promise((r) => setTimeout(r, 1000))
   }
   throw new Error('jellyfin: library scan found no media after 120s')

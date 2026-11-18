@@ -1,7 +1,7 @@
 // Fixtures every spec imports `test` from (instead of @playwright/test):
-// - jellyfin: a Jellyfin for this worker, started on first use
-//   (stack.ts). Any spec that starts a gateway asks for it; a run of
-//   specs that don't never starts Jellyfin.
+// - jellyfin: a Jellyfin for this worker: in CI the one global setup started
+//   for it, locally started on first use (stack.ts). Any spec that starts a
+//   gateway asks for it; a local run of specs that don't never starts Jellyfin.
 // - paired: a signed-in browser paired with its own fresh gateway.
 // A serial lane, if one is ever needed: Playwright's own `{ lock: 'jellyfin' }`
 // in the test details (no harness code).
@@ -26,7 +26,14 @@ type Paired = {
 
 export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
   jellyfin: [
-    async ({}, use) => {
+    async ({}, use, { parallelIndex }) => {
+      // CI: global setup started one per worker (#494); a worker restarted
+      // after a failure gets the same one (same parallelIndex).
+      const ready = process.env.E2E_JELLYFIN_URLS?.split(',')[parallelIndex]
+      if (ready) {
+        process.env.E2E_JELLYFIN_URL = ready // startGateway reads it
+        return use(ready)
+      }
       // One per worker, not one per run: each gateway's Jellyfin login
       // resets the shared streamiq-admin / streamiq-viewer passwords, so two
       // gateways alive on one Jellyfin lock each other out (HTTP 401). The
@@ -35,7 +42,7 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
       // back; the next test in its worker gets the same Jellyfin.
       // Started here, in the worker: testcontainers shares the runner's Ryuk,
       // which reaps it with the rest of the stack if this worker is killed.
-      const jf = await startJellyfin() // sets E2E_JELLYFIN_URL (startGateway reads it)
+      const jf = await startJellyfin({}, undefined, `jellyfin ${parallelIndex}`) // sets E2E_JELLYFIN_URL (startGateway reads it)
       await use(jf.url)
       await jf.container.stop()
     },

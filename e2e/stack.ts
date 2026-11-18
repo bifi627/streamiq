@@ -443,6 +443,10 @@ export async function startStack(o: StackOptions) {
     ? `https://localhost:${appPort}`
     : `http://127.0.0.1:${appPort}`
   process.env.E2E_APP_URL = app
+  // The production build's origin (chrome87.spec.ts serves it with `vite preview`):
+  // the dev server above ships source untransformed, the build is what a TV gets.
+  const built = `http://127.0.0.1:${await freePort()}`
+  process.env.E2E_BUILD_URL = built
   process.env.E2E_API_URL = api // helpers.ts: users + invites over the API
   process.env.E2E_EMULATOR_URL = emulator
   process.env.E2E_PG_CONTAINER = pg.getId() // helpers.ts tunnelRow: psql in it
@@ -458,7 +462,7 @@ export async function startStack(o: StackOptions) {
         ConnectionStrings__Default: `Host=${pg.getHost()};Port=${pg.getMappedPort(5432)};Database=streamiq;Username=streamiq;Password=dev`,
         FIREBASE_AUTH_EMULATOR_HOST: new URL(emulator).host,
         FIREBASE_PROJECT_ID: 'demo-streamiq',
-        CORS_ORIGINS: app,
+        CORS_ORIGINS: `${app},${built}`,
         // The broker mints per-session creds from these (dev path; prod: Cloudflare).
         STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
         STREAMIQ_TURN_SECRET: 'e2e',

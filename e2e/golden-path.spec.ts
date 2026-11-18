@@ -269,7 +269,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       // Its socket was closed and the reconnect is refused (401). A miss shows the
       // gateway's stderr since Remove: the reconnecting / dial control lines (#475).
       await expect(() =>
-        expect(out.includes('credential revoked or unknown'), `gateway stderr since Remove:\n${out}`).toBe(true),
+        expect(
+          out.includes('credential revoked or unknown'),
+          `gateway stderr since Remove:\n${out}`,
+        ).toBe(true),
       ).toPass({ timeout: 60_000 })
     })
   } finally {

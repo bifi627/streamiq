@@ -1,6 +1,11 @@
 package pairing
 
 import (
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"strings"
 	"testing"
@@ -28,6 +33,26 @@ func TestVerifyAuthVector(t *testing.T) {
 	// Bound to this session: another browser DTLS fp (a MITM's) must fail.
 	if _, err := VerifyAuth(b64(vecSpki), b64(vecSig), vecGatewayFp, vecGatewayFp, vecN); err == nil {
 		t.Fatal("signature verified for a different session")
+	}
+}
+
+// Only a P-256 key with a 64-byte (P1363) signature gets its signature checked;
+// any other key or length is refused up front.
+func TestVerifyAuthRefusesOtherKeys(t *testing.T) {
+	p384, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	ed, _, _ := ed25519.GenerateKey(rand.Reader)
+	der := func(k any) []byte { b, _ := x509.MarshalPKIXPublicKey(k); return b }
+	sig := b64(vecSig)
+	for name, c := range map[string]struct{ spki, sig []byte }{
+		"P-384 key":       {der(&p384.PublicKey), sig},
+		"Ed25519 key":     {der(ed), sig},
+		"short signature": {b64(vecSpki), sig[:63]},
+		"long signature":  {b64(vecSpki), append(sig[:64:64], 0)},
+		"no signature":    {b64(vecSpki), nil},
+	} {
+		if _, err := VerifyAuth(c.spki, c.sig, vecGatewayFp, vecBrowser, vecN); err == nil || !strings.Contains(err.Error(), "P-256") {
+			t.Errorf("%s: err = %v, want refused before the signature check", name, err)
+		}
 	}
 }
 

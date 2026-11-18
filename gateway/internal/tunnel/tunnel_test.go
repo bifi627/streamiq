@@ -108,6 +108,7 @@ func TestAllowlist(t *testing.T) {
 		{"GET", "/Videos/" + vid + "/%2e%2e/%2e%2e/Auth/Keys", false},
 		{"GET", "/Videos/" + vid + "//x", false},
 		{"GET", "http://evil.example/UserViews", false},
+		{"GET", "foo:/UserViews", false},           // a scheme, no host
 		{"GET", "//evil.example/UserViews", false}, // scheme-relative: a host, no scheme
 		{"GET", "//user@evil.example/UserViews", false},
 		{"GET", "/Items/not-an-id", false},
@@ -480,6 +481,54 @@ func TestPerUserViewer(t *testing.T) {
 		b, _ := io.ReadAll(body)
 		if auth != `MediaBrowser Token="`+c.tok+`"` || user != c.id || string(b) != "sub.vtt?ApiKey=redacted" {
 			t.Fatalf("%s: forwarded %q userId %q, body %q", c.user, auth, user, b)
+		}
+	}
+}
+
+// The shared viewer is used unless the session has a user and Viewer gives that
+// user a whole credential (key and id).
+func TestCredForFallback(t *testing.T) {
+	own := func(k, id string) func(string) (string, string) {
+		return func(string) (string, string) { return k, id }
+	}
+	shared := cred{key, uid}
+	for _, c := range []struct {
+		name   string
+		viewer func(string) (string, string)
+		user   string
+		want   cred
+	}{
+		{"no Viewer", nil, "alice", shared},
+		{"no user", own("own", "own-id"), "", shared},
+		{"no id", own("own", ""), "alice", shared},
+		{"no key", own("", "own-id"), "alice", shared},
+		{"own", own("own", "own-id"), "alice", cred{"own", "own-id"}},
+	} {
+		j := &Jellyfin{Viewer: c.viewer}
+		j.SetKey(key, uid)
+		if got := j.credFor(c.user); got != c.want {
+			t.Errorf("%s: credFor = %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}
+
+// redact buffers text up to maxText bytes: exactly maxText comes back whole,
+// one byte more is refused.
+func TestRedactLimit(t *testing.T) {
+	for _, n := range []int{maxText, maxText + 1} {
+		hdr := http.Header{"Content-Type": {"application/json"}}
+		body, err := redact(hdr, io.NopCloser(bytes.NewReader(bytes.Repeat([]byte("a"), n))), key)
+		if n > maxText {
+			if err == nil {
+				t.Errorf("%d bytes: not refused", n)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("%d bytes: %v", n, err)
+		}
+		if b, _ := io.ReadAll(body); len(b) != n {
+			t.Errorf("%d bytes: got %d back", n, len(b))
 		}
 	}
 }

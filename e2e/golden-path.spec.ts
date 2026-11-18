@@ -266,10 +266,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       a.once('dialog', (d) => d.accept())
       await a.getByRole('button', { name: 'Remove' }).click()
       await expect(a.getByText('No gateways yet.')).toBeVisible()
-      // Its socket was closed and the reconnect is refused (401).
-      await expect
-        .poll(() => out, { timeout: 60_000 })
-        .toContain('credential revoked or unknown')
+      // Its socket was closed and the reconnect is refused (401). A miss shows the
+      // gateway's stderr since Remove: the reconnecting / dial control lines (#475).
+      await expect(() =>
+        expect(
+          out.includes('credential revoked or unknown'),
+          `gateway stderr since Remove:\n${out}`,
+        ).toBe(true),
+      ).toPass({ timeout: 60_000 })
     })
   } finally {
     await gateway.stop()

@@ -35,6 +35,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 - Enrollment token → `/api/gateways/enroll` → gateway credential; authenticated
   `/api/gateways/ws` heartbeat carries the gateway version (shown in the Gateways list).
+  A dropped socket reconnects forever with backoff (1 s doubling to 30 s, reset after a
+  healthy 30 s); each handshake times out after 20 s, so an unanswered upgrade retries.
 - Persistent, non-expiring gateway DTLS cert in the state dir (`gateway reset-identity`
   replaces it).
 - Pairing: browser WebCrypto client key, commit/reveal comparison code approved on the

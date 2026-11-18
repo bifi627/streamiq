@@ -316,8 +316,9 @@ export function fixtureMedia() {
     )
     try {
       fs.renameSync(tmp, dir)
-    } catch {
-      fs.rmSync(tmp, { recursive: true, force: true }) // another run made it first
+    } catch (e) {
+      fs.rmSync(tmp, { recursive: true, force: true })
+      if (!fs.existsSync(dir)) throw e // else another run made it first
     }
     return dir
   })())
@@ -355,7 +356,8 @@ async function emulatorImage() {
 
 /**
  * Jellyfin with the fixture media and its libraries (setupJellyfin): the slow part
- * of the stack, so the e2e starts it only when a spec asks (fixtures.ts).
+ * of the stack: in CI global setup starts one per worker, locally a worker starts
+ * its own when a spec asks (fixtures.ts).
  */
 export async function startJellyfin(
   o: Partial<StackOptions> = {},

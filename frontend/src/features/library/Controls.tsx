@@ -112,6 +112,7 @@ export type Setting = {
 /** The settings popover's page: closed, main, or that setting's options. */
 type Page = null | 'main' | number
 
+// oxlint-disable-next-line complexity -- render branching
 export function Controls({
   video,
   duration,
@@ -225,6 +226,7 @@ export function Controls({
     v.addEventListener('play', playing)
     document.addEventListener('fullscreenchange', fs)
 
+    // oxlint-disable-next-line complexity -- key model, moves to keyAction() in #534
     const key = (e: KeyboardEvent) => {
       const t = e.target as Element
       if (t !== document.body && !root.current?.contains(t)) return // other UI

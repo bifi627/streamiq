@@ -382,6 +382,7 @@ function Settings() {
 
 // Root layout; only mounted while signed in (App gates the whole router). Loads
 // /me once per page load and hands it to every view (HouseholdContext).
+// oxlint-disable-next-line complexity -- render branching
 function Shell() {
   const [me, setMe] = useState<Me | null>(null)
   const [err, setErr] = useState<AppError | null>(null)

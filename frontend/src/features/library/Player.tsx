@@ -143,6 +143,7 @@ type Copy = { video: boolean; audio: boolean }
 const mbpsText = (mbps: number) =>
   mbps.toLocaleString(undefined, { maximumSignificantDigits: 2 })
 
+// oxlint-disable-next-line complexity -- render branching
 export function Player({
   pc,
   speed,
@@ -284,6 +285,7 @@ export function Player({
       })
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
+    // oxlint-disable-next-line complexity -- builds the load (URL params, log lines), not decisions
     const start = async (at: number) => {
       const load = ++loads
       at0 = at
@@ -397,6 +399,7 @@ export function Player({
         // 1080p re-fetch on a seek back).
         maxBufferLength: 4,
       })
+      // oxlint-disable-next-line complexity -- the failure chain, moves to onFailure() in #535
       h.on(Hls.Events.ERROR, (_e, e) => {
         event(
           `hls ${e.fatal ? 'FATAL' : 'error'}: ${e.details}${e.error ? ` (${e.error.message})` : ''}`,
@@ -576,6 +579,7 @@ export function Player({
       }
     })
 
+    // oxlint-disable-next-line complexity -- startup wiring (probe, item fetch)
     ;(async () => {
       if (!Hls.isSupported())
         throw new AppError(
@@ -666,6 +670,7 @@ export function Player({
             name: 'Quality',
             value: q,
             status: now,
+            // oxlint-disable-next-line complexity -- render branching
             options: qualities(file.size, q, rawOn()).map((o) => ({
               value: o,
               label:

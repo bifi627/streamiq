@@ -26,7 +26,7 @@ public class BrokerSteps(IntegrationFixture fx)
     private string _session = "";
     private JsonElement _offer;
     private string _offerer = "";
-    private static readonly TimeSpan DefaultAuthTimeout = BrowserSocket.AuthTimeout;
+    private TimeSpan? _authTimeout;   // the real one, while a scenario shortens it
     private System.Diagnostics.Stopwatch _opened = new();
 
     // For the tunnel telemetry steps (#390), which share this scenario's sockets.
@@ -46,7 +46,10 @@ public class BrokerSteps(IntegrationFixture fx)
         }
 
         _browser?.Dispose();
-        BrowserSocket.AuthTimeout = DefaultAuthTimeout;
+        if (_authTimeout is { } t)
+        {
+            BrowserSocket.AuthTimeout = t;
+        }
     }
 
     [Given("\"([^\"]*)\" has an online gateway \"([^\"]*)\"")]
@@ -190,24 +193,27 @@ public class BrokerSteps(IntegrationFixture fx)
     [When("a browser opens a broker socket and sends nothing")]
     public async Task WhenSilentBrowser()
     {
+        _authTimeout = BrowserSocket.AuthTimeout;
         BrowserSocket.AuthTimeout = TimeSpan.FromSeconds(1);
         _opened = System.Diagnostics.Stopwatch.StartNew();
         _browser = await fx.Factory.Server.CreateWebSocketClient()
             .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
     }
 
-    // The timed-out read aborts the socket (no close frame): either way it ends, and not early.
+    // The timed-out read aborts the socket (no close frame; TestServer surfaces that as an
+    // IOException): a close or an abort both pass, a message or 5 s of silence (under the real
+    // 10 s, so the shortened one is what fires) fail. 100 ms of slack for timer granularity.
     [Then("the browser socket is closed after the auth timeout")]
     public async Task ThenClosedAfterTimeout()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
             Assert.Equal(WebSocketMessageType.Close, (await _browser.ReceiveAsync(new byte[1024], cts.Token)).MessageType);
         }
-        catch (Exception e) when (e is not OperationCanceledException) { }   // TestServer: IOException "remote end closed"
-        Assert.False(cts.IsCancellationRequested, "socket still open after the auth timeout");
-        Assert.True(_opened.Elapsed >= BrowserSocket.AuthTimeout, $"closed after {_opened.Elapsed}, before the auth timeout");
+        catch (Exception e) when (e is IOException or WebSocketException) { }
+        Assert.True(_opened.Elapsed >= BrowserSocket.AuthTimeout - TimeSpan.FromMilliseconds(100),
+            $"closed after {_opened.Elapsed}, before the auth timeout");
     }
 
     [When("a browser opens a broker socket and first sends an offer")]

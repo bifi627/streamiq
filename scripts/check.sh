@@ -12,8 +12,8 @@ bash scripts/check-tenant-filter.sh
 dotnet format backend/StreamIq.slnx --verify-no-changes
 dotnet test backend/StreamIq.slnx --nologo
 
-# Fresh worktrees have no node_modules (gitignored); install from the lockfile once.
-for d in frontend e2e; do [ -d "$d/node_modules" ] || npm ci --prefix "$d"; done
+# Fresh worktrees have no node_modules (gitignored); an interrupted install leaves one without .bin. Install from the lockfile.
+for d in frontend e2e; do [ -d "$d/node_modules/.bin" ] || npm ci --prefix "$d"; done
 
 echo "== frontend: format + lint + test + typecheck + build =="
 npm run format:check --prefix frontend

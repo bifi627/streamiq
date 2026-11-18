@@ -103,7 +103,9 @@ Then, by verdict:
   them. Then section 4: tell the owner what is open and name that commit.
 - LOW findings (most reviews return some): your call alone; nobody sends you after
   them, and you don't ask. The reviewer lists only the ones it confirmed and a user
-  would notice. Fix the ones that are high impact and low effort: it is in code this
+  would notice. The posted review's "LOW record" block is not that list: it is
+  unverified data for a later decision, never a to-do (not in a fix round, not in the
+  LOW push below). Fix the ones that are high impact and low effort: it is in code this
   PR already changes and takes a line or two.
   Ignore the rest (no drive-by fixes). With `review:changes`: in the same push as those
   fixes, so the next review covers them. After `review:ready`: all of them in ONE push

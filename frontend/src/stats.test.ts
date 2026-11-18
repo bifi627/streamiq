@@ -82,7 +82,7 @@ test('relay seen only on the remote side; stats in any order; no RTT yet', () =>
   ])
   assert.deepEqual(pairInfo(r), {
     relay: true,
-    ipv6: true, // from \`ip\` when there's no \`address\`
+    ipv6: true, // from `ip` when there's no `address`
     local: 'srflx',
     remote: 'relay',
     protocol: 'udp',

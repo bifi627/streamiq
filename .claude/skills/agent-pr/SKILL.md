@@ -90,10 +90,12 @@ headRefOid.
   marked ready, so no result yet, not a failure). Then, when `agent-review` returned
   any LOW, its LOW record verbatim, collapsed (blank lines around the list, so it renders):
   `<details><summary>LOW record (unverified, not to act on)</summary>` … `</details>`.
-  Last line, in exactly this form (it is what later analysis of the reviews reads), with
-  the counts `agent-review` returned and the LOW categories largest first (omitted when
-  `low=0`): `Review stats: level=high candidates=9 blocker=0 spec=1 low=8 (style 4,
-  simplify 3, docs 1)`, with ` risk=<n> floor=<f>` appended on `ready to merge`.
+  Last line, in exactly this form (it is what later analysis of the reviews reads; one
+  line, space-separated `key=value`, no space inside a value), with the counts
+  `agent-review` returned and `lowcat=` the LOW categories largest first (omitted when
+  `low=0`):
+  `Review stats: level=high candidates=9 blocker=0 spec=1 low=8 lowcat=style:4,simplify:3,docs:1`,
+  with ` risk=<n> floor=<f>` appended on `ready to merge`.
   Do not run `check.sh`. No praise, no summary of what the PR
   does, no LOW items outside the LOW record, and no findings in the body (they go in
   `comments`, so each one is a resolvable thread that blocks the merge). LOWs never

@@ -125,7 +125,7 @@ Return, in this order:
 
 1. Level used, and the counts: findings `/code-review` returned, then how many you
    sorted into BLOCKER, SPEC and LOW (all of them, not only the listed ones), the LOW
-   count split by category, largest first (`low=7 (style 3, naming 2, simplify 2)`).
+   count split by category, largest first (`low=7 lowcat=style:3,naming:2,simplify:2`).
 2. Merge risk (when section 5 applies): `<n>/10 (floor <f>: <the script's rule>) — <reason
    for going higher, if any>; test: <flows>` (no `test:` part below 5).
 3. Acceptance criteria: `all met` or `not met — <which>`.

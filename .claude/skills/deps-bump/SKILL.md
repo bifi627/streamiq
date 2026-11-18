@@ -57,8 +57,14 @@ one (#453): if it fails, Jellyfin refuses old backups, and the PR says so.
 ## Per-wave verify (default, don't skip)
 
 ```bash
-bash scripts/check.sh                     # mirrors CI: format, lint, tests, build, e2e, compose config
+SKIP_E2E=1 bash scripts/check.sh          # default: format, lint, tests, build, compose config; CI runs the full e2e suite on the PR
+E2E_GREP=@golden bash scripts/check.sh    # instead, when the bump changes what the e2e specs exercise (list below)
 ```
+
+Narrow e2e (`E2E_GREP=@golden`) for: frontend runtime packages (React, Vite),
+Playwright / e2e deps, the gateway's WebRTC (Pion), the Jellyfin / Postgres image
+pins. Everything else: `SKIP_E2E=1` (`check.sh` prints `!! SKIPPED: e2e …`).
+Never a full local e2e run (a Jellyfin per worker) unless the owner asks.
 
 Integration tests are NOT "expensive" — include by default. Docker daemon
 down → prompt the user to start Desktop, don't skip.
@@ -132,7 +138,7 @@ chore(deps): <scope summary>
 
 <bullet list of bumps with from→to>
 
-Verified: scripts/check.sh (ALL CHECKS PASSED).
+Verified: scripts/check.sh (ALL CHECKS PASSED; e2e: CI).   # or "e2e: @golden" for E2E_GREP
 ```
 
 Use a HEREDOC for the message so multi-line formatting survives.

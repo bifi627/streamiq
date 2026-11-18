@@ -7,7 +7,13 @@
 // Play on TV is the screen spec's, rung choice and decisions profile.test.ts's.
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
-import { openDock, openLibrary, pitch, videoTime } from './helpers.ts'
+import {
+  openDock,
+  openLibrary,
+  pitch,
+  videoTime,
+  type User,
+} from './helpers.ts'
 
 const CLIP = 'streamiq e2e clip' // 30 s, 360p H.264, English 440 Hz + German 880 Hz, .en.srt
 /** The diagnostics panel's flag (diag.ts): the dock with the player's log. */
@@ -31,6 +37,26 @@ async function play(p: Page, name = CLIP, secs = 1) {
   await expect
     .poll(() => videoTime(p), { timeout: 30_000 })
     .toBeGreaterThan(secs)
+}
+
+/** Pins the gateway → client link at mbps before p's next load: the bursts
+ * fail, so Auto uses the stored hint (speed.ts's key) instead of a measurement
+ * that load can slow down (#486). */
+async function pinLink(p: Page, user: User, mbps: number) {
+  const [g] = await user.api<{ id: string }[]>('/gateways')
+  await p.addInitScript(
+    ([id, v]) => {
+      const create = RTCPeerConnection.prototype.createDataChannel
+      RTCPeerConnection.prototype.createDataChannel = function (label, o) {
+        if (label.startsWith('req:/streamiq/burst')) throw new Error('pinned')
+        return create.call(this, label, o)
+      }
+      const type = (navigator as { connection?: { type?: string } }).connection
+        ?.type
+      localStorage.setItem(`streamiq.speed:${id}:direct:${type ?? '?'}`, v)
+    },
+    [g.id, String(mbps)],
+  )
 }
 
 const menu = (p: Page) =>
@@ -185,16 +211,17 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
 test('quality (#108, #161): Auto and Source only; Source reloads at the playhead, remembered @player', async ({
   paired,
 }) => {
-  const { page } = paired
+  const { page, user } = paired
+  await pinLink(page, user, 100) // Auto's pick must not depend on load (#486)
   await arrange(page, DIAG)
   await play(page, CLIP, 3) // the switch below logs @3 or later
   await openDock(page)
   // Rungs that would not scale the 360p clip down are hidden (480p too).
-  // Auto (#162): localhost is fast, so the clip fits under the measured link.
+  // Auto (#162): the pinned 100 Mbps link fits the clip.
   await menu(page)
   await page
     .getByRole('menuitem', {
-      name: /^Quality.*Auto \(your connection ~[\d.,]+ Mbps\) · Original 360p/,
+      name: /^Quality.*Auto \(your connection ~100 Mbps\) · Original 360p/,
     })
     .click()
   await expect(page.getByRole('menuitemradio')).toHaveText([
@@ -234,19 +261,8 @@ test('Auto on a slow link (#162): capped at 480p, Source warns @player', async (
   paired,
 }) => {
   const { page, user } = paired
-  const [g] = await user.api<{ id: string }[]>('/gateways')
-  // A slow home upload, simulated: the bursts fail, so Auto falls back to the
-  // stored hint (speed.ts's key), set to 0.1 Mbps (the clip is ~0.2).
-  await page.addInitScript((id) => {
-    const create = RTCPeerConnection.prototype.createDataChannel
-    RTCPeerConnection.prototype.createDataChannel = function (label, o) {
-      if (label.startsWith('req:/streamiq/burst')) throw new Error('slow')
-      return create.call(this, label, o)
-    }
-    const type = (navigator as { connection?: { type?: string } }).connection
-      ?.type
-    localStorage.setItem(`streamiq.speed:${id}:direct:${type ?? '?'}`, '0.1')
-  }, g.id)
+  // A slow home upload, simulated: 0.1 Mbps (the clip is ~0.2).
+  await pinLink(page, user, 0.1)
   await arrange(page, DIAG)
   await play(page)
   await openDock(page)

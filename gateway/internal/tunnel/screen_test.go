@@ -212,3 +212,76 @@ func TestRoute(t *testing.T) {
 		}
 	}
 }
+
+// Each command carries exactly its own fields (#520): each boundary (ticks ≥ 0,
+// audio ≥ 0, subtitle ≥ -1) and each field that belongs to another kind.
+func TestScreenCommandValid(t *testing.T) {
+	const item = "aad7cecccec3a4dc85db63021e5bfd99"
+	for body, want := range map[string]bool{
+		`{"type":"pause"}`:                                        true,
+		`{"type":"resume","itemId":"` + item + `"}`:               false,
+		`{"type":"stop","startTicks":0}`:                          false,
+		`{"type":"pause","audio":0}`:                              false,
+		`{"type":"pause","subtitle":0}`:                           false,
+		`{"type":"play","itemId":"` + item + `"}`:                 true,
+		`{"type":"play","itemId":"` + item + `","startTicks":0}`:  true,
+		`{"type":"play","itemId":"` + item + `","startTicks":-1}`: false,
+		`{"type":"play","itemId":"` + item + `","ticks":0}`:       false,
+		`{"type":"play","itemId":"` + item + `","audio":0}`:       false,
+		`{"type":"play","itemId":"` + item + `","subtitle":0}`:    false,
+		`{"type":"seek","ticks":0}`:                               true,
+		`{"type":"seek","ticks":0,"itemId":"` + item + `"}`:       false,
+		`{"type":"seek","ticks":0,"startTicks":0}`:                false,
+		`{"type":"seek","ticks":0,"audio":0}`:                     false,
+		`{"type":"seek","ticks":0,"subtitle":0}`:                  false,
+		`{"type":"tracks","audio":0}`:                             true,
+		`{"type":"tracks","subtitle":-1}`:                         true,
+		`{"type":"tracks","audio":0,"subtitle":-1}`:               true,
+		`{"type":"tracks","audio":-1,"subtitle":0}`:               false,
+		`{"type":"tracks","audio":0,"subtitle":-2}`:               false,
+		`{"type":"tracks","audio":0,"itemId":"` + item + `"}`:     false,
+		`{"type":"tracks","audio":0,"startTicks":0}`:              false,
+		`{"type":"tracks","audio":0,"ticks":0}`:                   false,
+	} {
+		var c ScreenCommand
+		if err := json.Unmarshal([]byte(body), &c); err != nil {
+			t.Fatal(err)
+		}
+		if c.valid() != want {
+			t.Errorf("%s: valid = %v, want %v", body, !want, want)
+		}
+	}
+}
+
+// A screen's state at each boundary (#520): ticks ≥ 0, audio ≥ 0, subtitle ≥ -1,
+// an item id that is empty or well formed. A screen needs a session with a
+// close signal and a pairing name.
+func TestScreenStateBounds(t *testing.T) {
+	closed := make(chan struct{})
+	defer close(closed)
+	tv := Session{ID: "tv-bounds", Name: func() string { return "TV" }, Closed: closed}
+	for _, who := range []Session{{ID: "tv-bounds", Name: tv.Name}, {ID: "tv-bounds", Closed: closed}} {
+		if s, _ := call(t, "GET", ScreenPath, "", who); s != 404 {
+			t.Errorf("screen without Closed or Name: %d, want 404", s)
+		}
+	}
+	status, body := call(t, "GET", ScreenPath, "", tv)
+	if status != 200 {
+		t.Fatalf("open screen: %d", status)
+	}
+	defer body.Close()
+	for state, want := range map[string]int{
+		`{"positionTicks":0,"durationTicks":0,"audio":0,"subtitle":-1}`: 204,
+		`{"itemId":"aad7cecccec3a4dc85db63021e5bfd99"}`:                 204,
+		`{"itemId":""}`:        204,
+		`{"itemId":"../x"}`:    400,
+		`{"positionTicks":-1}`: 400,
+		`{"durationTicks":-1}`: 400,
+		`{"audio":-1}`:         400,
+		`{"subtitle":-2}`:      400,
+	} {
+		if s, _ := call(t, "POST", ScreenPath+"/state", state, tv); s != want {
+			t.Errorf("state %s: %d, want %d", state, s, want)
+		}
+	}
+}

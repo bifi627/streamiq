@@ -160,6 +160,14 @@ test('controls: ±10 s and Play / Pause, by button and by key @player', async ({
   await expect.poll(at).toBeCloseTo(t, 0)
   await page.keyboard.press('Space')
   await expect.poll(paused).toBe(false)
+  // #549: Ctrl+K is the browser's (no toggle), so the plain K after it pauses;
+  // a held K (keydown repeats) toggles once, so it plays again.
+  await page.keyboard.press('Control+k')
+  await page.keyboard.press('k')
+  await expect.poll(paused).toBe(true)
+  for (let i = 0; i < 3; i++) await page.keyboard.down('k') // 2nd on: repeat
+  await page.keyboard.up('k')
+  await expect.poll(paused).toBe(false)
   // The bar's buttons.
   const button = (name: string) =>
     page.getByRole('button', { name, exact: true })

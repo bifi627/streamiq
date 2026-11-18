@@ -31,6 +31,8 @@ import type {
 } from '../gateways/api'
 import { useHousehold } from '../households/household'
 import { guestNotice } from './guest'
+import { clampSeek, polled } from './remote'
+import { serial } from './serial'
 import { Player } from './Player'
 import {
   audioTracks,
@@ -661,29 +663,6 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
   )
 }
 
-/** Runs one at a time, in order (each tunnel POST is its own channel, so only
- * waiting keeps them ordered). A new x replaces the queued last one if
- * replaces(last, x). */
-function serial<T>(
-  run: (x: T) => Promise<unknown>,
-  replaces: (queued: T, x: T) => boolean,
-) {
-  const q: T[] = []
-  let busy = false
-  const next = () => {
-    busy = q.length > 0
-    if (busy)
-      run(q.shift()!)
-        .catch(() => {})
-        .finally(next)
-  }
-  return (x: T) => {
-    if (q.length && replaces(q[q.length - 1], x)) q.pop()
-    q.push(x)
-    if (!busy) next()
-  }
-}
-
 const IDLE: ScreenState = {
   itemId: '',
   positionTicks: 0,
@@ -696,7 +675,7 @@ const IDLE: ScreenState = {
 // Phone remote view (#181): follows the screen's state (GET /streamiq/screens
 // every second) and sends commands one at a time, in order (each POST is its
 // own channel). Two phones see the same state; the last command wins.
-// oxlint-disable-next-line complexity -- the remote's failure paths, move out in #536
+// oxlint-disable-next-line complexity -- render branching (screen, item, tracks); decisions live in remote.ts
 export function RemotePage({ screenId }: { screenId: string }) {
   const { gatewayId, pc } = useContext(Tunnel)
   const [screen, setScreen] = useState<Screen | null>() // null: closed
@@ -709,20 +688,18 @@ export function RemotePage({ screenId }: { screenId: string }) {
     let gone = false
     let t = 0
     const poll = () =>
-      tunnelJson<Screen[]>(pc, '/streamiq/screens').then(
-        (l) => {
+      tunnelJson<Screen[]>(pc, '/streamiq/screens')
+        .then(
+          (screens) => ({ screens }),
+          (e) => ({ error: toAppError(e).message }),
+        )
+        .then((r) => {
           if (gone) return
-          const s = l.find((x) => x.id === screenId) ?? null
-          setScreen(s)
-          setDown('')
-          if (s) t = window.setTimeout(poll, 1000) // closed: ids never come back
-        },
-        (e) => {
-          if (gone) return
-          setDown(toAppError(e).message)
-          t = window.setTimeout(poll, 1000)
-        },
-      )
+          const p = polled(screenId, r)
+          if (p.screen !== undefined) setScreen(p.screen)
+          setDown(p.down)
+          if (p.again) t = window.setTimeout(poll, 1000)
+        })
     poll()
     return () => {
       gone = true
@@ -765,7 +742,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
   const pos = (st?.positionTicks ?? 0) / TICKS_PER_SECOND
   const dur = (st?.durationTicks ?? 0) / TICKS_PER_SECOND
   const seek = (t: number) => {
-    t = Math.max(0, dur ? Math.min(dur, t) : t)
+    t = clampSeek(t, dur)
     setDrag(t) // until the TV's state catches up
     clearTimeout(dragging.current)
     dragging.current = window.setTimeout(() => setDrag(null), 2000)

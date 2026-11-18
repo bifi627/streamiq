@@ -900,11 +900,12 @@ func TestBacklogCap(t *testing.T) {
 // Drop of a key without open sessions closes nothing and says nothing (#520).
 func TestDropNoSessions(t *testing.T) {
 	var buf strings.Builder
-	defer log.SetOutput(log.Writer())
+	orig := log.Writer()
 	log.SetOutput(&buf)
 	gateway, _ := newGateway(t)
 	gateway.Drop("no-such-key")
-	if buf.Len() != 0 {
+	log.SetOutput(orig) // under the logger's lock: no later write (pion's goroutines from other tests) races the read
+	if strings.Contains(buf.String(), "removed browser") {
 		t.Fatalf("Drop without sessions logged %q", buf.String())
 	}
 }

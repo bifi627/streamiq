@@ -107,7 +107,7 @@ npm run dev --prefix frontend                 # frontend
 npm run build --prefix frontend               # frontend build check
 go run ./cmd/gateway                          # gateway (from gateway/; reads gateway/gateway.env from setup-jellyfin.sh)
 go test ./...                                 # gateway tests (from gateway/)
-npm test --prefix e2e                         # E2E specs (Playwright + Chrome, Docker; ~2.5 min)
+npm test --prefix e2e                         # E2E specs (Playwright + Chrome, Docker; 4 workers locally, `-- --workers N` overrides)
 npm test --prefix e2e -- --grep @households   # one area only (tags: playwright.config.ts); no Jellyfin unless the area needs it
 npm run preview --prefix e2e [-- status|down]  # this worktree's stack on the LAN (HTTPS) for phone/TV tests; owner: `/preview [tunnel]` / `/preview stop` (skill; docs/tools.md)
 ```

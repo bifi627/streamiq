@@ -21,8 +21,10 @@ export default defineConfig({
   // CI: a GitHub runner has 4 vCPUs (16 GB) for Chromes, gateways and up to one
   // transcoding Jellyfin per worker (fixtures.ts), each generating its fixture
   // media on first use. 4 was tried (#469): every test got slower and the job
-  // took 7m06s / 7m34s vs ~5.5 min at 3. Locally: Playwright's default (half the cores).
-  workers: process.env.CI ? 3 : undefined,
+  // took 7m06s / 7m34s vs ~5.5 min at 3. Locally: 4, not Playwright's default (half
+  // the cores, 12 on a 24-thread box): each worker can start its own Jellyfin, and
+  // 12 of them peg the CPU so timing tests flake from load alone. `--workers N` overrides.
+  workers: process.env.CI ? 3 : 4,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     // Branded Chrome, not bundled Chromium: item 5's <video> needs H.264/AAC,

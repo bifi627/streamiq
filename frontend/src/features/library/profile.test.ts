@@ -143,6 +143,9 @@ test('picker: only rungs that scale the source down', () => {
   assert.equal(at(3840, 2160), 'Auto,Source,1080p,720p,480p')
   assert.equal(at(1920, 1080), 'Auto,Source,720p,480p')
   assert.equal(at(1920, 800), 'Auto,Source,720p,480p') // scope 1080p
+  // one side over a rung is enough: it scales down
+  assert.equal(at(2560, 1080), 'Auto,Source,1080p,720p,480p') // ultrawide
+  assert.equal(at(1080, 1920), 'Auto,Source,1080p,720p,480p') // portrait
   assert.equal(at(426, 240), 'Auto,Source')
   assert.equal(at(0, 0), 'Auto,Source,1080p,720p,480p') // unknown: all
   // Raw only with its setting on, next to Source
@@ -192,6 +195,21 @@ test('picker status: original, or the transcode size', () => {
       height: 1600,
     }),
     'Transcoded to 720p', // 1280x533: named by its width
+  )
+  // the axis that binds sets the scale: width for scope, height for 4:3
+  assert.equal(
+    nowPlaying(false, qs('MaxWidth=1920&MaxHeight=1080'), {
+      width: 3840,
+      height: 1600,
+    }),
+    'Transcoded to 1080p', // 1920x800, not 2592x1080
+  )
+  assert.equal(
+    nowPlaying(false, qs('MaxWidth=1920&MaxHeight=1080'), {
+      width: 2880,
+      height: 2160,
+    }),
+    'Transcoded to 1080p', // 1440x1080, not 1920x1440
   )
   assert.equal(nowPlaying(false, qs(''), { width: 0, height: 0 }), 'Transcoded')
 })
@@ -272,6 +290,27 @@ test('decision: over the quality limit means video transcode (no reason)', () =>
       .videoCopy,
     false,
   )
+})
+
+test('decision: the audio stream by its index; a source at the limit remuxes', () => {
+  // not in index order: the video stream is found by its type
+  const streams = [
+    { Index: 1, Type: 'Audio', Codec: 'aac', Channels: 2 },
+    { Index: 2, Type: 'Audio', Codec: 'dts', Channels: 6 },
+    { Index: 0, Type: 'Video', Codec: 'h264', Width: 1280, Height: 720 },
+  ]
+  const q = (i: number) =>
+    url(
+      `VideoCodec=h264&AudioCodec=aac&AudioStreamIndex=${i}&MaxWidth=1280&MaxHeight=720&TranscodeReasons=AudioCodecNotSupported`,
+    )
+  assert.deepEqual(
+    [decision(q(1), streams).videoCopy, decision(q(1), streams).audioCopy],
+    [true, true],
+  )
+  assert.equal(decision(q(2), streams).audioCopy, false)
+  assert.equal(decision(q(2), streams).codecs, 'H264 + DTS')
+  // the video stream's index is not an audio stream
+  assert.equal(decision(q(0), streams).codecs, 'H264 + ?')
 })
 
 test('decision: level/bit depth reasons mean video transcode', () => {
@@ -457,6 +496,21 @@ test('auto audio (#252): a decodable track of the default language', () => {
     undefined,
   )
   assert.equal(pick([dts, a(2, 'ac3', 6, { Language: 'ger' })]), undefined)
+  // The default is found by its index, not taken as the first audio track.
+  assert.equal(autoAudio([a(1, 'aac', 6), a(2, 'dts', 6)], 2, codecs, true), 1)
+  // Only audio streams: a video stream tagged with a language is no default.
+  assert.equal(
+    autoAudio(
+      [
+        { Index: 0, Type: 'Video', Codec: 'h264', Language: 'eng' },
+        a(1, 'aac', 6),
+      ],
+      undefined,
+      codecs,
+      true,
+    ),
+    undefined,
+  )
   // No default index: the first audio track is Jellyfin's default.
   assert.equal(autoAudio([dts, a(2, 'ac3', 6)], undefined, codecs, true), 2)
 })

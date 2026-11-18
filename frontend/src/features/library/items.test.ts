@@ -5,6 +5,8 @@ import {
   audioTracks,
   clock,
   covers,
+  playable,
+  playsAtOnce,
   rangeHeader,
   subtitleTracks,
   upNext,
@@ -67,7 +69,7 @@ test('subtitleTracks: Off + text subtitles only', () => {
   const en = new Intl.DisplayNames(undefined, { type: 'language' }).of('eng')
   assert.deepEqual(
     subtitleTracks([
-      { Index: 1, Type: 'Audio', Codec: 'aac' },
+      { Index: 1, Type: 'Audio', Codec: 'aac', IsTextSubtitleStream: true }, // the flag alone isn't enough
       { Index: 2, Type: 'Subtitle', Codec: 'pgssub' }, // image: burn-in only
       {
         Index: 3,
@@ -105,4 +107,16 @@ test('upNext: in progress, else first unwatched (specials last), else first', ()
   assert.equal(upNext([sp, a]).Id, 'sp')
   assert.equal(upNext([a]).Id, 'a')
   assert.equal(upNext([ep('sw', 0, { Played: true }), a]).Id, 'a')
+})
+
+test('playable / playsAtOnce: what a tile opens', () => {
+  const at = (Type: string, IsFolder?: boolean) => {
+    const i = { Id: '1', Name: 'n', Type, IsFolder }
+    return [playable(i), playsAtOnce(i)]
+  }
+  assert.deepEqual(at('Episode'), [true, true])
+  assert.deepEqual(at('Movie'), [true, false]) // its page first (#204)
+  assert.deepEqual(at('Series'), [false, false])
+  assert.deepEqual(at('Season'), [false, false])
+  assert.deepEqual(at('BoxSet', true), [false, false])
 })

@@ -47,6 +47,8 @@ test('a new user within the idle delay cancels the close', async () => {
   await wait(IDLE)
   assert.equal(st.opened.length, 1)
   assert.equal(st.opened[0].closed, false)
+  await share('g').session // the cancelled close didn't evict it either
+  assert.equal(st.opened.length, 1)
   c.release()
 })
 
@@ -82,6 +84,7 @@ test('a dropped session, changed policy or re-pair is evicted for the next user'
   await wait(0)
   assert.equal(st.opened[1].closed, true)
   c.release()
+  drop('nope') // no session for it: nothing to drop
   drop('g') // re-paired: idle session closed at once, next user gets a new one
   await wait(0)
   assert.equal(st.opened[2].closed, true)
@@ -96,4 +99,23 @@ test('a session closed by the broker is evicted before its pc says so', async ()
   const s1 = await a.session
   s1.close() // broker closed it: connect() closes it; pc still 'connected' for now
   assert.notEqual(await share('g').session, s1)
+})
+
+test("a replaced session's late failure doesn't evict its successor", async () => {
+  const st = stub()
+  let relay = false
+  const { share } = sharer(st.open, () => relay, IDLE)
+  st.failNext(true)
+  const a = share('g') // fails, but only after it was replaced
+  relay = true
+  st.failNext(false)
+  const b = share('g')
+  await assert.rejects(a.session, /not paired/)
+  await wait(0)
+  const c = share('g')
+  assert.equal(await c.session, await b.session)
+  assert.equal(st.opened.length, 1)
+  a.release()
+  b.release()
+  c.release()
 })

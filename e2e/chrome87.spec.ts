@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { chromium } from '@playwright/test'
+import { chromium, type Browser } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import { password, signUp, uniqueEmail } from './helpers.ts'
 import { root, start, waitHttp } from './stack.ts'
@@ -114,9 +114,10 @@ test('Chromium 87 (webOS): the production build signs in to Gateways @shell', as
     !builds[process.platform],
     `no Chromium 87 build for ${process.platform}`,
   )
-  const [exe, app] = await Promise.all([chromium87(), serveBuild()])
-  const browser = await chromium.launch({ executablePath: exe })
+  const app = await serveBuild()
+  let browser: Browser | undefined
   try {
+    browser = await chromium.launch({ executablePath: await chromium87() })
     const page = await browser.newPage()
     expect(browser.version()).toMatch(/^87\./)
     const errors: string[] = []
@@ -154,7 +155,7 @@ test('Chromium 87 (webOS): the production build signs in to Gateways @shell', as
     )
     expect(errors).toEqual([])
   } finally {
-    await browser.close()
+    await browser?.close()
     await app.stop()
   }
 })

@@ -106,4 +106,5 @@ Feature: Signaling broker
     When "alice@home.test" offers to gateway "nas"
     And gateway "nas" receives the offer
     And gateway "nas" sends an oversized answer for that session
-    Then the browser receives nothing
+    And gateway "nas" sends an ICE candidate for that session
+    Then the browser receives that ICE candidate

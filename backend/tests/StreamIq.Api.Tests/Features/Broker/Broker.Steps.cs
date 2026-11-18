@@ -239,7 +239,7 @@ public class BrokerSteps(IntegrationFixture fx)
     [Then("the broker no longer holds that session")]
     public void ThenNoSession()
     {
-        Assert.False(Hub.Sessions.ContainsKey(Guid.Parse(_session)));
+        Assert.False(Hub.Sessions.ContainsKey(Session));
     }
 
     // The gateway socket's cleanup runs after the close: wait for it, then offer.
@@ -284,7 +284,8 @@ public class BrokerSteps(IntegrationFixture fx)
     }
 
     // Valid JSON past the 64 KB cap: 64 KB of leading whitespace, then a real answer.
-    // Were the broker to keep only the tail of an oversized message, the answer would get through.
+    // Were the broker to keep only the tail of an oversized message, the answer would get through;
+    // the scenario then sends a normal message, so a broker that closes instead of skipping fails too.
     [When("gateway \"([^\"]*)\" sends an oversized answer for that session")]
     public Task WhenOversized(string name)
     {

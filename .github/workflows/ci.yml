@@ -129,6 +129,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      # The Jellyfins are global setup's critical path once the emulator comes from the cache (#504):
+      # pull the pinned image in the background while the next steps run. A `docker run` that
+      # comes first joins this pull.
+      - run: docker pull -q "$(sed -n 's/^ *image: \(jellyfin\/jellyfin:.*\)$//p' docker-compose.yml)" > /dev/null 2>&1 &
       - uses: actions/setup-dotnet@v6
       - uses: actions/setup-go@v7
         with:

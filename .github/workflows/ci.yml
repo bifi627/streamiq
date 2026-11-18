@@ -129,6 +129,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      # The Jellyfins are global setup's critical path once the emulator comes from the cache (#504):
+      # pull the pinned image in the background while the next steps run. A `docker run` that
+      # comes first joins this pull.
+      - run: |
+          docker pull -q "$(sed -n 's/^ *image: \(jellyfin\/jellyfin:.*\)$/\1/p' docker-compose.yml)" > /dev/null 2>&1 &
       - uses: actions/setup-dotnet@v6
       - uses: actions/setup-go@v7
         with:
@@ -153,10 +158,23 @@ jobs:
         with:
           path: e2e/.bin/chromium87
           key: chromium87-${{ hashFiles('e2e/chrome87.spec.ts') }}
+      # The Firebase emulator image (dev/firebase) took 72 of global setup's 79 s to build (#504):
+      # cached as a `docker save` tar, keyed by the same files its tag hashes (emulatorImage in
+      # e2e/stack.ts). Its base image is pinned exactly, so the key covers everything in it.
+      - id: emulator
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/emulator.tar
+          key: firebase-emulator-${{ hashFiles('dev/firebase/**') }}
+      - if: steps.emulator.outputs.cache-hit == 'true'
+        run: docker load -q -i "$RUNNER_TEMP/emulator.tar"
       - run: npx playwright test
         working-directory: e2e
         env:
           GH_TOKEN: ${{ github.token }} # compat.spec.ts downloads the last gateway release (#459)
+      # A miss: global setup built the image; the cache step's post saves this tar.
+      - if: steps.emulator.outputs.cache-hit != 'true'
+        run: docker save -o "$RUNNER_TEMP/emulator.tar" $(docker images streamiq-firebase-emulator --format '{{.Repository}}:{{.Tag}}')
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

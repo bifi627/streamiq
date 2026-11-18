@@ -236,6 +236,23 @@ export type StackOptions = {
   jellyfins?: number
 }
 
+const secs = (ms: number) => (ms / 1000).toFixed(1)
+const T0 = Date.now() // module load ≈ global setup's start
+/**
+ * One line when a start-up task ends, so the CI log attributes every second of
+ * global setup (#494, #504): its own time and the time since setup began.
+ */
+export function timed<T>(name: string, task: Promise<T>): Promise<T> {
+  const t = Date.now()
+  return task.then((v) => {
+    const now = Date.now()
+    console.log(
+      `${new Date(now).toISOString()} setup: ${name} ${secs(now - t)}s (at ${secs(now - T0)}s)`,
+    )
+    return v
+  })
+}
+
 /** Runs a command to its end without blocking the event loop (the builds). */
 function run(cmd: string, args: string[], cwd: string) {
   return new Promise<void>((resolve, reject) => {
@@ -373,7 +390,6 @@ export async function startJellyfin(
   let last = t0
   const step = (s: string) => {
     const now = Date.now()
-    const secs = (ms: number) => (ms / 1000).toFixed(1)
     console.log(
       `${new Date(now).toISOString()} ${name}: ${s} ${secs(now - last)}s (total ${secs(now - t0)}s)`,
     )
@@ -451,65 +467,77 @@ export async function startStack(o: StackOptions) {
   )
   jellyfins.catch(() => {}) // rejects at its await below
   const [pg, firebase, { coturn, turnPort }] = await Promise.all([
-    labeled(
-      new GenericContainer(pin('postgres'))
-        .withEnvironment({
-          POSTGRES_USER: 'streamiq',
-          POSTGRES_PASSWORD: 'dev',
-          POSTGRES_DB: 'streamiq',
-        })
-        .withExposedPorts(5432)
-        .withTmpFs(NO_VOLUMES.postgres)
-        // Twice: the init run restarts the server once before it's really ready.
-        .withWaitStrategy(
-          Wait.forLogMessage(
-            /database system is ready to accept connections/,
-            2,
-          ),
-        ),
-    ).start(),
-    emulatorImage().then((firebaseImage) =>
+    timed(
+      'postgres',
       labeled(
-        firebaseImage
-          .withCopyFilesToContainer([
-            {
-              source: path.join(root, 'dev', 'firebase', 'firebase.json'),
-              target: '/app/firebase.json',
-            },
-          ])
-          .withWorkingDir('/app')
-          .withCommand([
-            'firebase',
-            'emulators:start',
-            '--only',
-            'auth',
-            '--project',
-            'demo-streamiq',
-          ])
-          .withExposedPorts(9099)
-          .withWaitStrategy(Wait.forLogMessage('All emulators ready')),
+        new GenericContainer(pin('postgres'))
+          .withEnvironment({
+            POSTGRES_USER: 'streamiq',
+            POSTGRES_PASSWORD: 'dev',
+            POSTGRES_DB: 'streamiq',
+          })
+          .withExposedPorts(5432)
+          .withTmpFs(NO_VOLUMES.postgres)
+          // Twice: the init run restarts the server once before it's really ready.
+          .withWaitStrategy(
+            Wait.forLogMessage(
+              /database system is ready to accept connections/,
+              2,
+            ),
+          ),
       ).start(),
     ),
-    startCoturn(labeled),
-    // Build while the containers boot.
-    run(
-      'dotnet',
-      ['build', 'src/StreamIq.Api', '--nologo', '-v', 'q', '-o', apiOut],
-      path.join(root, 'backend'),
+    timed('emulator image', emulatorImage()).then((firebaseImage) =>
+      timed(
+        'emulator start',
+        labeled(
+          firebaseImage
+            .withCopyFilesToContainer([
+              {
+                source: path.join(root, 'dev', 'firebase', 'firebase.json'),
+                target: '/app/firebase.json',
+              },
+            ])
+            .withWorkingDir('/app')
+            .withCommand([
+              'firebase',
+              'emulators:start',
+              '--only',
+              'auth',
+              '--project',
+              'demo-streamiq',
+            ])
+            .withExposedPorts(9099)
+            .withWaitStrategy(Wait.forLogMessage('All emulators ready')),
+        ).start(),
+      ),
     ),
-    (async () => {
-      const bin = path.join(
-        o.dir,
-        `streamiq-e2e-gateway${process.platform === 'win32' ? '.exe' : ''}`,
-      )
-      fs.mkdirSync(path.dirname(bin), { recursive: true })
-      await run(
-        'go',
-        ['build', '-o', bin, './cmd/gateway'],
-        path.join(root, 'gateway'),
-      )
-      process.env.E2E_GATEWAY_BIN = bin
-    })(),
+    timed('coturn', startCoturn(labeled)),
+    // Build while the containers boot.
+    timed(
+      'dotnet build',
+      run(
+        'dotnet',
+        ['build', 'src/StreamIq.Api', '--nologo', '-v', 'q', '-o', apiOut],
+        path.join(root, 'backend'),
+      ),
+    ),
+    timed(
+      'go build',
+      (async () => {
+        const bin = path.join(
+          o.dir,
+          `streamiq-e2e-gateway${process.platform === 'win32' ? '.exe' : ''}`,
+        )
+        fs.mkdirSync(path.dirname(bin), { recursive: true })
+        await run(
+          'go',
+          ['build', '-o', bin, './cmd/gateway'],
+          path.join(root, 'gateway'),
+        )
+        process.env.E2E_GATEWAY_BIN = bin
+      })(),
+    ),
   ])
 
   process.env.E2E_TURN_PORT = String(turnPort) // stack.ts: Docker-gateway mode
@@ -581,11 +609,11 @@ export async function startStack(o: StackOptions) {
   )
 
   const [js] = await Promise.all([
-    jellyfins, // their start ran alongside everything above
-    waitHttp(`${api}/healthz`, backend),
+    timed('jellyfins', jellyfins), // their start ran alongside everything above
+    timed('backend', waitHttp(`${api}/healthz`, backend)),
     // 127.0.0.1: Vite listens on IPv4 only. LAN: the caller trusts the
     // self-signed cert (NODE_EXTRA_CA_CERTS).
-    waitHttp(app.replace('localhost', '127.0.0.1'), vite),
+    timed('vite', waitHttp(app.replace('localhost', '127.0.0.1'), vite)),
   ])
   process.env.E2E_JELLYFIN_URLS = js.map((j) => j.url).join(',') // fixtures.ts
 

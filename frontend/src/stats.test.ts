@@ -64,3 +64,30 @@ test('Firefox shape (pair.selected) and no pair yet', () => {
   ff.set('P', { ...ff.get('P')!, selected: true })
   assert.equal(pairInfo(ff)!.local, 'host')
 })
+
+test('relay seen only on the remote side; stats in any order; no RTT yet', () => {
+  const r = new Map<string, Record<string, any>>([
+    [
+      'P',
+      {
+        type: 'candidate-pair',
+        id: 'P',
+        localCandidateId: 'L',
+        remoteCandidateId: 'R',
+      },
+    ],
+    ['L', { candidateType: 'srflx', ip: '192.0.2.7', protocol: 'udp' }],
+    ['R', { candidateType: 'relay', address: '192.0.2.1' }],
+    ['T', { type: 'transport', selectedCandidatePairId: 'P' }],
+  ])
+  assert.deepEqual(pairInfo(r), {
+    relay: true,
+    ipv6: false,
+    local: 'srflx',
+    remote: 'relay',
+    protocol: 'udp',
+    bytesReceived: 0,
+    bytesSent: 0,
+    rttMs: undefined,
+  })
+})

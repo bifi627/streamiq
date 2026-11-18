@@ -6,6 +6,7 @@ import {
   brokerError,
   describe,
   httpError,
+  isKind,
   renameMessage,
   toAppError,
   type Kind,
@@ -34,6 +35,9 @@ test('HTTP status → kind, by who answered', () => {
   assert.equal(k('tunnel', 401), 'http')
   assert.equal(k('tunnel', 502), 'media-server-down')
   assert.equal(k('tunnel', 503), 'media-server-down')
+  assert.equal(k('tunnel', 404), 'http')
+  assert.equal(k('tunnel', 500), 'http') // the gateway's own failure
+  assert.equal(k('api', 502), 'http') // only the gateway's 502 means Jellyfin
   const e = httpError('tunnel', 404, '/streamiq/status')
   assert.equal(e.context.status, 404)
   assert.equal(e.message, '/streamiq/status → HTTP 404')
@@ -44,6 +48,7 @@ test('rename form: a gateway 500 names the gateway, never the media server', () 
     renameMessage(httpError('tunnel', s, '/streamiq/name'))
   assert.equal(m(500), "The gateway couldn't save the name; see its log.")
   assert.equal(m(404), 'This gateway is too old to rename: update it.')
+  assert.equal(m(400), 'Use 1–100 characters, no control characters.')
   assert.equal(m(403), 'Request failed.')
 })
 
@@ -55,27 +60,40 @@ test('toAppError keeps AppErrors and wraps the rest as unknown', () => {
   assert.equal(toAppError('str').message, 'str')
 })
 
-test('every kind has a message', () => {
-  const kinds: Kind[] = [
-    'broker-unreachable',
-    'broker-lost',
-    'gateway-offline',
-    'ice-failed',
-    'not-paired',
-    'pin-mismatch',
-    'gateway-refused',
-    'tunnel-lost',
-    'invite-invalid',
-    'last-admin',
-    'admin-only',
-    'media-server-down',
-    'unauthorized',
-    'http',
-    'network',
-    'playback',
-    'unknown',
-  ]
-  for (const k of kinds) assert.ok(describe(new AppError(k, 'd')).message, k)
-  // Retry can't help a 403 (#211).
-  assert.deepEqual(describe(new AppError('admin-only', 'd')).actions, [])
+test('isKind: only an AppError of that kind', () => {
+  assert.equal(isKind(new AppError('not-paired', 'x'), 'not-paired'), true)
+  assert.equal(isKind(new AppError('http', 'x'), 'not-paired'), false)
+  assert.equal(isKind(new Error('not-paired'), 'not-paired'), false)
+  assert.equal(isKind(undefined, 'not-paired'), false)
+})
+
+test('every kind: a message and the buttons it shows', () => {
+  const actions: Record<Kind, string[]> = {
+    'broker-unreachable': ['retry'],
+    'broker-lost': ['retry'],
+    'gateway-offline': ['retry', 'gateways'],
+    'ice-failed': ['retry'],
+    'not-paired': ['pair'],
+    'pin-mismatch': ['pair'],
+    'gateway-refused': ['gateways'],
+    'tunnel-lost': ['retry'],
+    'invite-invalid': ['gateways'],
+    'last-admin': [],
+    'admin-only': [], // retry can't help a 403 (#211)
+    'media-server-down': ['retry'],
+    unauthorized: ['sign-in'],
+    http: ['retry'],
+    network: ['retry'],
+    playback: [],
+    unknown: ['retry'],
+  }
+  for (const [k, a] of Object.entries(actions) as [Kind, string[]][]) {
+    const d = describe(new AppError(k, 'd'))
+    assert.ok(d.message, k)
+    assert.deepEqual(d.actions, a, k)
+    // Only a possibly impersonated gateway is loud.
+    assert.equal(d.loud, k === 'pin-mismatch' || undefined, k)
+  }
+  // playback: the player's own wording
+  assert.equal(describe(new AppError('playback', 'decode')).message, 'decode')
 })

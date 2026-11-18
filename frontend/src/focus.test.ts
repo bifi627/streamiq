@@ -24,6 +24,21 @@ test('grid: down prefers the one straight below over a closer diagonal', () => {
   assert.equal(nearest(from, [diagonal, below], 'ArrowDown'), 1)
 })
 
+test('up and left: straight beats a closer diagonal too', () => {
+  const up = box(0, 40)
+  assert.equal(nearest(up, [box(30, 20), box(0, 0)], 'ArrowUp'), 1)
+  assert.equal(nearest(box(0, 0), [up], 'ArrowUp'), -1) // below, not above
+  const left = box(40, 0)
+  assert.equal(nearest(left, [box(20, 20), box(0, 0)], 'ArrowLeft'), 1)
+  // right too, and the best one first keeps it
+  assert.equal(nearest(box(0, 0), [box(40, 0), box(20, 20)], 'ArrowRight'), 0)
+})
+
+test('drift is measured between centres: a wide row straight below wins', () => {
+  const wide = { left: -95, top: 40, right: 105, bottom: 50 } // centre x 5
+  assert.equal(nearest(box(0, 0), [box(40, 40), wide], 'ArrowDown'), 1)
+})
+
 test('other keys move nothing', () => {
   assert.equal(nearest(box(0, 0), [box(20, 0)], 'Enter'), -1)
 })

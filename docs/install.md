@@ -376,6 +376,33 @@ the first install to change the gateway's name or page port. `STREAMIQ_NAME` set
 first name: later, a household admin renames the gateway on the web app's Gateways page
 (**Rename**, while it is online), and the gateway keeps that name in `state/gateway.json`.
 
+## gateway.env
+
+The gateway reads its settings from the environment, or from `gateway.env` next to the
+binary (or in the working dir); a real environment variable wins over the file. The
+installer writes `STREAMIQ_API_URL` and `STREAMIQ_STATE_DIR` there on the first install (plus
+`STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` when set on the install command).
+Installer-only variables are set on the install command, not in `gateway.env`.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `STREAMIQ_API_URL` | — (required) | The StreamIQ web app's address; the gateway connects to it. |
+| `STREAMIQ_ENROLL_TOKEN` | — | One-time token from **Gateways → Add gateway**; used only on the first start, before the gateway has its credential. |
+| `STREAMIQ_NAME` | the computer's name | The gateway's first name; later renames happen in the web app. |
+| `STREAMIQ_STATE_DIR` | `streamiq-state` (installer: `<install dir>/state`; Docker image: `/state`) | Where identity, paired browsers and tokens live. |
+| `STREAMIQ_PAGE_PORT` | `8097` | Port of the local gateway page. |
+| `STREAMIQ_LAN_URL` | first private IPv4 + page port | The local gateway page's address on your LAN; needed in Docker, where the container's IP is useless. |
+| `STREAMIQ_ORIGIN` | `http://localhost:8096` | Your Jellyfin's address (another machine: its LAN address). |
+| `STREAMIQ_JELLYFIN_HWACCEL` | unset (CPU) | `nvenc` = NVIDIA GPU transcoding on a Jellyfin the gateway set up ([GPU transcoding](#gpu-transcoding-optional)). |
+| `STREAMIQ_ICE_URLS` | — (STUN only) | Comma-separated TURN URLs for the gateway's side of the tunnel. |
+| `STREAMIQ_ICE_USERNAME` | — | TURN username for `STREAMIQ_ICE_URLS`. |
+| `STREAMIQ_ICE_CREDENTIAL` | — | TURN credential for `STREAMIQ_ICE_URLS`. |
+| `STREAMIQ_ICE_PORT` | — (any port) | Pins WebRTC to one UDP port and advertises the `STREAMIQ_LAN_URL` host if it is an IP address (a hostname is ignored); for Docker (the image sets `8098`). |
+| `STREAMIQ_DOWNLOAD` | GitHub's latest release | Where the installer, `gateway update` and `gateway jellyfin up` download release files. |
+| `STREAMIQ_LATEST` | GitHub's latest-release API | Where the gateway checks for a newer release; tests only. |
+| `STREAMIQ_DIR` | `%LOCALAPPDATA%\streamiq` / `~/.local/share/streamiq` | Installer only: the install dir. |
+| `STREAMIQ_RESTORE` | — | Installer only: a `gateway backup` zip to restore instead of enrolling ([Back up and restore](#back-up-and-restore-the-gateway)). |
+
 ## Command line
 
 Run `gateway` from the install dir (Linux / macOS: `./gateway`). `gateway -h` lists the commands, and

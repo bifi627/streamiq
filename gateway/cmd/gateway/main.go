@@ -19,9 +19,7 @@
 // Commands: cobra, in commands.go (gateway -h lists them).
 //
 // Config (env, or gateway.env next to the binary / in the working dir; real
-// env wins): STREAMIQ_API_URL (required), STREAMIQ_ENROLL_TOKEN, STREAMIQ_NAME, STREAMIQ_STATE_DIR,
-// STREAMIQ_PAGE_PORT, STREAMIQ_LAN_URL, STREAMIQ_ORIGIN, STREAMIQ_JELLYFIN_HWACCEL, STREAMIQ_ICE_* (STREAMIQ_ICE_PORT:
-// Docker, see sessions.NewAPI).
+// env wins): every variable is in docs/install.md, "gateway.env" (check.sh enforces it).
 package main
 
 import (

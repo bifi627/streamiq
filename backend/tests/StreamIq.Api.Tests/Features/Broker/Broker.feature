@@ -76,3 +76,34 @@ Feature: Signaling broker
     Then the removal is refused as not found
     When "alice@home.test" offers to gateway "nas"
     Then gateway "nas" receives the offer
+
+  Scenario: Closing the browser socket tells the gateway and ends the session
+    Given "alice@home.test" has an online gateway "nas"
+    When "alice@home.test" offers to gateway "nas"
+    And gateway "nas" receives the offer
+    And the browser closes its socket
+    Then gateway "nas" receives bye for that session
+    And the broker no longer holds that session
+
+  Scenario: A new offer cannot reach a gateway that disconnected
+    Given "alice@home.test" has an online gateway "nas"
+    When gateway "nas" disconnects
+    And the broker no longer lists gateway "nas"
+    And "alice@home.test" offers to gateway "nas"
+    Then the browser is told the gateway is offline or unknown
+
+  Scenario: ICE candidates are relayed both ways
+    Given "alice@home.test" has an online gateway "nas"
+    When "alice@home.test" offers to gateway "nas"
+    And gateway "nas" receives the offer
+    And the browser sends an ICE candidate
+    Then gateway "nas" receives that ICE candidate for that session
+    When gateway "nas" sends an ICE candidate for that session
+    Then the browser receives that ICE candidate
+
+  Scenario: A message over the size limit is dropped
+    Given "alice@home.test" has an online gateway "nas"
+    When "alice@home.test" offers to gateway "nas"
+    And gateway "nas" receives the offer
+    And gateway "nas" sends an oversized answer for that session
+    Then the browser receives nothing

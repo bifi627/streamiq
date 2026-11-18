@@ -78,3 +78,11 @@ Feature: Tunnel telemetry
     And gateway "nas" receives the offer
     And the users row of "alice@home.test" is deleted
     Then the tunnel is kept without a user
+
+  # A failed tunnel moved no bytes: its report still counts (bytes >= 0, not > 0).
+  Scenario: A failed tunnel's report with 0 bytes is recorded with all its fields
+    Given "alice@home.test" has an online gateway "nas"
+    When "alice@home.test" offers to gateway "nas"
+    And gateway "nas" receives the offer
+    And gateway "nas" reports that tunnel as failed over IPv6 TCP with 0 bytes
+    Then the tunnel is stored as failed over IPv6 TCP with 0 bytes

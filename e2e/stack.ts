@@ -296,7 +296,7 @@ export function fixtureMedia() {
     const tmp = `${dir}-${process.pid}`
     fs.rmSync(tmp, { recursive: true, force: true })
     fs.mkdirSync(tmp, { recursive: true })
-    await run(
+    const encode = run(
       'docker',
       [
         'run',
@@ -314,6 +314,10 @@ export function fixtureMedia() {
       ],
       root,
     )
+    await encode.catch((e) => {
+      fs.rmSync(tmp, { recursive: true, force: true }) // no half-encoded leftover
+      throw e
+    })
     try {
       fs.renameSync(tmp, dir)
     } catch (e) {
@@ -506,7 +510,6 @@ export async function startStack(o: StackOptions) {
       )
       process.env.E2E_GATEWAY_BIN = bin
     })(),
-    fixtureMedia(), // here, so no worker encodes it (outside CI they start Jellyfin)
   ])
 
   process.env.E2E_TURN_PORT = String(turnPort) // stack.ts: Docker-gateway mode

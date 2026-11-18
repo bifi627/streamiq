@@ -108,3 +108,30 @@ Feature: Signaling broker
     And gateway "nas" sends an oversized answer for that session
     And gateway "nas" sends an ICE candidate for that session
     Then the browser receives that ICE candidate
+
+  # A socket that authenticated just before its gateway was revoked: the broker still holds it.
+  Scenario: A gateway revoked while its socket stays open gets no new sessions and is closed at its next heartbeat
+    Given "alice@home.test" has an online gateway "nas"
+    When the credential of gateway "nas" is revoked, its socket left open
+    And "alice@home.test" offers to gateway "nas"
+    Then the browser is told the gateway is offline or unknown
+    When gateway "nas" sends a heartbeat
+    Then gateway "nas" is disconnected as "revoked"
+
+  Scenario Outline: A gateway whose Authorization header is not a Bearer credential is refused
+    Given "alice@home.test" has an online gateway "nas"
+    Then gateway "nas" connecting with Authorization "<header>" is refused
+
+    Examples:
+      | header                |
+      | Basic {credential}    |
+      | {credential}          |
+      | Bearer{credential}    |
+
+  Scenario: A browser socket that never authenticates is closed after the auth timeout
+    When a browser opens a broker socket and sends nothing
+    Then the browser socket is closed after the auth timeout
+
+  Scenario: A browser socket whose first message is not auth is refused
+    When a browser opens a broker socket and first sends an offer
+    Then the browser socket is closed as "auth first"

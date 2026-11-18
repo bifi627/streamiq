@@ -19,7 +19,7 @@ namespace StreamIq.Api.Features.Broker;
 /// socket closing stamps its end; the gateway's report fills in the rest (GatewaySocket).
 public static class BrowserSocket
 {
-    public static readonly TimeSpan AuthTimeout = TimeSpan.FromSeconds(10);
+    internal static TimeSpan AuthTimeout = TimeSpan.FromSeconds(10);   // tests shorten it (#530)
 
     public static void Map(IEndpointRouteBuilder app)
     {

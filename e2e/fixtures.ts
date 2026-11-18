@@ -53,19 +53,33 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
   // ponytail: per test (~10 s: a gateway + one pairing). The client key is a
   // non-extractable CryptoKey in IndexedDB, so neither storageState nor the API
   // can carry a pairing; a per-worker live context is the upgrade if this adds up.
-  paired: async ({ browser, jellyfin: _ }, use) => {
+  paired: async ({ browser, jellyfin: _ }, use, testInfo) => {
+    const t0 = Date.now()
     const user = await signUp(uniqueEmail('paired'))
+    const t1 = Date.now()
     const gateway = await onboardGateway(user)
+    const t2 = Date.now()
     const gatewayCtx = await newContext(browser)
     let page: Page | undefined
+    let t3 = 0 // paired at
     try {
       if (gateway.pageCookie) await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
       page = await signedInPage(browser, user, '/gateways')
       await pair(page, gatewayCtx, gateway.pageUrl)
+      t3 = Date.now()
       await use({ user, page, gateway, gatewayCtx })
     } finally {
+      const t4 = Date.now()
       await Promise.all([gatewayCtx.close(), page?.context().close()])
       await gateway.stop()
+      // One line per test (#506): what this fixture costs, summed from the CI log.
+      if (t3) {
+        const t5 = Date.now()
+        const s = (ms: number) => (ms / 1000).toFixed(1)
+        console.log(
+          `paired: signup ${s(t1 - t0)}s gateway ${s(t2 - t1)}s pairing ${s(t3 - t2)}s teardown ${s(t5 - t4)}s total ${s(t3 - t0 + t5 - t4)}s :: ${testInfo.titlePath.slice(1).join(' > ')}`,
+        )
+      }
     }
   },
 })

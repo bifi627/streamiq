@@ -23,6 +23,8 @@ import {
   sizeName,
   sourceHint,
   toQuality,
+  onFailure,
+  type Playing,
   type Probe,
 } from './profile.ts'
 
@@ -542,4 +544,145 @@ test('data saver (#291): Automatic follows the browser, On/Off override it, Auto
   assert.equal(effective('1080p', 20, 40e6, true), '1080p')
   assert.equal(effective('Source', 20, 40e6, true), 'Source')
   assert.equal(effective('Auto', 20, 40e6, false), '1080p')
+})
+
+// The fallback chain (#81, #115, #238, #164): onFailure.
+const fresh: Playing = {
+  raw: false,
+  copy: { video: true, audio: true },
+  compatible: false,
+  escalated: false,
+}
+const media = (x: { fatal?: boolean; audio?: boolean } = {}) => ({
+  media: true,
+  fatal: false,
+  audio: false,
+  details: 'bufferAppendError',
+  ...x,
+})
+const net = {
+  media: false,
+  fatal: true,
+  audio: false,
+  details: 'fragLoadError',
+}
+
+test('onFailure: stuck video → video transcode', () => {
+  assert.deepEqual(onFailure('stuck', fresh), {
+    reload: 'fallback: video transcode',
+    less: { video: false },
+  })
+})
+
+test('onFailure: an audio media error → stereo AAC, not again once audio is not copied', () => {
+  assert.deepEqual(onFailure(media({ audio: true }), fresh), {
+    reload: 'fallback: stereo AAC',
+    less: { audio: false },
+  })
+  const noAudio = { ...fresh, copy: { video: true, audio: false } }
+  assert.equal(onFailure(media({ audio: true }), noAudio), null)
+  // fatal: no second stereo AAC, the compatible escalation instead
+  assert.deepEqual(onFailure(media({ audio: true, fatal: true }), noAudio), {
+    reload: 'fallback: compatible (after playback error: bufferAppendError)',
+    less: { video: false, audio: false },
+    escalate: true,
+  })
+})
+
+test('onFailure: a failure after a fallback → compatible once, then the error', () => {
+  const after = { ...fresh, copy: { video: false, audio: true } }
+  assert.deepEqual(onFailure('stuck', after), {
+    reload: 'fallback: compatible (after fallback: video transcode)',
+    less: { video: false, audio: false },
+    escalate: true,
+  })
+  const esc: Playing = {
+    ...fresh,
+    copy: { video: false, audio: false },
+    compatible: true,
+    escalated: true,
+  }
+  assert.deepEqual(onFailure('stuck', esc), {
+    error: 'Playback failed (even in compatible mode)',
+  })
+  assert.deepEqual(onFailure(media({ fatal: true }), esc), {
+    error: 'playback error: bufferAppendError (even in compatible mode)',
+  })
+  assert.deepEqual(
+    onFailure(media({ audio: true }), {
+      ...esc,
+      copy: { video: false, audio: true },
+    }),
+    {
+      error: 'Playback failed (even in compatible mode)',
+    },
+  )
+})
+
+test('onFailure: a fatal media error with nothing left to drop is the error', () => {
+  // full copy: no fallback happened yet, nothing to escalate from
+  assert.deepEqual(onFailure(media({ fatal: true }), fresh), {
+    error: 'playback error: bufferAppendError',
+  })
+  const none = {
+    ...fresh,
+    copy: { video: false, audio: false },
+    compatible: true,
+  }
+  assert.deepEqual(onFailure(media({ fatal: true }), none), {
+    error: 'playback error: bufferAppendError',
+  })
+})
+
+test('onFailure: compatible mode never escalates: the next fallback, then the error', () => {
+  const compat = { ...fresh, compatible: true }
+  assert.deepEqual(onFailure('stuck', compat), {
+    reload: 'fallback: video transcode',
+    less: { video: false },
+  })
+  const after = { ...compat, copy: { video: false, audio: true } }
+  assert.deepEqual(onFailure(media({ audio: true }), after), {
+    reload: 'fallback: stereo AAC',
+    less: { audio: false },
+  })
+  assert.deepEqual(onFailure(media({ fatal: true }), after), {
+    error: 'playback error: bufferAppendError',
+  })
+})
+
+test('onFailure: Raw never reloads: stuck, fatal and audio media errors are the Raw error', () => {
+  const raw = { ...fresh, raw: true }
+  for (const f of [
+    'stuck',
+    media({ fatal: true }),
+    media({ audio: true }),
+  ] as const)
+    assert.deepEqual(onFailure(f, raw), { raw: true })
+  // even after an earlier fallback turned copy off (Raw copies anyway, #164)
+  const after = { ...raw, copy: { video: false, audio: false } }
+  assert.deepEqual(onFailure(media({ audio: true }), after), { raw: true })
+  assert.deepEqual(onFailure('stuck', after), { raw: true })
+  assert.equal(onFailure(media(), raw), null)
+  assert.deepEqual(onFailure(net, raw), {
+    error: 'playback error: fragLoadError',
+  })
+})
+
+test('onFailure: a fatal non-media error is the error, never a fallback', () => {
+  for (const s of [fresh, { ...fresh, copy: { video: false, audio: true } }])
+    assert.deepEqual(onFailure(net, s), {
+      error: 'playback error: fragLoadError',
+    })
+  assert.deepEqual(onFailure({ ...net, audio: true }, fresh), {
+    error: 'playback error: fragLoadError',
+  })
+  // no "(even in compatible mode)": only the fallback chain says that
+  assert.deepEqual(onFailure(net, { ...fresh, escalated: true }), {
+    error: 'playback error: fragLoadError',
+  })
+})
+
+test('onFailure: a non-fatal, non-audio error does nothing', () => {
+  assert.equal(onFailure(media(), fresh), null)
+  assert.equal(onFailure({ ...net, fatal: false }, fresh), null)
 })

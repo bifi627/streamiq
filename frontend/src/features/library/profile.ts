@@ -244,10 +244,65 @@ export const toQuality = (v: unknown): Quality =>
 /** Whether a failure escalates to the compatible profile (#238): only after
  * a fallback already turned some stream copy off, and not when compatible
  * mode is on. The caller excludes Raw (no fallbacks). */
-export const escalates = (
-  copy: { video: boolean; audio: boolean },
-  compatible: boolean,
-) => !compatible && !(copy.video && copy.audio)
+export const escalates = (copy: Copy, compatible: boolean) =>
+  !compatible && !(copy.video && copy.audio)
+
+/** What a load may stream-copy; the fallbacks turn these off. */
+export type Copy = { video: boolean; audio: boolean }
+
+/** A playback failure: an hls.js error (media = MEDIA_ERROR; audio = it names
+ * the audio buffer or codec) or 'stuck' (video appends stopped covering the
+ * playhead, #81). */
+export type Failure =
+  { media: boolean; fatal: boolean; audio: boolean; details: string } | 'stuck'
+
+/** The load's state a failure is judged in. */
+export type Playing = {
+  raw: boolean // Raw this load: no fallbacks (#164)
+  copy: Copy
+  compatible: boolean
+  escalated: boolean // compatible since a fallback failed (#238)
+}
+
+/** What a failure does: reload with less stream copy (`escalate`: in the
+ * compatible profile, #238), an error, the Raw error (the Player names the
+ * source codecs), or nothing (null: not fatal). */
+export type Next =
+  | { reload: string; less: Partial<Copy>; escalate?: true }
+  | { error: string }
+  | { raw: true }
+  | null
+
+/** The fallback chain (#81, #115, #238, #164): stuck video → video transcode,
+ * an audio error → stereo AAC, a failure after one of those → the compatible
+ * profile once, a failure after that → the error. Raw never falls back. */
+export function onFailure(f: Failure, s: Playing): Next {
+  if (f === 'stuck')
+    return s.raw
+      ? { raw: true }
+      : fallback('fallback: video transcode', s, { video: false })
+  if (s.raw && f.media && (f.fatal || f.audio)) return { raw: true }
+  if (s.copy.audio && f.audio && f.media)
+    return fallback('fallback: stereo AAC', s, { audio: false })
+  if (f.fatal && f.media) return fallback(`playback error: ${f.details}`, s)
+  return f.fatal ? { error: `playback error: ${f.details}` } : null
+}
+
+// The next fallback (`less`), else the compatible profile once, else the
+// error. Without `less` only a fallback-to-be escalates.
+function fallback(why: string, s: Playing, less?: Partial<Copy>): Next {
+  if (s.escalated)
+    return {
+      error: `${less ? 'Playback failed' : why} (even in compatible mode)`,
+    }
+  if (!escalates(s.copy, s.compatible))
+    return less ? { reload: why, less } : { error: why }
+  return {
+    reload: `fallback: compatible (after ${why})`,
+    less: { video: false, audio: false },
+    escalate: true,
+  }
+}
 
 /** The limit in effect: the quality's, but at most 1080p in compatible mode
  * (#113). null = no limit. */

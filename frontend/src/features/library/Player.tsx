@@ -16,7 +16,7 @@
 // once more with the compatible profile and no stream copy (H.264 + stereo AAC
 // in .ts, ≤1080p) for the rest of this playback; a failure after that is the
 // error. Not in Raw or compatible mode. Debug: ?fail=<n> makes the first n
-// loads look stuck.
+// loads look stuck. The chain is decided by onFailure() (profile.ts).
 // Quality (#108): the picker's limit goes into the profile; a switch reloads at
 // the playhead the same way (Jellyfin serves one HLS level per load). The
 // picker (#161) offers only rungs that scale this source down, and says what
@@ -80,6 +80,9 @@ import {
   describe,
   deviceProfile,
   escalates,
+  onFailure,
+  type Copy,
+  type Failure,
   limit,
   nowPlaying,
   probe,
@@ -136,9 +139,6 @@ function freeze(v: HTMLVideoElement) {
     // no frame to copy: the reload just flickers
   }
 }
-
-/** What the current load may stream-copy; the fallbacks turn these off. */
-type Copy = { video: boolean; audio: boolean }
 
 const mbpsText = (mbps: number) =>
   mbps.toLocaleString(undefined, { maximumSignificantDigits: 2 })
@@ -347,14 +347,23 @@ export function Player({
       if (raw) params.delete('VideoBitrate')
       const d = decision(`?${params}`, src.MediaStreams)
       event(`jellyfin: ${d.text}`)
-      // Raw: no fallback; say what the device could not play.
-      const rawErr = () =>
+      // The fallback chain decides (onFailure); this carries it out.
+      const failed = (f: Failure) => {
+        const n = onFailure(f, { raw, copy, compatible, escalated })
+        if (!n) return
+        if ('reload' in n) {
+          if (n.escalate) compatible = escalated = true
+          return reload(n.reload, n.less)
+        }
         setErr(
           new AppError(
             'playback',
-            `This device can't play the original streams (${d.codecs}). Pick another quality.`,
+            'raw' in n // Raw: say what the device could not play
+              ? `This device can't play the original streams (${d.codecs}). Pick another quality.`
+              : n.error,
           ),
         )
+      }
       const sv = src.MediaStreams.find((s) => s.Type === 'Video')
       const size = { width: sv?.Width ?? 0, height: sv?.Height ?? 0 }
       bitrate = src.Bitrate ?? sv?.BitRate
@@ -399,7 +408,6 @@ export function Player({
         // 1080p re-fetch on a seek back).
         maxBufferLength: 4,
       })
-      // oxlint-disable-next-line complexity -- the failure chain, moves to onFailure() in #535
       h.on(Hls.Events.ERROR, (_e, e) => {
         event(
           `hls ${e.fatal ? 'FATAL' : 'error'}: ${e.details}${e.error ? ` (${e.error.message})` : ''}`,
@@ -411,14 +419,12 @@ export function Player({
           /audio/i.test(
             `${e.mimeType ?? ''} ${e.error?.message ?? ''} ${v.error?.message ?? ''}`,
           )
-        if (raw && e.type === Hls.ErrorTypes.MEDIA_ERROR && (e.fatal || audio))
-          return rawErr()
-        if (copy.audio && audio && e.type === Hls.ErrorTypes.MEDIA_ERROR)
-          return fallback('fallback: stereo AAC', { audio: false })
-        if (e.fatal && e.type === Hls.ErrorTypes.MEDIA_ERROR)
-          return fallback(`playback error: ${e.details}`)
-        if (e.fatal)
-          setErr(new AppError('playback', `playback error: ${e.details}`))
+        failed({
+          media: e.type === Hls.ErrorTypes.MEDIA_ERROR,
+          fatal: e.fatal,
+          audio,
+          details: e.details,
+        })
       })
       // What the device is asked to decode, and whether it says it can.
       h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
@@ -463,9 +469,7 @@ export function Player({
         // fMP4 (HEVC/AV1-capable devices) muxes into one 'audiovideo' buffer.
         if (!watch || (a.type !== 'video' && a.type !== 'audiovideo')) return
         if (!forced && covers(a.timeRanges[a.type], v.currentTime)) stuck = 0
-        else if (++stuck >= STUCK_APPENDS)
-          if (raw) rawErr()
-          else fallback('fallback: video transcode', { video: false })
+        else if (++stuck >= STUCK_APPENDS) failed('stuck')
       })
       seekTo = undefined
       h.attachMedia(v)
@@ -477,26 +481,6 @@ export function Player({
     const refused = (e: Error) => {
       event(`autoplay blocked: ${e.name}`)
       setBlocked(true)
-    }
-
-    const fail = (msg: string) =>
-      setErr(
-        new AppError(
-          'playback',
-          escalated ? `${msg} (even in compatible mode)` : msg,
-        ),
-      )
-    // A failure: the next fallback (`less`), else the compatible profile once
-    // (#238), else the error. Without `less` only a fallback-to-be escalates.
-    const fallback = (why: string, less?: Partial<Copy>) => {
-      if (escalated) return fail(less ? 'Playback failed' : why)
-      if (!escalates(copy, compatible))
-        return less ? reload(why, less) : fail(why)
-      compatible = escalated = true
-      reload(`fallback: compatible (after ${why})`, {
-        video: false,
-        audio: false,
-      })
     }
 
     // Restarts at the playhead: with less stream copy (the fallbacks), another

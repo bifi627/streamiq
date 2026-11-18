@@ -3,10 +3,21 @@
 //   for it, locally started on first use (stack.ts). Any spec that starts a
 //   gateway asks for it; a local run of specs that don't never starts Jellyfin.
 // - paired: a signed-in browser paired with its own fresh gateway.
+// - sharedPaired: the same, but one user, gateway and paired context per worker
+//   (#506); each test gets a fresh page with localStorage cleared. Only for
+//   tests that read: they don't play (resume and watched state are per user in
+//   Jellyfin), pair, unpair, rename or remove anything, and change no gateway
+//   state. Anything else uses `paired`.
 // A serial lane, if one is ever needed: Playwright's own `{ lock: 'jellyfin' }`
 // in the test details (no harness code).
-import { test as base, type BrowserContext, type Page } from '@playwright/test'
 import {
+  test as base,
+  expect,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test'
+import {
+  appUrl,
   newContext,
   onboardGateway,
   pair,
@@ -24,7 +35,10 @@ type Paired = {
   gatewayCtx: BrowserContext // where the local gateway page opens (pair())
 }
 
-export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
+export const test = base.extend<
+  { paired: Paired; sharedPaired: Paired },
+  { jellyfin: string; pairing: Pairing }
+>({
   jellyfin: [
     async ({}, use, { parallelIndex }) => {
       // CI: global setup started one per worker (#494); a worker restarted
@@ -82,5 +96,46 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
       }
     }
   },
+  // One pairing per worker (#506): the client key lives in this context's
+  // IndexedDB, so the context stays open for the worker's tests. A worker
+  // restarted after a failure pairs anew.
+  pairing: [
+    async ({ browser, jellyfin: _ }, use) => {
+      const user = await signUp(uniqueEmail('shared'))
+      const gateway = await onboardGateway(user)
+      const gatewayCtx = await newContext(browser)
+      let page: Page | undefined
+      try {
+        if (gateway.pageCookie)
+          await gatewayCtx.addCookies([gateway.pageCookie]) // docker mode only
+        page = await signedInPage(browser, user, '/gateways')
+        await pair(page, gatewayCtx, gateway.pageUrl)
+        await page.close() // each test opens its own
+        await use({ user, gateway, gatewayCtx, ctx: page.context() })
+      } finally {
+        await Promise.all([gatewayCtx.close(), page?.context().close()])
+        await gateway.stop()
+      }
+    },
+    { scope: 'worker' },
+  ],
+  sharedPaired: async ({ pairing }, use) => {
+    const { ctx, ...rest } = pairing
+    try {
+      const page = await ctx.newPage()
+      await page.goto(appUrl('/gateways'))
+      // Per-device settings (quality, data saver, compatible mode, the speed
+      // hint, …) start clean; sign-in and the client key are in IndexedDB.
+      await page.evaluate(() => localStorage.clear())
+      await page.reload()
+      await expect(
+        page.locator('li.card').getByRole('button', { name: 'Open' }),
+      ).toBeVisible()
+      await use({ ...rest, page })
+    } finally {
+      await Promise.all(ctx.pages().map((p) => p.close())) // a test's tabs too
+      await ctx.clearPermissions()
+    }
+  },
 })
-export { expect } from '@playwright/test'
+export { expect }

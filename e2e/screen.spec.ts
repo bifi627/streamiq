@@ -1,5 +1,6 @@
 // Screen mode (#180, #181, #248), on a paired browser with its own gateway
-// (fixtures.ts `paired`): the entry, Play on…, the phone remote's commands, two
+// (fixtures.ts `paired`; `sharedPaired` for the entry, which only reads, #506):
+// the entry, Play on…, the phone remote's commands, two
 // phones, closing. TV = the fixture's page; phones = more tabs of the same
 // paired browser (each its own tunnel session). Refusals, another user's screen
 // and the relay between sessions are Go tests (tunnel/screen_test.go,
@@ -62,7 +63,7 @@ const cue = (tv: Page) =>
   )
 
 test('entry (#248): the gateway card always, the library only in TV mode @player', async ({
-  paired,
+  sharedPaired: paired,
 }) => {
   const { page } = paired
   await openLibrary(page)

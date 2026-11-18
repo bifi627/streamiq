@@ -1,5 +1,6 @@
 // The gateways page (#408), on a paired browser with its own gateway (fixtures.ts
-// `paired`): rename (#310, #329), Status paired and unpaired (#140), the nav chip's
+// `paired`; `sharedPaired` for the tests that only read, #506): rename (#310,
+// #329), Status paired and unpaired (#140), the nav chip's
 // dot (#206), paired clients (#311, #365), the member view (#190), Reject on the
 // local gateway page, and a refused broker socket (#403). Onboarding, Approve,
 // Test connection and the removes that end sessions are the golden path's; the
@@ -63,7 +64,7 @@ test('rename: shown once paired, Escape cancels, Enter saves a trimmed name @gat
 })
 
 test('status, paired: details from the gateway API (#140) @gateways', async ({
-  paired,
+  sharedPaired: paired,
 }) => {
   const { page } = paired
   await card(page).getByText('Status', { exact: true }).click()
@@ -81,7 +82,7 @@ test('status, paired: details from the gateway API (#140) @gateways', async ({
 
 test('status, unpaired: liveness only, details need pairing (#140) @gateways', async ({
   browser,
-  paired,
+  sharedPaired: paired,
 }) => {
   const b = await second(browser, paired.user)
   await card(b).getByText('Status', { exact: true }).click()
@@ -93,7 +94,7 @@ test('status, unpaired: liveness only, details need pairing (#140) @gateways', a
 })
 
 test("status dot: a gateway route's nav chip shows its name, online (#206) @gateways", async ({
-  paired,
+  sharedPaired: paired,
 }) => {
   const { page, user } = paired
   const [g] = await user.api<{ name: string }[]>('/gateways')

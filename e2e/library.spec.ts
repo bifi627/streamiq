@@ -7,7 +7,13 @@
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
-import { appUrl, openLibrary as open, videoTime } from './helpers.ts'
+import {
+  appUrl,
+  keepPcs,
+  openLibrary as open,
+  videoTime,
+  viaTunnel,
+} from './helpers.ts'
 
 const movies = (p: Page) => p.getByRole('button', { name: /Movies/ })
 const recent = (p: Page) =>
@@ -128,22 +134,35 @@ test('continue watching: newest first; the click-through guard keeps the order (
   paired,
 }) => {
   const { page: a } = paired
+  await keepPcs(a) // viaTunnel
+  await a.reload()
   await open(a)
   const tile = (name: string) => recent(a).getByRole('button', { name }).click()
   const spot = a.locator('.spot h2')
-  // The clip sorts first by name; played second, the mp2 one is the spot.
-  for (const name of ['streamiq e2e clip', 'streamiq e2e mp2 default']) {
-    await tile(name)
-    await play(a) // → movie page
-    await a.goBack() // → library home
-  }
-  // The exit save is fire-and-forget: a reload can close the tunnel first.
-  await expect(async () => {
-    await a.reload()
-    await expect(spot).toHaveText('streamiq e2e mp2 default', {
-      timeout: 3000,
+  // Arrange over the tunnel, no player exit save to race (#477): both
+  // part-played, the mp2 one played last, so it is the spot although the clip
+  // sorts first by name.
+  const { Items } = JSON.parse(
+    (
+      await viaTunnel(
+        a,
+        '/Items?searchTerm=streamiq%20e2e&recursive=true&includeItemTypes=Movie',
+      )
+    ).body,
+  ) as { Items: { Id: string; Name: string }[] }
+  const id = (name: string) => Items.find((i) => i.Name === name)!.Id
+  for (const [name, at] of [
+    ['streamiq e2e clip', '2026-01-01T00:00:00Z'],
+    ['streamiq e2e mp2 default', '2026-01-02T00:00:00Z'],
+  ]) {
+    const r = await viaTunnel(a, `/UserItems/${id(name)}/UserData`, {
+      PlaybackPositionTicks: 20_000_000,
+      LastPlayedDate: at,
     })
-  }).toPass()
+    expect(r.status).toBe(200)
+  }
+  await a.reload()
+  await expect(spot).toHaveText('streamiq e2e mp2 default')
   // The guard: a playback shorter than 60 s saves nothing, so the clip
   // doesn't move up. Each save is a `req:/UserItems/<id>/UserData` channel:
   // record them, so a late exit save can't land after the reload below.

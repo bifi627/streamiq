@@ -1,6 +1,5 @@
 // Diagnostics (#71, #90, #230), on a paired browser with its own gateway
-// (fixtures.ts `paired`; `sharedPaired` for the tests that only read, #506):
-// the dock on the library, the /diagnostics report with
+// (fixtures.ts `paired`): the dock on the library, the /diagnostics report with
 // its connection test (direct, forced relay), Copy report, a never-paired
 // browser's report. The panel flag is arranged in localStorage (its Settings
 // toggle is shell.spec's); relay fallback itself stays in the golden path;
@@ -58,7 +57,7 @@ async function testConnection(page: Page) {
 }
 
 test('dock (#71, #230): bar, request table + log, stays open, links the report @diagnostics', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page } = paired
   await page.addInitScript(() => localStorage.setItem('streamiq.debug', '1'))
@@ -85,7 +84,7 @@ test('dock (#71, #230): bar, request table + log, stays open, links the report @
 })
 
 test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @diagnostics', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page, user } = paired
   // The broker and the gateway record tunnels; the browser never creates one (#390).
@@ -111,7 +110,7 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
 })
 
 test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page } = paired
   await page.goto(appUrl('/diagnostics'))
@@ -124,7 +123,7 @@ test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({
 })
 
 test('Copy report: the clipboard holds the report @diagnostics', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page } = paired
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -139,7 +138,7 @@ test('Copy report: the clipboard holds the report @diagnostics', async ({
 
 test('unpaired: a never-paired browser of the same user fails at connect @diagnostics', async ({
   browser,
-  sharedPaired: paired,
+  paired,
 }) => {
   const b = await signedInPage(browser, paired.user, '/diagnostics')
   await b.getByRole('button', { name: 'Test connection' }).click()

@@ -1,6 +1,5 @@
 // The library (#409), on a paired browser with its own gateway (fixtures.ts
-// `paired`; `sharedPaired` for the tests that only read, #506): `/` → the one
-// gateway's library (#225), the nav's Library link, the
+// `paired`): `/` → the one gateway's library (#225), the nav's Library link, the
 // shared session (#152), folder deep links + cache (#360), Recently added
 // (#204), Continue watching's order and click-through guard (#330), season tabs
 // and watched marks. Folder → movie → Play and the Resume spot are the golden
@@ -33,7 +32,7 @@ async function play(p: Page, secs = 2) {
 }
 
 test('home: with one gateway, / opens its library (#225) @library', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page, user } = paired
   const [g] = await user.api<{ id: string }[]>('/gateways')
@@ -43,7 +42,7 @@ test('home: with one gateway, / opens its library (#225) @library', async ({
 })
 
 test("nav: the Library link leads back to the gateway's library @library", async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page } = paired
   const id = await open(page)
@@ -56,13 +55,13 @@ test("nav: the Library link leads back to the gateway's library @library", async
 })
 
 test('library → back → library within 30 s: one shared session (#152) @library', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page: a } = paired
   let rows = 0 // one broker socket per tunnel
   const count = (ws: WebSocket) => ws.url().endsWith('/broker/ws') && rows++
   a.on('websocket', count)
-  // A fresh page: the fixture's own load may have left a session open.
+  // A fresh page: pairing left the card's own shared session open.
   await a.reload()
   await a.getByRole('button', { name: 'Open' }).click()
   await expect(movies(a)).toBeVisible()
@@ -74,7 +73,7 @@ test('library → back → library within 30 s: one shared session (#152) @libra
 })
 
 test('folders: a deep link that survives a reload, back from the cache (#360) @library', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page: a } = paired
   await open(a)
@@ -110,7 +109,7 @@ test('folders: a deep link that survives a reload, back from the cache (#360) @l
 })
 
 test('recently added: the fixture items; a movie opens its page (#204) @library', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page } = paired
   await open(page)
@@ -191,7 +190,7 @@ test('continue watching: newest first; the click-through guard keeps the order (
 })
 
 test('seasons: tabs, Season 1 first with its episodes, Season 2 on a click @library', async ({
-  sharedPaired: paired,
+  paired,
 }) => {
   const { page } = paired
   await open(page)

@@ -130,37 +130,20 @@ export async function startGateway(
   await waitHttp(pageUrl, p, undefined, headers)
   // First start: connect Jellyfin the way a person does, with an admin login on
   // the local page; the gateway keeps only its viewer token (state/jellyfin.json).
-  if (!fs.existsSync(path.join(stateDir, 'jellyfin.json')))
-    await jellyfinLogin(pageUrl, pageCookie)
+  if (!fs.existsSync(path.join(stateDir, 'jellyfin.json'))) {
+    const res = await fetch(pageUrl + '/jellyfin/login', {
+      method: 'POST',
+      headers: { Origin: pageUrl, ...headers },
+      body: new URLSearchParams(JELLYFIN_ADMIN),
+      redirect: 'manual',
+    })
+    if (res.status !== 303) {
+      throw new Error(
+        `gateway Jellyfin login: HTTP ${res.status} ${await res.text()}`,
+      )
+    }
+  }
   return { ...p, pageUrl, pageCookie }
-}
-
-/** jellyfinLogin calls in this worker (one Jellyfin per worker, fixtures.ts). */
-export let jellyfinLogins = 0
-
-/**
- * The local page's Jellyfin admin login. Each one resets the gateway's hidden
- * Jellyfin users' passwords, which locks out any other gateway on that Jellyfin
- * (fixtures.ts) until it logs in again.
- */
-export async function jellyfinLogin(
-  pageUrl: string,
-  cookie?: { name: string; value: string },
-) {
-  const res = await fetch(pageUrl + '/jellyfin/login', {
-    method: 'POST',
-    headers: {
-      Origin: pageUrl,
-      ...(cookie && { Cookie: `${cookie.name}=${cookie.value}` }),
-    },
-    body: new URLSearchParams(JELLYFIN_ADMIN),
-    redirect: 'manual',
-  })
-  if (res.status !== 303)
-    throw new Error(
-      `gateway Jellyfin login: HTTP ${res.status} ${await res.text()}`,
-    )
-  jellyfinLogins++
 }
 
 /**

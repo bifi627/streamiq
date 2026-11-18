@@ -3,31 +3,23 @@ import path from 'node:path'
 import type { FullConfig } from '@playwright/test'
 import { fixtureMedia, startStack } from './stack.ts'
 
-// The area tags whose specs start a gateway, so a Jellyfin (playwright.config.ts).
-// @households and @shell never do.
-const JELLYFIN_AREAS = [
-  '@golden',
-  '@gateways',
-  '@library',
-  '@player',
-  '@diagnostics',
-  '@compat',
-]
+// The area tags whose specs never start a gateway, so never a Jellyfin
+// (playwright.config.ts lists them all).
+const NO_JELLYFIN_AREAS = ['@households', '@shell']
 
 /**
- * Can this run need a Jellyfin? Yes unless its --grep matches none of
- * JELLYFIN_AREAS. Global setup runs in the runner process, whose argv carries
- * the CLI's --grep (FullConfig.grep doesn't: it stays the config's match-all).
- * ponytail: a grep matching no area tag (a title word) skips the encode here;
- * a worker that needs Jellyfin then encodes the fixtures itself (slower, still
- * right). File arguments are ignored: no --grep, so it encodes.
+ * Can this run need a Jellyfin? Yes unless its --grep is just NO_JELLYFIN_AREAS
+ * tags (`@households`, `@shell|@households`). Global setup runs in the runner
+ * process, whose argv carries the CLI's --grep (FullConfig.grep doesn't: it
+ * stays the config's match-all). Any other grep, or none, encodes: a plain
+ * string check, no RegExp built from argv.
  */
 function mayNeedJellyfin() {
   const a = process.argv
   const i = a.findIndex((x) => x === '--grep' || x === '-g')
   const grep =
     i >= 0 ? a[i + 1] : a.find((x) => x.startsWith('--grep='))?.slice(7)
-  return !grep || JELLYFIN_AREAS.some((t) => new RegExp(grep).test(t))
+  return !grep?.split('|').every((t) => NO_JELLYFIN_AREAS.includes(t.trim()))
 }
 
 export default async function globalSetup(config: FullConfig) {

@@ -42,7 +42,7 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
       // back; the next test in its worker gets the same Jellyfin.
       // Started here, in the worker: testcontainers shares the runner's Ryuk,
       // which reaps it with the rest of the stack if this worker is killed.
-      const jf = await startJellyfin() // sets E2E_JELLYFIN_URL (startGateway reads it)
+      const jf = await startJellyfin({}, undefined, `jellyfin ${parallelIndex}`) // sets E2E_JELLYFIN_URL (startGateway reads it)
       await use(jf.url)
       await jf.container.stop()
     },

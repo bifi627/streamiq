@@ -35,6 +35,7 @@ type Paired = {
   gatewayCtx: BrowserContext // where the local gateway page opens (pair())
 }
 type Pairing = Omit<Paired, 'page'> & { ctx: BrowserContext }
+const secs = (ms: number) => (ms / 1000).toFixed(1)
 
 export const test = base.extend<
   { paired: Paired; sharedPaired: Paired },
@@ -92,9 +93,8 @@ export const test = base.extend<
       // One line per test (#506): what this fixture costs, summed from the CI log.
       if (t3) {
         const t5 = Date.now()
-        const s = (ms: number) => (ms / 1000).toFixed(1)
         console.log(
-          `paired: signup ${s(t1 - t0)}s gateway ${s(t2 - t1)}s pairing ${s(t3 - t2)}s teardown ${s(t5 - t4)}s total ${s(t3 - t0 + t5 - t4)}s :: ${testInfo.titlePath.slice(1).join(' > ')}`,
+          `paired: signup ${secs(t1 - t0)}s gateway ${secs(t2 - t1)}s pairing ${secs(t3 - t2)}s teardown ${secs(t5 - t4)}s total ${secs(t3 - t0 + t5 - t4)}s :: ${testInfo.titlePath.slice(1).join(' > ')}`,
         )
       }
     }
@@ -104,6 +104,7 @@ export const test = base.extend<
   // restarted after a failure pairs anew.
   pairing: [
     async ({ browser, jellyfin: _ }, use) => {
+      const t0 = Date.now()
       const user = await signUp(uniqueEmail('shared'))
       const gateway = await onboardGateway(user)
       const gatewayCtx = await newContext(browser)
@@ -114,6 +115,7 @@ export const test = base.extend<
         page = await signedInPage(browser, user, '/gateways')
         await pair(page, gatewayCtx, gateway.pageUrl)
         await page.close() // each test opens its own
+        console.log(`pairing (worker): total ${secs(Date.now() - t0)}s`)
         await use({ user, gateway, gatewayCtx, ctx: page.context() })
       } finally {
         await Promise.all([gatewayCtx.close(), page?.context().close()])
@@ -122,12 +124,15 @@ export const test = base.extend<
     },
     { scope: 'worker' },
   ],
-  sharedPaired: async ({ pairing }, use) => {
+  sharedPaired: async ({ pairing }, use, testInfo) => {
+    const t0 = Date.now()
     const { ctx, ...rest } = pairing
     // A `paired` test since the last one started a gateway on this worker's
     // Jellyfin, whose login reset the shared viewer and admin passwords: log
     // this gateway in again, as a person would on its local page.
     await jellyfinLogin(rest.gateway.pageUrl, rest.gateway.pageCookie)
+    const t1 = Date.now()
+    let t2 = 0 // page ready at
     try {
       const page = await ctx.newPage()
       await page.goto(appUrl('/gateways'))
@@ -138,10 +143,18 @@ export const test = base.extend<
       await expect(
         page.locator('li.card').getByRole('button', { name: 'Open' }),
       ).toBeVisible()
+      t2 = Date.now()
       await use({ ...rest, page })
     } finally {
+      const t3 = Date.now()
       await Promise.all(ctx.pages().map((p) => p.close())) // a test's tabs too
       await ctx.clearPermissions()
+      if (t2) {
+        const t4 = Date.now()
+        console.log(
+          `sharedPaired: login ${secs(t1 - t0)}s page ${secs(t2 - t1)}s teardown ${secs(t4 - t3)}s total ${secs(t2 - t0 + t4 - t3)}s :: ${testInfo.titlePath.slice(1).join(' > ')}`,
+        )
+      }
     }
   },
 })

@@ -317,6 +317,12 @@ func TestOutOfOrderAuthRefused(t *testing.T) {
 	if m := b.say(map[string]any{"type": "reveal", "n": pairing.Nonce()}); m["type"] != "rejected" {
 		t.Fatalf("reveal before commit = %v, want rejected", m)
 	}
+	b, _ = unpaired(t, gateway, "two-reveals")
+	_, nB := b.commit()
+	b.send(map[string]any{"type": "reveal", "n": nB})
+	if m := b.say(map[string]any{"type": "reveal", "n": nB}); m["type"] != "rejected" {
+		t.Fatalf("second reveal = %v, want rejected", m)
+	}
 	slotsFree(t, store)
 }
 

@@ -111,6 +111,8 @@ func TestAllowlist(t *testing.T) {
 		{"GET", "foo:/UserViews", false},           // a scheme, no host
 		{"GET", "//evil.example/UserViews", false}, // scheme-relative: a host, no scheme
 		{"GET", "//user@evil.example/UserViews", false},
+		{"GET", "//user@/UserViews", false}, // userinfo, no host
+		{"GET", "/UserView%73", false},      // percent-encoded, clean once decoded
 		{"GET", "/Items/not-an-id", false},
 	} {
 		rt, _ := fakeRoot(t)

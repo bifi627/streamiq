@@ -56,7 +56,9 @@ you run in; a worker started by an orchestrator reports there.
 
 - Follow CLAUDE.md fully (acceptance criteria, out of scope, no drive-by fixes,
   `bash scripts/check.sh` run and read, changed flow actually driven, docs updated in
-  the same diff).
+  the same diff). Its e2e stage: `E2E_GREP='@area|…'` with the area tags the diff touches,
+  `SKIP_E2E=1` for a diff without e2e impact; never the full local e2e run unless the
+  owner asks (CI runs every spec once the PR is ready).
 - If blocked or the spec turns out to be wrong: stop, comment on the issue what's
   unclear, and ask the owner in the thread
   with AskUserQuestion (the options you see, your pick first).

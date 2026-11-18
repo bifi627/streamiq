@@ -53,10 +53,10 @@ type Report struct {
 }
 
 type Sessions struct {
-	Cert     *webrtc.Certificate
-	Fp       string // our DTLS fingerprint
-	Store    *pairing.Store
-	Jellyfin *tunnel.Jellyfin // the tunnel's origin + policy
+	Cert  *webrtc.Certificate
+	Fp    string // our DTLS fingerprint
+	Store *pairing.Store
+	Root  *tunnel.Root // the tunnel's root handler: gateway API + Jellyfin
 	// Viewers makes sure a user has their own Jellyfin viewer (#195), once the
 	// session's device is paired: an offer alone (the API) makes nothing. nil = none.
 	Viewers func(user string)
@@ -256,7 +256,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
 			s.serveAuth(id, user, pc, d, &authed, &why)
 		case d.Label() != "auth" && authed.Load():
-			tunnel.Serve(d, s.Jellyfin, tunnel.Session{ID: id, User: user, Role: role, Key: s.key(id), Name: func() string { return s.name(id) }, Route: func() string { return route(pc, &cands) }}, slots)
+			tunnel.Serve(d, s.Root, tunnel.Session{ID: id, User: user, Role: role, Key: s.key(id), Name: func() string { return s.name(id) }, Route: func() string { return route(pc, &cands) }}, slots)
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`; a second `auth`: never
 		}

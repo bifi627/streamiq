@@ -13,7 +13,7 @@ import (
 func call(t *testing.T, method, url, body string, who Session) (int, io.ReadCloser) {
 	t.Helper()
 	raw, _ := json.Marshal(tunnelReq{Method: method, URL: url, Body: body})
-	status, _, rc, _ := run(&Jellyfin{}, raw, who) // screens never touch Jellyfin
+	status, _, rc, _ := run(&Root{Jellyfin: &Jellyfin{}}, raw, who) // screens never touch Jellyfin
 	return status, rc
 }
 

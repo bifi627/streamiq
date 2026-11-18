@@ -75,13 +75,33 @@ type tunnelReq struct {
 	Body    string            `json:"body,omitempty"` // small JSON (POST), ≤ MaxBody
 }
 
-// Serve treats the channel's first message as an HTTP request, proxies it
-// to Jellyfin, and streams the response back. One channel == one request/response.
+// Root is the tunnel's root handler: the /streamiq prefix (any spelling, so
+// none of it reaches Jellyfin) goes to the gateway API, the rest to Jellyfin.
+type Root struct {
+	// API answers /streamiq/* (api.go); nil = the gateway-native endpoints only.
+	API      *Router
+	Jellyfin *Jellyfin // the tunnel's only origin + its policy
+}
+
+func (rt *Root) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !isGatewayAPI(r.URL.Path) {
+		rt.Jellyfin.ServeHTTP(w, r)
+		return
+	}
+	api := rt.API
+	if api == nil {
+		api = builtin
+	}
+	api.ServeHTTP(w, r)
+}
+
+// Serve treats the channel's first message as an HTTP request, serves it on
+// root (gateway API or Jellyfin), and streams the response back. One channel == one request/response.
 // slots (cap MaxChannels, one per PeerConnection) counts the channels being
 // served: a channel that finds it full is closed without reading a request; a
 // served one gives its slot back when its request ends, or when the channel
 // closes without one.
-func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session, slots chan struct{}) {
+func Serve(d *webrtc.DataChannel, root *Root, who Session, slots chan struct{}) {
 	select {
 	case slots <- struct{}{}:
 	default:
@@ -101,19 +121,18 @@ func Serve(d *webrtc.DataChannel, j *Jellyfin, who Session, slots chan struct{})
 		once.Do(func() {
 			go func() {
 				defer free()
-				handleReq(d, j, m.Data, who)
+				handleReq(d, root, m.Data, who)
 			}()
 		})
 	})
 }
 
-// handleReq serves one request frame on j (the root handler: gateway API or
-// Jellyfin) with a ResponseWriter that sends the frames itself. It ends with an
-// explicit EOF frame (or an error frame when the body broke off part-way) and
+// handleReq serves one request frame on root with a ResponseWriter that sends
+// the frames itself. It ends with an explicit EOF frame (or an error frame when the body broke off part-way) and
 // lets the browser close the channel: closing right after the last frame loses
 // it on old Chromium (Chrome 87 on webOS drops frames still in flight on a
 // remote close, #71/#72).
-func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
+func handleReq(d *webrtc.DataChannel, root *Root, raw []byte, who Session) {
 	w := &frameWriter{d: d, hdr: http.Header{}, wait: Gate(d, who.Closed)}
 	st := &reqState{who: who}
 	defer func() {
@@ -147,7 +166,7 @@ func handleReq(d *webrtc.DataChannel, j *Jellyfin, raw []byte, who Session) {
 			w.WriteHeader(http.StatusBadGateway) // no-op once the head is out
 		}
 	}()
-	serve(w, j, raw, st)
+	serve(w, root, raw, st)
 }
 
 // serve decodes the request frame into an *http.Request (st in its context)

@@ -22,10 +22,10 @@ const (
 	vid = "aad7cecccec3a4dc85db63021e5bfd99"
 )
 
-// fakeJellyfin serves a range-able /Videos file,
+// fakeRoot is a Root on a fake Jellyfin that serves a range-able /Videos file,
 // a playlist that echoes the token (like Jellyfin's subtitle URIs), and
 // records the last request so tests can see what the gateway forwarded.
-func fakeJellyfin(t *testing.T) (*Jellyfin, *http.Request) {
+func fakeRoot(t *testing.T) (*Root, *http.Request) {
 	t.Helper()
 	payload := bytes.Repeat([]byte("data-"), 400) // 2000 bytes
 	last := &http.Request{}
@@ -56,17 +56,17 @@ func fakeJellyfin(t *testing.T) (*Jellyfin, *http.Request) {
 	t.Cleanup(srv.Close)
 	j := &Jellyfin{Client: http.DefaultClient, URL: srv.URL}
 	j.SetKey(key, uid)
-	return j, last
+	return &Root{Jellyfin: j}, last
 }
 
 // Seek survives the tunnel: a Range request comes back 206 with the right bytes.
 func TestProxyRangePassthrough(t *testing.T) {
-	j, _ := fakeJellyfin(t)
-	status, hdr, body := do(t, j, tunnelReq{Method: "GET", URL: "/Videos/" + vid + "/hls1/main/0.ts"})
+	rt, _ := fakeRoot(t)
+	status, hdr, body := do(t, rt, tunnelReq{Method: "GET", URL: "/Videos/" + vid + "/hls1/main/0.ts"})
 	if status != 200 || len(body) != 2000 || hdr["Content-Length"] != "2000" {
 		t.Fatalf("full GET = %d, %d bytes, Content-Length %q", status, len(body), hdr["Content-Length"])
 	}
-	status, hdr, part := do(t, j, tunnelReq{
+	status, hdr, part := do(t, rt, tunnelReq{
 		Method: "GET", URL: "/Videos/" + vid + "/hls1/main/0.ts",
 		Headers: map[string]string{"Range": "bytes=0-99"},
 	})
@@ -112,9 +112,9 @@ func TestAllowlist(t *testing.T) {
 		{"GET", "//user@evil.example/UserViews", false},
 		{"GET", "/Items/not-an-id", false},
 	} {
-		j, _ := fakeJellyfin(t)
+		rt, _ := fakeRoot(t)
 		raw, _ := json.Marshal(tunnelReq{Method: c.method, URL: c.url})
-		status, _, body, err := run(j, raw, Session{})
+		status, _, body, err := run(rt, raw, Session{})
 		if body != nil {
 			body.Close()
 		}
@@ -127,8 +127,8 @@ func TestAllowlist(t *testing.T) {
 // The browser's credentials never reach Jellyfin; the gateway's token does, the
 // request is pinned to the token's user, and echoed tokens are redacted.
 func TestCredentialsAndUser(t *testing.T) {
-	j, last := fakeJellyfin(t)
-	status, hdr, body := do(t, j, tunnelReq{
+	rt, last := fakeRoot(t)
+	status, hdr, body := do(t, rt, tunnelReq{
 		Method: "GET",
 		URL:    "/Videos/" + vid + "/master.m3u8?api_key=stolen&ApiKey=stolen&UserId=someone-else&mediaSourceId=" + vid,
 		Headers: map[string]string{
@@ -156,24 +156,24 @@ func TestCredentialsAndUser(t *testing.T) {
 }
 
 func TestPostBody(t *testing.T) {
-	j, last := fakeJellyfin(t)
-	do(t, j, tunnelReq{Method: "POST", URL: "/UserItems/" + vid + "/UserData", Body: `{"PlaybackPositionTicks":10}`})
+	rt, last := fakeRoot(t)
+	do(t, rt, tunnelReq{Method: "POST", URL: "/UserItems/" + vid + "/UserData", Body: `{"PlaybackPositionTicks":10}`})
 	if last.Header.Get("X-Test-Body") != `{"PlaybackPositionTicks":10}` || last.Header.Get("Content-Type") != "application/json" {
 		t.Fatalf("forwarded body %q, type %q", last.Header.Get("X-Test-Body"), last.Header.Get("Content-Type"))
 	}
 	raw, _ := json.Marshal(tunnelReq{Method: "POST", URL: "/Items/" + vid + "/PlaybackInfo", Body: strings.Repeat("x", MaxBody+1)})
-	if status, _, _, err := run(j, raw, Session{}); status != http.StatusRequestEntityTooLarge || err == nil {
+	if status, _, _, err := run(rt, raw, Session{}); status != http.StatusRequestEntityTooLarge || err == nil {
 		t.Fatalf("oversized body: status %d", status)
 	}
 }
 
 // No token (or a token without its user) refuses instead of guessing a user.
 func TestNoToken(t *testing.T) {
-	j, _ := fakeJellyfin(t)
+	rt, _ := fakeRoot(t)
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: "/UserViews"})
 	for _, c := range []struct{ key, user string }{{"", ""}, {key, ""}, {"", uid}} {
-		j.SetKey(c.key, c.user)
-		if status, _, _, _ := run(j, raw, Session{}); status != http.StatusServiceUnavailable {
+		rt.Jellyfin.SetKey(c.key, c.user)
+		if status, _, _, _ := run(rt, raw, Session{}); status != http.StatusServiceUnavailable {
 			t.Errorf("SetKey(%q, %q): status %d, want 503", c.key, c.user, status)
 		}
 	}
@@ -182,13 +182,13 @@ func TestNoToken(t *testing.T) {
 // The burst endpoint (#90) is served by the gateway itself: no Jellyfin call,
 // works without a token, size defaults and is capped; other methods/paths don't hit it.
 func TestBurst(t *testing.T) {
-	j, last := fakeJellyfin(t)
-	j.SetKey("", "") // no Jellyfin token needed
-	status, hdr, body := do(t, j, tunnelReq{Method: "GET", URL: BurstPath})
+	rt, last := fakeRoot(t)
+	rt.Jellyfin.SetKey("", "") // no Jellyfin token needed
+	status, hdr, body := do(t, rt, tunnelReq{Method: "GET", URL: BurstPath})
 	if status != 200 || len(body) != BurstDefault || hdr["Content-Length"] != fmt.Sprint(BurstDefault) || last.URL != nil {
 		t.Fatalf("default burst = %d, %d bytes, %v, jellyfin hit %v", status, len(body), hdr, last.URL)
 	}
-	if status, _, body := do(t, j, tunnelReq{Method: "GET", URL: BurstPath + "?size=1000"}); status != 200 || len(body) != 1000 {
+	if status, _, body := do(t, rt, tunnelReq{Method: "GET", URL: BurstPath + "?size=1000"}); status != 200 || len(body) != 1000 {
 		t.Fatalf("size=1000 = %d, %d bytes", status, len(body))
 	}
 	for _, rq := range []tunnelReq{
@@ -197,7 +197,7 @@ func TestBurst(t *testing.T) {
 		{Method: "GET", URL: BurstPath + "?size=lots"},
 	} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, err := run(j, raw, Session{}); status != http.StatusBadRequest || err == nil {
+		if status, _, _, err := run(rt, raw, Session{}); status != http.StatusBadRequest || err == nil {
 			t.Errorf("%s: status %d, want 400", rq.URL, status)
 		}
 	}
@@ -205,7 +205,7 @@ func TestBurst(t *testing.T) {
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: fmt.Sprintf("%s?size=%d", BurstPath, BurstMax)})
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	_, _, big, err := run(j, raw, Session{})
+	_, _, big, err := run(rt, raw, Session{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestBurst(t *testing.T) {
 	}
 	for _, rq := range []tunnelReq{{Method: "POST", URL: BurstPath}, {Method: "GET", URL: "/streamiq/%62urst"}} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, _ := run(j, raw, Session{}); status == 200 {
+		if status, _, _, _ := run(rt, raw, Session{}); status == 200 {
 			t.Errorf("%s %s: got 200", rq.Method, rq.URL)
 		}
 	}
@@ -226,16 +226,16 @@ func TestBurst(t *testing.T) {
 // Jellyfin (any spelling of the prefix, any method), unknown paths are 404, a
 // wrong method (HEAD included) 405 + Allow (#436), and status is built per request without a Jellyfin token.
 func TestGatewayAPI(t *testing.T) {
-	j, last := fakeJellyfin(t)
-	j.SetKey("", "")
+	rt, last := fakeRoot(t)
+	rt.Jellyfin.SetKey("", "")
 	n := 0
-	j.API = NewRouter()
-	j.API.Handle("GET "+StatusPath, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	rt.API = NewRouter()
+	rt.API.Handle("GET "+StatusPath, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
 		JSON(w, http.StatusOK, map[string]any{"transcoding": "nvenc", "user": SessionOf(r).User})
 	}))
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: StatusPath})
-	status, hdr, rc, err := run(j, raw, Session{User: "u1"}) // built for the session's user (#242)
+	status, hdr, rc, err := run(rt, raw, Session{User: "u1"}) // built for the session's user (#242)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +243,7 @@ func TestGatewayAPI(t *testing.T) {
 	if status != 200 || hdr["Content-Type"] != "application/json" || string(body) != `{"transcoding":"nvenc","user":"u1"}` || n != 1 {
 		t.Fatalf("status = %d %v %s (built %d times)", status, hdr, body, n)
 	}
-	j.SetKey(key, uid) // a token would let a forwarded request through: none may be
+	rt.Jellyfin.SetKey(key, uid) // a token would let a forwarded request through: none may be
 	for _, rq := range []tunnelReq{
 		{Method: "GET", URL: "/streamiq/nope"},
 		{Method: "GET", URL: "/streamiq"},
@@ -256,7 +256,7 @@ func TestGatewayAPI(t *testing.T) {
 		{Method: "POST", URL: ScreensPath + "/a/b"},
 	} {
 		raw, _ := json.Marshal(rq)
-		if status, _, _, _ := run(j, raw, Session{}); status != http.StatusNotFound {
+		if status, _, _, _ := run(rt, raw, Session{}); status != http.StatusNotFound {
 			t.Errorf("%s %s: status %d, want 404", rq.Method, rq.URL, status)
 		}
 	}
@@ -269,7 +269,7 @@ func TestGatewayAPI(t *testing.T) {
 		{"HEAD", ScreensPath + "/a", "POST"},
 	} {
 		raw, _ := json.Marshal(tunnelReq{Method: c.method, URL: c.url})
-		status, hdr, body, _ := run(j, raw, Session{})
+		status, hdr, body, _ := run(rt, raw, Session{})
 		b, _ := io.ReadAll(body)
 		if status != http.StatusMethodNotAllowed || hdr["Allow"] != c.allow || len(b) != 0 || len(hdr) != 1 {
 			t.Errorf("%s %s: status %d %v %q, want 405 Allow: %s", c.method, c.url, status, hdr, b, c.allow)
@@ -301,7 +301,7 @@ func (w *pipeWriter) Write(b []byte) (int, error) { w.WriteHeader(200); return w
 // run serves the request frame raw the way handleReq does, returning once the
 // head is set; the body streams from the reader (closing it ends the handler's
 // next Write; who.Closed is what ends its context). err is set for a refusal (4xx/5xx).
-func run(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.ReadCloser, error) {
+func run(rt *Root, raw []byte, who Session) (int, map[string]string, io.ReadCloser, error) {
 	pr, pw := io.Pipe()
 	w := &pipeWriter{hdr: http.Header{}, pw: pw, head: make(chan struct{})}
 	go func() {
@@ -313,7 +313,7 @@ func run(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.ReadC
 			}
 			pw.Close()
 		}()
-		serve(w, j, raw, &reqState{who: who})
+		serve(w, rt, raw, &reqState{who: who})
 	}()
 	<-w.head
 	var err error
@@ -323,10 +323,10 @@ func run(j *Jellyfin, raw []byte, who Session) (int, map[string]string, io.ReadC
 	return w.status, firstValues(w.hdr), pr, err
 }
 
-func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte) {
+func do(t *testing.T, rt *Root, rq tunnelReq) (int, map[string]string, []byte) {
 	t.Helper()
 	raw, _ := json.Marshal(rq)
-	status, hdr, body, err := run(j, raw, Session{})
+	status, hdr, body, err := run(rt, raw, Session{})
 	if err != nil {
 		t.Fatalf("proxy %s %s: %v", rq.Method, rq.URL, err)
 	}
@@ -338,12 +338,12 @@ func do(t *testing.T, j *Jellyfin, rq tunnelReq) (int, map[string]string, []byte
 // An endpoint marked admin-only (#194) answers a household admin and refuses a
 // member (or a session without a role) with 403; unmarked ones answer both.
 func TestAdminOnly(t *testing.T) {
-	j, _ := fakeJellyfin(t)
-	j.API = NewRouter()
-	j.API.Handle("GET "+StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { JSON(w, 200, map[string]any{}) }), AdminOnly)
+	rt, _ := fakeRoot(t)
+	rt.API = NewRouter()
+	rt.API.Handle("GET "+StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { JSON(w, 200, map[string]any{}) }), AdminOnly)
 	call := func(role, method, path string) int {
 		raw, _ := json.Marshal(tunnelReq{Method: method, URL: path})
-		status, _, body, _ := run(j, raw, Session{Role: role})
+		status, _, body, _ := run(rt, raw, Session{Role: role})
 		if body != nil {
 			body.Close()
 		}
@@ -397,7 +397,7 @@ func TestBlockedStreamEndsOnClose(t *testing.T) {
 			slots := make(chan struct{}, MaxChannels)
 			served := make(chan *webrtc.DataChannel, 1)
 			gateway.OnDataChannel(func(d *webrtc.DataChannel) {
-				Serve(d, j, Session{}, slots)
+				Serve(d, &Root{Jellyfin: j}, Session{}, slots)
 				served <- d
 			})
 			d, _ := browser.CreateDataChannel("req", nil)
@@ -473,7 +473,7 @@ func TestPerUserViewer(t *testing.T) {
 	j.SetKey(key, uid)
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: "/Videos/" + vid + "/main.m3u8"})
 	for _, c := range []struct{ user, tok, id string }{{"alice", "alicetoken", "alice-jf-id"}, {"bob", key, uid}, {"", key, uid}} {
-		status, _, body, err := run(j, raw, Session{User: c.user})
+		status, _, body, err := run(&Root{Jellyfin: j}, raw, Session{User: c.user})
 		if err != nil || status != 200 {
 			t.Fatalf("%s: %d %v", c.user, status, err)
 		}
@@ -502,7 +502,7 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 	browser, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
 	gateway, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
 	t.Cleanup(func() { browser.Close(); gateway.Close() })
-	gateway.OnDataChannel(func(d *webrtc.DataChannel) { Serve(d, j, Session{}, make(chan struct{}, 1)) })
+	gateway.OnDataChannel(func(d *webrtc.DataChannel) { Serve(d, &Root{Jellyfin: j}, Session{}, make(chan struct{}, 1)) })
 	d, _ := browser.CreateDataChannel("req", nil)
 	d.OnOpen(func() { d.SendText(`{"method":"GET","url":"/Videos/` + vid + `/hls1/main/0.ts"}`) })
 	texts := make(chan string, 4)

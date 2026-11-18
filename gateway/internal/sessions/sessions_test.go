@@ -46,7 +46,7 @@ func TestPairThenTunnel(t *testing.T) {
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
 	var vmu sync.Mutex
 	var viewers []string // users whose viewer was ensured: only once paired (#195)
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, Viewers: func(u string) {
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}, Viewers: func(u string) {
 		vmu.Lock()
 		defer vmu.Unlock()
 		viewers = append(viewers, u)
@@ -134,7 +134,7 @@ func TestRemoveClosesOpenSessions(t *testing.T) {
 	store, _ := pairing.Open(dir)
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
 	store.OnRemove = gateway.Drop
 
 	pairKey := func(id string) (*ecdsa.PrivateKey, *browser) {
@@ -197,7 +197,7 @@ func newGateway(t *testing.T) (*Sessions, *pairing.Store) {
 	dir := t.TempDir()
 	cert, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}}
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}}}
 	store.OnRemove = gateway.Drop
 	return gateway, store
 }
@@ -511,7 +511,7 @@ func TestScreenOverTunnel(t *testing.T) {
 	dir := t.TempDir()
 	cert, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}}
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}}}
 	pair := func(id, name string) *browser {
 		key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		b := connect(t, gateway, id, key, false)
@@ -533,8 +533,8 @@ func TestScreenOverTunnel(t *testing.T) {
 
 	// The offer's role stays on the session (#194): on an admin-only endpoint a
 	// member's tunnel request is refused, an admin's passes the gate.
-	gateway.Jellyfin.API = tunnel.NewRouter()
-	gateway.Jellyfin.API.Handle("GET "+tunnel.StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	gateway.Root.API = tunnel.NewRouter()
+	gateway.Root.API.Handle("GET "+tunnel.StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}), tunnel.AdminOnly)
 	for b, want := range map[*browser]string{phone: `"status":403`, pair("admin-laptop", "Laptop"): `"status":204`} {
@@ -619,8 +619,8 @@ func TestTunnelChannelCap(t *testing.T) {
 	}))
 	defer origin.Close()
 	gateway, store := newGateway(t)
-	gateway.Jellyfin.URL = origin.URL
-	gateway.Jellyfin.SetKey("k", "0123456789abcdef0123456789abcdef")
+	gateway.Root.Jellyfin.URL = origin.URL
+	gateway.Root.Jellyfin.SetKey("k", "0123456789abcdef0123456789abcdef")
 	b, _ := unpaired(t, gateway, "s1")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
@@ -677,7 +677,7 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	store, _ := pairing.Open(dir)
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf}
+	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
 	reps := make(chan Report, 4)
 	next := func() Report {
 		select {

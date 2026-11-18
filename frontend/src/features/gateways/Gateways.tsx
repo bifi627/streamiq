@@ -56,6 +56,7 @@ export function Home() {
 // updates over a socket if the list ever gets big. Add/Remove are admin-only
 // (#190): hidden for a member (the API answers 403 anyway) and until /me is in;
 // a member gets told an admin does them instead (#211).
+// oxlint-disable-next-line complexity -- render branching
 export function Gateways() {
   const q = useGateways(5000)
   const qc = useQueryClient()
@@ -210,6 +211,7 @@ export function Gateways() {
       )}
       {!!gateways?.length && (
         <ul className="cards">
+          {/* oxlint-disable-next-line complexity -- render branching */}
           {gateways.map((d) => (
             <li key={d.id} className="card" data-gateway={d.id}>
               <div className="card-head">
@@ -756,6 +758,7 @@ function Details({ g }: { g: Gateway }) {
   return s ? <StatusLines s={s} /> : <li>Details: {msg}</li>
 }
 
+// oxlint-disable-next-line complexity -- render branching
 function StatusLines({ s }: { s: GatewayStatus }) {
   const jf = s.jellyfin
   return (

@@ -249,4 +249,8 @@ Copy `.env.example` only to override.
 - **English-only UI** (#97): user-visible strings stay inline (no message map, no i18n
   library). Dates, times and numbers go through `Intl` / `toLocale*()` with the browser's
   default locale, never a hardcoded format or locale. A second language: #110.
+- **Frontend decision logic lives in `.ts`** (#532): a choice over state, an error, time or
+  ordering goes in a plain `.ts` beside the component with a `node --test`; the `.tsx` only
+  wires it (render branching stays). oxlint `complexity` ≤ 15 on `.tsx` enforces part of it;
+  a disable comment names the issue that removes it or the reason it stays.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

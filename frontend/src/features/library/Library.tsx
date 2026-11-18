@@ -186,6 +186,7 @@ const seasonName = (s: Item) =>
 // its backdrop. The primary button takes first focus (one OK press plays);
 // nothing moves focus after that, on re-renders or tab changes. Data from
 // before the last playback doesn't drive it: it waits for the refetch (#378).
+// oxlint-disable-next-line complexity -- render branching
 function Title({
   item,
   season,
@@ -695,6 +696,7 @@ const IDLE: ScreenState = {
 // Phone remote view (#181): follows the screen's state (GET /streamiq/screens
 // every second) and sends commands one at a time, in order (each POST is its
 // own channel). Two phones see the same state; the last command wins.
+// oxlint-disable-next-line complexity -- the remote's failure paths, move out in #536
 export function RemotePage({ screenId }: { screenId: string }) {
   const { gatewayId, pc } = useContext(Tunnel)
   const [screen, setScreen] = useState<Screen | null>() // null: closed

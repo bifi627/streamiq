@@ -86,6 +86,9 @@ or LOW (a SPEC); a posted finding blocks the merge and costs a fix round.
   `docs/protocol.md` for protocol); a new dependency with no justification in the PR
   body; a new or changed test that doesn't actually prove the acceptance criterion it
   is there for, or that can hang instead of fail (no timeout on a wait).
+  New branching / ordering / timer logic in a `.tsx` without a `.ts` + `node --test`
+  beside it (CLAUDE.md "Frontend decision logic lives in `.ts`"; render branching doesn't
+  count).
 - **LOW**: everything else (style, naming, simplification, defensive checks for
   impossible states, speculative edge cases, nits, "consider…"). Give each LOW one
   category from this fixed list, nothing else: `style naming dead-code simplify

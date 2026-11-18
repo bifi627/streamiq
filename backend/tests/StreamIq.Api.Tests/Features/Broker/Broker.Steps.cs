@@ -4,7 +4,11 @@ using System.Net.Http.Json;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
+using StreamIq.Api.Data;
+using StreamIq.Api.Features.Broker;
 using StreamIq.Api.Tests.Infrastructure;
 using Hub = StreamIq.Api.Features.Broker.Broker;
 
@@ -22,6 +26,8 @@ public class BrokerSteps(IntegrationFixture fx)
     private string _session = "";
     private JsonElement _offer;
     private string _offerer = "";
+    private TimeSpan? _authTimeout;   // the real one, while a scenario shortens it
+    private System.Diagnostics.Stopwatch _opened = new();
 
     // For the tunnel telemetry steps (#390), which share this scenario's sockets.
     internal Guid Session => Guid.Parse(_session);
@@ -40,6 +46,10 @@ public class BrokerSteps(IntegrationFixture fx)
         }
 
         _browser?.Dispose();
+        if (_authTimeout is { } t)
+        {
+            BrowserSocket.AuthTimeout = t;
+        }
     }
 
     [Given("\"([^\"]*)\" has an online gateway \"([^\"]*)\"")]
@@ -148,7 +158,70 @@ public class BrokerSteps(IntegrationFixture fx)
     [Then("the browser is told the gateway is offline or unknown")]
     public async Task ThenBrowserError()
     {
-        Assert.Equal("error", Assert.NotNull(await Receive(_browser)).GetProperty("type").GetString());
+        var m = Assert.NotNull(await Receive(_browser));
+        Assert.Equal("error", m.GetProperty("type").GetString());
+        Assert.Equal("gateway offline or unknown", m.GetProperty("error").GetString());
+    }
+
+    // The hash nulled as RevokeGateway does, without its kill: the race where a socket
+    // authenticated just before the revoke (or the kill missed it).
+    [When("the credential of gateway \"([^\"]*)\" is revoked, its socket left open")]
+    public async Task WhenRevokedOpen(string name)
+    {
+        using var scope = fx.Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
+        var id = _gateways[name].Id;
+        Assert.Equal(1, await db.Gateways.IgnoreQueryFilters().Where(g => g.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(g => g.CredentialHash, (string?)null)));
+        Assert.True(Hub.Gateways.ContainsKey(id));   // still routable as far as the broker's map goes
+    }
+
+    [When("gateway \"([^\"]*)\" sends a heartbeat")]
+    public Task WhenHeartbeat(string name)
+    {
+        return Send(_gateways[name].Ws, new { type = "heartbeat", protocol = GatewaySocket.MinGatewayProtocol });
+    }
+
+    [Then("gateway \"([^\"]*)\" connecting with Authorization \"([^\"]*)\" is refused")]
+    public async Task ThenHeaderRefused(string name, string header)
+    {
+        var ex = await Assert.ThrowsAnyAsync<Exception>(() => GatewayConnectWith(header.Replace("{credential}", _gateways[name].Credential)));
+        Assert.Contains("401", ex.Message);
+    }
+
+    // Shortened so the scenario doesn't wait the real 10 s; AfterScenario restores it.
+    [When("a browser opens a broker socket and sends nothing")]
+    public async Task WhenSilentBrowser()
+    {
+        _authTimeout = BrowserSocket.AuthTimeout;
+        BrowserSocket.AuthTimeout = TimeSpan.FromSeconds(1);
+        _opened = System.Diagnostics.Stopwatch.StartNew();
+        _browser = await fx.Factory.Server.CreateWebSocketClient()
+            .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
+    }
+
+    // The timed-out read aborts the socket (no close frame; TestServer surfaces that as an
+    // IOException): a close or an abort both pass, a message or 5 s of silence (under the real
+    // 10 s, so the shortened one is what fires) fail. 100 ms of slack for timer granularity.
+    [Then("the browser socket is closed after the auth timeout")]
+    public async Task ThenClosedAfterTimeout()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            Assert.Equal(WebSocketMessageType.Close, (await _browser.ReceiveAsync(new byte[1024], cts.Token)).MessageType);
+        }
+        catch (Exception e) when (e is IOException or WebSocketException) { }
+        Assert.True(_opened.Elapsed >= BrowserSocket.AuthTimeout - TimeSpan.FromMilliseconds(100),
+            $"closed after {_opened.Elapsed}, before the auth timeout");
+    }
+
+    [When("a browser opens a broker socket and first sends an offer")]
+    public async Task WhenOfferFirst()
+    {
+        _browser = await fx.Factory.Server.CreateWebSocketClient()
+            .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
+        await Send(_browser, new { type = "offer", gatewayId = Guid.NewGuid(), sdp = new { type = "offer", sdp = "v=0 fake" } });
     }
 
     // Signed up, never created or joined a household (#387).
@@ -207,7 +280,8 @@ public class BrokerSteps(IntegrationFixture fx)
     public async Task ThenGatewayDisconnected(string name, string reason)
     {
         var ws = _gateways[name].Ws;
-        var r = await ws.ReceiveAsync(new byte[1024], CancellationToken.None);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));   // a gateway left open fails, not hangs
+        var r = await ws.ReceiveAsync(new byte[1024], cts.Token);
         Assert.Equal(WebSocketMessageType.Close, r.MessageType);
         Assert.Equal(reason, ws.CloseStatusDescription);
     }
@@ -295,8 +369,13 @@ public class BrokerSteps(IntegrationFixture fx)
 
     private Task<WebSocket> GatewayConnect(string credential)
     {
+        return GatewayConnectWith($"Bearer {credential}");
+    }
+
+    private Task<WebSocket> GatewayConnectWith(string authorization)
+    {
         var wsc = fx.Factory.Server.CreateWebSocketClient();
-        wsc.ConfigureRequest = r => r.Headers.Authorization = $"Bearer {credential}";
+        wsc.ConfigureRequest = r => r.Headers.Authorization = authorization;
         return wsc.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/gateways/ws"), CancellationToken.None);
     }
 

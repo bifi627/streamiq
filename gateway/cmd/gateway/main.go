@@ -470,6 +470,7 @@ func run(ctx context.Context, compose string) {
 	}
 	setup := &jellyfin.Setup{Client: &http.Client{}, URL: jf.URL, StateDir: stateDir, OnKey: jf.SetKey, HWAccel: hw}
 	jf.Viewer = setup.ViewerFor
+	root := &tunnel.Root{Jellyfin: jf}
 	if err := setup.Load(); err != nil {
 		log.Fatalf("gateway: %v", err)
 	}
@@ -504,7 +505,7 @@ func run(ctx context.Context, compose string) {
 		if err != nil {
 			log.Fatalf("gateway: ICE: %v", err)
 		}
-		sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Jellyfin: jf, API: webAPI,
+		sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Root: root, API: webAPI,
 			Viewers: func(user string) {
 				ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 				defer cancel()
@@ -519,7 +520,7 @@ func run(ctx context.Context, compose string) {
 		remote := &update.Remote{Version: version, Supported: service.Supported(), Task: service.Installed,
 			Newer: func() string { return *newer.Load() }, Start: startUpdater}
 		started := time.Now().UTC()
-		jf.API = gatewayAPI(st, remote, store, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		root.API = gatewayAPI(st, remote, store, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			v := setup.View()
 			jfs := map[string]any{"reachable": v.Reachable, "version": v.Version, "untested": v.Untested, "token": v.Token()}
 			if o := jellyfin.Offline(compose); o != "" { // no compose Jellyfin: no field

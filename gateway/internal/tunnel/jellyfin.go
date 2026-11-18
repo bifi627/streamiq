@@ -27,9 +27,6 @@ import (
 type Jellyfin struct {
 	Client *http.Client
 	URL    string // e.g. http://localhost:8096
-	// API answers /streamiq/* (api.go; ServeHTTP routes it there); nil = the
-	// gateway-native endpoints only.
-	API *Router
 	// Viewer is a StreamIQ user's own token and Jellyfin user id; "" = none, use
 	// the shared one (SetKey). nil = everyone shares it.
 	Viewer func(user string) (key, userID string)
@@ -98,23 +95,10 @@ func allow(method, p string) bool {
 	return false
 }
 
-// ServeHTTP is the tunnel's root handler: the /streamiq prefix (any spelling,
-// so none of it reaches Jellyfin) goes to the gateway API, the rest to Jellyfin.
+// ServeHTTP is the Jellyfin proxy: it applies the Jellyfin policy, calls
+// Jellyfin forwarding headers (Range included, so seek survives) and copies its
+// response into w, redacted.
 func (j *Jellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !isGatewayAPI(r.URL.Path) {
-		j.proxy(w, r)
-		return
-	}
-	api := j.API
-	if api == nil {
-		api = builtin
-	}
-	api.ServeHTTP(w, r)
-}
-
-// proxy applies the Jellyfin policy, calls Jellyfin forwarding headers (Range
-// included, so seek survives) and copies its response into w, redacted.
-func (j *Jellyfin) proxy(w http.ResponseWriter, r *http.Request) {
 	c := j.credFor(SessionOf(r).User)
 	req, status, err := j.prepare(r, c)
 	if err != nil {

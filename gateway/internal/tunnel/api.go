@@ -37,7 +37,7 @@ func NewRouter() *Router {
 	return r
 }
 
-// builtin serves a Jellyfin without its own Router (tests): the native endpoints only.
+// builtin serves a Root without its own Router (tests): the native endpoints only.
 var builtin = NewRouter()
 
 // Option wraps a route's handler at registration.
@@ -171,7 +171,7 @@ func Do(api *Router, who Session, method, url, body string) (status int, hdr map
 	raw, _ := json.Marshal(tunnelReq{Method: method, URL: url, Body: body})
 	st := &reqState{who: who}
 	rec := httptest.NewRecorder()
-	serve(rec, &Jellyfin{API: api}, raw, st)
+	serve(rec, &Root{API: api, Jellyfin: &Jellyfin{}}, raw, st)
 	res := rec.Result()
 	return res.StatusCode, firstValues(res.Header), rec.Body.String(), st.run
 }

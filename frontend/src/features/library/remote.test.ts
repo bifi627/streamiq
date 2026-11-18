@@ -2,7 +2,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { clampSeek, polled } from './remote.ts'
-import type { Screen } from '../gateways/api'
 
 test('clampSeek keeps a seek in 0 … duration', () => {
   assert.equal(clampSeek(-5, 100), 0)
@@ -15,7 +14,7 @@ test('clampSeek has no upper bound while the duration is unknown', () => {
   assert.equal(clampSeek(-5, 0), 0)
 })
 
-const tv: Screen = { id: 's1', name: 'TV', state: null }
+const tv = { id: 's1', name: 'TV' }
 
 test('screen found: shown, error cleared, keep polling', () => {
   assert.deepEqual(polled('s1', { screens: [{ ...tv, id: 's0' }, tv] }), {

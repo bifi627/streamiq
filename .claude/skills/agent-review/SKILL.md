@@ -87,7 +87,10 @@ or LOW (a SPEC); a posted finding blocks the merge and costs a fix round.
   body; a new or changed test that doesn't actually prove the acceptance criterion it
   is there for, or that can hang instead of fail (no timeout on a wait).
 - **LOW**: everything else (style, naming, simplification, defensive checks for
-  impossible states, speculative edge cases, nits, "consider…").
+  impossible states, speculative edge cases, nits, "consider…"). Give each LOW one
+  category from this fixed list, nothing else: `style naming dead-code simplify
+  defensive test docs other`. The categories are a record for a later decision on rule
+  files (#490), not a judgement: don't verify a LOW to categorize it.
 
 Cap: at most 5 BLOCKER + SPEC in total; if more qualify, keep the most severe and
 say "+k more".
@@ -121,7 +124,8 @@ flows to test (e.g. "accept an invite into a second household, then open its gat
 Return, in this order:
 
 1. Level used, and the counts: findings `/code-review` returned, then how many you
-   sorted into BLOCKER, SPEC and LOW (all of them, not only the listed ones).
+   sorted into BLOCKER, SPEC and LOW (all of them, not only the listed ones), the LOW
+   count split by category, largest first (`low=7 lowcat=style:3,naming:2,simplify:2`).
 2. Merge risk (when section 5 applies): `<n>/10 (floor <f>: <the script's rule>) — <reason
    for going higher, if any>; test: <flows>` (no `test:` part below 5).
 3. Acceptance criteria: `all met` or `not met — <which>`.
@@ -134,5 +138,8 @@ Return, in this order:
    style, naming, duplication, speculative edge cases and anything you didn't confirm
    are never listed, only counted: "+k more LOW, not listed". None qualifies → "no LOW
    worth listing", which is a normal result.
+7. LOW record: every LOW candidate (the listed ones too), one line each:
+   `category · path:line · finding` (`path` alone when there is no line). Unverified,
+   for the record only: never a to-do for anyone, the caller included.
 
 No praise, no summary of what the change does.

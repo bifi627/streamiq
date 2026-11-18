@@ -87,13 +87,19 @@ headRefOid.
   signature) and the body has no `## Noticed` section, one line `Noticed: missing`.
   Then the CI status from `gh pr checks N` (pass / failing
   check names / pending / `skipped (draft)`: CI skips drafts and runs once the PR is
-  marked ready, so no result yet, not a failure). Last line, in exactly this form (it is what later analysis
-  of the reviews reads), with the counts `agent-review` returned:
-  `Review stats: level=high candidates=9 blocker=0 spec=1 low=8`, with
-  ` risk=<n> floor=<f>` appended on `ready to merge`.
+  marked ready, so no result yet, not a failure). Then, when `agent-review` returned
+  any LOW, its LOW record verbatim, collapsed (blank lines around the list, so it renders):
+  `<details><summary>LOW record (unverified, not to act on)</summary>` … `</details>`.
+  Last line, in exactly this form (it is what later analysis of the reviews reads; one
+  line, space-separated `key=value`, no space inside a value), with the counts
+  `agent-review` returned and `lowcat=` the LOW categories largest first (omitted when
+  `low=0`):
+  `Review stats: level=high candidates=9 blocker=0 spec=1 low=8 lowcat=style:4,simplify:3,docs:1`,
+  with ` risk=<n> floor=<f>` appended on `ready to merge`.
   Do not run `check.sh`. No praise, no summary of what the PR
-  does, no LOW items, and no findings in the body (they go in `comments`, so each one
-  is a resolvable thread that blocks the merge).
+  does, no LOW items outside the LOW record, and no findings in the body (they go in
+  `comments`, so each one is a resolvable thread that blocks the merge). LOWs never
+  become `comments`.
 - `comments`: EVERY BLOCKER/SPEC becomes one comment, body starting with
   `🤖 <model> · **[blocker]**` or `🤖 <model> · **[spec]**`, then the defect and the one-sentence failure
   scenario. On a changed line: `path`, `line`, `side: "RIGHT"`. No single line
@@ -109,8 +115,9 @@ headRefOid.
   merge), `review:changes` (needs changes) or `review:decision` (needs owner decision).
   On `review:ready` also one risk label: `risk:low` (0–1), `risk:mid` (2–4) or
   `risk:high` (5–10), the bands of `agent-review` section 5. If you stopped early (closed PR, fork), add no label.
-- In the thread: the verdict, the merge risk (on `ready to merge`), the PR link, then the LOW findings as a short list (one
-  line each) so the owner can still skim them. As a subagent, also return every
+- In the thread: the verdict, the merge risk (on `ready to merge`), the PR link, then the listed LOW findings (`agent-review`'s
+  at most 5, not the LOW record) as a short list (one line each) so the owner can still
+  skim them. As a subagent, also return every
   BLOCKER/SPEC finding in full (path:line, the defect, the failure scenario), `security`
   ones included: the build thread fixes from that. This skill never fixes anything:
   fixes go to the PR's build thread (`[build] - #<issue> …`) or the owner.

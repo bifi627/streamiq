@@ -87,8 +87,8 @@ func TestRunControlDialTimeout(t *testing.T) {
 		if err != nil {
 			return
 		}
-		c.Read(r.Context()) // the first heartbeat
-		time.Sleep(3 * dialTimeout)
+		c.Read(r.Context())                 // the first heartbeat
+		time.Sleep(1500 * time.Millisecond) // past the second dial's 1 s timeout
 		c.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
 		c.Close(websocket.StatusNormalClosure, "")
 	}))
@@ -108,6 +108,7 @@ func TestRunControlDialTimeout(t *testing.T) {
 		t.Fatal("RunControl still dialing after the timeout")
 	}
 
+	dialTimeout = time.Second // room for a loaded machine; the socket must outlive it
 	got := make(chan []byte, 1)
 	err := RunControl(context.Background(), srv.URL, &State{Credential: "ok", renamed: make(chan struct{}, 1)}, "", "dev", new(atomic.Int64),
 		func() string { return "" }, func(raw []byte, _ func(any)) {

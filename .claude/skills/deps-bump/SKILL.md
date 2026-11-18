@@ -63,7 +63,7 @@ E2E_GREP=@golden bash scripts/check.sh    # instead, when the bump changes what 
 
 Narrow e2e (`E2E_GREP=@golden`) for: frontend runtime packages (React, Vite),
 Playwright / e2e deps, the gateway's WebRTC (Pion), the Jellyfin / Postgres image
-pins. Everything else: `SKIP_E2E=1` (`check.sh` prints `!! SKIPPED: e2e …`).
+pins; one such package in a mixed wave puts the whole wave on `@golden`. Everything else: `SKIP_E2E=1` (`check.sh` prints `!! SKIPPED: e2e …`).
 Never a full local e2e run (a Jellyfin per worker) unless the owner asks.
 
 Integration tests are NOT "expensive" — include by default. Docker daemon
@@ -138,8 +138,10 @@ chore(deps): <scope summary>
 
 <bullet list of bumps with from→to>
 
-Verified: scripts/check.sh (ALL CHECKS PASSED; e2e: CI).   # or "e2e: @golden" for E2E_GREP
+Verified: scripts/check.sh (ALL CHECKS PASSED; e2e: CI).
 ```
+
+`e2e: CI` after `SKIP_E2E=1`; `e2e: @golden` after `E2E_GREP=@golden`.
 
 Use a HEREDOC for the message so multi-line formatting survives.
 

@@ -227,6 +227,72 @@ public class BrokerSteps(IntegrationFixture fx)
         Assert.DoesNotContain(list.EnumerateArray(), g => g.GetProperty("id").GetGuid() == _gateways[name].Id);
     }
 
+    [Then("gateway \"([^\"]*)\" receives bye for that session")]
+    public async Task ThenBye(string name)
+    {
+        var m = Assert.NotNull(await Receive(_gateways[name].Ws));
+        Assert.Equal("bye", m.GetProperty("type").GetString());
+        Assert.Equal(_session, m.GetProperty("session").GetString());
+    }
+
+    // The broker sends bye after removing the session, so no wait is needed here.
+    [Then("the broker no longer holds that session")]
+    public void ThenNoSession()
+    {
+        Assert.False(Hub.Sessions.ContainsKey(Session));
+    }
+
+    // The gateway socket's cleanup runs after the close: wait for it, then offer.
+    [When("the broker no longer lists gateway \"([^\"]*)\"")]
+    public async Task WhenGatewayGone(string name)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (Hub.Gateways.ContainsKey(_gateways[name].Id))
+        {
+            Assert.True(DateTime.UtcNow < deadline, "a disconnected gateway is still routable");
+            await Task.Delay(10);
+        }
+    }
+
+    [When("the browser sends an ICE candidate")]
+    public Task WhenBrowserIce()
+    {
+        return Send(_browser, new { type = "ice", candidate = new { candidate = "candidate:browser" } });
+    }
+
+    [Then("gateway \"([^\"]*)\" receives that ICE candidate for that session")]
+    public async Task ThenGatewayGetsIce(string name)
+    {
+        var m = Assert.NotNull(await Receive(_gateways[name].Ws));
+        Assert.Equal("ice", m.GetProperty("type").GetString());
+        Assert.Equal(_session, m.GetProperty("session").GetString());
+        Assert.Equal("candidate:browser", m.GetProperty("candidate").GetProperty("candidate").GetString());
+    }
+
+    [When("gateway \"([^\"]*)\" sends an ICE candidate for that session")]
+    public Task WhenGatewayIce(string name)
+    {
+        return Send(_gateways[name].Ws, new { type = "ice", session = _session, candidate = new { candidate = "candidate:gateway" } });
+    }
+
+    [Then("the browser receives that ICE candidate")]
+    public async Task ThenBrowserGetsIce()
+    {
+        var m = Assert.NotNull(await Receive(_browser));
+        Assert.Equal("ice", m.GetProperty("type").GetString());
+        Assert.Equal("candidate:gateway", m.GetProperty("candidate").GetProperty("candidate").GetString());
+    }
+
+    // Valid JSON past the 64 KB cap: 64 KB of leading whitespace, then a real answer.
+    // Were the broker to keep only the tail of an oversized message, the answer would get through;
+    // the scenario then sends a normal message, so a broker that closes instead of skipping fails too.
+    [When("gateway \"([^\"]*)\" sends an oversized answer for that session")]
+    public Task WhenOversized(string name)
+    {
+        var json = new string(' ', 64 * 1024) + JsonSerializer.Serialize(new { type = "answer", session = _session, sdp = new { type = "answer", sdp = "v=0 answer" } });
+        return _gateways[name].Ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, CancellationToken.None);
+    }
+
     private Task<WebSocket> GatewayConnect(string credential)
     {
         var wsc = fx.Factory.Server.CreateWebSocketClient();
@@ -260,7 +326,7 @@ public class BrokerSteps(IntegrationFixture fx)
         return ws.SendAsync(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(msg)), WebSocketMessageType.Text, true, CancellationToken.None);
     }
 
-    // Next JSON message; with quiet, null if nothing arrives within a second.
+    // Next JSON message (one complete frame); with quiet, null if nothing arrives within a second.
     private static async Task<JsonElement?> Receive(WebSocket ws, bool quiet = false)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(quiet ? 1 : 10));
@@ -268,6 +334,8 @@ public class BrokerSteps(IntegrationFixture fx)
         try
         {
             var r = await ws.ReceiveAsync(buf, cts.Token);
+            // One frame per message: a message the broker leaves unfinished never reaches a real peer.
+            Assert.True(r.MessageType == WebSocketMessageType.Close || r.EndOfMessage, "message not marked complete");
             return r.MessageType == WebSocketMessageType.Close ? null : JsonDocument.Parse(buf.AsMemory(0, r.Count)).RootElement;
         }
         catch (OperationCanceledException) when (quiet)

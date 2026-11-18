@@ -121,6 +121,38 @@ public class TunnelTelemetrySteps(IntegrationFixture fx, BrokerSteps broker)
         });
     }
 
+    [When("gateway \"(.*)\" reports that tunnel as failed over IPv6 TCP with 0 bytes")]
+    public Task WhenReportsFailedEmpty(string gateway)
+    {
+        return BrokerSteps.Send(broker.Gateway(gateway).Ws, new
+        {
+            type = "tunnel",
+            session = broker.Session,
+            relay = false,
+            ipv6 = true,
+            localCandidateType = "srflx",
+            remoteCandidateType = "prflx",
+            protocol = "tcp",
+            bytesSent = 0,
+            bytesReceived = 0,
+            failure = "ice failed",
+        });
+    }
+
+    [Then("the tunnel is stored as failed over IPv6 TCP with 0 bytes")]
+    public async Task ThenReportedFailedEmpty()
+    {
+        var row = await RowWhen(r => r.BytesSent is not null);
+        Assert.False(row.Relay);
+        Assert.True(row.Ipv6);
+        Assert.Equal("srflx", row.LocalCandidateType);
+        Assert.Equal("prflx", row.RemoteCandidateType);
+        Assert.Equal("tcp", row.Protocol);
+        Assert.Equal(0, row.BytesSent);
+        Assert.Equal(0, row.BytesReceived);
+        Assert.Equal("ice failed", row.Failure);
+    }
+
     [Then("the tunnel is stored as relayed with ([0-9]+) bytes sent and no failure")]
     public async Task ThenReported(long bytes)
     {

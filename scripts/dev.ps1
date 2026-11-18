@@ -32,7 +32,7 @@ if (-not ($secrets -match '^(ConnectionStrings:Default|DATABASE_URL) =') -and
 docker compose -p streamiq up -d --build @services   # -p: one shared stack across clones/worktrees
 if ($LASTEXITCODE -ne 0) { throw 'docker compose up failed.' }
 
-if (-not (Test-Path frontend/node_modules)) { npm ci --prefix frontend }
+if (-not (Test-Path frontend/node_modules/.bin)) { npm ci --prefix frontend }  # no .bin = missing or interrupted install
 
 # Backend in its own window (launch profile: http://localhost:5028 + emulator env).
 $backend = Start-Process powershell -PassThru -ArgumentList '-NoExit', '-Command',

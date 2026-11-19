@@ -66,15 +66,28 @@ func TestScreenRelay(t *testing.T) {
 	}
 	sid := l[0].ID
 
-	if s, _ := call(t, "POST", ScreenPath+"/state", `{"itemId":"`+vid+`","positionTicks":5,"durationTicks":9,"paused":true,"audio":1,"subtitle":null}`, tv); s != 204 {
+	if s, _ := call(
+		t,
+		"POST",
+		ScreenPath+"/state",
+		`{"itemId":"`+vid+`","positionTicks":5,"durationTicks":9,"paused":true,"audio":1,"subtitle":null}`,
+		tv,
+	); s != 204 {
 		t.Fatalf("state: %d", s)
 	}
-	if st := list(t)[0].State; st == nil || st.ItemID != vid || st.PositionTicks != 5 || !st.Paused || *st.Audio != 1 || st.Subtitle != nil {
+	if st := list(t)[0].State; st == nil || st.ItemID != vid || st.PositionTicks != 5 || !st.Paused || *st.Audio != 1 ||
+		st.Subtitle != nil {
 		t.Fatalf("state = %+v", st)
 	}
 
 	phone := Session{ID: "phone"}
-	if s, _ := call(t, "POST", ScreensPath+"/"+sid, `{"type":"play","itemId":"`+vid+`","startTicks":0,"extra":1}`, phone); s != 204 {
+	if s, _ := call(
+		t,
+		"POST",
+		ScreensPath+"/"+sid,
+		`{"type":"play","itemId":"`+vid+`","startTicks":0,"extra":1}`,
+		phone,
+	); s != 204 {
 		t.Fatalf("play: %d", s)
 	}
 	if got := next(stream); got != `{"type":"play","itemId":"`+vid+`","startTicks":0}` {

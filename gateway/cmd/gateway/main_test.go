@@ -18,7 +18,11 @@ import (
 
 func TestLoadEnvFile(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "gateway.env")
-	if err := os.WriteFile(p, []byte("# comment\n\nSTREAMIQ_T_A = from-file\nSTREAMIQ_T_B=from-file\nnot a pair\n"), 0o600); err != nil {
+	if err := os.WriteFile(
+		p,
+		[]byte("# comment\n\nSTREAMIQ_T_A = from-file\nSTREAMIQ_T_B=from-file\nnot a pair\n"),
+		0o600,
+	); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("STREAMIQ_T_B", "from-env")
@@ -39,7 +43,11 @@ func TestLoadEnvFile(t *testing.T) {
 func TestUsageListsBackup(t *testing.T) {
 	out, err := execute(t, "-h")
 	if err != nil || !regexp.MustCompile(`(?m)^  backup `).MatchString(out) {
-		t.Fatalf("gateway -h lost its '  backup ' line (the installers' pre-update backup check reads it): %v\n%s", err, out)
+		t.Fatalf(
+			"gateway -h lost its '  backup ' line (the installers' pre-update backup check reads it): %v\n%s",
+			err,
+			out,
+		)
 	}
 }
 
@@ -103,7 +111,11 @@ func TestRemoteUpdateStatus(t *testing.T) {
 // 403 and nothing happens), the rest answer a member too.
 func TestGatewayAPIRoutes(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "gateway.json"), []byte(`{"gatewayId":"g1","credential":"c","name":"nas"}`), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(dir, "gateway.json"),
+		[]byte(`{"gatewayId":"g1","credential":"c","name":"nas"}`),
+		0o600,
+	); err != nil {
 		t.Fatal(err)
 	}
 	st, err := onboarding.LoadOrEnroll(context.Background(), dir, "", "", "fp")
@@ -112,9 +124,19 @@ func TestGatewayAPIRoutes(t *testing.T) {
 	}
 	store, _ := pairing.Open(dir)
 	started := 0
-	remote := &update.Remote{Version: "1.4.0", Supported: true, Newer: func() string { return "1.5.0" }, Task: func() bool { return true },
-		Start: func() (func(), error) { started++; return func() {}, nil }}
-	rt := gatewayAPI(st, remote, store, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	remote := &update.Remote{
+		Version:   "1.4.0",
+		Supported: true,
+		Newer:     func() string { return "1.5.0" },
+		Task:      func() bool { return true },
+		Start:     func() (func(), error) { started++; return func() {}, nil },
+	}
+	rt := gatewayAPI(
+		st,
+		remote,
+		store,
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }),
+	)
 	for _, c := range []struct {
 		role, method, path, body string
 		want                     int

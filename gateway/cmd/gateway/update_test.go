@@ -16,7 +16,12 @@ func TestCheckUpdate(t *testing.T) {
 		fmt.Fprint(w, `{"tag_name":"gateway-v1.2.0"}`)
 	}))
 	defer srv.Close()
-	if _, _, err := checkUpdate(t.Context(), "dev", srv.URL); err == nil || !strings.Contains(err.Error(), "dev build") {
+	if _, _, err := checkUpdate(
+		t.Context(),
+		"dev",
+		srv.URL,
+	); err == nil ||
+		!strings.Contains(err.Error(), "dev build") {
 		t.Errorf("dev build: err = %v, want it refused", err)
 	}
 	for cur, want := range map[string]bool{"1.2.0": false, "1.3.0": false, "1.1.9": true} {
@@ -133,7 +138,12 @@ func TestSwapWithoutTask(t *testing.T) {
 func TestUpdatedMessage(t *testing.T) {
 	keep := filepath.Join("backups", "b")
 	kept := "v1.1.0 and its state are kept in " + keep + ": gateway rollback goes back to it.\n"
-	if got, want := updated("1.1.0", "1.2.0", keep, true), "Updated v1.1.0 → v1.2.0 and restarted.\n"+kept; got != want {
+	if got, want := updated(
+		"1.1.0",
+		"1.2.0",
+		keep,
+		true,
+	), "Updated v1.1.0 → v1.2.0 and restarted.\n"+kept; got != want {
 		t.Errorf("with the task:\n%q\nwant\n%q", got, want)
 	}
 	want := "Updated v1.1.0 → v1.2.0. Restart the gateway to run it (or: gateway service install).\n" + kept

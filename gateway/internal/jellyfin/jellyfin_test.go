@@ -46,10 +46,22 @@ type fake struct {
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
-	f := &fake{wizard: wizardDone, users: map[string]*fakeUser{}, tokens: map[string]string{},
-		enc: map[string]any{"HardwareAccelerationType": "none", "EnableThrottling": false, "EncoderPreset": "auto", "QsvDevice": "keep me"},
-		cfg: map[string]any{"ServerName": "keep me", "PluginRepositories": []any{map[string]any{"Name": "Jellyfin Stable"}},
-			"MetadataOptions": []any{map[string]any{"ItemType": "Movie", "DisabledMetadataFetchers": []any{}}}}}
+	f := &fake{
+		wizard: wizardDone,
+		users:  map[string]*fakeUser{},
+		tokens: map[string]string{},
+		enc: map[string]any{
+			"HardwareAccelerationType": "none",
+			"EnableThrottling":         false,
+			"EncoderPreset":            "auto",
+			"QsvDevice":                "keep me",
+		},
+		cfg: map[string]any{
+			"ServerName":         "keep me",
+			"PluginRepositories": []any{map[string]any{"Name": "Jellyfin Stable"}},
+			"MetadataOptions":    []any{map[string]any{"ItemType": "Movie", "DisabledMetadataFetchers": []any{}}},
+		},
+	}
 	if wizardDone {
 		f.users["me"] = &fakeUser{id: "id-me", pw: "pw", admin: true} // the user's own admin
 	}
@@ -271,7 +283,8 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.backups++
-		_ = json.NewEncoder(w).Encode(map[string]any{"ServerVersion": "12.4.0.0", "Path": "/config/data/backups/jellyfin-backup-1.zip"})
+		_ = json.NewEncoder(w).
+			Encode(map[string]any{"ServerVersion": "12.4.0.0", "Path": "/config/data/backups/jellyfin-backup-1.zip"})
 	case "POST /Backup/Restore":
 		var b struct{ ArchiveFileName string }
 		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
@@ -308,7 +321,8 @@ func connected(t *testing.T, f *fake, s *Setup, got [2]string) Creds {
 		t.Fatalf("not on the viewer token: onKey %v, creds %+v", got, c)
 	}
 	p := v.policy
-	if v.admin || p["IsHidden"] != true || p["EnableSharedDeviceControl"] != false || p["EnablePublicSharing"] != false ||
+	if v.admin || p["IsHidden"] != true || p["EnableSharedDeviceControl"] != false ||
+		p["EnablePublicSharing"] != false ||
 		p["PasswordResetProviderId"] != "Default" {
 		t.Fatalf("viewer policy %v", p)
 	}
@@ -327,14 +341,18 @@ func TestBootstrapFreshJellyfin(t *testing.T) {
 	s.poll(context.Background())
 	v := s.View()
 	connected(t, f, s, got)
-	if !v.HasKey || v.NeedsLogin || v.PasswordFile == "" || v.Err != "" || v.User != "streamiq" || v.Viewer != ViewerName {
+	if !v.HasKey || v.NeedsLogin || v.PasswordFile == "" || v.Err != "" || v.User != "streamiq" ||
+		v.Viewer != ViewerName {
 		t.Fatalf("after bootstrap: view %+v", v)
 	}
 	// Passwords stay in the 0600 file; the view (rendered on the LAN page) never carries them.
 	var c Creds
 	b, _ := os.ReadFile(v.PasswordFile)
 	if json.Unmarshal(b, &c) != nil || c.Password == "" || c.ViewerPassword == "" ||
-		strings.Contains(fmt.Sprintf("%+v", v), c.Password) || strings.Contains(fmt.Sprintf("%+v", v), c.ViewerPassword) {
+		strings.Contains(
+			fmt.Sprintf("%+v", v),
+			c.Password,
+		) || strings.Contains(fmt.Sprintf("%+v", v), c.ViewerPassword) {
 		t.Fatalf("password file %s / view %+v", b, v)
 	}
 	// Persisted: a restart loads the token instead of re-running the wizard.
@@ -426,8 +444,16 @@ func TestBYOWithoutOwnAdminAsksToReconnect(t *testing.T) {
 // new password, policy enforced again.
 func TestExistingViewerAdopted(t *testing.T) {
 	f, srv := newFake(t, true)
-	f.users[ViewerName] = &fakeUser{id: "id-old-viewer", pw: "lost", admin: true,
-		policy: map[string]any{"IsAdministrator": true, "AuthenticationProviderId": "Default", "PasswordResetProviderId": "Default"}}
+	f.users[ViewerName] = &fakeUser{
+		id:    "id-old-viewer",
+		pw:    "lost",
+		admin: true,
+		policy: map[string]any{
+			"IsAdministrator":          true,
+			"AuthenticationProviderId": "Default",
+			"PasswordResetProviderId":  "Default",
+		},
+	}
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
 	if err := s.Login(context.Background(), "me", "pw"); err != nil {
@@ -472,7 +498,11 @@ func TestLegacyKeyNeedsLogin(t *testing.T) {
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
 	f.users["streamiq"] = &fakeUser{id: "id-admin", pw: "pw", admin: true} // the gateway set Jellyfin up
-	if err := os.WriteFile(s.path(), []byte(`{"apiKey":"legacy-key","user":"streamiq","password":"pw"}`), 0o600); err != nil {
+	if err := os.WriteFile(
+		s.path(),
+		[]byte(`{"apiKey":"legacy-key","user":"streamiq","password":"pw"}`),
+		0o600,
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Load(); err != nil {
@@ -580,15 +610,19 @@ func TestHWAccelFollowsEnv(t *testing.T) {
 	s.HWAccel = "nvenc"
 	s.poll(context.Background())
 	enc, _ := f.encoding()
-	if enc["HardwareAccelerationType"] != "nvenc" || enc["EncoderPreset"] != "fast" || enc["EnableHardwareEncoding"] != true ||
-		enc["AllowHevcEncoding"] != false || len(enc["HardwareDecodingCodecs"].([]any)) != 7 || s.View().HWAccel != "nvenc" ||
+	if enc["HardwareAccelerationType"] != "nvenc" || enc["EncoderPreset"] != "fast" ||
+		enc["EnableHardwareEncoding"] != true ||
+		enc["AllowHevcEncoding"] != false ||
+		len(enc["HardwareDecodingCodecs"].([]any)) != 7 ||
+		s.View().HWAccel != "nvenc" ||
 		s.View().Transcoding() != "nvenc" {
 		t.Fatalf("nvenc: %v", enc)
 	}
 	s.HWAccel = "" // e.g. no GPU in the container after all
 	s.poll(context.Background())
 	enc, n := f.encoding()
-	if n != 2 || enc["HardwareAccelerationType"] != "none" || enc["EncoderPreset"] != "fast" || s.View().HWAccel != "" ||
+	if n != 2 || enc["HardwareAccelerationType"] != "none" || enc["EncoderPreset"] != "fast" ||
+		s.View().HWAccel != "" ||
 		s.View().Transcoding() != "none" {
 		t.Fatalf("off: %d posts, %v", n, enc)
 	}
@@ -858,7 +892,10 @@ func TestViewerFallback(t *testing.T) {
 	f.users[byoAdmin].pw = "changed by someone"
 	f.mu.Unlock()
 	s.EnsureViewer(ctx, alice)
-	if tok, _ := s.ViewerFor(alice); tok != "" || !strings.Contains(s.View().Err, "reconnect Jellyfin") || !s.View().NeedsLogin {
+	if tok, _ := s.ViewerFor(
+		alice,
+	); tok != "" || !strings.Contains(s.View().Err, "reconnect Jellyfin") ||
+		!s.View().NeedsLogin {
 		t.Fatalf("token %q, view %+v", tok, s.View())
 	}
 	state(`{"reason":"admin-refused","shared":true}`)
@@ -937,7 +974,8 @@ func TestTranscodingLoggedOnce(t *testing.T) {
 	s := newSetup(t, srv.URL, &got)
 	s.poll(context.Background())
 	s.poll(context.Background())
-	if count("transcodes on the CPU") != 1 || count("STREAMIQ_JELLYFIN_HWACCEL=nvenc") != 1 || count("hwaccel=off") != 1 {
+	if count("transcodes on the CPU") != 1 || count("STREAMIQ_JELLYFIN_HWACCEL=nvenc") != 1 ||
+		count("hwaccel=off") != 1 {
 		t.Fatalf("managed, off:\n%s", buf.String())
 	}
 
@@ -995,7 +1033,8 @@ func TestResetJellyfinSetUpAgain(t *testing.T) {
 		s.URL = srv2.URL
 		s.poll(ctx)
 		c := connected(t, f2, s, got)
-		if c.BYO || c.User != adminName || c.Password != f2.users[adminName].pw || len(c.Users) != 0 || !s.creds.managed() {
+		if c.BYO || c.User != adminName || c.Password != f2.users[adminName].pw || len(c.Users) != 0 ||
+			!s.creds.managed() {
 			t.Fatalf("byo=%v: after reset creds %+v", byo, c)
 		}
 		if tok, _ := s.ViewerFor(alice); tok != "" {

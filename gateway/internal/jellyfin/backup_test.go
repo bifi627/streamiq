@@ -134,10 +134,24 @@ func TestAwaitRestored(t *testing.T) {
 func TestRestoreRefusals(t *testing.T) {
 	_, s, compose := managed(t)
 	ctx := context.Background()
-	if err := RestoreCLI(ctx, s, compose, "x.zip", []byte(`{"user":"me","password":"pw","byo":true}`), &strings.Builder{}); err == nil {
+	if err := RestoreCLI(
+		ctx,
+		s,
+		compose,
+		"x.zip",
+		[]byte(`{"user":"me","password":"pw","byo":true}`),
+		&strings.Builder{},
+	); err == nil {
 		t.Fatal("restored with the login of a Jellyfin the gateway didn't set up")
 	}
-	if err := RestoreCLI(ctx, s, filepath.Join(t.TempDir(), ComposeFile), "x.zip", []byte(`{"user":"streamiq","password":"pw"}`), &strings.Builder{}); err == nil {
+	if err := RestoreCLI(
+		ctx,
+		s,
+		filepath.Join(t.TempDir(), ComposeFile),
+		"x.zip",
+		[]byte(`{"user":"streamiq","password":"pw"}`),
+		&strings.Builder{},
+	); err == nil {
 		t.Fatal("restored without a compose file")
 	}
 }

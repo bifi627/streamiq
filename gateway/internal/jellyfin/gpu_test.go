@@ -36,7 +36,11 @@ func TestSetGPU(t *testing.T) {
 		if strings.ReplaceAll(string(back), "# ", "") != strings.ReplaceAll(off, "# ", "") {
 			t.Fatalf("off changed more than comments:\n%s", back)
 		}
-		if _, err := blockOn(lines(got), "jail"); err != nil || !strings.Contains(string(got), "    # devices:"+nl+"    #   - /dev/dri") {
+		if _, err := blockOn(
+			lines(got),
+			"jail",
+		); err != nil ||
+			!strings.Contains(string(got), "    # devices:"+nl+"    #   - /dev/dri") {
 			t.Fatalf("other blocks touched: %v\n%s", err, got)
 		}
 	}
@@ -58,16 +62,33 @@ func TestSetGPUUnknownShape(t *testing.T) {
 
 // upgrade wraps the old block word for word, nothing else.
 func TestMarkGPU(t *testing.T) {
-	unmarked := strings.Replace(strings.Replace(readFile(t, shipped), "    # streamiq:gpu-nvidia\n", "", 1), "    # streamiq:gpu-nvidia end\n", "", 1)
+	unmarked := strings.Replace(
+		strings.Replace(readFile(t, shipped), "    # streamiq:gpu-nvidia\n", "", 1),
+		"    # streamiq:gpu-nvidia end\n",
+		"",
+		1,
+	)
 	got, changed := MarkGPU([]byte(unmarked))
-	if !changed || strings.ReplaceAll(string(got), "    # streamiq:gpu-nvidia end\n", "") != strings.ReplaceAll(unmarked, "    # deploy:\n", "    # streamiq:gpu-nvidia\n    # deploy:\n") {
+	if !changed ||
+		strings.ReplaceAll(
+			string(got),
+			"    # streamiq:gpu-nvidia end\n",
+			"",
+		) != strings.ReplaceAll(
+			unmarked,
+			"    # deploy:\n",
+			"    # streamiq:gpu-nvidia\n    # deploy:\n",
+		) {
 		t.Fatalf("changed %v\n%s", changed, got)
 	}
 	if _, _, err := SetGPU(got, true); err != nil {
 		t.Fatal(err)
 	}
 	crlf := strings.ReplaceAll(unmarked, "\n", "\r\n")
-	if got, _ := MarkGPU([]byte(crlf)); !strings.Contains(string(got), "    # streamiq:gpu-nvidia\r\n    # deploy:\r\n") || strings.Count(string(got), "\n") != strings.Count(string(got), "\r\n") {
+	if got, _ := MarkGPU(
+		[]byte(crlf),
+	); !strings.Contains(string(got), "    # streamiq:gpu-nvidia\r\n    # deploy:\r\n") ||
+		strings.Count(string(got), "\n") != strings.Count(string(got), "\r\n") {
 		t.Fatalf("CRLF:\n%q", got)
 	}
 	// The pre-#321 file: jailed by upgrade, then marked.

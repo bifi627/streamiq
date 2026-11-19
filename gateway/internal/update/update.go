@@ -255,5 +255,8 @@ func Previous(install, bin string) (dir, version string, err error) {
 			return d, v, nil
 		}
 	}
-	return "", "", fmt.Errorf("no previous version kept in %s (it is made by an update, since #296)", filepath.Join(install, Backups))
+	return "", "", fmt.Errorf(
+		"no previous version kept in %s (it is made by an update, since #296)",
+		filepath.Join(install, Backups),
+	)
 }

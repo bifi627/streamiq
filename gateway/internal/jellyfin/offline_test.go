@@ -103,7 +103,12 @@ func TestJail(t *testing.T) {
 
 	// A mount commented out at column 0 is still inside the jellyfin service:
 	// the forwarder goes after all of it, not in the middle (review of #355).
-	mounts := strings.Replace(readFile(t, "testdata/jellyfin-compose-pre321.yml"), "      - ./jellyfin-config:/config", "#      - ./jellyfin-config:/config", 1)
+	mounts := strings.Replace(
+		readFile(t, "testdata/jellyfin-compose-pre321.yml"),
+		"      - ./jellyfin-config:/config",
+		"#      - ./jellyfin-config:/config",
+		1,
+	)
 	got, _, err = Jail([]byte(mounts))
 	if err != nil || strings.Index(string(got), "forwarder:") < strings.Index(string(got), "read_only: true") ||
 		!strings.Contains(string(got), "#      - ./jellyfin-config:/config\n      - cache:/cache") {
@@ -229,7 +234,11 @@ func TestUpgradeRefusedMigration(t *testing.T) {
 	if err := Upgrade(t.Context(), f, &out); err != nil {
 		t.Fatal(err)
 	}
-	if got := readFile(t, f); got != in || strings.Contains(out.String(), "now offline") || !strings.Contains(out.String(), "Not moved into the offline jail") || !strings.Contains(out.String(), "Already on") {
+	if got := readFile(
+		t,
+		f,
+	); got != in || strings.Contains(out.String(), "now offline") || !strings.Contains(out.String(), "Not moved into the offline jail") ||
+		!strings.Contains(out.String(), "Already on") {
 		t.Fatalf("output %q, file changed: %v", out.String(), got != in)
 	}
 }
@@ -273,7 +282,8 @@ func TestComposeVariantsParse(t *testing.T) {
 	migrated, _, _ := Jail([]byte(readFile(t, "testdata/jellyfin-compose-pre321.yml")))
 	gpu, _, _ := SetGPU(on, true)
 	for name, b := range map[string][]byte{"on": on, "off": off, "migrated": migrated, "gpu": gpu} {
-		if out, err := exec.Command("docker", "compose", "-f", write(t, b), "config", "--quiet").CombinedOutput(); err != nil {
+		if out, err := exec.Command("docker", "compose", "-f", write(t, b), "config", "--quiet").
+			CombinedOutput(); err != nil {
 			t.Errorf("%s: %v: %s", name, err, out)
 		}
 	}

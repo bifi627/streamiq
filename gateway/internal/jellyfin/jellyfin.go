@@ -108,7 +108,11 @@ var serverSteps = []func(cfg map[string]any){
 			person = map[string]any{"ItemType": "Person"}
 			opts = append(opts, person)
 		}
-		person["DisabledMetadataFetchers"], person["DisabledImageFetchers"] = []string{"TheMovieDb"}, []string{"TheMovieDb"}
+		person["DisabledMetadataFetchers"], person["DisabledImageFetchers"] = []string{
+			"TheMovieDb",
+		}, []string{
+			"TheMovieDb",
+		}
 		cfg["MetadataOptions"], cfg["PluginRepositories"] = opts, []any{}
 	},
 }
@@ -325,7 +329,11 @@ func (s *Setup) wiped(ctx context.Context, c Creds) bool {
 	if !unauthorized(s.call(ctx, "GET", "/Users/Me", tok, "", nil)) {
 		return false
 	}
-	slog.Warn("gateway: Jellyfin was reset (setup wizard not done, stored token refused); setting it up again and replacing the stored credentials", "file", s.path())
+	slog.Warn(
+		"gateway: Jellyfin was reset (setup wizard not done, stored token refused); setting it up again and replacing the stored credentials",
+		"file",
+		s.path(),
+	)
 	return true
 }
 
@@ -334,9 +342,19 @@ func (s *Setup) wiped(ctx context.Context, c Creds) bool {
 func logTranscoding(v View) {
 	switch {
 	case !v.Managed:
-		slog.Info("gateway: Jellyfin transcoding is set in your own Jellyfin: Dashboard → Playback → Transcoding", "managed", false)
+		slog.Info(
+			"gateway: Jellyfin transcoding is set in your own Jellyfin: Dashboard → Playback → Transcoding",
+			"managed",
+			false,
+		)
 	case v.HWAccel == "":
-		slog.Info("gateway: Jellyfin transcodes on the CPU; for an NVIDIA GPU set STREAMIQ_JELLYFIN_HWACCEL=nvenc in gateway.env (docs/install.md, \"GPU transcoding\")", "managed", true, "hwaccel", "off")
+		slog.Info(
+			"gateway: Jellyfin transcodes on the CPU; for an NVIDIA GPU set STREAMIQ_JELLYFIN_HWACCEL=nvenc in gateway.env (docs/install.md, \"GPU transcoding\")",
+			"managed",
+			true,
+			"hwaccel",
+			"off",
+		)
 	default:
 		slog.Info("gateway: Jellyfin transcodes on the GPU", "managed", true, "hwaccel", v.HWAccel)
 	}
@@ -356,7 +374,11 @@ func (s *Setup) bootstrap(ctx context.Context) error {
 	defer s.vmu.Unlock()
 	pw := randPassword()
 	steps := []struct{ method, path, body string }{
-		{"POST", "/Startup/Configuration", `{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}`},
+		{
+			"POST",
+			"/Startup/Configuration",
+			`{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}`,
+		},
 		{"GET", "/Startup/User", ""}, // the wizard expects this GET before the POST
 		{"POST", "/Startup/User", fmt.Sprintf(`{"Name":%q,"Password":%q}`, adminName, pw)},
 		{"POST", "/Startup/RemoteAccess", `{"EnableRemoteAccess":true,"EnableAutomaticPortMapping":false}`},
@@ -476,12 +498,26 @@ func (s *Setup) ensureUser(ctx context.Context, admin, name string, isAdmin bool
 		}
 	}
 	if u != nil { // also revokes its old tokens
-		if err := s.call(ctx, "POST", "/Users/"+u.Id+"/Password", admin, fmt.Sprintf(`{"NewPw":%q}`, pw), nil); err != nil {
+		if err := s.call(
+			ctx,
+			"POST",
+			"/Users/"+u.Id+"/Password",
+			admin,
+			fmt.Sprintf(`{"NewPw":%q}`, pw),
+			nil,
+		); err != nil {
 			return "", "", err
 		}
 	} else {
 		u = &user{}
-		if err := s.call(ctx, "POST", "/Users/New", admin, fmt.Sprintf(`{"Name":%q,"Password":%q}`, name, pw), u); err != nil {
+		if err := s.call(
+			ctx,
+			"POST",
+			"/Users/New",
+			admin,
+			fmt.Sprintf(`{"Name":%q,"Password":%q}`, name, pw),
+			u,
+		); err != nil {
 			return "", "", err
 		}
 	}
@@ -518,7 +554,8 @@ func (s *Setup) configure(ctx context.Context) {
 	s.mu.Lock()
 	c := s.creds
 	s.mu.Unlock()
-	if c.Token == "" || !c.managed() || (c.ConfigSteps >= len(configSteps) && c.ServerSteps >= len(serverSteps) && c.HWAccel == s.HWAccel) {
+	if c.Token == "" || !c.managed() ||
+		(c.ConfigSteps >= len(configSteps) && c.ServerSteps >= len(serverSteps) && c.HWAccel == s.HWAccel) {
 		return
 	}
 	if err := s.applyConfig(ctx, c); err != nil {
@@ -527,7 +564,15 @@ func (s *Setup) configure(ctx context.Context) {
 		return
 	}
 	s.setErr("")
-	slog.Info("gateway: applied Jellyfin settings", "steps", len(configSteps), "serverSteps", len(serverSteps), "hwaccel", s.HWAccel)
+	slog.Info(
+		"gateway: applied Jellyfin settings",
+		"steps",
+		len(configSteps),
+		"serverSteps",
+		len(serverSteps),
+		"hwaccel",
+		s.HWAccel,
+	)
 }
 
 func (s *Setup) applyConfig(ctx context.Context, c Creds) error {
@@ -680,7 +725,13 @@ func (s *Setup) EnsureViewer(ctx context.Context, user string) {
 		s.err = "Jellyfin user for a member (they play as " + ViewerName + " meanwhile; " + fix + "): " + err.Error()
 		s.refused = refused
 		s.mu.Unlock()
-		slog.Error("gateway: could not create a user's own Jellyfin viewer; the session plays as "+ViewerName, "user", user, "err", err)
+		slog.Error(
+			"gateway: could not create a user's own Jellyfin viewer; the session plays as "+ViewerName,
+			"user",
+			user,
+			"err",
+			err,
+		)
 		return
 	}
 	s.mu.Lock()

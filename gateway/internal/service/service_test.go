@@ -11,7 +11,11 @@ import (
 // The task XML must parse and carry what makes the gateway a long-running,
 // visible, per-user process: no run limit, no battery stop, cmd /k + run.
 func TestTaskXML(t *testing.T) {
-	b := TaskXML(`PC\Jo & Co`, `C:\Users\Jo & Co\AppData\Local\streamiq\gateway.exe`, `C:\Users\Jo & Co\AppData\Local\streamiq`)
+	b := TaskXML(
+		`PC\Jo & Co`,
+		`C:\Users\Jo & Co\AppData\Local\streamiq\gateway.exe`,
+		`C:\Users\Jo & Co\AppData\Local\streamiq`,
+	)
 	if b[0] != 0xFF || b[1] != 0xFE {
 		t.Fatal("want UTF-16LE BOM")
 	}

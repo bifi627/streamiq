@@ -45,8 +45,11 @@ func (s *Setup) Libraries(ctx context.Context) ([]Library, error) {
 				}
 				types[f.CollectionType] = t
 			}
-			out = append(out, Library{ID: f.ItemId, Name: f.Name, Offline: offline(f.LibraryOptions, types[f.CollectionType]),
-				Extras: extrasState(f.LibraryOptions)})
+			out = append(
+				out,
+				Library{ID: f.ItemId, Name: f.Name, Offline: offline(f.LibraryOptions, types[f.CollectionType]),
+					Extras: extrasState(f.LibraryOptions)},
+			)
 		}
 		return nil
 	})

@@ -333,7 +333,13 @@ func TestJellyfin(t *testing.T) {
 }
 
 func TestNoJellyfin(t *testing.T) {
-	if _, err := ExtractJellyfin(backupFile(t, writeDir(t, state)), filepath.Join(t.TempDir(), "x")); !errors.Is(err, ErrNoJellyfin) {
+	if _, err := ExtractJellyfin(
+		backupFile(t, writeDir(t, state)),
+		filepath.Join(t.TempDir(), "x"),
+	); !errors.Is(
+		err,
+		ErrNoJellyfin,
+	) {
 		t.Fatalf("err %v", err)
 	}
 }
@@ -350,7 +356,10 @@ func zipFiles(t *testing.T, names ...string) []*zip.File {
 }
 
 func TestCheckEntries(t *testing.T) {
-	if err := checkEntries("z", zipFiles(t, "cert.pem", "gateway.json", "allowlist.json", ComposeEntry, JellyfinEntry)); err != nil {
+	if err := checkEntries(
+		"z",
+		zipFiles(t, "cert.pem", "gateway.json", "allowlist.json", ComposeEntry, JellyfinEntry),
+	); err != nil {
 		t.Fatal(err)
 	}
 	for _, bad := range []string{"../evil", "sub/x", `sub\x`, "C:x", "dir/", "..", "."} {
@@ -358,7 +367,11 @@ func TestCheckEntries(t *testing.T) {
 			t.Errorf("%q: accepted", bad)
 		}
 	}
-	if err := checkEntries("z", zipFiles(t, "cert.pem")); err == nil || !strings.Contains(err.Error(), "no gateway.json") {
+	if err := checkEntries(
+		"z",
+		zipFiles(t, "cert.pem"),
+	); err == nil ||
+		!strings.Contains(err.Error(), "no gateway.json") {
 		t.Errorf("err = %v, want no gateway.json", err)
 	}
 }
@@ -417,7 +430,10 @@ func TestReadEntriesCap(t *testing.T) {
 }
 
 func TestStale(t *testing.T) {
-	dir := writeDir(t, map[string]string{"gateway.json": "{}", "allowlist.json": "[]", "page-token": "t", "page-link": "l"})
+	dir := writeDir(
+		t,
+		map[string]string{"gateway.json": "{}", "allowlist.json": "[]", "page-token": "t", "page-link": "l"},
+	)
 	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +455,10 @@ func TestWriteCompose(t *testing.T) {
 		t.Fatalf("compose = %q", b)
 	}
 	failed := filepath.Join(t.TempDir(), "c.yml")
-	if _, err := writeCompose(failed, io.MultiReader(strings.NewReader("part"), iotest.ErrReader(errors.New("boom")))); err == nil {
+	if _, err := writeCompose(
+		failed,
+		io.MultiReader(strings.NewReader("part"), iotest.ErrReader(errors.New("boom"))),
+	); err == nil {
 		t.Fatal("no error from a failed write")
 	}
 	if _, err := os.Stat(failed); err == nil {

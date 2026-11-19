@@ -167,7 +167,11 @@ func JSON(w http.ResponseWriter, status int, v any) {
 // Do runs one gateway API request on api the way the tunnel does, minus WebRTC,
 // and reads the whole reply: for handler tests in the packages that own them.
 // after runs the handler's AfterReply hooks.
-func Do(api *Router, who Session, method, url, body string) (status int, hdr map[string]string, reply string, after func()) {
+func Do(
+	api *Router,
+	who Session,
+	method, url, body string,
+) (status int, hdr map[string]string, reply string, after func()) {
 	raw, _ := json.Marshal(tunnelReq{Method: method, URL: url, Body: body})
 	st := &reqState{who: who}
 	rec := httptest.NewRecorder()

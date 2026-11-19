@@ -117,7 +117,10 @@ func serviceInstall(ctx context.Context, exe string) error {
 func notRunning() error {
 	if c, err := net.DialTimeout("tcp", "127.0.0.1:"+pagePort(), time.Second); err == nil {
 		c.Close()
-		return fmt.Errorf("the gateway is running (port %s answers): stop it first (Windows: gateway service uninstall, or close its window)", pagePort())
+		return fmt.Errorf(
+			"the gateway is running (port %s answers): stop it first (Windows: gateway service uninstall, or close its window)",
+			pagePort(),
+		)
 	}
 	return nil
 }
@@ -132,7 +135,9 @@ func resetIdentity() error {
 		return err
 	}
 	fmt.Printf("New gateway identity %s.\n", fp)
-	fmt.Println("Paired browsers were removed: each one shows a pairing code on its next connect; approve it on the local gateway page.")
+	fmt.Println(
+		"Paired browsers were removed: each one shows a pairing code on its next connect; approve it on the local gateway page.",
+	)
 	fmt.Println("Start the gateway again (gateway service install, or gateway run).")
 	return nil
 }
@@ -154,7 +159,9 @@ func backupState(ctx context.Context, file, compose string) error {
 	if jerr != nil {
 		fmt.Println("!! Jellyfin's data (users, libraries, watch state) is NOT in it:", jerr)
 	} else {
-		fmt.Println("It includes Jellyfin's database (users, libraries, watch state): gateway jellyfin restore puts it back.")
+		fmt.Println(
+			"It includes Jellyfin's database (users, libraries, watch state): gateway jellyfin restore puts it back.",
+		)
 	}
 	fmt.Println()
 	fmt.Println("!! This file is NOT encrypted. Whoever has it can pose as your gateway.")
@@ -163,10 +170,16 @@ func backupState(ctx context.Context, file, compose string) error {
 	fmt.Println()
 	fmt.Println("To restore (docs/install.md, \"Back up and restore the gateway\"), stop the old gateway first")
 	fmt.Println("(two copies fight over the connection), then:")
-	fmt.Printf("  new machine:  the install command with STREAMIQ_API_URL and STREAMIQ_RESTORE=%s, no enroll token\n", filepath.Base(file))
+	fmt.Printf(
+		"  new machine:  the install command with STREAMIQ_API_URL and STREAMIQ_RESTORE=%s, no enroll token\n",
+		filepath.Base(file),
+	)
 	fmt.Printf("  same install: stop the gateway, run gateway restore %s, start it again\n", filepath.Base(file))
 	if jerr == nil {
-		fmt.Printf("  Jellyfin:     with the gateway stopped, gateway jellyfin restore %s (the order is in docs/install.md)\n", filepath.Base(file))
+		fmt.Printf(
+			"  Jellyfin:     with the gateway stopped, gateway jellyfin restore %s (the order is in docs/install.md)\n",
+			filepath.Base(file),
+		)
 	}
 	return nil
 }
@@ -212,7 +225,9 @@ func restoreState(file, compose string, force bool) error {
 		fmt.Printf("Kept the existing %s (the backup's copy is not used).\n", compose)
 		fmt.Println("On a new machine check its media folder paths before gateway jellyfin up.")
 	}
-	fmt.Println("Start it (gateway service install, or gateway run): it comes back as the same gateway, paired browsers included.")
+	fmt.Println(
+		"Start it (gateway service install, or gateway run): it comes back as the same gateway, paired browsers included.",
+	)
 	return nil
 }
 
@@ -238,7 +253,12 @@ func jellyfinRestore(ctx context.Context, file, compose string) error {
 // user already has one (it's theirs from then on), then starts Jellyfin.
 func jellyfinUp(ctx context.Context, file string) error {
 	if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) {
-		if err := update.Download(ctx, env("STREAMIQ_DOWNLOAD", update.DownloadURL), jellyfin.ComposeFile, file); err != nil {
+		if err := update.Download(
+			ctx,
+			env("STREAMIQ_DOWNLOAD", update.DownloadURL),
+			jellyfin.ComposeFile,
+			file,
+		); err != nil {
 			return err
 		}
 		// Its default bind; compose refuses a missing bind source.
@@ -261,7 +281,12 @@ func selfUpdate(ctx context.Context, exe string) error {
 		return err
 	}
 	fmt.Printf("Downloading v%s…\n", latest)
-	if err := update.Download(ctx, env("STREAMIQ_DOWNLOAD", update.DownloadURL), update.Asset(), exe+".new"); err != nil {
+	if err := update.Download(
+		ctx,
+		env("STREAMIQ_DOWNLOAD", update.DownloadURL),
+		update.Asset(),
+		exe+".new",
+	); err != nil {
 		return err
 	}
 	keep, err := backupBefore(ctx, exe)
@@ -299,7 +324,11 @@ func checkUpdate(ctx context.Context, current, url string) (latest string, ok bo
 func backupBefore(ctx context.Context, exe string) (keep string, err error) {
 	keep, err = update.BackupDir(filepath.Dir(exe), version, time.Now())
 	if err == nil {
-		_, err = writeBackup(ctx, filepath.Join(keep, update.StateZip), filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
+		_, err = writeBackup(
+			ctx,
+			filepath.Join(keep, update.StateZip),
+			filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile),
+		)
 	}
 	if err != nil {
 		return "", backupFailed(exe, keep, err)
@@ -402,7 +431,13 @@ func rollback(ctx context.Context, exe string) error {
 		return fmt.Errorf("restoring the state with %s: %w (nothing changed; start the gateway again)", kept, err)
 	}
 	if err := update.Swap(exe, kept, exe+".old"); err != nil {
-		return fmt.Errorf("the state of %s is restored, but its binary could not be put back: %w (copy %s over %s by hand)", prev, err, kept, exe)
+		return fmt.Errorf(
+			"the state of %s is restored, but its binary could not be put back: %w (copy %s over %s by hand)",
+			prev,
+			err,
+			kept,
+			exe,
+		)
 	}
 	os.Remove(exe + ".old") // Windows: still running (this process); the next update removes it
 	os.RemoveAll(dir)       // used up: a second rollback goes one update further back
@@ -423,7 +458,8 @@ func startGateway(exe string, task bool) error {
 	if task {
 		return service.Start()
 	}
-	return exec.Command("sh", "-c", `cd "$1" && nohup "$2" >> "$1/gateway.log" 2>&1 &`, "sh", filepath.Dir(exe), exe).Run()
+	return exec.Command("sh", "-c", `cd "$1" && nohup "$2" >> "$1/gateway.log" 2>&1 &`, "sh", filepath.Dir(exe), exe).
+		Run()
 }
 
 func waitStopped() error {
@@ -562,7 +598,12 @@ func run(ctx context.Context, compose string) { //nolint:funlen // #608
 		started := time.Now().UTC()
 		root.API = gatewayAPI(st, remote, store, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			v := setup.View()
-			jfs := map[string]any{"reachable": v.Reachable, "version": v.Version, "untested": v.Untested, "token": v.Token()}
+			jfs := map[string]any{
+				"reachable": v.Reachable,
+				"version":   v.Version,
+				"untested":  v.Untested,
+				"token":     v.Token(),
+			}
 			if o := jellyfin.Offline(compose); o != "" { // no compose Jellyfin: no field
 				jfs["offline"] = o
 			}
@@ -593,7 +634,16 @@ func run(ctx context.Context, compose string) { //nolint:funlen // #608
 			log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
 		}()
 		go forever(ctx, func(ctx context.Context) error {
-			return onboarding.RunControl(ctx, api, st, lan, version, &lastBeat, func() string { return *newer.Load() }, sess.Handle)
+			return onboarding.RunControl(
+				ctx,
+				api,
+				st,
+				lan,
+				version,
+				&lastBeat,
+				func() string { return *newer.Load() },
+				sess.Handle,
+			)
 		})
 	}
 

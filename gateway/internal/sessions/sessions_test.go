@@ -206,7 +206,12 @@ func newGateway(t *testing.T) (*Sessions, *pairing.Store) {
 	dir := t.TempDir()
 	cert, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}}}
+	gateway := &Sessions{
+		Cert:  cert,
+		Fp:    fp,
+		Store: store,
+		Root:  &tunnel.Root{Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}},
+	}
 	store.OnRemove = gateway.Drop
 	return gateway, store
 }
@@ -569,7 +574,12 @@ func TestScreenOverTunnel(t *testing.T) {
 	dir := t.TempDir()
 	cert, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}}}
+	gateway := &Sessions{
+		Cert:  cert,
+		Fp:    fp,
+		Store: store,
+		Root:  &tunnel.Root{Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}},
+	}
 	pair := func(id, name string) *browser {
 		key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		b := connect(t, gateway, id, key, false)
@@ -917,7 +927,13 @@ func TestSignalingIgnored(t *testing.T) {
 	if answers.Load() != 1 || gateway.Active() != 1 {
 		t.Fatalf("two offers for one session: %d answers, %d sessions", answers.Load(), gateway.Active())
 	}
-	handle(Msg{Type: "ice", Session: "other", Candidate: &webrtc.ICECandidateInit{Candidate: "candidate:1 1 udp 1 192.0.2.1 1 typ host"}})
+	handle(
+		Msg{
+			Type:      "ice",
+			Session:   "other",
+			Candidate: &webrtc.ICECandidateInit{Candidate: "candidate:1 1 udp 1 192.0.2.1 1 typ host"},
+		},
+	)
 	handle(Msg{Type: "ice", Session: "s"})
 	handle(Msg{Type: "bye", Session: "s"})
 }

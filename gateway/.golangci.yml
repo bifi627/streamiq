@@ -1,0 +1,12 @@
+version: "2"
+linters:
+  # the default set (govet, ineffassign, staticcheck, unused) minus errcheck: #560 turns it on
+  disable:
+    - errcheck
+  settings:
+    staticcheck:
+      # golangci-lint's default checks (setting the list replaces them, so they're restated) ...
+      checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF1008",
+        # ... minus ST1005 (lowercase error strings): ours are capitalized CLI messages the
+        # user reads as is ("Jellyfin …", "Docker …"), not strings wrapped inside other errors
+        "-ST1005"]

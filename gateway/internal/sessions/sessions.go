@@ -109,18 +109,9 @@ func (s *Sessions) Active() int {
 
 // Handle processes one broker message; send writes JSON to the current control socket.
 // A nil raw announces the control socket that is up (send), or that it dropped (nil send).
-func (s *Sessions) Handle(raw []byte, send func(any)) { //nolint:gocyclo // #545: split there
+func (s *Sessions) Handle(raw []byte, send func(any)) {
 	if raw == nil {
-		s.mu.Lock()
-		s.ctl = send
-		var backlog []Report
-		if send != nil {
-			backlog, s.backlog = s.backlog, nil
-		}
-		s.mu.Unlock()
-		for _, r := range backlog {
-			send(r)
-		}
+		s.announce(send)
 		return
 	}
 	var m Msg
@@ -137,24 +128,7 @@ func (s *Sessions) Handle(raw []byte, send func(any)) { //nolint:gocyclo // #545
 
 	switch m.Type {
 	case "offer":
-		if pc != nil || m.SDP == nil {
-			return
-		}
-		// Every session needs a user and a role: the broker stamps both (docs/protocol.md).
-		if m.User == "" || (m.Role != tunnel.Admin && m.Role != tunnel.Member) {
-			log.Printf("gateway: session %s: offer without user or known role (%q) refused", m.Session, m.Role)
-			return
-		}
-		log.Printf("gateway: session %s: user %s (%s)", m.Session, m.User, m.Role)
-		pc, err := s.newPeer(m.Session, m.User, m.Role, send)
-		if err != nil {
-			log.Printf("gateway: session %s: %v", m.Session, err)
-			return
-		}
-		if err := answer(pc, *m.SDP, m.Session, send); err != nil {
-			log.Printf("gateway: session %s: answer: %v", m.Session, err)
-			s.end(m.Session)
-		}
+		s.offer(m, pc != nil, send)
 	case "ice":
 		if pc != nil && m.Candidate != nil {
 			cands.saw(m.Candidate.Candidate)
@@ -166,6 +140,61 @@ func (s *Sessions) Handle(raw []byte, send func(any)) { //nolint:gocyclo // #545
 		if end != nil {
 			end(false)
 		}
+	}
+}
+
+// announce records the control socket that is up (send), or that it dropped (nil),
+// and flushes the reports held while none was.
+func (s *Sessions) announce(send func(any)) {
+	s.mu.Lock()
+	s.ctl = send
+	var backlog []Report
+	if send != nil {
+		backlog, s.backlog = s.backlog, nil
+	}
+	s.mu.Unlock()
+	for _, r := range backlog {
+		send(r)
+	}
+}
+
+// What Handle does with an offer (checkOffer).
+const (
+	offerAccept = iota
+	offerIgnore // a live session, or no SDP: dropped silently
+	offerRefuse // no user or no known role: dropped with a log line
+)
+
+// checkOffer: every session needs a SDP, a user and a role (the broker stamps
+// both, docs/protocol.md); a second offer for a live session is ignored.
+func checkOffer(m Msg, live bool) int {
+	switch {
+	case live || m.SDP == nil:
+		return offerIgnore
+	case m.User == "" || (m.Role != tunnel.Admin && m.Role != tunnel.Member):
+		return offerRefuse
+	}
+	return offerAccept
+}
+
+// offer starts a session: a new PeerConnection and its answer.
+func (s *Sessions) offer(m Msg, live bool, send func(any)) {
+	switch checkOffer(m, live) {
+	case offerIgnore:
+		return
+	case offerRefuse:
+		log.Printf("gateway: session %s: offer without user or known role (%q) refused", m.Session, m.Role)
+		return
+	}
+	log.Printf("gateway: session %s: user %s (%s)", m.Session, m.User, m.Role)
+	pc, err := s.newPeer(m.Session, m.User, m.Role, send)
+	if err != nil {
+		log.Printf("gateway: session %s: %v", m.Session, err)
+		return
+	}
+	if err := answer(pc, *m.SDP, m.Session, send); err != nil {
+		log.Printf("gateway: session %s: answer: %v", m.Session, err)
+		s.end(m.Session)
 	}
 }
 
@@ -188,7 +217,7 @@ func (s *Sessions) User(session string) string {
 	return s.users[session]
 }
 
-func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerConnection, error) { //nolint:gocyclo // #545: split there
+func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerConnection, error) {
 	api := s.API
 	if api == nil {
 		api = webrtc.NewAPI()
@@ -203,34 +232,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	var authed, authSeen atomic.Bool
 	var cands signaled
 	var why atomic.Value // last auth outcome short of success ("unpaired", a refusal); the report's failure
-	// Every way a session ends (ICE failed/closed, bye, a removed client, a failed
-	// answer) goes through here: the report is read before pc.Close() (pion's
-	// stats are gone after it) and sent once, whichever path comes first.
-	end := func(iceFailed bool) {
-		s.mu.Lock()
-		_, live := s.ends[id]
-		delete(s.pcs, id)
-		delete(s.keys, id)
-		delete(s.users, id)
-		delete(s.ends, id)
-		delete(s.cands, id)
-		s.mu.Unlock()
-		if !live {
-			return
-		}
-		var failure *string
-		switch w, _ := why.Load().(string); {
-		case iceFailed:
-			failure = ptr("ice failed")
-		case !authed.Load() && w != "":
-			failure = &w
-		case !authed.Load():
-			// Includes a browser that refused us (pin mismatch): it hangs up before auth.
-			failure = ptr("ended before auth")
-		}
-		s.report(report(id, pc, &cands, failure))
-		pc.Close()
-	}
+	end := s.ender(id, pc, &cands, &authed, &why)
 	s.mu.Lock()
 	s.pcs[id] = pc
 	s.users[id] = user
@@ -264,6 +266,43 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		}
 	})
 	return pc, nil
+}
+
+// ender builds the session's one way out. Every way a session ends (ICE
+// failed/closed, bye, a removed client, a failed answer) goes through it: the
+// report is read before pc.Close() (pion's stats are gone after it) and sent
+// once, whichever path comes first.
+func (s *Sessions) ender(id string, pc *webrtc.PeerConnection, cands *signaled, authed *atomic.Bool, why *atomic.Value) func(iceFailed bool) {
+	return func(iceFailed bool) {
+		s.mu.Lock()
+		_, live := s.ends[id]
+		delete(s.pcs, id)
+		delete(s.keys, id)
+		delete(s.users, id)
+		delete(s.ends, id)
+		delete(s.cands, id)
+		s.mu.Unlock()
+		if !live {
+			return
+		}
+		w, _ := why.Load().(string)
+		s.report(report(id, pc, cands, failure(iceFailed, authed.Load(), w)))
+		pc.Close()
+	}
+}
+
+// failure is the tunnel report's failure: nil once authed, unless ICE failed.
+func failure(iceFailed, authed bool, why string) *string {
+	switch {
+	case iceFailed:
+		return ptr("ice failed")
+	case authed:
+		return nil
+	case why != "":
+		return &why
+	}
+	// Includes a browser that refused us (pin mismatch): it hangs up before auth.
+	return ptr("ended before auth")
 }
 
 // authorize opens the tunnel to a paired session, after making sure its user
@@ -308,80 +347,128 @@ type authMsg struct {
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
 // approved/rejected), once per connection (newPeer). Messages on one channel
 // arrive in order, one at a time; after a refusal none is handled.
-func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool, why *atomic.Value) { //nolint:gocyclo // #545: split there
-	// a failed send means the channel closed, and its OnClose ends the handshake
-	say := func(m authMsg) { b, _ := json.Marshal(m); _ = d.SendText(string(b)) }
-	done := make(chan struct{}) // closed when the channel closes or we refuse
-	var once sync.Once
-	end := func() { once.Do(func() { close(done) }) }
-	fail := func(reason string) {
-		log.Printf("gateway: auth: %s", reason)
-		why.Store(reason)
-		say(authMsg{Type: "rejected", Why: reason})
-		d.Close()
-		end()
-	}
-	challenge := pairing.Nonce()
-	var keyFp string
-	var reveal chan string // non-nil once the one commit is accepted
-	var revealed bool
+func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool, why *atomic.Value) {
+	a := &authRun{s: s, id: id, user: user, pc: pc, d: d, authed: authed, why: why,
+		challenge: pairing.Nonce(), done: make(chan struct{})}
+	d.OnOpen(func() { a.say(authMsg{Type: "challenge", N: a.challenge}) })
+	d.OnClose(a.end)
+	d.OnMessage(a.handle)
+}
 
-	d.OnOpen(func() { say(authMsg{Type: "challenge", N: challenge}) })
-	d.OnClose(end)
-	d.OnMessage(func(raw webrtc.DataChannelMessage) {
-		select {
-		case <-done:
-			return
-		default:
-		}
-		var m authMsg
-		if json.Unmarshal(raw.Data, &m) != nil {
-			fail("bad message")
-			return
-		}
-		switch {
-		case m.Type == "auth" && keyFp == "":
-			// The browser's DTLS cert as actually negotiated on this connection.
-			browserFp := identity.Fingerprint(pc.SCTP().Transport().GetRemoteCertificate())
-			fp, err := pairing.VerifyAuth(m.Spki, m.Sig, s.Fp, browserFp, challenge)
-			if err != nil {
-				fail(err.Error())
-				return
-			}
-			keyFp = fp
-			// Record first, then check: a concurrent Remove either sees this
-			// session in Drop or has already taken the key off the allowlist.
-			s.mu.Lock()
-			s.keys[id] = fp
-			s.mu.Unlock()
-			if s.Store.Allowed(fp) && !m.Pair {
-				s.authorize(user, authed)
-				say(authMsg{Type: "ok"})
-			} else {
-				why.Store("unpaired")
-				say(authMsg{Type: "unpaired"})
-			}
-		case m.Type == "commit" && keyFp != "" && !authed.Load() && reveal == nil:
-			// The slot is taken before the nonce goes out, so the nonces handed
-			// out are capped like the requests on the local page.
-			if err := s.Store.Reserve(); err != nil {
-				fail(err.Error())
-				return
-			}
-			reveal = make(chan string, 1)
-			nA := pairing.Nonce() // only now: the browser is committed to nB
-			go s.pair(id, keyFp, m.H, trim(m.Name), nA, reveal, done, fail, func() {
-				s.authorize(user, authed)
-				say(authMsg{Type: "approved"})
-			})
-			say(authMsg{Type: "nonce", N: nA})
-		case m.Type == "reveal" && reveal != nil && !revealed:
-			revealed = true // one reveal per channel
-			reveal <- m.N
-		default:
-			fail("unexpected " + m.Type)
-		}
+// authState is where an `auth` handshake stands.
+type authState struct {
+	keyed     bool // an auth passed: the client key is known
+	committed bool // the one commit was accepted
+	revealed  bool // the one reveal arrived
+	authed    bool // ok or approved
+}
+
+// accepts: which message the handshake takes next; anything else is `unexpected <type>`.
+func (st authState) accepts(typ string) bool {
+	switch typ {
+	case "auth":
+		return !st.keyed
+	case "commit":
+		return st.keyed && !st.authed && !st.committed
+	case "reveal":
+		return st.committed && !st.revealed
+	}
+	return false
+}
+
+// authRun is one connection's `auth` handshake (serveAuth).
+type authRun struct {
+	s         *Sessions
+	id, user  string
+	pc        *webrtc.PeerConnection
+	d         *webrtc.DataChannel
+	authed    *atomic.Bool
+	why       *atomic.Value
+	challenge string
+	done      chan struct{} // closed when the channel closes or we refuse
+	once      sync.Once
+	keyFp     string
+	reveal    chan string // non-nil once the one commit is accepted
+	revealed  bool
+}
+
+// say: a failed send means the channel closed, and its OnClose ends the handshake.
+func (a *authRun) say(m authMsg) { b, _ := json.Marshal(m); _ = a.d.SendText(string(b)) }
+
+func (a *authRun) end() { a.once.Do(func() { close(a.done) }) }
+
+func (a *authRun) fail(reason string) {
+	log.Printf("gateway: auth: %s", reason)
+	a.why.Store(reason)
+	a.say(authMsg{Type: "rejected", Why: reason})
+	a.d.Close()
+	a.end()
+}
+
+func (a *authRun) handle(raw webrtc.DataChannelMessage) {
+	select {
+	case <-a.done:
+		return
+	default:
+	}
+	var m authMsg
+	if json.Unmarshal(raw.Data, &m) != nil {
+		a.fail("bad message")
+		return
+	}
+	st := authState{keyed: a.keyFp != "", committed: a.reveal != nil, revealed: a.revealed, authed: a.authed.Load()}
+	if !st.accepts(m.Type) {
+		a.fail("unexpected " + m.Type)
+		return
+	}
+	switch m.Type {
+	case "auth":
+		a.auth(m)
+	case "commit":
+		a.commit(m)
+	case "reveal":
+		a.revealed = true // one reveal per channel
+		a.reveal <- m.N
+	}
+}
+
+func (a *authRun) auth(m authMsg) {
+	// The browser's DTLS cert as actually negotiated on this connection.
+	browserFp := identity.Fingerprint(a.pc.SCTP().Transport().GetRemoteCertificate())
+	fp, err := pairing.VerifyAuth(m.Spki, m.Sig, a.s.Fp, browserFp, a.challenge)
+	if err != nil {
+		a.fail(err.Error())
+		return
+	}
+	a.keyFp = fp
+	// Record first, then check: a concurrent Remove either sees this
+	// session in Drop or has already taken the key off the allowlist.
+	a.s.mu.Lock()
+	a.s.keys[a.id] = fp
+	a.s.mu.Unlock()
+	if a.s.Store.Allowed(fp) && !m.Pair {
+		a.s.authorize(a.user, a.authed)
+		a.say(authMsg{Type: "ok"})
+	} else {
+		a.why.Store("unpaired")
+		a.say(authMsg{Type: "unpaired"})
+	}
+}
+
+func (a *authRun) commit(m authMsg) {
+	// The slot is taken before the nonce goes out, so the nonces handed
+	// out are capped like the requests on the local page.
+	if err := a.s.Store.Reserve(); err != nil {
+		a.fail(err.Error())
+		return
+	}
+	a.reveal = make(chan string, 1)
+	nA := pairing.Nonce() // only now: the browser is committed to nB
+	go a.s.pair(a.id, a.keyFp, m.H, trim(m.Name), nA, a.reveal, a.done, a.fail, func() {
+		a.s.authorize(a.user, a.authed)
+		a.say(authMsg{Type: "approved"})
 	})
+	a.say(authMsg{Type: "nonce", N: nA})
 }
 
 // pair is the exchange after an accepted commit. It owns the pairing slot and

@@ -28,3 +28,13 @@ test('a failed that lasts the grace period fails once', (t) => {
   t.mock.timers.tick(1)
   assert.equal(onFail.mock.callCount(), 1)
 })
+
+test('a failed after connected fails at once (a lost tunnel)', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const onFail = mock.fn()
+  const feed = lastingFailure(onFail)
+  feed('connecting')
+  feed('connected')
+  feed('failed')
+  assert.equal(onFail.mock.callCount(), 1)
+})

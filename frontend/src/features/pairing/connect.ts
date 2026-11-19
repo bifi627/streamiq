@@ -18,6 +18,7 @@ import { lifetime, type Session } from './session'
 import { clientKey, getPin, persistStorage, setPin } from './store'
 import { sharer } from './shared'
 import { relayLine, relayServers } from './relay'
+import { lastingFailure } from './iceFailed'
 import {
   AppError,
   brokerClosed,
@@ -117,14 +118,15 @@ export async function connect(
         fail(brokerError(m.error, { gatewayId }))
       }
     }
-    pc.onconnectionstatechange = () =>
-      pc.connectionState === 'failed' &&
+    const iceState = lastingFailure(() =>
       fail(
         err(
           'ice-failed',
           `ICE failed: no direct or relayed route to the gateway${noTurn ? ` (relay unavailable: ${noTurn})` : ''}`,
         ),
-      )
+      ),
+    )
+    pc.onconnectionstatechange = () => iceState(pc.connectionState)
     pc.onicecandidate = (e) =>
       e.candidate && send({ type: 'ice', candidate: e.candidate.toJSON() })
 

@@ -7,12 +7,12 @@ cd "$(dirname "$0")/.."
 echo "== docs drift: STREAMIQ_* env vars + gateway routes documented =="
 bash scripts/check-docs-drift.sh
 
-echo "== workflows + bash: actionlint (shellcheck on run: blocks) + shellcheck scripts/*.sh =="
+echo "== workflows + bash: actionlint (shellcheck on run: blocks) + shellcheck scripts/*.sh + the installer =="
 # #581: one pinned image holds both; Docker is already needed below. MSYS_NO_PATHCONV keeps Git Bash off /repo
 docker_lint=(env MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/repo" -w /repo)
 img=rhysd/actionlint:1.7.12
 "${docker_lint[@]}" "$img" -no-color
-"${docker_lint[@]}" --entrypoint shellcheck "$img" scripts/*.sh
+"${docker_lint[@]}" --entrypoint shellcheck "$img" scripts/*.sh gateway/install/install.sh
 
 echo "== backend: tenant-filter bypasses + format + build + test =="
 bash scripts/check-tenant-filter.sh

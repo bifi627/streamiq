@@ -62,6 +62,7 @@ mv "$tmp/$bin" "$DIR/gateway" || {
   exit 1
 }
 # The last 3 updates' backups stay (as gateway update keeps them).
+# shellcheck disable=SC2012 # backup dirs are timestamps the gateway names; ls | sort is the newest-first order
 [ -d "$DIR/backups" ] && ls -1 "$DIR/backups" | sort -r | tail -n +4 | while read -r d; do rm -rf "${DIR:?}/backups/$d"; done
 
 if [ ! -f "$DIR/gateway.env" ]; then

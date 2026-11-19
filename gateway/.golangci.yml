@@ -4,8 +4,9 @@ run:
   # 5 s, so check.sh keeps running concurrently across worktrees
   allow-serial-runners: true
 linters:
-  # the default set: errcheck, govet, ineffassign, staticcheck, unused; plus gocyclo (#542) and funlen (#600)
-  enable: [gocyclo, funlen]
+  # the default set: errcheck, govet, ineffassign, staticcheck, unused; plus gocyclo (#542), funlen (#600)
+  # and gosec, limited to the HTTP-server checks below (#634)
+  enable: [gocyclo, funlen, gosec]
   exclusions:
     # errcheck skips Close, fmt.Fprint*, os.Remove*, os.Setenv and the like (#560); test
     # files are checked too
@@ -15,6 +16,10 @@ linters:
       - path: _test\.go
         linters: [gocyclo, funlen]
   settings:
+    gosec:
+      # G112: an http.Server without ReadHeaderTimeout; G114: a bare http.ListenAndServe/Serve
+      # (no timeouts at all). Only these two: the rest of gosec is a separate decision.
+      includes: [G112, G114]
     gocyclo:
       # reports a function over 15, like oxlint's complexity (#533) and CA1502 (#540);
       # split into pieces that take and return values. A //nolint:gocyclo needs a reason.

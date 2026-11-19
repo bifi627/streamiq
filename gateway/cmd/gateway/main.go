@@ -386,7 +386,10 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			Libraries:   func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
 			MakeOffline: setup.MakeOffline, SetExtras: setup.SetExtras,
 		})
-		log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
+		// ponytail: no WriteTimeout, handlers wait on Jellyfin; header + idle limits are free
+		srv := &http.Server{Addr: ":" + port, Handler: localpage.Guard(lanHost, localpage.Auth(token, page)),
+			ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+		log.Fatal(srv.ListenAndServe())
 	}()
 	go forever(ctx, func(ctx context.Context) error {
 		return onboarding.RunControl(

@@ -103,8 +103,7 @@ test('deep link: /play/<id> reloads at the saved position; Back key in a new tab
   // `req:/UserItems/<id>/UserData` channel; the seek's second is always new, so
   // at least one saves): wait for one, or the reload could cut it off. Either
   // one saved 3 s or later. Answered = the response's EOF message arrived; not
-  // the channel's `close`, which Chrome sometimes never fires when both ends
-  // close it at once (#566).
+  // the channel's `close`, which sometimes never fired (#566; cause unproven).
   await page.evaluate(() => {
     const w = window as unknown as { saved: number }
     w.saved = 0

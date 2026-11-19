@@ -1,7 +1,7 @@
 # Smoke test of production (#574): e2e/prod-smoke.ts on a runner against the real
 # deployment (the last gateway release + Jellyfin here, real Firebase + Cloudflare TURN).
-# After every Railway deploy, daily, and by hand. A failed run opens (or comments on)
-# the issue "Prod smoke failing": deploy runs aren't started by a person, so GitHub's
+# After every Railway deploy, daily, and by hand. A failed run opens (or reopens and
+# comments on) the one issue "Prod smoke failing": deploy runs aren't started by a person, so GitHub's
 # failure email would reach nobody.
 name: Prod smoke
 
@@ -94,17 +94,19 @@ jobs:
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EVENT: ${{ github.event_name }}
         run: |
-          sha=$(git rev-parse --short HEAD)
+          sha=$(git rev-parse --short HEAD 2>/dev/null || echo "${GITHUB_SHA::7}")
           msg="Prod smoke failed at \`$sha\` ($EVENT): $RUN"
-          n=$(gh issue list -R "$REPO" --state open --json number,title \
-            -q 'map(select(.title == "Prod smoke failing"))[0].number // empty')
-          if [ -n "$n" ]; then
+          # One issue for all failures: the newest "Prod smoke failing", reopened if closed.
+          read -r n state < <(gh issue list -R "$REPO" --state all --search 'in:title "Prod smoke failing"' \
+            --json number,title,state -q 'map(select(.title == "Prod smoke failing"))[0] // empty | "\(.number) \(.state)"') || true
+          if [ -n "${n:-}" ]; then
+            if [ "$state" = CLOSED ]; then gh issue reopen "$n" -R "$REPO"; fi
             gh issue comment "$n" -R "$REPO" --body "$msg"
           else
             gh issue create -R "$REPO" --title "Prod smoke failing" \
               --label bug --label p1 --label size:s --label area:e2e --body "$msg
 
-          Opened by .github/workflows/prod-smoke.yml; later failures comment here.
+          Opened by .github/workflows/prod-smoke.yml; later failures reopen it and comment here.
 
           ## Acceptance criteria
           - [ ] The prod smoke passes again (a manual run on main); close this issue then"

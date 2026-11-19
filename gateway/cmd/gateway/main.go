@@ -252,63 +252,97 @@ func jellyfinUp(ctx context.Context, file string) error {
 
 // selfUpdate installs the latest release over exe (the user, or a remote update: startUpdater) and
 // restarts the logon task if there is one.
-func selfUpdate(ctx context.Context, exe string) error { //nolint:gocyclo // #547: split there
+func selfUpdate(ctx context.Context, exe string) error {
 	if !service.Supported() {
 		return service.ErrUnsupported
 	}
-	if version == "dev" {
-		return errors.New("dev build: rebuild it instead")
-	}
-	latest, err := update.Latest(ctx, env("STREAMIQ_LATEST", update.LatestURL))
-	if err != nil {
+	latest, ok, err := checkUpdate(ctx, version, env("STREAMIQ_LATEST", update.LatestURL))
+	if err != nil || !ok {
 		return err
-	}
-	if !update.Newer(latest, version) {
-		fmt.Printf("Up to date (v%s).\n", version)
-		return nil
 	}
 	fmt.Printf("Downloading v%s…\n", latest)
 	if err := update.Download(ctx, env("STREAMIQ_DOWNLOAD", update.DownloadURL), update.Asset(), exe+".new"); err != nil {
 		return err
 	}
-	// This (old) binary backs up its own state, before anything is replaced (#296).
-	keep, err := update.BackupDir(filepath.Dir(exe), version, time.Now())
+	keep, err := backupBefore(ctx, exe)
+	if err != nil {
+		return err
+	}
+	os.Remove(exe + ".old") // left by a rollback, or an update before #296
+	task := service.Installed()
+	if err := swap(exe, keep, task, service.Stop, service.Start); err != nil {
+		return err
+	}
+	fmt.Print(updated(version, latest, keep, task))
+	return nil
+}
+
+// checkUpdate says whether current should update to the release at url (latest),
+// printing "Up to date" when not.
+func checkUpdate(ctx context.Context, current, url string) (latest string, ok bool, err error) {
+	if current == "dev" {
+		return "", false, errors.New("dev build: rebuild it instead")
+	}
+	latest, err = update.Latest(ctx, url)
+	if err != nil {
+		return "", false, err
+	}
+	if !update.Newer(latest, current) {
+		fmt.Printf("Up to date (v%s).\n", current)
+		return latest, false, nil
+	}
+	return latest, true, nil
+}
+
+// backupBefore backs up the state with this (old) binary, before anything is
+// replaced (#296), into the dir it returns.
+func backupBefore(ctx context.Context, exe string) (keep string, err error) {
+	keep, err = update.BackupDir(filepath.Dir(exe), version, time.Now())
 	if err == nil {
 		_, err = writeBackup(ctx, filepath.Join(keep, update.StateZip), filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile))
 	}
 	if err != nil {
-		os.Remove(exe + ".new")
-		if keep != "" {
-			os.RemoveAll(keep)
-		}
-		return fmt.Errorf("backup before the update failed, nothing changed: %w", err)
+		return "", backupFailed(exe, keep, err)
 	}
-	os.Remove(exe + ".old") // left by a rollback, or an update before #296
-	task := service.Installed()
+	return keep, nil
+}
+
+// backupFailed removes what the update made so far: the download and the backup dir.
+func backupFailed(exe, keep string, err error) error {
+	os.Remove(exe + ".new")
+	if keep != "" {
+		os.RemoveAll(keep)
+	}
+	return fmt.Errorf("backup before the update failed, nothing changed: %w", err)
+}
+
+// swap puts exe.new in place of exe, moving exe into keep. With a logon task it
+// stops it first and starts it again even if the swap failed; the swap's error wins.
+func swap(exe, keep string, task bool, stop func(exe string), start func() error) error {
 	if task {
-		service.Stop(exe)
+		stop(exe)
 	}
-	err = update.Swap(exe, exe+".new", filepath.Join(keep, filepath.Base(exe)))
+	err := update.Swap(exe, exe+".new", filepath.Join(keep, filepath.Base(exe)))
 	if err == nil {
 		if perr := update.Prune(filepath.Dir(exe)); perr != nil { // the update itself is done
 			fmt.Fprintln(os.Stderr, "gateway: removing old backups:", perr)
 		}
 	}
 	if task {
-		if serr := service.Start(); err == nil {
+		if serr := start(); err == nil {
 			err = serr
 		}
 	}
-	if err != nil {
-		return err
-	}
+	return err
+}
+
+// updated is what a successful update prints.
+func updated(old, latest, keep string, task bool) string {
+	s := fmt.Sprintf("Updated v%s → v%s. Restart the gateway to run it (or: gateway service install).\n", old, latest)
 	if task {
-		fmt.Printf("Updated v%s → v%s and restarted.\n", version, latest)
-	} else {
-		fmt.Printf("Updated v%s → v%s. Restart the gateway to run it (or: gateway service install).\n", version, latest)
+		s = fmt.Sprintf("Updated v%s → v%s and restarted.\n", old, latest)
 	}
-	fmt.Printf("v%s and its state are kept in %s: gateway rollback goes back to it.\n", version, keep)
-	return nil
+	return s + fmt.Sprintf("v%s and its state are kept in %s: gateway rollback goes back to it.\n", old, keep)
 }
 
 // startUpdater runs `gateway update` for a remote update (#312), detached so it

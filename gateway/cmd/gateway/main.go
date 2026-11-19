@@ -386,7 +386,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			Libraries:   func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
 			MakeOffline: setup.MakeOffline, SetExtras: setup.SetExtras,
 		})
-		// ponytail: no Read/WriteTimeout, they would cut slow uploads/responses; header + idle limits are free
+		// ponytail: no WriteTimeout, handlers wait on Jellyfin; header + idle limits are free
 		srv := &http.Server{Addr: ":" + port, Handler: localpage.Guard(lanHost, localpage.Auth(token, page)),
 			ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 		log.Fatal(srv.ListenAndServe())

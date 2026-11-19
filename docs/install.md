@@ -441,7 +441,7 @@ is back on the new version (its output is in `update.log` in the install dir). W
 logon task (`gateway service install`, once at home) the card says so instead: nothing would
 start the gateway again. If after about 2 minutes the gateway still runs the old version, the
 update failed (or is still backing up): `update.log` says which; don't roll back, nothing
-changed. If it isn't back at all, check `update.log` at home and run
+changed; **Try again** on the card starts it once more. If it isn't back at all, check `update.log` at home and run
 [`gateway rollback`](#roll-back-an-update).
 Linux / macOS: by hand as above for now.
 

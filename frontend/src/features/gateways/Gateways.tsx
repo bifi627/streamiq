@@ -340,12 +340,13 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
     }
   }, [canUpdate, g.id, g.update, active])
 
+  // Per started update, so a retry (#564) waits UPDATE_WAIT again.
   useEffect(() => {
-    if (!active) return
+    if (!updating) return
     status.current?.focus() // the focused button is gone: keep the D-pad's place
     const t = setTimeout(() => setLate(true), UPDATE_WAIT)
     return () => clearTimeout(t)
-  }, [active])
+  }, [updating])
 
   // An update started here can unmount the focused control (the button on a
   // 409, the Updating line once done): focus then falls to <body>, outside the
@@ -373,8 +374,10 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
     keep.current = true
     try {
       const r = await updateGateway(g.id)
-      if ('reason' in r) setRemote(r.reason)
-      else {
+      if ('reason' in r) {
+        setRemote(r.reason)
+        setUpdating(null) // a refused retry: the reason, not "hasn't happened"
+      } else {
         setLate(false)
         setUpdating({ to: r.version, from: g.version })
       }
@@ -396,17 +399,30 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
   if (
     notice === 'updating' ||
     notice === 'notHappened' ||
+    notice === 'retry' ||
     notice === 'notFinished'
   )
     return (
       <p className="notice" role="status" tabIndex={-1} ref={status}>
         {notice === 'updating' ? (
           `Updating to v${updating!.to}… The gateway is offline for a moment.`
-        ) : notice === 'notHappened' ? (
+        ) : notice !== 'notFinished' ? (
           <>
             The update to v{updating!.to} hasn't happened: the gateway still
             runs v{g.version}. It failed or is still backing up: see{' '}
             <code>update.log</code> next to the gateway, at home.
+            {notice === 'retry' && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  onClick={() => start(g.update ?? updating!.to)}
+                >
+                  Try again
+                </button>
+                {msg && <span role="alert"> {msg}</span>}
+              </>
+            )}
           </>
         ) : (
           <>

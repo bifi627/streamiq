@@ -56,7 +56,7 @@ export function Home() {
 // updates over a socket if the list ever gets big. Add/Remove are admin-only
 // (#190): hidden for a member (the API answers 403 anyway) and until /me is in;
 // a member gets told an admin does them instead (#211).
-// oxlint-disable-next-line complexity -- render branching
+// oxlint-disable-next-line complexity, max-lines-per-function -- render branching; length: #605
 export function Gateways() {
   const q = useGateways(5000)
   const qc = useQueryClient()

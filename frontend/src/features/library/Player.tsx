@@ -134,7 +134,7 @@ function freeze(v: HTMLVideoElement) {
 const mbpsText = (mbps: number) =>
   mbps.toLocaleString(undefined, { maximumSignificantDigits: 2 })
 
-// oxlint-disable-next-line complexity -- render branching
+// oxlint-disable-next-line complexity, max-lines-per-function -- render branching; length: #602
 export function Player({
   pc,
   speed,
@@ -208,6 +208,7 @@ export function Player({
     stateRef.current = onState
   })
 
+  // oxlint-disable-next-line max-lines-per-function -- #602
   useEffect(() => {
     const v = video.current!
     let h: Hls | null = null
@@ -270,7 +271,7 @@ export function Player({
       })
     let loads = 0 // only the latest start() attaches (quick quality switches)
     // Loads the stream at `at` seconds; called again by reload().
-    // oxlint-disable-next-line complexity -- builds the load (URL params, log lines), not decisions
+    // oxlint-disable-next-line complexity, max-lines-per-function -- builds the load (URL params, log lines), not decisions; length: #602
     const start = async (at: number) => {
       const load = ++loads
       at0 = at

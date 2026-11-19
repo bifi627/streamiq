@@ -480,7 +480,7 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 }
 
 // run is the gateway daemon; compose is jellyfin-compose.yml next to the binary.
-func run(ctx context.Context, compose string) {
+func run(ctx context.Context, compose string) { //nolint:funlen // #608
 	stateDir := stateDir()
 	cert, fp, err := identity.LoadOrCreate(stateDir)
 	if err != nil {

@@ -674,7 +674,7 @@ const IDLE: ScreenState = {
 // Phone remote view (#181): follows the screen's state (GET /streamiq/screens
 // every second) and sends commands one at a time, in order (each POST is its
 // own channel). Two phones see the same state; the last command wins.
-// oxlint-disable-next-line complexity -- render branching (screen, item, tracks); decisions live in remote.ts
+// oxlint-disable-next-line complexity, max-lines-per-function -- render branching (screen, item, tracks); decisions live in remote.ts; length: #604
 export function RemotePage({ screenId }: { screenId: string }) {
   const { gatewayId, pc } = useContext(Tunnel)
   const [screen, setScreen] = useState<Screen | null>() // null: closed

@@ -67,7 +67,7 @@ func zipFiles(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirect
 
 // newRoot is the gateway CLI; exe is this binary (its directory holds
 // gateway.env and jellyfin-compose.yml).
-func newRoot(ctx context.Context, exe string) *cobra.Command {
+func newRoot(ctx context.Context, exe string) *cobra.Command { //nolint:funlen // #608
 	compose := filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile)
 	none := args(cobra.NoArgs)
 	noFiles := cobra.NoFileCompletions

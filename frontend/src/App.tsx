@@ -204,6 +204,7 @@ function SignIn() {
 
 // Per-device settings (#113), in sections (#229). Back goes back in history;
 // after a deep link (no in-app history) it goes home instead of leaving the app.
+// oxlint-disable-next-line max-lines-per-function -- #606
 function Settings() {
   const router = useRouter()
   const canGoBack = useCanGoBack()

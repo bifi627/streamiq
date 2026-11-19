@@ -1,0 +1,90 @@
+# Restore a GCS backup into the idle Postgres of the blue/green pair (#441).
+# Weekly: the drill (newest dump, checked, dropped again). By hand: the incident restore
+# (a dump of your choice, kept for the cutover). Always a NEW database, so even a wrong
+# DB_LIVE can't overwrite live data. Runbook: docs/db-recovery.md.
+name: Database restore
+
+on:
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC, after the 02:00 backup
+  workflow_dispatch:
+    inputs:
+      dump:
+        description: Dump file name in the bucket's production/ folder; empty = the newest
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: db-backup
+    concurrency:
+      group: db-restore
+      cancel-in-progress: false
+    steps:
+      - name: Restore and check
+        env:
+          BLUE: ${{ secrets.DB_BLUE_URL }}
+          GREEN: ${{ secrets.DB_GREEN_URL }}
+          LIVE: ${{ vars.DB_LIVE }} # <blue|green>/<database>
+          SA_KEY: ${{ secrets.GCS_BACKUP_SA_KEY }}
+          BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
+          DUMP: ${{ inputs.dump }}
+          DRILL: ${{ github.event_name == 'schedule' }}
+        run: |
+          set -euo pipefail
+          : "${SA_KEY:?GCS_BACKUP_SA_KEY secret not set}"
+          : "${BUCKET:?GCS_BACKUP_BUCKET variable not set}"
+          case "${LIVE%%/*}" in
+            blue) idle=green; server=$GREEN ;;
+            green) idle=blue; server=$BLUE ;;
+            *) echo "::error::DB_LIVE must be blue/<database> or green/<database>, is '${LIVE}'"; exit 1 ;;
+          esac
+          : "${server:?DB_${idle^^}_URL secret not set}"
+
+          printf '%s' "$SA_KEY" > "$RUNNER_TEMP/gcs.json"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/gcs.json"
+          dumps=$(gcloud storage ls "gs://${BUCKET}/production/" | sort -r)
+          {
+            echo "### Dumps in gs://${BUCKET}/production/ (newest first)"
+            while read -r f; do echo "- \`${f##*/}\`"; done <<<"$dumps"
+          } >> "$GITHUB_STEP_SUMMARY"
+          src=$(head -1 <<<"$dumps")
+          if [ -n "$DUMP" ]; then
+            src=$(grep -Fx "gs://${BUCKET}/production/${DUMP}" <<<"$dumps") \
+              || { echo "::error::no dump named ${DUMP} in the bucket"; exit 1; }
+          fi
+          gcloud storage cp "$src" restore.dump
+
+          # A new database on the idle server: same URL, other path.
+          db="restore_$(date -u +%Y%m%dt%H%M%S)"
+          base=${server%%\?*}
+          target="${base%/*}/${db}${server#"$base"}"
+          # create/drop through the maintenance db: the server's own may be gone after a cutover.
+          admin="${base%/*}/postgres${server#"$base"}"
+          pg() { docker run --rm -v "$PWD:/d" postgres:18 "$@"; }
+
+          pg psql "$admin" -v ON_ERROR_STOP=1 -c "create database ${db}"
+          if [ "$DRILL" = true ]; then # the drill leaves nothing behind, also when it fails
+            trap 'pg psql "$admin" -c "drop database if exists ${db}"; echo "Drill: dropped ${idle}/${db}"' EXIT
+          fi
+          pg pg_restore --no-owner --no-privileges --exit-on-error -d "$target" /d/restore.dump
+          counts=$(pg psql "$target" -v ON_ERROR_STOP=1 -At -F ' ' \
+            -c "select (select count(*) from tenants), (select count(*) from gateways)")
+          read -r tenants gateways <<<"$counts"
+          echo "Restored ${src##*/} into ${idle}/${db}: ${tenants} tenants, ${gateways} gateways"
+          if [ "$tenants" -eq 0 ] || [ "$gateways" -eq 0 ]; then
+            echo "::error::restored database has no tenants or gateways"
+            exit 1
+          fi
+
+          if [ "$DRILL" != true ]; then
+            {
+              echo "### Restored into \`${idle}/${db}\` (kept)"
+              echo "Cutover (docs/db-recovery.md): point the backend's DATABASE_URL at it, then"
+              echo "\`gh variable set DB_LIVE --env db-backup --body ${idle}/${db}\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

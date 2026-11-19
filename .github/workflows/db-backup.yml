@@ -12,21 +12,34 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Environment `db-backup` (main only) holds DB_BACKUP_URL (Railway DATABASE_PUBLIC_URL).
-    # ponytail: one database; a second one gets a matrix back.
+    # Environment `db-backup` (main only): the blue/green Postgres pair (DB_BLUE_URL /
+    # DB_GREEN_URL, Railway DATABASE_PUBLIC_URL) and DB_LIVE = which one + database is live.
+    # Runbook: docs/db-recovery.md.
     environment: db-backup
     steps:
       - name: Dump and upload
         env:
-          DB_URL: ${{ secrets.DB_BACKUP_URL }}
+          BLUE: ${{ secrets.DB_BLUE_URL }}
+          GREEN: ${{ secrets.DB_GREEN_URL }}
+          LIVE: ${{ vars.DB_LIVE }} # <blue|green>/<database>
           SA_KEY: ${{ secrets.GCS_BACKUP_SA_KEY }}
           BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
           ENV_NAME: production # file and bucket prefix
         run: |
           set -euo pipefail
-          : "${DB_URL:?DB_BACKUP_URL secret not set for $ENV_NAME}"
+          case "${LIVE%%/*}" in
+            blue) server=$BLUE ;;
+            green) server=$GREEN ;;
+            *) echo "::error::DB_LIVE must be blue/<database> or green/<database>, is '${LIVE}'"; exit 1 ;;
+          esac
+          side=${LIVE%%/*}
+          : "${server:?DB_${side^^}_URL secret not set}"
           : "${SA_KEY:?GCS_BACKUP_SA_KEY secret not set}"
           : "${BUCKET:?GCS_BACKUP_BUCKET variable not set}"
+          # The live database on that server: same URL, path = DB_LIVE's database.
+          base=${server%%\?*}
+          DB_URL="${base%/*}/${LIVE#*/}${server#"$base"}"
+          export DB_URL
 
           FILE="streamiq-${ENV_NAME}-$(date -u +%Y%m%dT%H%M%SZ).dump"
 
@@ -40,4 +53,4 @@ jobs:
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/gcs.json"
           gcloud storage cp "$FILE" "gs://${BUCKET}/${ENV_NAME}/${FILE}"
 
-          echo "Backed up ${ENV_NAME} → gs://${BUCKET}/${ENV_NAME}/${FILE} ($(du -h "$FILE" | cut -f1))"
+          echo "Backed up ${LIVE} → gs://${BUCKET}/${ENV_NAME}/${FILE} ($(du -h "$FILE" | cut -f1))"

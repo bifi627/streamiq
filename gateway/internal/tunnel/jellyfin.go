@@ -134,26 +134,15 @@ func (j *Jellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // prepare turns a browser request into the origin request, or returns the
-// HTTP status to refuse it with. It reads the frame's URL as sent (RequestURI).
-func (j *Jellyfin) prepare(r *http.Request, c cred) (*http.Request, int, error) { //nolint:gocyclo // #546: split there
+// HTTP status to refuse it with.
+func (j *Jellyfin) prepare(r *http.Request, c cred) (*http.Request, int, error) {
 	if c.key == "" || c.userID == "" {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("no Jellyfin token yet (see the gateway's local page)")
 	}
-	u, err := url.Parse(r.RequestURI)
-	if err != nil || u.IsAbs() || u.Host != "" || u.User != nil || u.RawPath != "" || u.Path != path.Clean(u.Path) ||
-		!allow(r.Method, u.Path) {
-		return nil, http.StatusForbidden, fmt.Errorf("refused %s %s", r.Method, r.RequestURI)
+	u, err := originURL(r, c.userID)
+	if err != nil {
+		return nil, http.StatusForbidden, err
 	}
-	q := u.Query()
-	for k := range q {
-		switch strings.ToLower(k) {
-		case "api_key", "apikey", "userid":
-			q.Del(k)
-		}
-	}
-	q.Set("userId", c.userID)
-	u.RawQuery = q.Encode()
-
 	var body io.Reader
 	b := readBody(r)
 	if len(b) > 0 {
@@ -163,8 +152,39 @@ func (j *Jellyfin) prepare(r *http.Request, c cred) (*http.Request, int, error) 
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
-	for k, vs := range r.Header {
-		v := vs[0]
+	copyHeaders(req.Header, r.Header)
+	if len(b) > 0 && req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Authorization", `MediaBrowser Token="`+c.key+`"`)
+	return req, 0, nil
+}
+
+// originURL is the path + query to ask Jellyfin for, or an error when the URL
+// is refused. It reads the frame's URL as sent (RequestURI). The browser's
+// api_key / userId never pass; userId is set to this user's viewer.
+func originURL(r *http.Request, userID string) (*url.URL, error) {
+	u, err := url.Parse(r.RequestURI)
+	if err != nil || u.IsAbs() || u.Host != "" || u.User != nil || u.RawPath != "" || u.Path != path.Clean(u.Path) ||
+		!allow(r.Method, u.Path) {
+		return nil, fmt.Errorf("refused %s %s", r.Method, r.RequestURI)
+	}
+	q := u.Query()
+	for k := range q {
+		switch strings.ToLower(k) {
+		case "api_key", "apikey", "userid":
+			q.Del(k)
+		}
+	}
+	q.Set("userId", userID)
+	u.RawQuery = q.Encode()
+	return u, nil
+}
+
+// copyHeaders copies the browser's headers (first value each) to the origin
+// request, minus its credentials and Accept-Encoding.
+func copyHeaders(dst, src http.Header) {
+	for k, vs := range src {
 		switch lk := strings.ToLower(k); {
 		case lk == "authorization", lk == "cookie", strings.HasPrefix(lk, "x-emby"),
 			strings.HasPrefix(lk, "x-mediabrowser"):
@@ -173,14 +193,9 @@ func (j *Jellyfin) prepare(r *http.Request, c cred) (*http.Request, int, error) 
 			// Go's Transport then negotiates gzip itself and decompresses, so redact
 			// sees plain text; a browser-chosen encoding would hide the key from it
 		default:
-			req.Header.Set(k, v)
+			dst.Set(k, vs[0])
 		}
 	}
-	if len(b) > 0 && req.Header.Get("Content-Type") == "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	req.Header.Set("Authorization", `MediaBrowser Token="`+c.key+`"`)
-	return req, 0, nil
 }
 
 // redact buffers text responses (JSON, playlists) and removes the token key.

@@ -28,8 +28,16 @@ test('updateState: a started update before UPDATE_WAIT is updating (#537)', () =
   assert.equal(updateState({ ...base, started, online: false }), 'updating')
 })
 
-test('updateState: after UPDATE_WAIT, online on the old version = not happened', () => {
-  assert.equal(updateState({ ...base, started, late: true }), 'notHappened')
+test('updateState: after UPDATE_WAIT, online on the old version = not happened, retry (#564)', () => {
+  assert.equal(updateState({ ...base, started, late: true }), 'retry')
+  assert.equal(
+    updateState({ ...base, started, late: true, remote: true }),
+    'retry',
+  )
+  assert.equal(
+    updateState({ ...base, started, late: true, canUpdate: false }),
+    'notHappened',
+  )
 })
 
 test('updateState: after UPDATE_WAIT, offline = not finished', () => {

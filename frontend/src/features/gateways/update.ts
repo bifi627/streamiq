@@ -14,9 +14,12 @@ export const updated = (
 // gateway's fields, whether this browser may update it, and the status's
 // answer (remote: null = not known, true = the button works, a string = why
 // not). A started update that's done no longer counts: back to the offer.
+// Not happened + this browser may update = retry: the notice with the button
+// again (#564); the gateway refuses one while its updater still runs.
 export type Notice =
   | 'updating'
   | 'notHappened'
+  | 'retry'
   | 'notFinished'
   | 'button'
   | 'reason'
@@ -32,8 +35,11 @@ export function updateState(x: {
   canUpdate: boolean
   remote: true | string | null
 }): Notice {
-  if (x.started && !updated(x.started, x))
-    return !x.late ? 'updating' : x.online ? 'notHappened' : 'notFinished'
+  if (x.started && !updated(x.started, x)) {
+    if (!x.late) return 'updating'
+    if (!x.online) return 'notFinished'
+    return x.canUpdate ? 'retry' : 'notHappened'
+  }
   if (!x.update) return null
   if (x.canUpdate && x.remote === true) return 'button'
   if (x.canUpdate && typeof x.remote === 'string') return 'reason'

@@ -88,7 +88,7 @@ while IFS=$'\t' read -r f a r; do
   case "$f" in gateway/*_test.go) ;; gateway/*) raise 1 gateway-release ;; esac
 done <<<"$stats"
 while IFS= read -r pat; do
-  hits=$(awk -v p="$pat" '{i = index($0, "	")} index(substr($0, i + 1), p) {print substr($0, 1, i - 1)}' <<<"$added" | sort -u)
+  hits=$(awk -v p="$pat" '{i = index($0, "\t")} index(substr($0, i + 1), p) {print substr($0, 1, i - 1)}' <<<"$added" | sort -u)
   [ -n "$hits" ] || continue
   level=xhigh; raise 1 content
   while IFS= read -r f; do evidence+="content: $f: $pat"$'\n'; done <<<"$hits"

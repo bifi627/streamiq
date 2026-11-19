@@ -46,3 +46,11 @@ export const detailsMessage = (e: AppError) =>
     : e.context.status === 404
       ? 'gateway too old to report them: update it'
       : `unavailable (${e.message})`
+
+// What a client's Remove leaves (#637): drop = the row goes (removed, or 404:
+// not paired anymore, removed elsewhere); msg = the section's line, null once
+// it worked, so an earlier failed Remove's error goes too.
+export const removeOutcome = (e: AppError | null) =>
+  !e || e.context.status === 404
+    ? { drop: true, msg: null }
+    : { drop: false, msg: clientsMessage(e) }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { getStatus, updateGateway, type Gateway } from './api'
-import { describe, toAppError } from '../../errors'
-import { updated, updateState, type Started } from './update'
+import { toAppError } from '../../errors'
+import { startOutcome, updated, updateState, type Started } from './update'
 
 // How long the card waits for the gateway to come back on the new version
 // before it says the update didn't finish (#312).
@@ -75,18 +75,18 @@ export function UpdateNotice({
       return
     setMsg(null)
     keep.current = true
+    let r
     try {
-      const r = await updateGateway(g.id)
-      // A refused retry (#564): next to Try again, still tracking the update
-      // that may be running (its rollback advice if it breaks).
-      if ('reason' in r && updating) setMsg(`Refused: ${r.reason}.`)
-      else if ('reason' in r) setRemote(r.reason)
-      else {
-        setLate(false)
-        setUpdating({ to: r.version, from: g.version })
-      }
+      r = await updateGateway(g.id)
     } catch (e) {
-      setMsg(describe(toAppError(e)).message)
+      r = toAppError(e)
+    }
+    const o = startOutcome(r, g.version, updating !== null)
+    if ('msg' in o) setMsg(o.msg)
+    else if ('remote' in o) setRemote(o.remote)
+    else {
+      setLate(false)
+      setUpdating(o.started)
     }
   }
 

@@ -65,7 +65,7 @@ func zipFiles(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirect
 	return []string{"zip"}, cobra.ShellCompDirectiveFilterFileExt
 }
 
-// none and noFiles: a command without arguments.
+// none: a command takes no arguments; noFiles: its shell completion offers no files.
 var (
 	none    = args(cobra.NoArgs)
 	noFiles = cobra.NoFileCompletions

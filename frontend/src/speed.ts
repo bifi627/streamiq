@@ -7,7 +7,7 @@
 // 3 × 1 MiB (~3 MB), not kept as the hint (it reads low: ramp-up).
 import { event } from './diag'
 import { pairInfo } from './stats'
-import { tunnelFetch } from './tunnel'
+import { burstOn } from './features/gateways/api'
 import { burstSize, median } from './features/library/profile'
 import { dataSaverOn } from './settings'
 
@@ -44,7 +44,7 @@ export function measure(pc: RTCPeerConnection, gatewayId: string): Speed {
       }
       const burst = async (size: number) => {
         const t0 = performance.now()
-        const r = await tunnelFetch(pc, `/streamiq/burst?size=${size}`)
+        const r = await burstOn(pc, size)
         if (r.status !== 200) throw new Error(`HTTP ${r.status}`)
         return (r.body.length * 8) / (performance.now() - t0) / 1000
       }

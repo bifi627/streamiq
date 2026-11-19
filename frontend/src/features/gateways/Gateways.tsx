@@ -6,6 +6,7 @@ import {
   renameClient,
   removeGateway,
   renameGateway,
+  getStatus,
   type Client,
   type Gateway,
   type GatewayStatus,
@@ -15,7 +16,7 @@ import {
 } from './api'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Pairing } from '../pairing/Pairing'
-import { dropShared, share } from '../pairing/connect'
+import { dropShared } from '../pairing/connect'
 import { deletePin } from '../pairing/store'
 import {
   AppError,
@@ -27,7 +28,6 @@ import {
 import { isBack } from '../library/items'
 import { ErrorView, State } from '../../ErrorView'
 import { copyText } from '../../clipboard'
-import { tunnelJson } from '../../tunnel'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../focus'
@@ -329,12 +329,9 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
   useEffect(() => {
     if (!canUpdate || !g.update || active) return
     let on = true
-    const { session, release } = share(g.id)
-    session
-      .then((x) => tunnelJson<GatewayStatus>(x.pc, '/streamiq/status'))
+    getStatus(g.id)
       .then((s) => on && setRemote(s.remoteUpdate ?? null))
       .catch(() => {}) // the notice by hand stays
-      .finally(release)
     return () => {
       on = false
     }
@@ -734,9 +731,7 @@ function Details({ g }: { g: Gateway }) {
   useEffect(() => {
     if (!g.online) return
     let live = true
-    const { session, release } = share(g.id)
-    session
-      .then((x) => tunnelJson<GatewayStatus>(x.pc, '/streamiq/status'))
+    getStatus(g.id)
       .then((r) => {
         writeCache(g.id, r)
         if (live) setS(r)
@@ -752,7 +747,6 @@ function Details({ g }: { g: Gateway }) {
                 : `unavailable (${e.message})`,
           )
       })
-      .finally(release)
     return () => {
       live = false
     }

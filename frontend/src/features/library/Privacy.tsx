@@ -6,7 +6,7 @@
 // (CSS: .badge:focus / [aria-expanded] + .explain); the relayed MB live there.
 import { useEffect, useState } from 'react'
 import { pairInfo, type PairInfo } from '../../stats'
-import { tunnelJson } from '../../tunnel'
+import { routeOn } from '../gateways/api'
 
 export function Privacy({ pc }: { pc: RTCPeerConnection }) {
   const [p, setP] = useState<PairInfo | null>(null)
@@ -20,7 +20,7 @@ export function Privacy({ pc }: { pc: RTCPeerConnection }) {
       )
     // A gateway older than #428 answers 404: two states, as before.
     const ask = () =>
-      tunnelJson<{ route: string }>(pc, '/streamiq/route').then(
+      routeOn(pc).then(
         (r) => setLan(r.route === 'lan'),
         () => setLan((l) => l ?? false), // keep the last answer over a hiccup
       )

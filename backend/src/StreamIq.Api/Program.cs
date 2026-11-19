@@ -16,6 +16,11 @@ using StreamIq.Api.Features.Members;
 using StreamIq.Api.Features.Onboarding;
 using StreamIq.Api.Features.Tunnels;
 
+// Wiring only (services, middleware, one Map per use case): its branches are config
+// switches, not decisions to test, so the complexity limit doesn't apply here (#540).
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1502",
+    Scope = "member", Target = "~M:Program.<Main>$(System.String[])", Justification = "wiring")]
+
 var builder = WebApplication.CreateBuilder(args);
 
 // CORS allowlist = the SPA origins (comma-separated CORS_ORIGINS; default = vite dev).

@@ -134,6 +134,26 @@ public static class Broker
         }
     }
 
+    /// A string field of an untrusted message. Any other JSON type reads as missing,
+    /// never a throw that drops the socket in silence (#540).
+    internal static string? Str(JsonObject m, string key)
+    {
+        return m[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+    }
+
+    /// A number or bool field of an untrusted message; the wrong JSON type (or a number
+    /// that doesn't fit T) reads as missing.
+    internal static T? Value<T>(JsonObject m, string key) where T : struct
+    {
+        return m[key] is JsonValue v && v.TryGetValue<T>(out var t) ? t : null;
+    }
+
+    /// A Guid field (sent as a string); malformed or wrong-typed = missing.
+    internal static Guid? Id(JsonObject m, string key)
+    {
+        return Guid.TryParse(Str(m, key), out var g) ? g : null;
+    }
+
     /// Close frame only (no waiting for the peer's reply, which a hostile peer
     /// never sends); the handler returning then disposes the socket.
     public static async Task CloseAsync(WebSocket socket, string reason, CancellationToken ct)

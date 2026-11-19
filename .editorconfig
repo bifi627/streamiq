@@ -49,3 +49,8 @@ dotnet_diagnostic.NX0001.severity = error
 dotnet_diagnostic.NX0002.severity = error
 dotnet_diagnostic.NX0003.severity = error
 dotnet_diagnostic.NX0004.severity = error
+
+# Cyclomatic complexity (#540): an API method over the limit in backend/src/StreamIq.Api/
+# CodeMetricsConfig.txt fails the build (other projects: the default, 25). Split the
+# decisions out into a tested function.
+dotnet_diagnostic.CA1502.severity = warning

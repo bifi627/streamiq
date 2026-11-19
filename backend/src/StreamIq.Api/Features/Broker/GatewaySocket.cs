@@ -40,89 +40,9 @@ public static class GatewaySocket
             db.CurrentTenantId = gateway.TenantId;   // filter live from here on
             using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
             var me = new Broker.Link(socket, gateway.TenantId, gateway.Id);
-            var accepted = false;   // registered with the broker only after a heartbeat of a supported protocol
-            var ct = ctx.RequestAborted;
             try
             {
-                using var limiter = Broker.MessageLimiter(burst: 200, perSecond: 50);
-                while (await Broker.ReadAsync(socket, ct, limiter: limiter) is { } msg)
-                {
-                    switch ((string?)msg["type"])
-                    {
-                        case "heartbeat":
-                            // Missing or not a number = 0 (a gateway from before #176).
-                            var protocol = msg["protocol"] is JsonValue pv && pv.TryGetValue<int>(out var p) ? p : 0;
-                            if (!accepted)
-                            {
-                                if (protocol < MinGatewayProtocol)
-                                {
-                                    // Recorded, so the Gateways list says "update required", not just offline.
-                                    await db.Gateways.Where(d => d.Id == gateway.Id)
-                                        .ExecuteUpdateAsync(s => s.SetProperty(d => d.Protocol, protocol), ct);
-                                    await me.KillAsync("upgrade required");
-                                    return;
-                                }
-                                accepted = true;
-                                Broker.Gateways[gateway.Id] = me;   // a reconnect replaces the stale link
-                            }
-                            var lanUrl = SafeLanUrl((string?)msg["lanUrl"]);
-                            var version = (string?)msg["version"] is { Length: <= 40 } v ? v : null;
-                            var update = (string?)msg["update"] is { Length: > 0 and <= 40 } u ? u : null;
-                            var name = SafeName((string?)msg["name"]);
-                            // Matching the hash, not just the id: a socket that authenticated
-                            // just before a revoke is closed at its next heartbeat.
-                            var live = await db.Gateways.Where(d => d.Id == gateway.Id && d.CredentialHash == hash)
-                                .ExecuteUpdateAsync(s => s
-                                    .SetProperty(d => d.LastSeenAt, DateTimeOffset.UtcNow)
-                                    .SetProperty(d => d.LanUrl, lanUrl)
-                                    .SetProperty(d => d.Version, version)
-                                    .SetProperty(d => d.Protocol, protocol)
-                                    .SetProperty(d => d.Update, update)
-                                    .SetProperty(d => d.Name, d => name ?? d.Name), ct);
-                            if (live == 0)
-                            {
-                                await me.KillAsync("revoked");
-                            }
-                            break;
-                        case "answer" or "ice" when accepted:
-                            // Only into sessions opened *for this gateway*: a gateway can't
-                            // inject signaling into another gateway's (or tenant's) session.
-                            if (Guid.TryParse((string?)msg["session"], out var sid)
-                                && Broker.Sessions.TryGetValue(sid, out var browser)
-                                && browser.GatewayId == gateway.Id)
-                            {
-                                await browser.SendAsync(Relay(msg, sid), ct);
-                            }
-
-                            break;
-                        case "tunnel" when accepted:
-                            // Only this gateway's own row (another gateway's session id changes
-                            // nothing), only the first report (BytesSent null = none yet), and also
-                            // after the browser's socket closed: the broker's row outlives the session.
-                            if (Guid.TryParse((string?)msg["session"], out var tid)
-                                && msg["bytesSent"] is JsonValue bs && bs.TryGetValue<long>(out var sent) && sent >= 0
-                                && msg["bytesReceived"] is JsonValue br && br.TryGetValue<long>(out var received) && received >= 0)
-                            {
-                                var relay = msg["relay"] is JsonValue rv && rv.TryGetValue<bool>(out var r) && r;
-                                var ipv6 = msg["ipv6"] is JsonValue iv && iv.TryGetValue<bool>(out var i6) && i6;
-                                var local = Clip((string?)msg["localCandidateType"]);
-                                var remote = Clip((string?)msg["remoteCandidateType"]);
-                                var proto = Clip((string?)msg["protocol"]);
-                                var failure = Clip((string?)msg["failure"], 64);
-                                await db.Tunnels.Where(t => t.Id == tid && t.GatewayId == gateway.Id && t.BytesSent == null)
-                                    .ExecuteUpdateAsync(s => s
-                                        .SetProperty(t => t.Relay, relay)
-                                        .SetProperty(t => t.Ipv6, ipv6)
-                                        .SetProperty(t => t.LocalCandidateType, local)
-                                        .SetProperty(t => t.RemoteCandidateType, remote)
-                                        .SetProperty(t => t.Protocol, proto)
-                                        .SetProperty(t => t.BytesSent, sent)
-                                        .SetProperty(t => t.BytesReceived, received)
-                                        .SetProperty(t => t.Failure, failure), ct);
-                            }
-                            break;
-                    }
-                }
+                await ServeAsync(db, gateway.Id, hash, me, ctx.RequestAborted);
             }
             catch (Exception) { }   // a dropped gateway socket must never crash the process
             finally
@@ -133,6 +53,137 @@ public static class GatewaySocket
                 await Task.WhenAll(Broker.Sessions.Values.Where(s => s.Via == me).Select(s => s.KillAsync("gateway gone")));
             }
         }).RequireRateLimiting("signaling");
+    }
+
+    // The socket's messages until it closes. Registered with the broker only after a
+    // heartbeat of a supported protocol.
+    static async Task ServeAsync(StreamIqDbContext db, Guid gatewayId, string hash, Broker.Link me, CancellationToken ct)
+    {
+        var accepted = false;
+        using var limiter = Broker.MessageLimiter(burst: 200, perSecond: 50);
+        while (await Broker.ReadAsync(me.Socket, ct, limiter: limiter) is { } msg)
+        {
+            switch (Broker.Str(msg, "type"))
+            {
+                case "heartbeat":
+                    // The protocol before anything else, so whatever else an old gateway
+                    // sends can't keep it from being listed as "update required".
+                    var protocol = Heartbeat.ProtocolOf(msg);
+                    if (!accepted)
+                    {
+                        if (protocol < MinGatewayProtocol)
+                        {
+                            await Heartbeat.StoreRefusedAsync(db, gatewayId, protocol, ct);
+                            await me.KillAsync("upgrade required");
+                            return;
+                        }
+                        accepted = true;
+                        Broker.Gateways[gatewayId] = me;   // a reconnect replaces the stale link
+                    }
+                    if (!await Heartbeat.Parse(msg).StoreIfLiveAsync(db, gatewayId, hash, ct))
+                    {
+                        await me.KillAsync("revoked");
+                    }
+                    break;
+                case "answer" or "ice" when accepted:
+                    // Only into sessions opened *for this gateway*: a gateway can't
+                    // inject signaling into another gateway's (or tenant's) session.
+                    if (Broker.Id(msg, "session") is { } sid
+                        && Broker.Sessions.TryGetValue(sid, out var browser)
+                        && browser.GatewayId == gatewayId)
+                    {
+                        await browser.SendAsync(Relay(msg, sid), ct);
+                    }
+                    break;
+                case "tunnel" when accepted:
+                    if (TunnelReport.Parse(msg) is { } report)
+                    {
+                        await report.StoreFirstAsync(db, gatewayId, ct);
+                    }
+                    break;
+            }
+        }
+    }
+
+    /// A heartbeat (docs/protocol.md), its strings already cleaned for Postgres and the web app.
+    internal sealed record Heartbeat(int Protocol, string? LanUrl, string? Version, string? Update, string? Name)
+    {
+        /// Missing or not a number = 0 (a gateway from before #176).
+        internal static int ProtocolOf(JsonObject m)
+        {
+            return Broker.Value<int>(m, "protocol") ?? 0;
+        }
+
+        internal static Heartbeat Parse(JsonObject m)
+        {
+            return new(
+                ProtocolOf(m),
+                SafeLanUrl(Broker.Str(m, "lanUrl")),
+                Broker.Str(m, "version") is { Length: <= 40 } v ? v : null,
+                Broker.Str(m, "update") is { Length: > 0 and <= 40 } u ? u : null,
+                SafeName(Broker.Str(m, "name")));
+        }
+
+        /// Recorded, so the Gateways list says "update required", not just offline.
+        internal static Task StoreRefusedAsync(StreamIqDbContext db, Guid gatewayId, int protocol, CancellationToken ct)
+        {
+            return db.Gateways.Where(d => d.Id == gatewayId)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.Protocol, protocol), ct);
+        }
+
+        /// False = the credential was revoked. Matching the hash, not just the id: a socket
+        /// that authenticated just before a revoke is closed at its next heartbeat.
+        internal async Task<bool> StoreIfLiveAsync(StreamIqDbContext db, Guid gatewayId, string hash, CancellationToken ct)
+        {
+            var name = Name;
+            return await db.Gateways.Where(d => d.Id == gatewayId && d.CredentialHash == hash)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(d => d.LastSeenAt, DateTimeOffset.UtcNow)
+                    .SetProperty(d => d.LanUrl, LanUrl)
+                    .SetProperty(d => d.Version, Version)
+                    .SetProperty(d => d.Protocol, Protocol)
+                    .SetProperty(d => d.Update, Update)
+                    .SetProperty(d => d.Name, d => name ?? d.Name), ct) > 0;
+        }
+    }
+
+    /// A gateway's report of one tunnel when it ends (#390); null when malformed.
+    internal sealed record TunnelReport(Guid Session, long Sent, long Received, bool Relay, bool Ipv6,
+        string? LocalCandidateType, string? RemoteCandidateType, string? Protocol, string? Failure)
+    {
+        internal static TunnelReport? Parse(JsonObject m)
+        {
+            var sent = Broker.Value<long>(m, "bytesSent");
+            var received = Broker.Value<long>(m, "bytesReceived");
+            if (Broker.Id(m, "session") is not { } session || sent is not >= 0 || received is not >= 0)
+            {
+                return null;
+            }
+            return new(session, sent.Value, received.Value,
+                Broker.Value<bool>(m, "relay") ?? false,
+                Broker.Value<bool>(m, "ipv6") ?? false,
+                Clip(Broker.Str(m, "localCandidateType")),
+                Clip(Broker.Str(m, "remoteCandidateType")),
+                Clip(Broker.Str(m, "protocol")),
+                Clip(Broker.Str(m, "failure"), 64));
+        }
+
+        /// Only this gateway's own row (another gateway's session id changes nothing), only
+        /// the first report (BytesSent null = none yet), and also after the browser's socket
+        /// closed: the broker's row outlives the session.
+        internal Task StoreFirstAsync(StreamIqDbContext db, Guid gatewayId, CancellationToken ct)
+        {
+            return db.Tunnels.Where(t => t.Id == Session && t.GatewayId == gatewayId && t.BytesSent == null)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(t => t.Relay, Relay)
+                    .SetProperty(t => t.Ipv6, Ipv6)
+                    .SetProperty(t => t.LocalCandidateType, LocalCandidateType)
+                    .SetProperty(t => t.RemoteCandidateType, RemoteCandidateType)
+                    .SetProperty(t => t.Protocol, Protocol)
+                    .SetProperty(t => t.BytesSent, Sent)
+                    .SetProperty(t => t.BytesReceived, Received)
+                    .SetProperty(t => t.Failure, Failure), ct);
+        }
     }
 
     // Forward only the fields the protocol defines (docs/protocol.md). The answer

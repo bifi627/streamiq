@@ -184,34 +184,47 @@ func Restore(path, dir, compose string, force bool) (string, error) {
 	if err != nil {
 		return ComposeNone, err
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	// The compose file first: it is the step that fails on a bad install dir, and
+	// failing it must leave the state dir untouched (#592).
+	did := ComposeNone
+	if c, ok := files[ComposeEntry]; ok {
+		delete(files, ComposeEntry)
+		if did, err = writeCompose(compose, bytes.NewReader(c)); err != nil {
+			return ComposeNone, err
+		}
+	}
+	if err := restoreState(dir, files, force); err != nil {
+		if did == ComposeWritten {
+			os.Remove(compose) // ours: a rerun would otherwise keep it as the user's
+		}
 		return ComposeNone, err
+	}
+	return did, nil
+}
+
+// restoreState writes files into dir; with force it first removes the old
+// gateway's files the backup doesn't have.
+func restoreState(dir string, files map[string][]byte, force bool) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
 	}
 	// Every write goes through root: the OS refuses a path that leaves dir (.., symlinks),
 	// a second guard behind checkEntries.
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return ComposeNone, err
+		return err
 	}
 	defer root.Close()
 	if force {
 		old, err := stale(dir, files)
 		if err != nil {
-			return ComposeNone, err
+			return err
 		}
 		if err := removeAll(root, old); err != nil {
-			return ComposeNone, err
+			return err
 		}
 	}
-	c, hasCompose := files[ComposeEntry]
-	delete(files, ComposeEntry)
-	if err := writeState(root, files); err != nil {
-		return ComposeNone, err
-	}
-	if !hasCompose {
-		return ComposeNone, nil
-	}
-	return writeCompose(compose, bytes.NewReader(c))
+	return writeState(root, files)
 }
 
 // checkEntries refuses a zip that isn't a gateway backup: every entry but

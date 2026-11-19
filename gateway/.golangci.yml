@@ -4,9 +4,10 @@ run:
   # 5 s, so check.sh keeps running concurrently across worktrees
   allow-serial-runners: true
 linters:
-  # the default set: errcheck, govet, ineffassign, staticcheck, unused; plus gocyclo (#542), funlen (#600)
-  # and gosec, limited to the HTTP-server checks below (#634)
-  enable: [gocyclo, funlen, gosec]
+  # the default set: errcheck, govet, ineffassign, staticcheck, unused; plus gocyclo (#542), funlen (#600),
+  # gosec, limited to the HTTP-server checks below (#634), and nolintlint (#626: a //nolint
+  # that suppresses nothing fails, like oxlint's unused-directive check in the frontend)
+  enable: [gocyclo, funlen, gosec, nolintlint]
   exclusions:
     # errcheck skips Close, fmt.Fprint*, os.Remove*, os.Setenv and the like (#560); test
     # files are checked too

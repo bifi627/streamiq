@@ -317,11 +317,7 @@ func jellyfinLogin(ctx context.Context) error {
 	}
 	// The user name prompt doesn't watch ctx: Ctrl+C there (caught by
 	// NotifyContext) exits here. At the password prompt it is a byte (raw mode).
-	go func() {
-		<-ctx.Done()
-		fmt.Println()
-		os.Exit(130)
-	}()
+	defer exitOnCancel(ctx, os.Exit)()
 	err := jellyfin.LoginCLI(
 		ctx,
 		jellyfinSetup(),
@@ -329,8 +325,27 @@ func jellyfinLogin(ctx context.Context) error {
 		os.Stdout,
 		func() (string, error) { return jellyfin.ReadPassword(os.Stdin) },
 	)
-	if errors.Is(err, jellyfin.ErrInterrupted) {
+	if errors.Is(err, jellyfin.ErrInterrupted) || (err != nil && ctx.Err() != nil) { // Ctrl+C mid-request too
 		os.Exit(130)
 	}
 	return err
+}
+
+// exitOnCancel exits 130 when ctx ends, until the func it returns is called:
+// main's deferred stop() cancels ctx after a successful run too (#635).
+func exitOnCancel(ctx context.Context, exit func(int)) (release func()) {
+	done, gone := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(gone)
+		select {
+		case <-ctx.Done():
+			fmt.Println()
+			exit(130)
+		case <-done:
+		}
+	}()
+	return func() {
+		close(done)
+		<-gone // the watcher has stopped before ctx can end
+	}
 }

@@ -134,9 +134,9 @@ func (a *authRun) auth(m authMsg) {
 	a.keyFp = fp
 	// Record first, then check: a concurrent Remove either sees this
 	// session in Drop or has already taken the key off the allowlist.
-	a.s.mu.Lock()
-	a.s.keys[a.id] = fp
-	a.s.mu.Unlock()
+	if !a.s.record(a.id, fp) {
+		return // ended meanwhile: no key to leak, no viewer to make (#635)
+	}
 	if a.s.Store.Allowed(fp) && !m.Pair {
 		a.s.authorize(a.user, a.authed)
 		a.say(authMsg{Type: "ok"})

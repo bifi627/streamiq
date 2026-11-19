@@ -964,6 +964,18 @@ func TestDropNoSessions(t *testing.T) {
 	}
 }
 
+// An auth handled after its session ended records no key: the ender that
+// would remove it has run already (#635).
+func TestRecordAfterEnd(t *testing.T) {
+	s := &Sessions{keys: map[string]string{}, ends: map[string]func(bool){"live": func(bool) {}}}
+	if !s.record("live", "fp") || s.keys["live"] != "fp" {
+		t.Fatalf("live session: keys %v", s.keys)
+	}
+	if s.record("ended", "fp") || len(s.keys) != 1 {
+		t.Fatalf("ended session recorded: keys %v", s.keys)
+	}
+}
+
 // A pairing name is trimmed and cut to 60 bytes; an empty one is "browser" (#520).
 func TestTrim(t *testing.T) {
 	for in, want := range map[string]string{

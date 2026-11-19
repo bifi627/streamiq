@@ -1,5 +1,2 @@
 # Source files allowed over 500 code lines (scripts/check-file-size.sh, #600).
 # One file per line: <path>  # <the issue that splits it, or the reason it stays>
-gateway/cmd/gateway/main.go  # #608
-gateway/internal/jellyfin/jellyfin.go  # #608
-gateway/internal/sessions/sessions.go  # #608

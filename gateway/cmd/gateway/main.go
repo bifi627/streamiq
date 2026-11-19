@@ -27,23 +27,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/pion/webrtc/v4"
 	"github.com/spf13/cobra"
 
 	"streamiq/gateway/internal/backup"
@@ -270,238 +268,6 @@ func jellyfinUp(ctx context.Context, file string) error {
 	return jellyfin.Compose(ctx, file, "up", "-d")
 }
 
-// selfUpdate installs the latest release over exe (the user, or a remote update: startUpdater) and
-// restarts the logon task if there is one.
-func selfUpdate(ctx context.Context, exe string) error {
-	if !service.Supported() {
-		return service.ErrUnsupported
-	}
-	latest, ok, err := checkUpdate(ctx, version, env("STREAMIQ_LATEST", update.LatestURL))
-	if err != nil || !ok {
-		return err
-	}
-	fmt.Printf("Downloading v%s…\n", latest)
-	if err := update.Download(
-		ctx,
-		env("STREAMIQ_DOWNLOAD", update.DownloadURL),
-		update.Asset(),
-		exe+".new",
-	); err != nil {
-		return err
-	}
-	keep, err := backupBefore(ctx, exe)
-	if err != nil {
-		return err
-	}
-	os.Remove(exe + ".old") // left by a rollback, or an update before #296
-	task := service.Installed()
-	if err := swap(exe, keep, task, service.Stop, service.Start); err != nil {
-		return err
-	}
-	fmt.Print(updated(version, latest, keep, task))
-	return nil
-}
-
-// checkUpdate says whether current should update to the release at url (latest),
-// printing "Up to date" when not.
-func checkUpdate(ctx context.Context, current, url string) (latest string, ok bool, err error) {
-	if current == "dev" {
-		return "", false, errors.New("dev build: rebuild it instead")
-	}
-	latest, err = update.Latest(ctx, url)
-	if err != nil {
-		return "", false, err
-	}
-	if !update.Newer(latest, current) {
-		fmt.Printf("Up to date (v%s).\n", current)
-		return latest, false, nil
-	}
-	return latest, true, nil
-}
-
-// backupBefore backs up the state with this (old) binary, before anything is
-// replaced (#296), into the dir it returns.
-func backupBefore(ctx context.Context, exe string) (keep string, err error) {
-	keep, err = update.BackupDir(filepath.Dir(exe), version, time.Now())
-	if err == nil {
-		_, err = writeBackup(
-			ctx,
-			filepath.Join(keep, update.StateZip),
-			filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile),
-		)
-	}
-	if err != nil {
-		return "", backupFailed(exe, keep, err)
-	}
-	return keep, nil
-}
-
-// backupFailed removes what the update made so far: the download and the backup dir.
-func backupFailed(exe, keep string, err error) error {
-	os.Remove(exe + ".new")
-	if keep != "" {
-		os.RemoveAll(keep)
-	}
-	return fmt.Errorf("backup before the update failed, nothing changed: %w", err)
-}
-
-// swap puts exe.new in place of exe, moving exe into keep. With a logon task it
-// stops it first and starts it again even if the swap failed; the swap's error wins.
-func swap(exe, keep string, task bool, stop func(exe string), start func() error) error {
-	if task {
-		stop(exe)
-	}
-	err := update.Swap(exe, exe+".new", filepath.Join(keep, filepath.Base(exe)))
-	if err == nil {
-		if perr := update.Prune(filepath.Dir(exe)); perr != nil { // the update itself is done
-			fmt.Fprintln(os.Stderr, "gateway: removing old backups:", perr)
-		}
-	}
-	if task {
-		if serr := start(); err == nil {
-			err = serr
-		}
-	}
-	return err
-}
-
-// updated is what a successful update prints.
-func updated(old, latest, keep string, task bool) string {
-	s := fmt.Sprintf("Updated v%s → v%s. Restart the gateway to run it (or: gateway service install).\n", old, latest)
-	if task {
-		s = fmt.Sprintf("Updated v%s → v%s and restarted.\n", old, latest)
-	}
-	return s + fmt.Sprintf("v%s and its state are kept in %s: gateway rollback goes back to it.\n", old, keep)
-}
-
-// startUpdater runs `gateway update` for a remote update (#312), detached so it
-// outlives the logon task it stops; its output goes to update.log next to the binary.
-func startUpdater() (wait func(), err error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(filepath.Join(filepath.Dir(exe), "update.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Fprintf(f, "%s remote update from the web app\n", time.Now().Format(time.RFC3339))
-	c := exec.Command(exe, "update") // same working dir as this gateway: a relative state dir stays the same
-	c.Stdout, c.Stderr = f, f
-	service.Detach(c)
-	if err := c.Start(); err != nil {
-		f.Close()
-		return nil, err
-	}
-	slog.Info("gateway: remote update started", "pid", c.Process.Pid, "log", f.Name())
-	return func() {
-		if err := c.Wait(); err != nil {
-			slog.Warn("gateway: remote update failed", "err", err, "log", f.Name())
-		}
-		f.Close()
-	}, nil
-}
-
-// remoteUpdate is /streamiq/status's remoteUpdate: true, or why not.
-func remoteUpdate(r *update.Remote) any {
-	if why := r.Reason(); why != "" {
-		return why
-	}
-	return true
-}
-
-// rollback puts back the binary and state the last update replaced (#296):
-// stop, restore the state with the kept binary (it knows its own format), swap
-// the binaries, start.
-func rollback(ctx context.Context, exe string) error {
-	install := filepath.Dir(exe)
-	dir, prev, err := update.Previous(install, filepath.Base(exe))
-	if err != nil {
-		return err
-	}
-	kept := filepath.Join(dir, filepath.Base(exe))
-	task := service.Installed()
-	stopGateway(exe)
-	if err := waitStopped(); err != nil {
-		return err
-	}
-	c := exec.CommandContext(ctx, kept, "restore", "--force", filepath.Join(dir, update.StateZip))
-	c.Dir, c.Stdout, c.Stderr = install, io.Discard, os.Stderr
-	if err := c.Run(); err != nil {
-		return fmt.Errorf("restoring the state with %s: %w (nothing changed; start the gateway again)", kept, err)
-	}
-	if err := update.Swap(exe, kept, exe+".old"); err != nil {
-		return fmt.Errorf(
-			"the state of %s is restored, but its binary could not be put back: %w (copy %s over %s by hand)",
-			prev,
-			err,
-			kept,
-			exe,
-		)
-	}
-	os.Remove(exe + ".old") // Windows: still running (this process); the next update removes it
-	os.RemoveAll(dir)       // used up: a second rollback goes one update further back
-	fmt.Printf("Rolled back %s → %s.\n", version, prev)
-	if task || runtime.GOOS != "windows" {
-		if err = startGateway(exe, task); err == nil {
-			fmt.Println("Started it again.")
-		}
-		return err
-	}
-	fmt.Println("Start it: gateway service install")
-	return nil
-}
-
-// startGateway starts exe as it ran: the logon task (task), else as install.sh
-// does. Not for Windows without the task (a gateway started by hand).
-func startGateway(exe string, task bool) error {
-	if task {
-		return service.Start()
-	}
-	return exec.Command("sh", "-c", `cd "$1" && nohup "$2" >> "$1/gateway.log" 2>&1 &`, "sh", filepath.Dir(exe), exe).
-		Run()
-}
-
-func waitStopped() error {
-	for i := 0; notRunning() != nil; i++ {
-		if i == 20 {
-			return notRunning()
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	return nil
-}
-
-// restartGateway restarts a gateway running from exe (not this process) so it
-// reads gateway.env again; one started by hand on Windows is left to the user.
-func restartGateway(exe string) error {
-	task := service.Installed()
-	if !task && runtime.GOOS == "windows" {
-		fmt.Println("Restart the gateway to apply it: close its window and start it again (gateway run).")
-		return nil
-	}
-	stopGateway(exe)
-	if err := waitStopped(); err != nil {
-		return err
-	}
-	if err := startGateway(exe, task); err != nil {
-		return err
-	}
-	fmt.Println("Restarted the gateway.")
-	return nil
-}
-
-// stopGateway ends a gateway running from exe (not this process): the logon
-// task on Windows, else what install.sh started (its pkill pattern).
-func stopGateway(exe string) {
-	if runtime.GOOS == "windows" {
-		service.Stop(exe)
-		return
-	}
-	// best effort: pkill fails when nothing matches, and nothing running is fine
-	_ = exec.Command("pkill", "-f", "^"+regexp.QuoteMeta(exe)+"$").Run()
-}
-
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
 // screens are tunnel's own. status is GET /streamiq/status.
 func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler) *tunnel.Router {
@@ -516,7 +282,7 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 }
 
 // run is the gateway daemon; compose is jellyfin-compose.yml next to the binary.
-func run(ctx context.Context, compose string) { //nolint:funlen // #608
+func run(ctx context.Context, compose string) {
 	stateDir := stateDir()
 	cert, fp, err := identity.LoadOrCreate(stateDir)
 	if err != nil {
@@ -561,93 +327,106 @@ func run(ctx context.Context, compose string) { //nolint:funlen // #608
 	if api == "" {
 		log.Fatal("gateway: STREAMIQ_API_URL not set (use the install command from the web app)")
 	}
-	{
-		st, err := onboarding.LoadOrEnroll(ctx, stateDir, api, os.Getenv("STREAMIQ_ENROLL_TOKEN"), fp)
-		if err != nil {
-			log.Fatalf("gateway: %v", err)
-		}
-		log.Printf("gateway: id %s (%s)", st.GatewayID, st.Name)
-		port := pagePort()
-		lan := onboarding.LANURL(port)
-		lanHost := ""
-		if u, err := url.Parse(lan); err == nil {
-			lanHost = u.Hostname()
-		}
-		store, err := pairing.Open(stateDir)
-		if err != nil {
-			log.Fatalf("gateway: allowlist: %v", err)
-		}
-		webAPI, err := sessions.NewAPI()
-		if err != nil {
-			log.Fatalf("gateway: ICE: %v", err)
-		}
-		sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Root: root, API: webAPI,
-			Viewers: func(user string) {
-				ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-				defer cancel()
-				setup.EnsureViewer(ctx, user)
-			}}
-		store.OnRemove = sess.Drop // removing a browser ends its open sessions
-		var lastBeat atomic.Int64
-		var notice, newer atomic.Pointer[string]
-		notice.Store(new(string))
-		newer.Store(new(string))
-		go checkUpdates(ctx, &notice, &newer)
-		remote := &update.Remote{Version: version, Supported: service.Supported(), Task: service.Installed,
-			Newer: func() string { return *newer.Load() }, Start: startUpdater}
-		started := time.Now().UTC()
-		root.API = gatewayAPI(st, remote, store, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			v := setup.View()
-			jfs := map[string]any{
-				"reachable": v.Reachable,
-				"version":   v.Version,
-				"untested":  v.Untested,
-				"token":     v.Token(),
-			}
-			if o := jellyfin.Offline(compose); o != "" { // no compose Jellyfin: no field
-				jfs["offline"] = o
-			}
-			tunnel.JSON(w, http.StatusOK, map[string]any{
-				"transcoding": v.Transcoding(),
-				"os":          runtime.GOOS, "arch": runtime.GOARCH, "startedAt": started,
-				"jellyfin": jfs,
-				// Counts only: no client names (#65).
-				"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
-				"viewer":       setup.ViewerState(tunnel.SessionOf(r).User), // this session's own (#242)
-				"remoteUpdate": remoteUpdate(remote),
-			})
-		}))
-		token, err := localpage.Token(stateDir, lan)
-		if err != nil {
-			log.Fatalf("gateway: page token: %v", err)
-		}
-		go func() {
-			log.Printf("gateway: local page on %s (login link in %s)", lan, filepath.Join(stateDir, "page-link"))
-			page := localpage.Handler(localpage.Config{
-				Name: st.CurrentName, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
-				LastBeat: &lastBeat, Update: &notice, Store: store,
-				Jellyfin: func() any { return setup.View() }, Login: setup.Login,
-				Offline:     func() string { return jellyfin.Offline(compose) },
-				Libraries:   func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
-				MakeOffline: setup.MakeOffline, SetExtras: setup.SetExtras,
-			})
-			log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
-		}()
-		go forever(ctx, func(ctx context.Context) error {
-			return onboarding.RunControl(
-				ctx,
-				api,
-				st,
-				lan,
-				version,
-				&lastBeat,
-				func() string { return *newer.Load() },
-				sess.Handle,
-			)
-		})
-	}
+	enrollAndServe(ctx, stateDir, api, compose, cert, fp, root, setup)
 
 	<-ctx.Done()
+}
+
+// enrollAndServe enrolls once (or loads the stored credential), then serves the local page and keeps
+// the control socket up in the background; run waits on ctx.
+func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *webrtc.Certificate, fp string,
+	root *tunnel.Root, setup *jellyfin.Setup,
+) {
+	st, err := onboarding.LoadOrEnroll(ctx, stateDir, api, os.Getenv("STREAMIQ_ENROLL_TOKEN"), fp)
+	if err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
+	log.Printf("gateway: id %s (%s)", st.GatewayID, st.Name)
+	port := pagePort()
+	lan := onboarding.LANURL(port)
+	lanHost := ""
+	if u, err := url.Parse(lan); err == nil {
+		lanHost = u.Hostname()
+	}
+	store, err := pairing.Open(stateDir)
+	if err != nil {
+		log.Fatalf("gateway: allowlist: %v", err)
+	}
+	webAPI, err := sessions.NewAPI()
+	if err != nil {
+		log.Fatalf("gateway: ICE: %v", err)
+	}
+	sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Root: root, API: webAPI,
+		Viewers: func(user string) {
+			ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+			defer cancel()
+			setup.EnsureViewer(ctx, user)
+		}}
+	store.OnRemove = sess.Drop // removing a browser ends its open sessions
+	var lastBeat atomic.Int64
+	var notice, newer atomic.Pointer[string]
+	notice.Store(new(string))
+	newer.Store(new(string))
+	go checkUpdates(ctx, &notice, &newer)
+	remote := &update.Remote{Version: version, Supported: service.Supported(), Task: service.Installed,
+		Newer: func() string { return *newer.Load() }, Start: startUpdater}
+	started := time.Now().UTC()
+	root.API = gatewayAPI(st, remote, store, statusHandler(setup, compose, started, store, sess, remote))
+	token, err := localpage.Token(stateDir, lan)
+	if err != nil {
+		log.Fatalf("gateway: page token: %v", err)
+	}
+	go func() {
+		log.Printf("gateway: local page on %s (login link in %s)", lan, filepath.Join(stateDir, "page-link"))
+		page := localpage.Handler(localpage.Config{
+			Name: st.CurrentName, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
+			LastBeat: &lastBeat, Update: &notice, Store: store,
+			Jellyfin: func() any { return setup.View() }, Login: setup.Login,
+			Offline:     func() string { return jellyfin.Offline(compose) },
+			Libraries:   func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
+			MakeOffline: setup.MakeOffline, SetExtras: setup.SetExtras,
+		})
+		log.Fatal(http.ListenAndServe(":"+port, localpage.Guard(lanHost, localpage.Auth(token, page))))
+	}()
+	go forever(ctx, func(ctx context.Context) error {
+		return onboarding.RunControl(
+			ctx,
+			api,
+			st,
+			lan,
+			version,
+			&lastBeat,
+			func() string { return *newer.Load() },
+			sess.Handle,
+		)
+	})
+}
+
+// statusHandler is GET /streamiq/status.
+func statusHandler(setup *jellyfin.Setup, compose string, started time.Time, store *pairing.Store,
+	sess *sessions.Sessions, remote *update.Remote,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v := setup.View()
+		jfs := map[string]any{
+			"reachable": v.Reachable,
+			"version":   v.Version,
+			"untested":  v.Untested,
+			"token":     v.Token(),
+		}
+		if o := jellyfin.Offline(compose); o != "" { // no compose Jellyfin: no field
+			jfs["offline"] = o
+		}
+		tunnel.JSON(w, http.StatusOK, map[string]any{
+			"transcoding": v.Transcoding(),
+			"os":          runtime.GOOS, "arch": runtime.GOARCH, "startedAt": started,
+			"jellyfin": jfs,
+			// Counts only: no client names (#65).
+			"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
+			"viewer":       setup.ViewerState(tunnel.SessionOf(r).User), // this session's own (#242)
+			"remoteUpdate": remoteUpdate(remote),
+		})
+	})
 }
 
 // forever reruns fn until ctx ends. The API sockets are long-lived and
@@ -681,30 +460,6 @@ func forever(ctx context.Context, fn func(context.Context) error) {
 		case <-time.After(wait):
 		}
 		backoff = min(backoff*2, 30*time.Second)
-	}
-}
-
-// checkUpdates asks GitHub for the latest release at start, then daily, and
-// publishes a notice (log + local page) when it's newer. Dev builds skip it.
-func checkUpdates(ctx context.Context, notice, newer *atomic.Pointer[string]) {
-	if version == "dev" {
-		return
-	}
-	for {
-		latest, err := update.Latest(ctx, env("STREAMIQ_LATEST", update.LatestURL))
-		if err != nil {
-			slog.Warn("gateway: release check failed", "err", err)
-		} else if update.Newer(latest, version) {
-			msg := fmt.Sprintf("v%s → v%s. Run: %s", version, latest, update.Command())
-			notice.Store(&msg)
-			newer.Store(&latest)
-			slog.Warn("gateway: update available " + msg)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(24 * time.Hour):
-		}
 	}
 }
 

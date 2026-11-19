@@ -65,12 +65,16 @@ func zipFiles(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirect
 	return []string{"zip"}, cobra.ShellCompDirectiveFilterFileExt
 }
 
+// none: a command takes no arguments; noFiles: its shell completion offers no files.
+var (
+	none    = args(cobra.NoArgs)
+	noFiles = cobra.NoFileCompletions
+)
+
 // newRoot is the gateway CLI; exe is this binary (its directory holds
 // gateway.env and jellyfin-compose.yml).
-func newRoot(ctx context.Context, exe string) *cobra.Command { //nolint:funlen // #608
+func newRoot(ctx context.Context, exe string) *cobra.Command {
 	compose := filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile)
-	none := args(cobra.NoArgs)
-	noFiles := cobra.NoFileCompletions
 	runGateway := func(*cobra.Command, []string) { run(ctx, compose) }
 
 	root := &cobra.Command{
@@ -102,7 +106,18 @@ Config: gateway.env next to the binary (see docs/install.md).`,
 		&cobra.Group{ID: "backup", Title: "Backup:"},
 	)
 
-	cmds := []*cobra.Command{
+	root.AddCommand(slices.Concat(
+		gatewayCmds(ctx, exe, runGateway),
+		updateCmds(ctx, exe),
+		jellyfinCmds(ctx, exe, compose),
+		backupCmds(ctx, compose),
+	)...)
+	return root
+}
+
+// gatewayCmds are the "Gateway:" group.
+func gatewayCmds(ctx context.Context, exe string, runGateway func(*cobra.Command, []string)) []*cobra.Command {
+	return []*cobra.Command{
 		{
 			Use: "run", GroupID: "gateway", Args: none, ValidArgsFunction: noFiles,
 			Short:   "Run the gateway (the default)",
@@ -165,6 +180,12 @@ leak; docs/install.md). Refuses while the gateway runs.`,
 			Example: "  gateway reset-identity",
 			RunE:    func(*cobra.Command, []string) error { return resetIdentity() },
 		},
+	}
+}
+
+// updateCmds are the "Updates:" group.
+func updateCmds(ctx context.Context, exe string) []*cobra.Command {
+	return []*cobra.Command{
 		{
 			Use: "update", GroupID: "update", Args: none, ValidArgsFunction: noFiles,
 			Short: "Install the latest release (Windows)",
@@ -181,6 +202,12 @@ binary and its state back, starts it again.`,
 			Example: "  gateway rollback",
 			RunE:    func(*cobra.Command, []string) error { return rollback(ctx, exe) },
 		},
+	}
+}
+
+// jellyfinCmds are the "Jellyfin:" group.
+func jellyfinCmds(ctx context.Context, exe, compose string) []*cobra.Command {
+	return []*cobra.Command{
 		group(&cobra.Command{
 			Use:     "jellyfin",
 			GroupID: "jellyfin",
@@ -233,29 +260,7 @@ off: on the CPU again. Restarts Jellyfin and the gateway.`,
 				Long: `Sign in with a Jellyfin admin to repair the gateway's access (as the local
 gateway page does; docs/install.md). Needs a terminal: the password isn't shown.`,
 				Example: "  gateway jellyfin login",
-				RunE: func(*cobra.Command, []string) error {
-					if !term.IsTerminal(int(os.Stdin.Fd())) {
-						return errors.New("run it in a terminal: it reads the password without showing it")
-					}
-					// The user name prompt doesn't watch ctx: Ctrl+C there (caught by
-					// NotifyContext) exits here. At the password prompt it is a byte (raw mode).
-					go func() {
-						<-ctx.Done()
-						fmt.Println()
-						os.Exit(130)
-					}()
-					err := jellyfin.LoginCLI(
-						ctx,
-						jellyfinSetup(),
-						os.Stdin,
-						os.Stdout,
-						func() (string, error) { return jellyfin.ReadPassword(os.Stdin) },
-					)
-					if errors.Is(err, jellyfin.ErrInterrupted) {
-						os.Exit(130)
-					}
-					return err
-				},
+				RunE:    func(*cobra.Command, []string) error { return jellyfinLogin(ctx) },
 			},
 			&cobra.Command{
 				Use: "restore <file>", Args: args(cobra.ExactArgs(1)), ValidArgsFunction: zipFiles,
@@ -267,6 +272,12 @@ gateway runs; docs/install.md for the order.`,
 				RunE:    func(_ *cobra.Command, a []string) error { return jellyfinRestore(ctx, a[0], compose) },
 			},
 		),
+	}
+}
+
+// backupCmds are the "Backup:" group.
+func backupCmds(ctx context.Context, compose string) []*cobra.Command {
+	cmds := []*cobra.Command{
 		{
 			Use: "backup [file]", GroupID: "backup", Args: args(cobra.MaximumNArgs(1)),
 			Short: "Write the gateway's state (and Jellyfin's database) to one zip",
@@ -296,6 +307,30 @@ zip: gateway jellyfin restore.`,
 	}
 	force := restore.Flags().Bool("force", false, "replace the gateway already in the state dir")
 	restore.RunE = func(_ *cobra.Command, a []string) error { return restoreState(a[0], compose, *force) }
-	root.AddCommand(append(cmds, restore)...)
-	return root
+	return append(cmds, restore)
+}
+
+// jellyfinLogin is `gateway jellyfin login`.
+func jellyfinLogin(ctx context.Context) error {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return errors.New("run it in a terminal: it reads the password without showing it")
+	}
+	// The user name prompt doesn't watch ctx: Ctrl+C there (caught by
+	// NotifyContext) exits here. At the password prompt it is a byte (raw mode).
+	go func() {
+		<-ctx.Done()
+		fmt.Println()
+		os.Exit(130)
+	}()
+	err := jellyfin.LoginCLI(
+		ctx,
+		jellyfinSetup(),
+		os.Stdin,
+		os.Stdout,
+		func() (string, error) { return jellyfin.ReadPassword(os.Stdin) },
+	)
+	if errors.Is(err, jellyfin.ErrInterrupted) {
+		os.Exit(130)
+	}
+	return err
 }

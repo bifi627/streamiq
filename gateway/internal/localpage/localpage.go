@@ -145,7 +145,7 @@ type Config struct {
 // Handler renders the status page and takes the Approve/Reject/Remove and
 // Jellyfin login posts. Only someone on the home LAN reaches it, and Guard
 // stops other sites driving it.
-func Handler(c Config) http.Handler { //nolint:funlen // #608
+func Handler(c Config) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		var beat any // nil renders "not connected"
@@ -159,6 +159,46 @@ func Handler(c Config) http.Handler { //nolint:funlen // #608
 			"Offline": offline(c), "Libraries": c.Libraries != nil,
 		}))
 	})
+	handleLibraries(mux, c)
+	// For `gateway status` on this machine. Loopback only, even with a page
+	// cookie: it's a machine-local API, not part of the LAN page.
+	mux.HandleFunc("GET /status.json", func(w http.ResponseWriter, r *http.Request) {
+		if ip, _, err := net.SplitHostPort(r.RemoteAddr); err != nil || !net.ParseIP(ip).IsLoopback() {
+			http.Error(w, "loopback only", http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		logErr(json.NewEncoder(w).Encode(Status{
+			Name: c.Name(), Version: c.Version, Update: *c.Update.Load(),
+			LastBeat: c.LastBeat.Load(), Jellyfin: c.Jellyfin(),
+		}))
+	})
+	mux.HandleFunc("POST /jellyfin/login", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.Login(r.Context(), r.FormValue("user"), r.FormValue("pw")); err != nil {
+			http.Error(w, "Jellyfin sign-in failed: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+	mux.HandleFunc("POST /decide", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.Store.Decide(r.FormValue("id"), r.FormValue("approve") == "1"); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+	mux.HandleFunc("POST /remove", func(w http.ResponseWriter, r *http.Request) {
+		if err := c.Store.Remove(r.FormValue("keyFp")); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+	return mux
+}
+
+// handleLibraries adds the /libraries page and its posts (only with c.Libraries).
+func handleLibraries(mux *http.ServeMux, c Config) {
 	// Not on the main page: reading libraries signs in as Jellyfin's admin,
 	// which the main page's 3 s refresh would do every 3 s.
 	showLibs := func(w http.ResponseWriter, r *http.Request, failed error) {
@@ -199,41 +239,6 @@ func Handler(c Config) http.Handler { //nolint:funlen // #608
 	mux.HandleFunc("POST /libraries/extras", libsDo(func(r *http.Request) error {
 		return c.SetExtras(r.Context(), r.FormValue("id"), r.FormValue("on") == "1")
 	}))
-	// For `gateway status` on this machine. Loopback only, even with a page
-	// cookie: it's a machine-local API, not part of the LAN page.
-	mux.HandleFunc("GET /status.json", func(w http.ResponseWriter, r *http.Request) {
-		if ip, _, err := net.SplitHostPort(r.RemoteAddr); err != nil || !net.ParseIP(ip).IsLoopback() {
-			http.Error(w, "loopback only", http.StatusForbidden)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		logErr(json.NewEncoder(w).Encode(Status{
-			Name: c.Name(), Version: c.Version, Update: *c.Update.Load(),
-			LastBeat: c.LastBeat.Load(), Jellyfin: c.Jellyfin(),
-		}))
-	})
-	mux.HandleFunc("POST /jellyfin/login", func(w http.ResponseWriter, r *http.Request) {
-		if err := c.Login(r.Context(), r.FormValue("user"), r.FormValue("pw")); err != nil {
-			http.Error(w, "Jellyfin sign-in failed: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-	})
-	mux.HandleFunc("POST /decide", func(w http.ResponseWriter, r *http.Request) {
-		if err := c.Store.Decide(r.FormValue("id"), r.FormValue("approve") == "1"); err != nil {
-			http.Error(w, err.Error(), http.StatusConflict)
-			return
-		}
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-	})
-	mux.HandleFunc("POST /remove", func(w http.ResponseWriter, r *http.Request) {
-		if err := c.Store.Remove(r.FormValue("keyFp")); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-	})
-	return mux
 }
 
 // Status is GET /status.json. Jellyfin is jellyfin.View (this slice doesn't

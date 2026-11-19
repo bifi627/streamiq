@@ -10,7 +10,7 @@ import {
 import { auth } from './firebase'
 import { describe, toAppError } from './errors'
 import { arrowFocus } from './focus'
-import { EditableName, STORED } from './features/gateways/Gateways'
+import { EditableName, STORED } from './features/gateways/EditableName'
 
 // The alias other household members see instead of your email (#388): the
 // Firebase displayName, set here, never stored by us (no PII in our DB, #65).

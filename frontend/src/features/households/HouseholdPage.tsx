@@ -5,7 +5,7 @@ import { createHousehold, renameHousehold } from '../../api'
 import { AppError, describe, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { arrowFocus } from '../../focus'
-import { EditableName, STORED } from '../gateways/Gateways'
+import { EditableName, STORED } from '../gateways/EditableName'
 import {
   householdLabel,
   SetMeContext,

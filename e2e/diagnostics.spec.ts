@@ -117,7 +117,7 @@ test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({
   await page.getByLabel('Force relay (TURN)', { exact: true }).check()
   const { row } = await testConnection(page)
   await expect(report(page)).toContainText(
-    /relay forced: yes[\s\S]*path: relayed \(TURN\)/,
+    /relay forced: yes[\s\S]*relay: available[\s\S]*path: relayed \(TURN\)/,
   )
   expect(row, JSON.stringify(row)).toMatchObject({ Relay: true, Failure: null })
 })

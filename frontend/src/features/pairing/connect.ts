@@ -3,7 +3,7 @@
 // comparison code. docs/protocol.md, "Broker" + "Pairing".
 import { auth } from '../../firebase'
 import { API, authed } from '../../api'
-import { pcState, relayOn } from '../../diag'
+import { diag, pcState, relayOn } from '../../diag'
 import { measure, type Speed } from '../../speed'
 import {
   authMessage,
@@ -17,6 +17,7 @@ import {
 } from './crypto'
 import { clientKey, getPin, persistStorage, setPin } from './store'
 import { sharer } from './shared'
+import { hasTurn, NO_TURN, relayLine } from './relay'
 import {
   AppError,
   brokerClosed,
@@ -106,6 +107,7 @@ export async function connect(
     let gatewayFp = ''
     let verdict: ReturnType<typeof pinCheck> = 'refuse'
     let nB = ''
+    let turn = true // until `ready` says otherwise
 
     let opened = false
     ws.onopen = () => {
@@ -127,6 +129,11 @@ export async function connect(
     }
     const onBroker = async (m: { type: string; [k: string]: any }) => {
       if (m.type === 'ready') {
+        turn = hasTurn(m.iceServers)
+        diag.relay = relayLine(turn)
+        // A forced relay without a TURN server can't connect: say why now (#585).
+        if (!turn && relayOn())
+          return fail(err('ice-failed', `relay forced, but ${NO_TURN}`))
         pc.setConfiguration({
           ...pc.getConfiguration(),
           iceServers: m.iceServers,
@@ -171,7 +178,7 @@ export async function connect(
       fail(
         err(
           'ice-failed',
-          'ICE failed: no direct or relayed route to the gateway',
+          `ICE failed: no direct or relayed route to the gateway${turn ? '' : ` (${NO_TURN})`}`,
         ),
       )
     pc.onicecandidate = (e) =>

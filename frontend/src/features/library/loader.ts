@@ -13,7 +13,7 @@ import type {
 import { tunnelFetch } from '../../tunnel'
 import { rangeHeader } from './items'
 
-export const TUNNEL_ORIGIN = 'https://jellyfin.tunnel'
+export const TUNNEL_ORIGIN = 'https://gateway.tunnel'
 
 const timing = () => ({ start: 0, first: 0, end: 0 })
 

@@ -5,6 +5,7 @@
 import { createContext, useContext } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Item } from './items'
+import { image } from './jellyfin'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { ART_PREFIX, artCleared } from '../../leave'
 import type { Speed } from '../../speed'
@@ -87,10 +88,7 @@ export async function load(
   const hit = await cache?.match(key).catch(() => undefined)
   if (hit) return hit.blob()
   const r = await limited(() =>
-    tunnelFetch(
-      pc,
-      `/Items/${a.id}/Images/${a.type}?maxWidth=${width}&tag=${a.tag}`,
-    ),
+    tunnelFetch(pc, image(a.id, a.type, width, a.tag)),
   )
   if (r.status !== 200) return null
   const blob = new Blob([r.body], { type: r.headers['Content-Type'] })

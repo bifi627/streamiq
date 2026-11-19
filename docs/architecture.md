@@ -115,7 +115,10 @@ a privacy indicator: on your network (the gateway sees the browser on one of its
 ## Web client (`frontend/`)
 
 - Gateways → Open → library / series / episodes → hls.js player over the tunnel (custom
-  loader), subtitles, resume via Jellyfin UserData.
+  loader), subtitles, resume via Jellyfin UserData. Every Jellyfin request the client makes
+  is a path builder in `features/library/jellyfin.ts`, mirroring the gateway allowlist
+  (`scripts/check-jellyfin-paths.sh` fails on a Jellyfin path elsewhere); the HLS stream
+  URL is the one PlaybackInfo returns (`TranscodingUrl`).
 - Household context: Shell loads `/me` once per page load and shares it
   (`HouseholdContext`, `useHousehold()` in `features/households/household.ts`); a picker
   shows with more than one membership. The chosen household is per device

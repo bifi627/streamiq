@@ -67,6 +67,7 @@ import {
 import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
+import * as jf from './jellyfin'
 import { Tunnel, playback } from './art'
 import { Controls } from './Controls'
 import { Privacy } from './Privacy'
@@ -112,16 +113,6 @@ const AUTO_TRANSCODE = {
   VideoBitrate: String(QUALITY['1080p'].bitrate),
   MaxHeight: String(QUALITY['1080p'].height),
   MaxWidth: String(QUALITY['1080p'].width),
-}
-
-type PlaybackInfo = {
-  ErrorCode?: string
-  MediaSources: {
-    Id: string
-    TranscodingUrl?: string
-    Bitrate?: number
-    MediaStreams: NonNullable<Item['MediaStreams']>
-  }[]
 }
 
 /** Shows the current frame as the poster: a reload detaches the media, and
@@ -199,12 +190,8 @@ export function Player({
     setNext(undefined) // never the episode now playing
     if (!series) return
     let gone = false // a late answer for the previous episode
-    // This episode and the one after it, not the whole series (#344);
-    // isMissing=false: no episode Jellyfin lists without a file (#337).
-    tunnelJson<{ Items: Item[] }>(
-      pc,
-      `/Shows/${series}/Episodes?startItemId=${itemId}&limit=2&isMissing=false`,
-    ).then(
+    // This episode and the one after it, not the whole series (#344).
+    tunnelJson<{ Items: Item[] }>(pc, jf.nextEpisodes(series, itemId)).then(
       (p) => {
         if (gone) return
         // Not listed first (e.g. missing): no button.
@@ -240,9 +227,7 @@ export function Player({
     void queryClient.cancelQueries({ queryKey: ['tunnel', gatewayId] })
     let saving: Promise<unknown> = Promise.resolve()
     const save = (body: object) =>
-      (saving = tunnelJson(pc, `/UserItems/${itemId}/UserData`, body).catch(
-        () => {},
-      ))
+      (saving = tunnelJson(pc, jf.userData(itemId), body).catch(() => {}))
     const report = () => {
       const t = Math.floor(v.currentTime)
       // Not after the end: its `pause` comes before `ended` (Played: true).
@@ -308,9 +293,9 @@ export function Player({
       const raw = eff === 'Raw' && !compatible // the picker after an escalation
       const allow: Copy = raw ? { video: true, audio: true } : copy
       // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
-      const info = await tunnelJson<PlaybackInfo>(
+      const info = await tunnelJson<jf.PlaybackInfo>(
         pc,
-        `/Items/${itemId}/PlaybackInfo`,
+        jf.playbackInfo(itemId),
         {
           DeviceProfile: deviceProfile(
             caps,
@@ -522,10 +507,7 @@ export function Player({
       // ponytail: no media source yet (a phone's pick during startup) = the
       // item's id, which is its one source's; multi-version items then get
       // the default version's subtitle.
-      tunnelFetch(
-        pc,
-        `/Videos/${itemId}/${source ?? itemId}/Subtitles/${index}/0/Stream.vtt`,
-      )
+      tunnelFetch(pc, jf.subtitle(itemId, source ?? itemId, index))
         .then((r) => {
           if (r.status !== 200) throw new Error(`HTTP ${r.status}`)
           if (gone || sub !== index) return // picked again meanwhile
@@ -575,7 +557,7 @@ export function Player({
       event(`probe: ${describe(caps)}`)
       deviceProfile(caps, false, compatible) // throws without H.264, before anything loads
       // Fresh UserData: the listing may be stale (resume position).
-      const fresh = await tunnelJson<Item>(pc, `/Items/${itemId}`)
+      const fresh = await tunnelJson<Item>(pc, jf.item(itemId))
       if (gone) return
       setItem(fresh)
       runTicks = fresh.RunTimeTicks ?? 0

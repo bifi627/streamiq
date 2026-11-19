@@ -47,6 +47,7 @@ import { watchResume } from './resume'
 import { subtitleTrack } from './subtitles'
 import type { Link } from './quality'
 import { autoLine, qualityLine, transcodeParams, urlAudio } from './stream'
+import { closable, startAudio } from './timing'
 import {
   audioCodecs,
   autoAudio,
@@ -143,7 +144,8 @@ export class Engine {
   private readonly v: HTMLVideoElement
   private readonly itemId: string
   private readonly speed?: Speed
-  private readonly set: (p: Partial<View>) => void
+  private readonly set: (p: Partial<View>) => void // nothing after the teardown
+  private readonly close: () => void
   /** The screen's state callback (#181), read on each emit. */
   private readonly onState: () => ((s: ScreenState) => void) | undefined
   private readonly subs: ReturnType<typeof subtitleTrack>
@@ -160,7 +162,7 @@ export class Engine {
     this.v = d.v
     this.itemId = d.itemId
     this.speed = d.speed
-    this.set = d.set
+    ;({ set: this.set, close: this.close } = closable(d.set))
     this.onState = d.onState
     this.subs = subtitleTrack(d.pc, d.v, d.itemId)
   }
@@ -191,6 +193,7 @@ export class Engine {
     on.forEach(([e, f]) => v.addEventListener(e, f))
     return () => {
       this.gone = true
+      this.close()
       unremote?.()
       unwatch()
       clearInterval(state)
@@ -233,11 +236,13 @@ export class Engine {
             audioCodecs(caps),
             caps.surround,
           )
-    if (auto !== undefined) {
-      this.track = auto
-      this.source = ms?.Id
+    if (auto !== undefined)
       event(`audio: default not decodable, stream ${auto} instead`)
-    }
+    ;({ track: this.track, source: this.source } = startAudio(
+      this.track,
+      auto,
+      ms?.Id,
+    ))
     await this.start(
       (startTicks ?? fresh.UserData?.PlaybackPositionTicks ?? 0) /
         TICKS_PER_SECOND,

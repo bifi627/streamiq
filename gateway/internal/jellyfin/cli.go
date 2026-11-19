@@ -62,7 +62,8 @@ func ReadPassword(f *os.File) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer term.Restore(int(f.Fd()), old)
+	// nothing to do if it fails: the shell resets the terminal when the gateway exits
+	defer func() { _ = term.Restore(int(f.Fd()), old) }()
 	return readLine(f)
 }
 

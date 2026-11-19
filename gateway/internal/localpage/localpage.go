@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -151,12 +152,12 @@ func Handler(c Config) http.Handler {
 		if t := c.LastBeat.Load(); t != 0 {
 			beat = time.Unix(t, 0)
 		}
-		page.Execute(w, map[string]any{
+		logErr(page.Execute(w, map[string]any{
 			"Name": c.Name(), "GatewayID": c.GatewayID, "Fingerprint": c.Fingerprint,
 			"Version": c.Version, "Update": *c.Update.Load(), "LastBeat": beat,
 			"Jellyfin": c.Jellyfin(), "Pending": c.Store.Pending(), "Paired": c.Store.Paired(),
 			"Offline": offline(c), "Libraries": c.Libraries != nil,
-		})
+		}))
 	})
 	// Not on the main page: reading libraries signs in as Jellyfin's admin,
 	// which the main page's 3 s refresh would do every 3 s.
@@ -170,7 +171,7 @@ func Handler(c Config) http.Handler {
 			w.WriteHeader(http.StatusBadGateway)
 			msg = "Jellyfin: " + err.Error()
 		}
-		libs.Execute(w, map[string]any{"Libraries": list, "Err": msg})
+		logErr(libs.Execute(w, map[string]any{"Libraries": list, "Err": msg}))
 	}
 	libsDo := func(do func(r *http.Request) error) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -206,10 +207,10 @@ func Handler(c Config) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(Status{
+		logErr(json.NewEncoder(w).Encode(Status{
 			Name: c.Name(), Version: c.Version, Update: *c.Update.Load(),
 			LastBeat: c.LastBeat.Load(), Jellyfin: c.Jellyfin(),
-		})
+		}))
 	})
 	mux.HandleFunc("POST /jellyfin/login", func(w http.ResponseWriter, r *http.Request) {
 		if err := c.Login(r.Context(), r.FormValue("user"), r.FormValue("pw")); err != nil {
@@ -304,4 +305,12 @@ func offline(c Config) string {
 		return ""
 	}
 	return c.Offline()
+}
+
+// logErr logs a response the page failed to write: the status is sent by then,
+// so the client can't be told.
+func logErr(err error) {
+	if err != nil {
+		log.Printf("gateway: local page: %v", err)
+	}
 }

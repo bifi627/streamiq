@@ -119,8 +119,12 @@ func TestGPUCLINoChange(t *testing.T) {
 		"already off": {readFile(t, shipped), "A=1\n"},
 		"no markers":  {readFile(t, "testdata/jellyfin-compose-pre321.yml"), "A=1\n"},
 	} {
-		os.WriteFile(compose, []byte(c[0]), 0o644)
-		os.WriteFile(envFile, []byte(c[1]), 0o644)
+		if err := os.WriteFile(compose, []byte(c[0]), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(envFile, []byte(c[1]), 0o644); err != nil {
+			t.Fatal(err)
+		}
 		var out strings.Builder
 		err := GPUCLI(t.Context(), compose, envFile, false, restart, &out)
 		if name == "no markers" {

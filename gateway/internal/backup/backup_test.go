@@ -51,7 +51,9 @@ func backupFile(t *testing.T, dir string) string {
 		t.Fatal(err)
 	}
 	p := filepath.Join(t.TempDir(), "b.zip")
-	os.WriteFile(p, buf.Bytes(), 0o600)
+	if err := os.WriteFile(p, buf.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return p
 }
 
@@ -61,17 +63,22 @@ func zipOf(t *testing.T, names ...string) string {
 	zw := zip.NewWriter(&buf)
 	for _, n := range names {
 		w, _ := zw.Create(n)
-		w.Write([]byte("x"))
+		_, _ = w.Write([]byte("x")) // fails only for a directory entry ("dir/"), which takes no data
 	}
 	zw.Close()
 	p := filepath.Join(t.TempDir(), "z.zip")
-	os.WriteFile(p, buf.Bytes(), 0o600)
+	if err := os.WriteFile(p, buf.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return p
 }
 
 func TestRoundTrip(t *testing.T) {
 	src := writeDir(t, state)
-	os.Mkdir(filepath.Join(src, "sub"), 0o700) // only regular files go in
+	// only regular files go in
+	if err := os.Mkdir(filepath.Join(src, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	dst := filepath.Join(t.TempDir(), "state")
 	if _, err := Restore(backupFile(t, src), dst, filepath.Join(t.TempDir(), "c.yml"), false); err != nil {
 		t.Fatal(err)
@@ -124,13 +131,17 @@ func TestRejectsBadEntries(t *testing.T) {
 func TestCompose(t *testing.T) {
 	src := writeDir(t, state)
 	compose := filepath.Join(t.TempDir(), "jellyfin-compose.yml")
-	os.WriteFile(compose, []byte("services: {}"), 0o644)
+	if err := os.WriteFile(compose, []byte("services: {}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	var buf bytes.Buffer
 	if err := Write(src, compose, "", &buf); err != nil {
 		t.Fatal(err)
 	}
 	zipPath := filepath.Join(t.TempDir(), "b.zip")
-	os.WriteFile(zipPath, buf.Bytes(), 0o600)
+	if err := os.WriteFile(zipPath, buf.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	// Empty install dir: written next to the binary, not into state/.
 	dst, into := filepath.Join(t.TempDir(), "state"), filepath.Join(t.TempDir(), "jellyfin-compose.yml")
@@ -146,7 +157,9 @@ func TestCompose(t *testing.T) {
 	}
 
 	// An existing compose file is the user's: kept, also with --force.
-	os.WriteFile(into, []byte("mine"), 0o644)
+	if err := os.WriteFile(into, []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for _, force := range []bool{false, true} {
 		did, err := Restore(zipPath, filepath.Join(t.TempDir(), "state"), into, force)
 		if err != nil || did != ComposeKept {
@@ -173,13 +186,19 @@ func TestComposeTooBig(t *testing.T) {
 	zw := zip.NewWriter(&buf)
 	for _, n := range []string{"cert.pem", "gateway.json"} {
 		w, _ := zw.Create(n)
-		w.Write([]byte("x"))
+		if _, err := w.Write([]byte("x")); err != nil {
+			t.Fatal(err)
+		}
 	}
 	w, _ := zw.Create(ComposeEntry)
-	w.Write(make([]byte, maxFile+1))
+	if _, err := w.Write(make([]byte, maxFile+1)); err != nil {
+		t.Fatal(err)
+	}
 	zw.Close()
 	p := filepath.Join(t.TempDir(), "z.zip")
-	os.WriteFile(p, buf.Bytes(), 0o600)
+	if err := os.WriteFile(p, buf.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	into := filepath.Join(t.TempDir(), "c.yml")
 	if _, err := Restore(p, filepath.Join(t.TempDir(), "state"), into, false); err == nil {
 		t.Fatal("accepted an oversized compose entry")
@@ -209,13 +228,17 @@ func TestJellyfin(t *testing.T) {
 	src := writeDir(t, state)
 	archive := filepath.Join(t.TempDir(), "jellyfin-backup-1.zip")
 	big := bytes.Repeat([]byte("j"), maxFile+1) // over the state files' cap: never read like one
-	os.WriteFile(archive, big, 0o644)
+	if err := os.WriteFile(archive, big, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	var buf bytes.Buffer
 	if err := Write(src, "", archive, &buf); err != nil {
 		t.Fatal(err)
 	}
 	zipPath := filepath.Join(t.TempDir(), "b.zip")
-	os.WriteFile(zipPath, buf.Bytes(), 0o600)
+	if err := os.WriteFile(zipPath, buf.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	zr, _ := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
 	if f := zr.File[len(zr.File)-1]; f.Name != JellyfinEntry || f.Method != zip.Store {
 		t.Fatalf("last entry %q method %d", f.Name, f.Method)

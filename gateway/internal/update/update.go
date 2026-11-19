@@ -194,8 +194,7 @@ func Swap(exe, in, out string) error {
 		return err
 	}
 	if err := os.Rename(in, exe); err != nil {
-		os.Rename(out, exe)
-		return err
+		return errors.Join(err, os.Rename(out, exe))
 	}
 	return nil
 }

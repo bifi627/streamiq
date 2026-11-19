@@ -44,11 +44,11 @@ func fakeRoot(t *testing.T) (*Root, *http.Request) {
 			if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") { // like Jellyfin's response compression
 				w.Header().Set("Content-Encoding", "gzip")
 				z := gzip.NewWriter(w)
-				z.Write(pl)
+				_, _ = z.Write(pl)
 				z.Close()
 				return
 			}
-			w.Write(pl)
+			_, _ = w.Write(pl)
 		default:
 			http.ServeContent(w, r, "x.ts", time.Time{}, bytes.NewReader(payload))
 		}
@@ -409,19 +409,31 @@ func TestBlockedStreamEndsOnClose(t *testing.T) {
 				served <- d
 			})
 			d, _ := browser.CreateDataChannel("req", nil)
-			d.OnOpen(func() { d.SendText(`{"method":"GET","url":"/Videos/` + vid + `/hls1/main/0.ts"}`) })
+			d.OnOpen(func() {
+				if err := d.SendText(`{"method":"GET","url":"/Videos/` + vid + `/hls1/main/0.ts"}`); err != nil {
+					t.Error(err)
+				}
+			})
 			d.OnMessage(func(webrtc.DataChannelMessage) { <-hold }) // never reads on: the gateway's send buffer fills
 
 			offer, _ := browser.CreateOffer(nil)
 			gathered := webrtc.GatheringCompletePromise(browser)
-			browser.SetLocalDescription(offer)
+			if err := browser.SetLocalDescription(offer); err != nil {
+				t.Fatal(err)
+			}
 			<-gathered
-			gateway.SetRemoteDescription(*browser.LocalDescription())
+			if err := gateway.SetRemoteDescription(*browser.LocalDescription()); err != nil {
+				t.Fatal(err)
+			}
 			answer, _ := gateway.CreateAnswer(nil)
 			gathered = webrtc.GatheringCompletePromise(gateway)
-			gateway.SetLocalDescription(answer)
+			if err := gateway.SetLocalDescription(answer); err != nil {
+				t.Fatal(err)
+			}
 			<-gathered
-			browser.SetRemoteDescription(*gateway.LocalDescription())
+			if err := browser.SetRemoteDescription(*gateway.LocalDescription()); err != nil {
+				t.Fatal(err)
+			}
 
 			var gd *webrtc.DataChannel
 			select {
@@ -469,7 +481,7 @@ func TestPerUserViewer(t *testing.T) {
 		auth, user = r.Header.Get("Authorization"), r.URL.Query().Get("userId")
 		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 		_, tok, _ := strings.Cut(auth, `Token="`)
-		w.Write([]byte("sub.vtt?ApiKey=" + strings.TrimSuffix(tok, `"`)))
+		_, _ = w.Write([]byte("sub.vtt?ApiKey=" + strings.TrimSuffix(tok, `"`)))
 	}))
 	t.Cleanup(srv.Close)
 	j := &Jellyfin{Client: http.DefaultClient, URL: srv.URL, Viewer: func(u string) (string, string) {
@@ -546,7 +558,7 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "video/mp2t")
 		w.Header().Set("Content-Length", "100000")
-		w.Write(make([]byte, 10000))
+		_, _ = w.Write(make([]byte, 10000))
 		w.(http.Flusher).Flush()
 		c, _, _ := w.(http.Hijacker).Hijack() // drop the connection 90000 bytes short
 		c.Close()
@@ -560,7 +572,11 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 	t.Cleanup(func() { browser.Close(); gateway.Close() })
 	gateway.OnDataChannel(func(d *webrtc.DataChannel) { Serve(d, &Root{Jellyfin: j}, Session{}, make(chan struct{}, 1)) })
 	d, _ := browser.CreateDataChannel("req", nil)
-	d.OnOpen(func() { d.SendText(`{"method":"GET","url":"/Videos/` + vid + `/hls1/main/0.ts"}`) })
+	d.OnOpen(func() {
+		if err := d.SendText(`{"method":"GET","url":"/Videos/` + vid + `/hls1/main/0.ts"}`); err != nil {
+			t.Error(err)
+		}
+	})
 	texts := make(chan string, 4)
 	d.OnMessage(func(m webrtc.DataChannelMessage) {
 		if m.IsString {
@@ -570,14 +586,22 @@ func TestCutOffBodyEndsInError(t *testing.T) {
 
 	offer, _ := browser.CreateOffer(nil)
 	gathered := webrtc.GatheringCompletePromise(browser)
-	browser.SetLocalDescription(offer)
+	if err := browser.SetLocalDescription(offer); err != nil {
+		t.Fatal(err)
+	}
 	<-gathered
-	gateway.SetRemoteDescription(*browser.LocalDescription())
+	if err := gateway.SetRemoteDescription(*browser.LocalDescription()); err != nil {
+		t.Fatal(err)
+	}
 	answer, _ := gateway.CreateAnswer(nil)
 	gathered = webrtc.GatheringCompletePromise(gateway)
-	gateway.SetLocalDescription(answer)
+	if err := gateway.SetLocalDescription(answer); err != nil {
+		t.Fatal(err)
+	}
 	<-gathered
-	browser.SetRemoteDescription(*gateway.LocalDescription())
+	if err := browser.SetRemoteDescription(*gateway.LocalDescription()); err != nil {
+		t.Fatal(err)
+	}
 
 	for i := 0; i < 2; i++ { // head, then the end frame
 		select {
@@ -601,18 +625,28 @@ func TestFrameWriterCount(t *testing.T) {
 	t.Cleanup(func() { browser.Close(); gateway.Close() })
 	opened := make(chan *webrtc.DataChannel, 1)
 	gateway.OnDataChannel(func(d *webrtc.DataChannel) { d.OnOpen(func() { opened <- d }) })
-	browser.CreateDataChannel("req", nil)
+	if _, err := browser.CreateDataChannel("req", nil); err != nil {
+		t.Fatal(err)
+	}
 
 	offer, _ := browser.CreateOffer(nil)
 	gathered := webrtc.GatheringCompletePromise(browser)
-	browser.SetLocalDescription(offer)
+	if err := browser.SetLocalDescription(offer); err != nil {
+		t.Fatal(err)
+	}
 	<-gathered
-	gateway.SetRemoteDescription(*browser.LocalDescription())
+	if err := gateway.SetRemoteDescription(*browser.LocalDescription()); err != nil {
+		t.Fatal(err)
+	}
 	answer, _ := gateway.CreateAnswer(nil)
 	gathered = webrtc.GatheringCompletePromise(gateway)
-	gateway.SetLocalDescription(answer)
+	if err := gateway.SetLocalDescription(answer); err != nil {
+		t.Fatal(err)
+	}
 	<-gathered
-	browser.SetRemoteDescription(*gateway.LocalDescription())
+	if err := browser.SetRemoteDescription(*gateway.LocalDescription()); err != nil {
+		t.Fatal(err)
+	}
 
 	var d *webrtc.DataChannel
 	select {

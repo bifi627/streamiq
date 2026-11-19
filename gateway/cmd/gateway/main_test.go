@@ -18,7 +18,9 @@ import (
 
 func TestLoadEnvFile(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "gateway.env")
-	os.WriteFile(p, []byte("# comment\n\nSTREAMIQ_T_A = from-file\nSTREAMIQ_T_B=from-file\nnot a pair\n"), 0o600)
+	if err := os.WriteFile(p, []byte("# comment\n\nSTREAMIQ_T_A = from-file\nSTREAMIQ_T_B=from-file\nnot a pair\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("STREAMIQ_T_B", "from-env")
 	os.Unsetenv("STREAMIQ_T_A")
 	t.Cleanup(func() { os.Unsetenv("STREAMIQ_T_A") })
@@ -101,7 +103,9 @@ func TestRemoteUpdateStatus(t *testing.T) {
 // 403 and nothing happens), the rest answer a member too.
 func TestGatewayAPIRoutes(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "gateway.json"), []byte(`{"gatewayId":"g1","credential":"c","name":"nas"}`), 0o600)
+	if err := os.WriteFile(filepath.Join(dir, "gateway.json"), []byte(`{"gatewayId":"g1","credential":"c","name":"nas"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	st, err := onboarding.LoadOrEnroll(context.Background(), dir, "", "", "fp")
 	if err != nil {
 		t.Fatal(err)

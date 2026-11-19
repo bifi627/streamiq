@@ -76,6 +76,6 @@ func Auth(token string, h http.Handler) http.Handler {
 			return
 		}
 		w.WriteHeader(http.StatusUnauthorized)
-		loginForm.Execute(w, r.URL.Query().Has("t"))
+		logErr(loginForm.Execute(w, r.URL.Query().Has("t")))
 	})
 }

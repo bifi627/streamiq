@@ -53,7 +53,9 @@ func TestLoginCLI(t *testing.T) {
 				t.Fatalf("output: %q", out.String())
 			}
 			later := time.Now().Add(time.Second) // a coarse mtime still moves
-			os.Chtimes(gw.path(), later, later)
+			if err := os.Chtimes(gw.path(), later, later); err != nil {
+				t.Fatal(err)
+			}
 
 			gw.poll(ctx)
 			if v := gw.View(); v.NeedsLogin {

@@ -37,7 +37,7 @@ func TestNewer(t *testing.T) {
 func TestLatest(t *testing.T) {
 	tag := "gateway-v1.5.0"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"tag_name":"` + tag + `"}`))
+		_, _ = w.Write([]byte(`{"tag_name":"` + tag + `"}`))
 	}))
 	defer srv.Close()
 	if v, err := Latest(context.Background(), srv.URL); err != nil || v != "1.5.0" {
@@ -56,9 +56,9 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/SHA256SUMS":
-			w.Write([]byte("0000  other\n" + sums))
+			_, _ = w.Write([]byte("0000  other\n" + sums))
 		case "/streamiq-gateway-windows-amd64.exe":
-			w.Write(bin)
+			_, _ = w.Write(bin)
 		default:
 			http.NotFound(w, r)
 		}
@@ -87,9 +87,16 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 func TestSwap(t *testing.T) {
 	dir := t.TempDir()
 	exe, nw, out := filepath.Join(dir, "gateway.exe"), filepath.Join(dir, "gateway.exe.new"), filepath.Join(dir, "gateway.exe.old")
-	os.WriteFile(exe, []byte("v1"), 0o755)
-	os.WriteFile(out, []byte("v0"), 0o755) // left over from a rollback
-	os.WriteFile(nw, []byte("v2"), 0o755)
+	if err := os.WriteFile(exe, []byte("v1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// left over from a rollback
+	if err := os.WriteFile(out, []byte("v0"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(nw, []byte("v2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := Swap(exe, nw, out); err != nil {
 		t.Fatal(err)
 	}
@@ -115,9 +122,13 @@ func TestBackupsKeepThreeAndPreviousIsNewest(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		os.WriteFile(filepath.Join(d, StateZip), []byte("zip"), 0o600)
+		if err := os.WriteFile(filepath.Join(d, StateZip), []byte("zip"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		if v != "unknown" { // the newest has no binary: an update that failed before the swap
-			os.WriteFile(filepath.Join(d, "gateway"), []byte(v), 0o700)
+			if err := os.WriteFile(filepath.Join(d, "gateway"), []byte(v), 0o700); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	if err := Prune(install); err != nil {

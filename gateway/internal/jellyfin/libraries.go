@@ -136,7 +136,7 @@ func (s *Setup) asAdmin(ctx context.Context, fn func(admin string) error) error 
 	if err != nil {
 		return err
 	}
-	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
+	defer s.logout(ctx, admin)
 	return fn(admin)
 }
 

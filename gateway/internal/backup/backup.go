@@ -46,6 +46,10 @@ const (
 // maxFile caps one unpacked file: the real ones are a few KB.
 const maxFile = 10 << 20
 
+// maxTotal caps all unpacked entries together, so a zip of many maxFile
+// entries can't fill RAM.
+const maxTotal = 2 * maxFile
+
 // FileName is the default backup name: streamiq-gateway-<name>-<date>-<time>.zip.
 func FileName(dir string, now time.Time) string {
 	var st struct{ Name string }
@@ -250,9 +254,11 @@ func checkNoIdentity(dir string) error {
 }
 
 // readEntries reads every entry but JellyfinEntry (never into RAM or state/)
-// into a map by name, refusing an entry over maxFile.
+// into a map by name, refusing an entry over maxFile and entries over maxTotal
+// together.
 func readEntries(path string, zf []*zip.File) (map[string][]byte, error) {
 	files := map[string][]byte{}
+	total := 0
 	for _, f := range zf {
 		if f.Name == JellyfinEntry {
 			continue
@@ -268,6 +274,9 @@ func readEntries(path string, zf []*zip.File) (map[string][]byte, error) {
 		}
 		if len(b) > maxFile {
 			return nil, fmt.Errorf("%s: %s is too big for a gateway backup", path, f.Name)
+		}
+		if total += len(b); total > maxTotal {
+			return nil, fmt.Errorf("%s: too big for a gateway backup (over %d MiB unpacked)", path, maxTotal>>20)
 		}
 		files[f.Name] = b
 	}

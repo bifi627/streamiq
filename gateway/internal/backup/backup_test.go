@@ -396,3 +396,30 @@ func TestWriteCompose(t *testing.T) {
 		t.Fatal("left a partial compose file")
 	}
 }
+
+func TestReadEntriesTotalCap(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, n := range []string{"a", "b", "c"} { // each at maxFile, together over maxTotal
+		w, err := zw.Create(n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(make([]byte, maxFile)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readEntries("z", zr.File[:2]); err != nil {
+		t.Fatalf("two at the cap: %v", err)
+	}
+	if _, err := readEntries("z", zr.File); err == nil || !strings.Contains(err.Error(), "MiB unpacked") {
+		t.Fatalf("err = %v, want the total cap", err)
+	}
+}

@@ -80,7 +80,8 @@ headRefOid.
 - `body`: first text line `🤖 <model> · **Agent review** — <verdict>`, where verdict is `ready to merge`
   (no open BLOCKER/SPEC, counting still-open ones from section 3), `needs changes`, or
   `needs owner decision` (a BLOCKER/SPEC needs a judgement call the spec doesn't
-  settle). Only on `ready to merge`, next line: `Merge risk: ` + the merge risk line
+  settle). A level different from the script's, next line: `Level: ` + the level and
+  reason from `agent-review`'s item 1 (every verdict). Only on `ready to merge`, next line: `Merge risk: ` + the merge risk line
   `agent-review` returned. Then one line `Acceptance criteria: all met` or
   `Acceptance criteria: not met — <which>`. Then a short answer to anything the PR body
   asked reviewers to check. If an agent built the PR (its body ends with the agent
@@ -95,9 +96,9 @@ headRefOid.
   `agent-review` returned and `lowcat=` the LOW categories largest first (omitted when
   `low=0`):
   `Review stats: level=high candidates=9 blocker=0 spec=1 low=8 lowcat=style:4,simplify:3,docs:1`,
-  with ` suggested=<level>/<risk> risk=<risk>` appended on `ready to merge` (`suggested`
-  = the script's first line, `level` = the one used, risks without `risk:`, e.g.
-  `suggested=xhigh/mid risk=low`).
+  always with ` suggested=<level>/<risk>` appended (the script's first line, risk
+  without `risk:`; `level` = the one used), and ` risk=<risk>` after it on `ready to
+  merge`: e.g. `… level=high … suggested=xhigh/mid risk=low`.
   Do not run `check.sh`. No praise, no summary of what the PR
   does, no LOW items outside the LOW record, and no findings in the body (they go in
   `comments`, so each one is a resolvable thread that blocks the merge). LOWs never

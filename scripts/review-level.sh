@@ -42,9 +42,11 @@ gateway/install/install.ps1
 .github/workflows/
 '
 # xhigh + mid: an added line contains one of these (fixed strings), in any file:
-# tenant-filter bypasses and the workflow settings that widen CI's power.
+# tenant-filter bypasses (as scripts/check-tenant-filter.sh) and the workflow settings that widen CI's power.
 CONTENT='IgnoreQueryFilters
 FromSql
+ExecuteSql
+SqlQuery
 pull_request_target
 secrets.
 permissions:'
@@ -86,7 +88,8 @@ while IFS=$'\t' read -r f a r; do
   case "$f" in gateway/*_test.go) ;; gateway/*) raise 1 gateway-release ;; esac
 done <<<"$stats"
 while IFS= read -r pat; do
-  hits=$(grep -F -- "$pat" <<<"$added" | cut -f1 | sort -u) || continue
+  hits=$(awk -v p="$pat" '{i = index($0, "	")} index(substr($0, i + 1), p) {print substr($0, 1, i - 1)}' <<<"$added" | sort -u)
+  [ -n "$hits" ] || continue
   level=xhigh; raise 1 content
   while IFS= read -r f; do evidence+="content: $f: $pat"$'\n'; done <<<"$hits"
 done <<<"$CONTENT"

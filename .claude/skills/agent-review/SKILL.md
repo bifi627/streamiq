@@ -148,13 +148,13 @@ check without that label is `risk:high`.
 
 Return, in this order:
 
-1. Level used, and the counts: findings `/code-review` returned, then how many you
+1. Level used (a level different from the script's: `<used> (suggested <level>):
+   <reason>`), the script's suggestion as `suggested=<level>/<risk>`, and the counts: findings `/code-review` returned, then how many you
    sorted into BLOCKER, SPEC and LOW (all of them, not only the listed ones), the LOW
    count split by category, largest first (`low=7 lowcat=style:3,naming:2,simplify:2`).
 2. Merge risk (when section 5 applies): `risk:<label> (suggested risk:<label>: <the
    script's rule>) — <reason, if different>; <the test that drives it, or for
-   risk:high and up the manual check / what to watch>`. A level different from the
-   script's: append `; level <used> (suggested <level>): <reason>`.
+   risk:high and up the manual check / what to watch>`.
 3. Acceptance criteria: `all met` or `not met — <which>`.
 4. Answers to what the PR body asked reviewers to check (if anything).
 5. BLOCKER / SPEC findings, one per item: `[blocker]` or `[spec]` (+ `security`

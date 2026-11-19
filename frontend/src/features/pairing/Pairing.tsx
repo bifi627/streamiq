@@ -1,25 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { browserName, connect } from './connect'
 import { clientKey, getPin } from './store'
-import { AppError, renameMessage, toAppError } from '../../errors'
+import { renameMessage, toAppError } from '../../errors'
 import { listClients, renameClient } from '../gateways/api'
 import { isBack } from '../library/items'
 import { systemInfo, type SystemInfo } from '../library/jellyfin'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
-import { pairInfo, type PairInfo } from '../../stats'
+import { pairInfo } from '../../stats'
 import { arrowFocus } from '../../focus'
-
-type State =
-  | { step: 'idle' }
-  | { step: 'connecting'; pair: boolean }
-  | { step: 'code'; code: string }
-  | { step: 'done'; paired: boolean; info: SystemInfo; path: PairInfo | null }
-  | { step: 'failed'; err: AppError }
+import { routeLine, showPair as pairShown, type State } from './pairState'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
 // and tunnel one request through it ("Test connection": a cheap diagnostic).
-// oxlint-disable-next-line complexity, max-lines-per-function -- render branching + effect wiring; length: #607
+// oxlint-disable-next-line complexity -- render branching + effect wiring
 export function Pairing({
   gatewayId,
   lanUrl,
@@ -103,20 +97,7 @@ export function Pairing({
   }
 
   const err = s.step === 'failed' ? s.err : null
-  const showPair =
-    needsPair ||
-    pinned === false ||
-    err?.kind === 'not-paired' ||
-    err?.kind === 'pin-mismatch' ||
-    (s.step === 'connecting' && s.pair) || // stays put while it runs
-    s.step === 'code'
-  const gatewayPage = lanUrl ? (
-    <a href={lanUrl} target="_blank" rel="noreferrer">
-      gateway page
-    </a>
-  ) : (
-    'gateway page'
-  )
+  const showPair = pairShown(s, pinned, needsPair)
 
   const test = (
     <button
@@ -156,41 +137,8 @@ export function Pairing({
           {s.pair ? 'Connecting to start pairing…' : 'Testing the connection…'}
         </p>
       )}
-      {s.step === 'code' && (
-        <div className="pair-box" role="status">
-          <p className="pair-state">
-            <span className="dot waiting" />
-            Waiting for approval
-          </p>
-          <output className="pair-code" aria-label="Comparison code">
-            {s.code}
-          </output>
-          <p>
-            Open the {gatewayPage} on your home network and approve the request
-            showing this code.
-          </p>
-        </div>
-      )}
-      {s.step === 'done' && (
-        <div className="pair-box ok" role="status">
-          <p className="pair-state">
-            <span className="dot online" />
-            {s.paired ? 'Paired · tunnel OK' : 'Tunnel OK'}
-          </p>
-          <dl className="facts">
-            <dt>Route</dt>
-            <dd>
-              {!s.path ? 'unknown' : s.path.relay ? 'relayed (TURN)' : 'direct'}
-              {s.path?.rttMs !== undefined &&
-                ` · ${s.path.rttMs.toLocaleString()} ms round trip`}
-            </dd>
-            <dt>{s.info.ProductName ?? 'Media server'}</dt>
-            <dd>{s.info.ServerName ?? 'unnamed'}</dd>
-            <dt>Version</dt>
-            <dd>{s.info.Version ?? 'unknown'}</dd>
-          </dl>
-        </div>
-      )}
+      {s.step === 'code' && <PairCode code={s.code} lanUrl={lanUrl} />}
+      {s.step === 'done' && <TunnelOk s={s} />}
       {s.step === 'done' && s.paired && (
         // Closing it unmounts the focused control: keep the D-pad's place (#226).
         <NamePrompt
@@ -199,6 +147,52 @@ export function Pairing({
         />
       )}
       {err && <ErrorView error={err} onRetry={() => run(false)} pair={null} />}
+    </div>
+  )
+}
+
+// Pairing waits for the approval on the local gateway page.
+function PairCode({ code, lanUrl }: { code: string; lanUrl: string | null }) {
+  const gatewayPage = lanUrl ? (
+    <a href={lanUrl} target="_blank" rel="noreferrer">
+      gateway page
+    </a>
+  ) : (
+    'gateway page'
+  )
+  return (
+    <div className="pair-box" role="status">
+      <p className="pair-state">
+        <span className="dot waiting" />
+        Waiting for approval
+      </p>
+      <output className="pair-code" aria-label="Comparison code">
+        {code}
+      </output>
+      <p>
+        Open the {gatewayPage} on your home network and approve the request
+        showing this code.
+      </p>
+    </div>
+  )
+}
+
+// A passed run: the tunnel's route and the media server that answered.
+function TunnelOk({ s }: { s: Extract<State, { step: 'done' }> }) {
+  return (
+    <div className="pair-box ok" role="status">
+      <p className="pair-state">
+        <span className="dot online" />
+        {s.paired ? 'Paired · tunnel OK' : 'Tunnel OK'}
+      </p>
+      <dl className="facts">
+        <dt>Route</dt>
+        <dd>{routeLine(s.path)}</dd>
+        <dt>{s.info.ProductName ?? 'Media server'}</dt>
+        <dd>{s.info.ServerName ?? 'unnamed'}</dd>
+        <dt>Version</dt>
+        <dd>{s.info.Version ?? 'unknown'}</dd>
+      </dl>
     </div>
   )
 }

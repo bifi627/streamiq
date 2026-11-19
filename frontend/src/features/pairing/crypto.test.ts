@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   authMessage,
+  answerCheck,
   comparisonCode,
   fingerprint,
   pinCheck,
@@ -97,4 +98,25 @@ test('pin check: pinned cert passes, changed cert refused unless pairing', () =>
   assert.equal(pinCheck(v.gatewayFp, v.browserFp, true), 'unpinned') // re-pair: code must vouch
   assert.equal(pinCheck(undefined, v.gatewayFp, true), 'unpinned') // first pairing
   assert.equal(pinCheck(undefined, v.gatewayFp, false), 'unpinned') // gateway will say unpaired
+})
+
+test('answer check: fingerprint + verdict, or why the answer is refused', () => {
+  const sdp = 'v=0\r\na=fingerprint:sha-256 ab:cd\r\n'
+  const fp = 'sha-256 AB:CD'
+  assert.deepEqual(answerCheck(sdp, fp, false), { fp, verdict: 'pinned' })
+  assert.deepEqual(answerCheck(sdp, undefined, true), {
+    fp,
+    verdict: 'unpinned',
+  })
+  assert.deepEqual(answerCheck(sdp, v.gatewayFp, true), {
+    fp,
+    verdict: 'unpinned',
+  }) // re-pair
+  assert.deepEqual(answerCheck(sdp, v.gatewayFp, false), {
+    refused: `gateway certificate changed: pinned ${v.gatewayFp}, got ${fp}`,
+  })
+  assert.deepEqual(answerCheck('v=0\r\n', undefined, true), {
+    refused:
+      'gateway answer refused: SDP with 0 distinct fingerprints, expected 1',
+  })
 })

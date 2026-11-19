@@ -75,3 +75,29 @@ export function pinCheck(
   if (pin === gatewayFp) return 'pinned'
   return pin && !pairing ? 'refuse' : 'unpinned'
 }
+
+/**
+ * The gateway's answer SDP against the pin, before a single byte goes to the
+ * gateway: its cert fingerprint and the pinCheck verdict, or why it's refused
+ * (both refusals are a pin mismatch).
+ */
+export function answerCheck(
+  sdp: string,
+  pin: string | undefined,
+  pairing: boolean,
+): { fp: string; verdict: 'pinned' | 'unpinned' } | { refused: string } {
+  let fp: string
+  try {
+    fp = sdpFingerprint(sdp)
+  } catch (e) {
+    // No single certificate to compare with the pin: refuse like a mismatch.
+    return { refused: `gateway answer refused: ${(e as Error).message}` }
+  }
+  // An unexpected certificate means someone (possibly StreamIQ's own server) is
+  // in the middle. Pairing again is allowed: the comparison code authenticates
+  // the new certificate.
+  const verdict = pinCheck(pin, fp, pairing)
+  if (verdict === 'refuse')
+    return { refused: `gateway certificate changed: pinned ${pin}, got ${fp}` }
+  return { fp, verdict }
+}

@@ -55,10 +55,12 @@ Same steps for "bad migration / wrong data, DB still up" and "DB lost":
    **Database backup** by hand and check it names the new database.
 5. Check `/me` and that gateways reconnect (Gateways list shows them online).
 6. Leave the old database alone for ≥24 h as a rollback (rollback = steps 3 + 4 back to
-   it). After that, drop it to free the server for the next restore.
+   it). After that, drop it only if it is a `restore_*` database; a service's own
+   `railway` database always stays.
 
 Leftover `restore_*` databases from manual runs stay until dropped by hand
-(`drop database restore_<stamp>` on the idle server, Railway's data tab).
+(`drop database restore_<stamp>` on the idle server, e.g. in Railway's data tab). A drill
+drops its own, also when it fails.
 
 ## Restore drill
 

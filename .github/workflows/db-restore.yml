@@ -63,25 +63,28 @@ jobs:
           db="restore_$(date -u +%Y%m%dt%H%M%S)"
           base=${server%%\?*}
           target="${base%/*}/${db}${server#"$base"}"
+          # create/drop through the maintenance db: the server's own may be gone after a cutover.
+          admin="${base%/*}/postgres${server#"$base"}"
           pg() { docker run --rm -v "$PWD:/d" postgres:18 "$@"; }
 
-          pg psql "$server" -v ON_ERROR_STOP=1 -c "create database ${db}"
+          pg psql "$admin" -v ON_ERROR_STOP=1 -c "create database ${db}"
+          if [ "$DRILL" = true ]; then # the drill leaves nothing behind, also when it fails
+            trap 'pg psql "$admin" -c "drop database if exists ${db}"; echo "Drill: dropped ${idle}/${db}"' EXIT
+          fi
           pg pg_restore --no-owner --no-privileges --exit-on-error -d "$target" /d/restore.dump
-          read -r tenants gateways < <(pg psql "$target" -v ON_ERROR_STOP=1 -At -F ' ' \
+          counts=$(pg psql "$target" -v ON_ERROR_STOP=1 -At -F ' ' \
             -c "select (select count(*) from tenants), (select count(*) from gateways)")
+          read -r tenants gateways <<<"$counts"
           echo "Restored ${src##*/} into ${idle}/${db}: ${tenants} tenants, ${gateways} gateways"
+          if [ "$tenants" -eq 0 ] || [ "$gateways" -eq 0 ]; then
+            echo "::error::restored database has no tenants or gateways"
+            exit 1
+          fi
 
-          if [ "$DRILL" = true ]; then
-            pg psql "$server" -v ON_ERROR_STOP=1 -c "drop database ${db}"
-            echo "Drill: dropped ${idle}/${db}"
-          else
+          if [ "$DRILL" != true ]; then
             {
               echo "### Restored into \`${idle}/${db}\` (kept)"
               echo "Cutover (docs/db-recovery.md): point the backend's DATABASE_URL at it, then"
               echo "\`gh variable set DB_LIVE --env db-backup --body ${idle}/${db}\`"
             } >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ "$tenants" -eq 0 ] || [ "$gateways" -eq 0 ]; then
-            echo "::error::restored database has no tenants or gateways"
-            exit 1
           fi

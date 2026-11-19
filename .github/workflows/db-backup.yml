@@ -32,7 +32,8 @@ jobs:
             green) server=$GREEN ;;
             *) echo "::error::DB_LIVE must be blue/<database> or green/<database>, is '${LIVE}'"; exit 1 ;;
           esac
-          : "${server:?DB_${LIVE%%/*}_URL secret not set}"
+          side=${LIVE%%/*}
+          : "${server:?DB_${side^^}_URL secret not set}"
           : "${SA_KEY:?GCS_BACKUP_SA_KEY secret not set}"
           : "${BUCKET:?GCS_BACKUP_BUCKET variable not set}"
           # The live database on that server: same URL, path = DB_LIVE's database.
@@ -52,4 +53,4 @@ jobs:
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/gcs.json"
           gcloud storage cp "$FILE" "gs://${BUCKET}/${ENV_NAME}/${FILE}"
 
-          echo "Backed up ${ENV_NAME} → gs://${BUCKET}/${ENV_NAME}/${FILE} ($(du -h "$FILE" | cut -f1))"
+          echo "Backed up ${LIVE} →gs://${BUCKET}/${ENV_NAME}/${FILE} ($(du -h "$FILE" | cut -f1))"

@@ -192,7 +192,6 @@ function InstallCard({ install }: { install: Install }) {
 }
 
 // One gateway's card. onRename / onRemove: the list's, it owns the query.
-// oxlint-disable-next-line complexity -- render branching
 function GatewayCard({
   g,
   admin,

@@ -1,4 +1,4 @@
-// One load's TranscodingUrl params and its log lines (the Player's start()).
+// One load's TranscodingUrl params and its log lines (Engine.start/attach, engine.ts).
 import { QUALITY, type Quality } from './profile.ts'
 
 // Auto's video transcode output ceilings (e.g. the #81 fallback), set on the

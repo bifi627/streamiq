@@ -51,9 +51,9 @@ test('client and status messages by error', () => {
 test("a Remove that works clears an earlier failed one's line (#637)", () => {
   assert.deepEqual(removeOutcome(null, false), { done: 'row', msg: null })
   assert.deepEqual(removeOutcome(null, true), { done: 'self', msg: null })
-  // 404: removed elsewhere: another client's row goes, this browser's stays
+  // 404: removed elsewhere, so the same as a Remove that went through (#643)
   assert.deepEqual(removeOutcome(e(404), false), { done: 'row', msg: null })
-  assert.deepEqual(removeOutcome(e(404), true), { done: 'kept', msg: null })
+  assert.deepEqual(removeOutcome(e(404), true), { done: 'self', msg: null })
   assert.deepEqual(removeOutcome(e(500), false), {
     done: null,
     msg: clientsMessage(e(500)),

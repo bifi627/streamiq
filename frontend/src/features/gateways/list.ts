@@ -48,16 +48,15 @@ export const detailsMessage = (e: AppError) =>
       : `unavailable (${e.message})`
 
 // What a client's Remove leaves (#637): done = 'self' (this browser is gone:
-// the card offers Pair again), 'row' (drop another client's row; 404 = not
-// paired anymore, removed elsewhere, so the same), 'kept' (this browser's own
-// row with a 404: nothing changes), null = failed; msg = the section's line,
-// null once it went through, so an earlier failed Remove's error goes too.
+// the card offers Pair again), 'row' (drop another client's row), null =
+// failed; a 404 = not paired anymore, removed elsewhere, so the same as done
+// (#643); msg = the section's line, null once it went through, so an earlier
+// failed Remove's error goes too.
 export function removeOutcome(
   e: AppError | null,
   self: boolean,
-): { done: 'self' | 'row' | 'kept' | null; msg: string | null } {
+): { done: 'self' | 'row' | null; msg: string | null } {
   if (e && e.context.status !== 404)
     return { done: null, msg: clientsMessage(e) }
-  if (!self) return { done: 'row', msg: null }
-  return { done: e ? 'kept' : 'self', msg: null }
+  return { done: self ? 'self' : 'row', msg: null }
 }

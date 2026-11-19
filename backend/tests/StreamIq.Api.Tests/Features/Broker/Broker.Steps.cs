@@ -230,18 +230,14 @@ public class BrokerSteps(IntegrationFixture fx)
             .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
     }
 
-    // The timed-out read aborts the socket (no close frame; TestServer surfaces that as an
-    // IOException): a close or an abort both pass, a message or 5 s of silence (under the real
-    // 10 s, so the shortened one is what fires) fail. 100 ms of slack for timer granularity.
-    [Then("the browser socket is closed after the auth timeout")]
-    public async Task ThenClosedAfterTimeout()
+    // A close frame with the reason (#555; an abort, a message or 5 s of silence fail: under
+    // the real 10 s, so the shortened one is what fires). 100 ms of slack for timer granularity.
+    [Then("the browser socket is closed as \"([^\"]*)\" after the auth timeout")]
+    public async Task ThenClosedAfterTimeout(string reason)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        try
-        {
-            Assert.Equal(WebSocketMessageType.Close, (await _browser.ReceiveAsync(new byte[1024], cts.Token)).MessageType);
-        }
-        catch (Exception e) when (e is IOException or WebSocketException) { }
+        Assert.Equal(WebSocketMessageType.Close, (await _browser.ReceiveAsync(new byte[1024], cts.Token)).MessageType);
+        Assert.Equal(reason, _browser.CloseStatusDescription);
         Assert.True(_opened.Elapsed >= BrowserSocket.AuthTimeout - TimeSpan.FromMilliseconds(100),
             $"closed after {_opened.Elapsed}, before the auth timeout");
     }
@@ -252,6 +248,21 @@ public class BrokerSteps(IntegrationFixture fx)
         _browser = await fx.Factory.Server.CreateWebSocketClient()
             .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
         await Send(_browser, new { type = "offer", gatewayId = Guid.NewGuid(), sdp = new { type = "offer", sdp = "v=0 fake" } });
+    }
+
+    [When("^a browser opens a broker socket and first sends (invalid JSON|a JSON array|a JSON number|a 9 KB frame)$")]
+    public async Task WhenBadFirstFrame(string frame)
+    {
+        var text = frame switch
+        {
+            "invalid JSON" => "{not json",
+            "a JSON array" => "[{\"type\":\"auth\"}]",
+            "a JSON number" => "42",
+            _ => $"{{\"type\":\"auth\",\"token\":\"{new string('x', 9 * 1024)}\"}}",   // over the 8 KB auth read
+        };
+        _browser = await fx.Factory.Server.CreateWebSocketClient()
+            .ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/broker/ws"), CancellationToken.None);
+        await _browser.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, true, CancellationToken.None);
     }
 
     // Signed up, never created or joined a household (#387).

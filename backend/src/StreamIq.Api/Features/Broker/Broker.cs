@@ -87,10 +87,11 @@ public static class Broker
     }
 
     /// Next whole JSON text message, or null when the socket closes. Messages over
-    /// max are skipped (SDP is a few KB; 64KB is generous). A message past the
-    /// limiter's budget closes the socket (1008 "rate limited") and returns null.
+    /// max or not a JSON object are skipped (SDP is a few KB; 64KB is generous), or with
+    /// strict return null (the auth read: a bad first frame is refused, #555). A message
+    /// past the limiter's budget closes the socket (1008 "rate limited") and returns null.
     public static async Task<JsonObject?> ReadAsync(WebSocket socket, CancellationToken ct, int max = 64 * 1024,
-        RateLimiter? limiter = null)
+        RateLimiter? limiter = null, bool strict = false)
     {
         var buffer = new byte[max];
         while (true)
@@ -120,6 +121,10 @@ public static class Broker
             }
             if (tooBig)
             {
+                if (strict)
+                {
+                    return null;
+                }
                 continue;
             }
 
@@ -131,6 +136,10 @@ public static class Broker
                 }
             }
             catch (System.Text.Json.JsonException) { }
+            if (strict)
+            {
+                return null;
+            }
         }
     }
 

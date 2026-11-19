@@ -4,12 +4,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 )
 
@@ -283,5 +285,141 @@ func TestJellyfin(t *testing.T) {
 func TestNoJellyfin(t *testing.T) {
 	if _, err := ExtractJellyfin(backupFile(t, writeDir(t, state)), filepath.Join(t.TempDir(), "x")); !errors.Is(err, ErrNoJellyfin) {
 		t.Fatalf("err %v", err)
+	}
+}
+
+// zipFiles returns the entries of a zip holding names (each "x").
+func zipFiles(t *testing.T, names ...string) []*zip.File {
+	t.Helper()
+	zr, err := zip.OpenReader(zipOf(t, names...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { zr.Close() })
+	return zr.File
+}
+
+func TestCheckEntries(t *testing.T) {
+	if err := checkEntries("z", zipFiles(t, "cert.pem", "gateway.json", "allowlist.json", ComposeEntry, JellyfinEntry)); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"../evil", "sub/x", `sub\x`, "C:x", "dir/", "..", "."} {
+		if err := checkEntries("z", zipFiles(t, "cert.pem", "gateway.json", bad)); err == nil {
+			t.Errorf("%q: accepted", bad)
+		}
+	}
+	if err := checkEntries("z", zipFiles(t, "cert.pem")); err == nil || !strings.Contains(err.Error(), "no gateway.json") {
+		t.Errorf("err = %v, want no gateway.json", err)
+	}
+}
+
+func TestCheckJSON(t *testing.T) {
+	if err := checkJSON("gateway.json", []byte(`{"gatewayId":`)); err == nil {
+		t.Error("accepted cut-short JSON")
+	}
+	if err := checkJSON("gateway.json", []byte(`{}`)); err != nil {
+		t.Error(err)
+	}
+	if err := checkJSON("cert.pem", []byte(`{`)); err != nil {
+		t.Errorf("checked a non-JSON file: %v", err)
+	}
+}
+
+func TestCheckNoIdentity(t *testing.T) {
+	if err := checkNoIdentity(filepath.Join(t.TempDir(), "missing")); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkNoIdentity(writeDir(t, map[string]string{"allowlist.json": "[]"})); err != nil {
+		t.Fatal(err)
+	}
+	err := checkNoIdentity(writeDir(t, map[string]string{"cert.pem": "C"}))
+	if err == nil || !strings.Contains(err.Error(), "cert.pem") || strings.Contains(err.Error(), "gateway.json") {
+		t.Fatalf("err = %v, want one naming only cert.pem", err)
+	}
+}
+
+func TestReadEntriesCap(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for n, size := range map[string]int{"ok": maxFile, "big": maxFile + 1, JellyfinEntry: maxFile + 1} {
+		w, _ := zw.Create(n)
+		if _, err := w.Write(make([]byte, size)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	zw.Close()
+	zr, _ := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	var big, rest []*zip.File
+	for _, f := range zr.File {
+		if f.Name == "big" {
+			big = append(big, f)
+		} else {
+			rest = append(rest, f)
+		}
+	}
+	files, err := readEntries("z", rest)
+	if err != nil || len(files) != 1 || len(files["ok"]) != maxFile {
+		t.Fatalf("read %d files, err %v: want only ok at the cap (Jellyfin skipped)", len(files), err)
+	}
+	if _, err := readEntries("z", big); err == nil || !strings.Contains(err.Error(), "too big") {
+		t.Fatalf("err = %v, want too big", err)
+	}
+}
+
+func TestStale(t *testing.T) {
+	dir := writeDir(t, map[string]string{"gateway.json": "{}", "allowlist.json": "[]", "page-token": "t", "page-link": "l"})
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got, err := stale(dir, map[string][]byte{"gateway.json": nil, ComposeEntry: nil})
+	if err != nil || !slices.Equal(got, []string{"allowlist.json"}) {
+		t.Fatalf("stale = %v, err %v; want [allowlist.json]", got, err)
+	}
+}
+
+func TestWriteCompose(t *testing.T) {
+	into := filepath.Join(t.TempDir(), "c.yml")
+	if did, err := writeCompose(into, strings.NewReader("new")); err != nil || did != ComposeWritten {
+		t.Fatalf("did %q, err %v", did, err)
+	}
+	if did, err := writeCompose(into, strings.NewReader("other")); err != nil || did != ComposeKept {
+		t.Fatalf("did %q, err %v", did, err)
+	}
+	if b, _ := os.ReadFile(into); string(b) != "new" {
+		t.Fatalf("compose = %q", b)
+	}
+	failed := filepath.Join(t.TempDir(), "c.yml")
+	if _, err := writeCompose(failed, io.MultiReader(strings.NewReader("part"), iotest.ErrReader(errors.New("boom")))); err == nil {
+		t.Fatal("no error from a failed write")
+	}
+	if _, err := os.Stat(failed); err == nil {
+		t.Fatal("left a partial compose file")
+	}
+}
+
+func TestReadEntriesTotalCap(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, n := range []string{"a", "b", "c"} { // each at maxFile, together over maxTotal
+		w, err := zw.Create(n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(make([]byte, maxFile)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readEntries("z", zr.File[:2]); err != nil {
+		t.Fatalf("two at the cap: %v", err)
+	}
+	if _, err := readEntries("z", zr.File); err == nil || !strings.Contains(err.Error(), "MiB unpacked") {
+		t.Fatalf("err = %v, want the total cap", err)
 	}
 }

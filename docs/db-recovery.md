@@ -32,7 +32,7 @@ Gateway credential). Browser pins and the gateway's allowlist live outside the D
   from your machine.
 
 ```powershell
-gcloud storage ls gs://streamiq-db-backup/production/ | Sort-Object | Select-Object -Last 1   # newest dump
+gcloud storage ls gs://streamiq/production/ | Sort-Object | Select-Object -Last 1   # newest dump
 gcloud storage cp <gs://…dump> .
 ```
 

@@ -102,7 +102,7 @@ headRefOid.
   become `comments`.
 - `comments`: EVERY BLOCKER/SPEC becomes one comment, body starting with
   `🤖 <model> · **[blocker]**` or `🤖 <model> · **[spec]**`, then the defect and the one-sentence failure
-  scenario. On a changed line: `path`, `line`, `side: "RIGHT"`. No single line
+  scenario (a BLOCKER: then its `lint:` line). On a changed line: `path`, `line`, `side: "RIGHT"`. No single line
   (deploy/release ordering, missing docs, a cross-cutting gap): a file-level comment
   `{"path": <the most relevant changed file>, "subject_type": "file", "body": ...}`.
 - Security-sensitive findings (marked `security`) NEVER go on GitHub: write "1 finding

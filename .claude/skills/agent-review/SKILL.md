@@ -135,7 +135,10 @@ Return, in this order:
 4. Answers to what the PR body asked reviewers to check (if anything).
 5. BLOCKER / SPEC findings, one per item: `[blocker]` or `[spec]` (+ `security`
    if so), `path:line` (or `path` for a file-level / cross-cutting one), the
-   defect, and the one-sentence failure scenario.
+   defect, and the one-sentence failure scenario. A BLOCKER also ends with
+   `lint: <linter>: <rule or option>` when a rule of a linter we already have
+   (oxlint, the .NET analyzers, `go vet`) would have caught it, else
+   `lint: no (<why, a few words>)` (#556).
 6. LOW findings, one line each, at most 5: only those a user would notice (wrong
    behavior, a visible glitch) AND that you confirmed by reading the code. Cleanups,
    style, naming, duplication, speculative edge cases and anything you didn't confirm

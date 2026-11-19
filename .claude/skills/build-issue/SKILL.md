@@ -70,6 +70,13 @@ what you noticed outside the task but didn't touch (ranked, at most 3 plus a lin
 each with the issue you proposed or why not), or `none`. Keep it current through later
 rounds. Security-sensitive items never go there: tell the owner privately (CLAUDE.md).
 
+On a `bug` issue, and for every BLOCKER you fix in a review round, also a `## Lint rule`
+section, one line per fix: could a rule of a linter we already have (or a config
+option of one) have caught it? "would be caught by `<linter>: <rule>`, proposed as an
+issue" or "not lint-able: <why, a few words>" (a BLOCKER's posted `lint:` line is the
+reviewer's answer; check it). A yes never changes lint config in this PR: propose a
+`tech-debt` issue as CLAUDE.md's "Found mid-task" says (#556).
+
 After `check.sh` is green and all commits are pushed, the agent review of this PR runs
 here, in the PR's own thread: no `agent` label is needed on it, and it is the only
 review (no separate self-review before it). Start a fresh-context subagent (Agent

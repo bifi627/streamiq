@@ -217,7 +217,10 @@ Copy `.env.example` only to override.
 - **New dependency = stated justification** in the PR/commit body. Lockfile diffs are
   review triggers.
 - **Rule graduation:** correction → line here → check/codegen. When a rule becomes
-  tooling, delete its prose from this file.
+  tooling, delete its prose from this file. After fixing a bug, ask whether a rule of a
+  linter we already have would have caught it; yes → propose a `tech-debt` issue for it
+  ("Found mid-task"), never a config change in the fix (`build-issue` does it for bug
+  issues and review blockers; #556).
 - **Deferred on purpose** (rule of two): templates, canonical example files, per-feature
   docs, fine-grained boundary rules. Add one only when a second real case needs it.
 

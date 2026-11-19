@@ -269,6 +269,32 @@ test('compatible mode (#113): an H.264 + AAC file still remuxes @player', async 
   ).toBeVisible()
 })
 
+test('a final playback error (#552): the load stops once, the stuck check stays quiet @player', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await arrange(page, DIAG)
+  await play(page)
+  // ?fail=9: every load looks stuck (diag.ts), so remux → video transcode →
+  // compatible → the error. Every later video append would be stuck again.
+  await page.goto(`${page.url()}?fail=9`)
+  await expect(
+    page.getByText('Playback failed (even in compatible mode)'),
+  ).toBeVisible({ timeout: 60_000 })
+  await openDock(page)
+  const log = page.locator('pre.dock-log')
+  await expect(log).toContainText('load stopped: playback error')
+  await page.waitForTimeout(3_000) // unstopped, hls loads the whole clip by now
+  const text = (await log.textContent()) ?? ''
+  expect(text.split('load stopped: playback error').length - 1).toBe(1)
+  // The 30 s clip in ~3 s segments: stopped after the 4th stuck append, not
+  // buffered to its end.
+  const end = await page
+    .locator('video')
+    .evaluate((v: HTMLVideoElement) => v.buffered.end(v.buffered.length - 1))
+  expect(end).toBeLessThan(25)
+})
+
 test('Auto on a slow link (#162): capped at 480p, Source warns @player', async ({
   paired,
 }) => {

@@ -333,13 +333,20 @@ export function Player({
       const d = decision(`?${params}`, src.MediaStreams)
       event(`jellyfin: ${d.text}`)
       // The fallback chain decides (onFailure); this carries it out.
+      let over = false // the chain ended in an error: this load is done (#552)
       const failed = (f: Failure) => {
+        if (over) return
         const n = onFailure(f, { raw, copy, compatible, escalated })
         if (!n) return
         if ('reload' in n) {
           if (n.escalate) compatible = escalated = true
           return reload(n.reload, n.less)
         }
+        // Stop fetching over the tunnel (and Jellyfin transcoding); keeps the
+        // buffered picture. A reload (another quality) starts a fresh load.
+        over = true
+        h?.stopLoad()
+        event('load stopped: playback error')
         setErr(
           new AppError(
             'playback',

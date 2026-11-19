@@ -31,7 +31,7 @@ import { tunnelJson } from '../../tunnel'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../focus'
-import { updated, type Started } from './update'
+import { updated, updateState, type Started } from './update'
 
 // `/` (#225): straight into the library when the household has exactly one
 // gateway, else the list. History replace both ways, so Back doesn't bounce.
@@ -383,12 +383,26 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
     }
   }
 
-  if (active)
+  const notice = updateState({
+    started: updating,
+    late,
+    online: g.online,
+    version: g.version,
+    update: g.update,
+    canUpdate,
+    remote,
+  })
+  if (!notice) return null
+  if (
+    notice === 'updating' ||
+    notice === 'notHappened' ||
+    notice === 'notFinished'
+  )
     return (
       <p className="notice" role="status" tabIndex={-1} ref={status}>
-        {!late ? (
+        {notice === 'updating' ? (
           `Updating to v${updating!.to}… The gateway is offline for a moment.`
-        ) : g.online ? (
+        ) : notice === 'notHappened' ? (
           <>
             The update to v{updating!.to} hasn't happened: the gateway still
             runs v{g.version}. It failed or is still backing up: see{' '}
@@ -403,15 +417,14 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
         )}
       </p>
     )
-  if (!g.update) return null
   return (
     <p className="notice">
       Update available: {g.update}.{' '}
-      {canUpdate && remote === true ? (
+      {notice === 'button' ? (
         <button type="button" onClick={() => start(g.update!)}>
           Update to v{g.update}
         </button>
-      ) : canUpdate && typeof remote === 'string' ? (
+      ) : notice === 'reason' ? (
         <>
           Can't update from here: {remote}. Run <code>install.sh</code> on the
           gateway (Linux/macOS); on Windows run{' '}

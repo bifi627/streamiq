@@ -189,9 +189,9 @@ func TestComposeFailsFirst(t *testing.T) {
 	bad := filepath.Join(t.TempDir(), "no-such-dir", "jellyfin-compose.yml")
 	old := map[string]string{"gateway.json": `{"name":"other"}`, "metadata.json": "{}"}
 	for _, force := range []bool{false, true} {
-		dst := writeDir(t, old)
-		if !force {
-			dst = filepath.Join(t.TempDir(), "state")
+		dst := filepath.Join(t.TempDir(), "state")
+		if force {
+			dst = writeDir(t, old)
 		}
 		if _, err := Restore(zipPath, dst, bad, force); err == nil {
 			t.Fatalf("force=%v: no error for a missing install dir", force)

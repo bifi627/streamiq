@@ -29,11 +29,20 @@ something (e.g. a `## For the reviewer` list): answer each point.
 ## 2. Level
 
 `bash scripts/review-level.sh <PR number>` (no number = the current branch vs
-`origin/main`) prints three words: the level (`xhigh`, `high` or `low`), the merge-risk
-floor (0–10, section 5) and the rule that set it (e.g. `crown-jewel`). Use the level it prints; don't judge it yourself. Both rules
-(the crown-jewel paths, what counts as docs only, the floors) live in that script and
-nowhere else. The level is only the `/code-review` argument: your
-own reading of the spec and the triage below are the same at every level.
+`origin/main`) prints a suggestion on its first line: the level (`xhigh`, `high` or
+`low`), the risk label (section 5) and the rule that set it (e.g. `crown-jewel`), then
+its evidence: the crown-jewel paths hit (with line counts) and the risky patterns in
+added lines. The path lists and patterns live in that script and nowhere else.
+
+The suggestion is where you start, not a rule. Read the diff, then pick the level
+before you run the review (never change it afterwards to fit the result). Go lower
+when the evidence carries no risk the deeper review would find (e.g. the only
+crown-jewel hit is a comment, or one added CI `run:` step); go higher when the diff
+touches tenant isolation, auth, the protocol or credentials outside the listed paths.
+`xhigh` is the ceiling (`max` only when the owner asks). A level different from the
+suggestion gets a few words of reason in your output (section 6). The level is only
+the `/code-review` argument: your own reading of the spec and the triage below are
+the same at every level.
 
 ## 3. Review
 
@@ -63,7 +72,7 @@ minimum of new candidates every round. Read `git diff <sha>..<head>` yourself, w
 the files around it: did these commits fix what they were for, and did they break
 anything? Your findings are what these commits introduced or left unfixed; the level
 you report is `delta`, the candidates the number you found (0 is a normal result).
-Sections 1, 2 (for the merge-risk floor), 4, 5 and 6 are the same, over the whole PR.
+Sections 1, 2 (for the suggested risk), 4, 5 and 6 are the same, over the whole PR.
 
 ## 4. Triage
 
@@ -103,24 +112,25 @@ GitHub; the caller gives the details to the owner only in its T3 thread.
 
 ## 5. Merge risk
 
-Only when no BLOCKER/SPEC is left (the change would be `ready to merge`): how much the
-owner should test before merging, 0–10. Start at the script's floor; never go below it.
-Go higher, with the reason, for each of these the diff shows:
+Only when no BLOCKER/SPEC is left (the change would be `ready to merge`): how much
+attention CI leaves the owner before merging. Not how dangerous the area is: a
+crown-jewel change whose behavior a test drives needs a read, not a manual run. One
+label:
 
-- **Blast radius:** tenant isolation, auth, pairing, the protocol or every page, rather
-  than one screen.
-- **Hard to undo:** a migration that drops or rewrites data, a state dir / `gateway.env` /
-  CLI change, anything the gateway's auto-release ships to installed gateways (a frontend
-  or API redeploy is easy to undo).
-- **Untested behavior:** no e2e / Reqnroll / xUnit / Go test drives the changed behavior.
-- **Unflagged device check:** it can only really be checked on a TV, a phone, cellular
-  or relay, but neither the PR nor its issue has a `device:*` label. (With the label,
-  the PR stays a draft until the owner's device test: that gate covers it, no raise.)
+| Label | When | The owner |
+|---|---|---|
+| `risk:low` | CI drives the changed behavior | merges |
+| `risk:mid` | tests drive it, but it is crown-jewel, security or design code where a human read catches what tests don't (an isolation hole is a missing test), or what the gateway's auto-release ships | reads the diff |
+| `risk:high` | CI can't check part of it: no e2e / Reqnroll / xUnit / Go test drives the changed behavior, it is visual / UX, or it depends on the real world (Firebase, TURN, a network) | does the named manual check |
+| `risk:critical` | hard to undo: a migration that drops or rewrites data, a protocol / `gateway.env` / state dir / CLI change that reaches installed gateways | merges when they can watch the release |
 
-Bands: 0–1 = merge without a second look · 2–4 = skim the diff · 5–7 = drive the named
-flows yourself (`dev.ps1` or `/preview`) · 8–10 = test deeply on the named flows and
-devices, merge when you can watch the gateway release. From 5 up, name the concrete
-flows to test (e.g. "accept an invite into a second household, then open its gateway").
+The question that decides it: which test drives the changed behavior? Name it, or the
+label is at least `risk:high`. Start at the script's suggested label and move it either
+way with a reason. Going lower is also stated in the posted review (`agent-pr` puts
+your merge-risk line in the body): the build's own reviewer has a reason to go easy,
+so the owner must see it. A `device:*` label on the PR or its issue is a separate gate
+(the PR stays a draft until the owner's device test): don't raise for it; a device-only
+check without that label is `risk:high`.
 
 ## 6. Output
 
@@ -129,8 +139,10 @@ Return, in this order:
 1. Level used, and the counts: findings `/code-review` returned, then how many you
    sorted into BLOCKER, SPEC and LOW (all of them, not only the listed ones), the LOW
    count split by category, largest first (`low=7 lowcat=style:3,naming:2,simplify:2`).
-2. Merge risk (when section 5 applies): `<n>/10 (floor <f>: <the script's rule>) — <reason
-   for going higher, if any>; test: <flows>` (no `test:` part below 5).
+2. Merge risk (when section 5 applies): `risk:<label> (suggested risk:<label>: <the
+   script's rule>) — <reason, if different>; <the test that drives it, or for
+   risk:high and up the manual check / what to watch>`. A level different from the
+   script's: append `; level <used> (suggested <level>): <reason>`.
 3. Acceptance criteria: `all met` or `not met — <which>`.
 4. Answers to what the PR body asked reviewers to check (if anything).
 5. BLOCKER / SPEC findings, one per item: `[blocker]` or `[spec]` (+ `security`

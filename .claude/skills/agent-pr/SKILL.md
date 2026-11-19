@@ -35,7 +35,7 @@ section 3 decides, not the caller: a build's fix round gets its follow-up review
    stop before anything else: no review, no label change (a fork's diff would be prompt
    input on the owner's machine).
 2. Acknowledge:
-   `gh -R bifi627/streamiq pr edit N --remove-label agent --remove-label review:ready --remove-label review:changes --remove-label review:decision --remove-label risk:low --remove-label risk:mid --remove-label risk:high`
+   `gh -R bifi627/streamiq pr edit N --remove-label agent --remove-label review:ready --remove-label review:changes --remove-label review:decision --remove-label risk:low --remove-label risk:mid --remove-label risk:high --remove-label risk:critical`
    (re-adding `agent` re-triggers; a stale verdict or risk label must not survive into
    a new review). Closed or merged → comment one line saying why nothing happened; stop.
 3. Link the PR to this thread: the T3 tool `link_pull_request` with
@@ -95,7 +95,9 @@ headRefOid.
   `agent-review` returned and `lowcat=` the LOW categories largest first (omitted when
   `low=0`):
   `Review stats: level=high candidates=9 blocker=0 spec=1 low=8 lowcat=style:4,simplify:3,docs:1`,
-  with ` risk=<n> floor=<f>` appended on `ready to merge`.
+  with ` suggested=<level>/<risk> risk=<risk>` appended on `ready to merge` (`suggested`
+  = the script's first line, `level` = the one used, risks without `risk:`, e.g.
+  `suggested=xhigh/mid risk=low`).
   Do not run `check.sh`. No praise, no summary of what the PR
   does, no LOW items outside the LOW record, and no findings in the body (they go in
   `comments`, so each one is a resolvable thread that blocks the merge). LOWs never
@@ -113,8 +115,8 @@ headRefOid.
 - Exactly one label, matching the verdict in the review body:
   `gh -R bifi627/streamiq pr edit N --add-label <label>` with `review:ready` (ready to
   merge), `review:changes` (needs changes) or `review:decision` (needs owner decision).
-  On `review:ready` also one risk label: `risk:low` (0–1), `risk:mid` (2–4) or
-  `risk:high` (5–10), the bands of `agent-review` section 5. If you stopped early (closed PR, fork), add no label.
+  On `review:ready` also the risk label `agent-review` section 5 returned: `risk:low`,
+  `risk:mid`, `risk:high` or `risk:critical`. If you stopped early (closed PR, fork), add no label.
 - In the thread: the verdict, the merge risk (on `ready to merge`), the PR link, then the listed LOW findings (`agent-review`'s
   at most 5, not the LOW record) as a short list (one line each) so the owner can still
   skim them. As a subagent, also return every

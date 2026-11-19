@@ -5,6 +5,7 @@
 # One GraphQL call (issues + their board status). Needs gh scope `project`.
 set -euo pipefail
 # ponytail: one page of 100 open issues; fails loudly past that, paginate when it does
+# shellcheck disable=SC2016 # $i in the --jq program is a jq variable, not a shell one
 out=$(gh api graphql -f query='{repository(owner:"bifi627",name:"streamiq"){issues(states:OPEN,first:100){
   pageInfo{hasNextPage}
   nodes{number body labels(first:30){nodes{name}} subIssues{totalCount}

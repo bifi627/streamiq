@@ -44,12 +44,18 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
       - run: npm ci
         working-directory: frontend
+      - run: npm ci # the e2e typecheck needs its types (@playwright/test, @types/node)
+        working-directory: e2e
       - run: npm run format:check
         working-directory: frontend
       - run: ../frontend/node_modules/.bin/prettier --check . # e2e has no own prettier; borrow frontend's
+        working-directory: e2e
+      - run: ../frontend/node_modules/.bin/tsc -p . # #581: typecheck e2e (Playwright strips types); borrowed tsc
         working-directory: e2e
       - run: npm run lint
         working-directory: frontend
@@ -68,6 +74,10 @@ jobs:
           go-version-file: gateway/go.mod
       - run: bash scripts/next-gateway-version.sh --test # #274: release-gateway's version bump
       - run: bash scripts/check-docs-drift.sh # #488: STREAMIQ_* env vars + gateway routes documented
+      # #581: actionlint (+ shellcheck on run: blocks) and shellcheck scripts/*.sh + the installer, pinned like scripts/check.sh
+      - run: |
+          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -no-color
+          docker run --rm -v "$PWD:/repo" -w /repo --entrypoint shellcheck rhysd/actionlint:1.7.12 scripts/*.sh gateway/install/install.sh
       - run: test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
         working-directory: gateway
       # #559: golangci-lint (its govet replaces go vet), pinned like scripts/check.sh
@@ -177,7 +187,7 @@ jobs:
           GH_TOKEN: ${{ github.token }} # compat.spec.ts downloads the last gateway release (#459)
       # A miss: global setup built the image; the cache step's post saves this tar.
       - if: steps.emulator.outputs.cache-hit != 'true'
-        run: docker save -o "$RUNNER_TEMP/emulator.tar" $(docker images streamiq-firebase-emulator --format '{{.Repository}}:{{.Tag}}')
+        run: docker save -o "$RUNNER_TEMP/emulator.tar" "$(docker images streamiq-firebase-emulator --format '{{.Repository}}:{{.Tag}}')"
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

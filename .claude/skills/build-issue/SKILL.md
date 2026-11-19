@@ -91,7 +91,7 @@ Set the Agent tool's `effort` to `high` and leave `model` unset, whatever the di
 the reviewer's own work (the spec check, verifying and triaging the findings) is the
 same for every change. This line is where the owner changes either. The
 `/code-review` level is a different thing and the reviewer picks it itself
-(`scripts/review-level.sh`).
+(starting from what `scripts/review-level.sh` suggests).
 
 Then, by verdict:
 

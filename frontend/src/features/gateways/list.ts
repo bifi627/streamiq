@@ -47,10 +47,17 @@ export const detailsMessage = (e: AppError) =>
       ? 'gateway too old to report them: update it'
       : `unavailable (${e.message})`
 
-// What a client's Remove leaves (#637): drop = the row goes (removed, or 404:
-// not paired anymore, removed elsewhere); msg = the section's line, null once
-// it worked, so an earlier failed Remove's error goes too.
-export const removeOutcome = (e: AppError | null) =>
-  !e || e.context.status === 404
-    ? { drop: true, msg: null }
-    : { drop: false, msg: clientsMessage(e) }
+// What a client's Remove leaves (#637): done = 'self' (this browser is gone:
+// the card offers Pair again), 'row' (drop another client's row; 404 = not
+// paired anymore, removed elsewhere, so the same), 'kept' (this browser's own
+// row with a 404: nothing changes), null = failed; msg = the section's line,
+// null once it went through, so an earlier failed Remove's error goes too.
+export function removeOutcome(
+  e: AppError | null,
+  self: boolean,
+): { done: 'self' | 'row' | 'kept' | null; msg: string | null } {
+  if (e && e.context.status !== 404)
+    return { done: null, msg: clientsMessage(e) }
+  if (!self) return { done: 'row', msg: null }
+  return { done: e ? 'kept' : 'self', msg: null }
+}

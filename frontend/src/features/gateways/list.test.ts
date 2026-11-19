@@ -49,13 +49,17 @@ test('client and status messages by error', () => {
 })
 
 test("a Remove that works clears an earlier failed one's line (#637)", () => {
-  assert.deepEqual(removeOutcome(null), { drop: true, msg: null })
-  assert.deepEqual(removeOutcome(e(404)), { drop: true, msg: null }) // removed elsewhere
-  const failed = removeOutcome(e(500))
-  assert.equal(failed.drop, false)
-  assert.equal(failed.msg, clientsMessage(e(500)))
+  assert.deepEqual(removeOutcome(null, false), { done: 'row', msg: null })
+  assert.deepEqual(removeOutcome(null, true), { done: 'self', msg: null })
+  // 404: removed elsewhere: another client's row goes, this browser's stays
+  assert.deepEqual(removeOutcome(e(404), false), { done: 'row', msg: null })
+  assert.deepEqual(removeOutcome(e(404), true), { done: 'kept', msg: null })
+  assert.deepEqual(removeOutcome(e(500), false), {
+    done: null,
+    msg: clientsMessage(e(500)),
+  })
   assert.equal(
-    removeOutcome(new AppError('not-paired', 'x')).msg,
+    removeOutcome(new AppError('not-paired', 'x'), true).msg,
     'Pair this browser to see them.',
   )
 })

@@ -35,7 +35,7 @@ export type GatewayStatus = {
   remoteUpdate?: true | string // #312: the update button works, or why not
 }
 
-// Screens: phone as remote (docs/protocol.md, "Screens"). Used by Library.tsx.
+// Screens: phone as remote (docs/protocol.md, "Screens"). Used by library/Screen.tsx.
 // POST /streamiq/screen/state body; GET /streamiq/screens item state.
 // Ticks are integers (Math.floor them).
 export type ScreenState = {

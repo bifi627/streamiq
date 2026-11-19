@@ -1,5 +1,5 @@
-// The phone remote's decisions (RemotePage in Library.tsx): plain data in,
-// plain data out; RemotePage does the polling, the state and the render.
+// The phone remote's decisions (RemotePage in Screen.tsx): plain data in,
+// plain data out; RemotePage, Playing and Tracks do the polling, the state and the render.
 import type { Screen } from '../gateways/api'
 
 /** A seek target in seconds, kept in 0 … dur; no upper bound while the

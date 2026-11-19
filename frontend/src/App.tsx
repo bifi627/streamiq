@@ -29,9 +29,8 @@ import {
   ItemPage,
   LibraryHome,
   PlayerPage,
-  RemotePage,
-  ScreenPage,
 } from './features/library/Library'
+import { RemotePage, ScreenPage } from './features/library/Screen'
 import { Diagnostics, DiagnosticsToggle } from './Diagnostics'
 import {
   compatibleOn,

@@ -1,5 +1,5 @@
 // One tunnel POST at a time, in order: the screen's state POSTs (#181) and the
-// phone remote's commands (Library.tsx).
+// phone remote's commands (Screen.tsx).
 
 /** Runs one at a time, in order (each tunnel POST is its own channel, so only
  * waiting keeps them ordered). A new x replaces the queued last one if

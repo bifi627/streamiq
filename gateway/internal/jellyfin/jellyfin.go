@@ -253,33 +253,12 @@ func (s *Setup) Run(ctx context.Context) {
 	}
 }
 
-func (s *Setup) poll(ctx context.Context) { //nolint:gocyclo // #543: split there
-	const kept = " (kept the credentials from before)"
-	if err := s.Load(); err != nil {
-		s.setErr("Jellyfin: " + err.Error() + kept)
-		slog.Error("gateway: could not re-read the Jellyfin credentials; kept the ones from before", "err", err)
-	} else if strings.HasSuffix(s.View().Err, kept) {
-		s.setErr("") // fixed
-	}
-	var info struct {
-		Version                string
-		StartupWizardCompleted bool
-	}
-	err := s.call(ctx, "GET", "/System/Info/Public", "", "", &info)
-	s.mu.Lock()
-	s.reachable, s.version, s.wizard = err == nil, info.Version, info.StartupWizardCompleted
-	c := s.creds
-	warn := err == nil && untested(info.Version) && s.warned != info.Version
-	if warn {
-		s.warned = info.Version
-	}
-	s.mu.Unlock()
-	if warn {
-		slog.Warn("gateway: Jellyfin version not tested with this release", "version", info.Version, "tested", Tested)
-	}
+func (s *Setup) poll(ctx context.Context) {
+	s.reload()
+	wizard, c, err := s.probe(ctx)
 	switch {
 	case err != nil:
-	case !info.StartupWizardCompleted && s.wiped(ctx, c): // first: set a wiped Jellyfin (#280) up again over stale creds
+	case !wizard && s.wiped(ctx, c): // first: set a wiped Jellyfin (#280) up again over stale creds
 		if err := s.bootstrap(ctx); err != nil {
 			s.setErr("Jellyfin setup: " + err.Error())
 			slog.Error("gateway: Jellyfin setup failed", "err", err)
@@ -295,6 +274,41 @@ func (s *Setup) poll(ctx context.Context) { //nolint:gocyclo // #543: split ther
 		s.logged = true
 		logTranscoding(v)
 	}
+}
+
+// reload re-reads the stored creds; on an error it keeps the ones from before
+// and says so on the status page until a re-read works.
+func (s *Setup) reload() {
+	const kept = " (kept the credentials from before)"
+	if err := s.Load(); err != nil {
+		s.setErr("Jellyfin: " + err.Error() + kept)
+		slog.Error("gateway: could not re-read the Jellyfin credentials; kept the ones from before", "err", err)
+	} else if strings.HasSuffix(s.View().Err, kept) {
+		s.setErr("") // fixed
+	}
+}
+
+// probe asks Jellyfin for its version and wizard state, records them, warns
+// once per untested version, and returns the wizard state with the creds of
+// that moment; err when Jellyfin isn't reachable.
+func (s *Setup) probe(ctx context.Context) (wizard bool, c Creds, err error) {
+	var info struct {
+		Version                string
+		StartupWizardCompleted bool
+	}
+	err = s.call(ctx, "GET", "/System/Info/Public", "", "", &info)
+	s.mu.Lock()
+	s.reachable, s.version, s.wizard = err == nil, info.Version, info.StartupWizardCompleted
+	c = s.creds
+	warn := err == nil && untested(info.Version) && s.warned != info.Version
+	if warn {
+		s.warned = info.Version
+	}
+	s.mu.Unlock()
+	if warn {
+		slog.Warn("gateway: Jellyfin version not tested with this release", "version", info.Version, "tested", Tested)
+	}
+	return info.StartupWizardCompleted, c, err
 }
 
 // wiped: Jellyfin (its wizard not done) has none of the stored creds, if any.

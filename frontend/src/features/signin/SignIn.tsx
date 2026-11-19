@@ -7,6 +7,7 @@ import { auth } from '../../firebase'
 import { arrowFocus } from '../../focus'
 import { signInWithGoogle } from '../../Alias'
 import { authMessage } from '../../authErrors'
+import { cleanEmail } from './email'
 
 // The signed-out page: Google or email + password, sign in or sign up.
 export function SignIn() {
@@ -38,7 +39,7 @@ export function SignIn() {
     const fn = signUp
       ? createUserWithEmailAndPassword
       : signInWithEmailAndPassword
-    await run(() => fn(auth, email, password))
+    await run(() => fn(auth, cleanEmail(email), password))
     busyRef.current = false
     setBusy(false)
   }

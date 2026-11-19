@@ -100,16 +100,20 @@ test('deep link: /play/<id> reloads at the saved position; Back key in a new tab
   await play(page, CLIP, 3)
   await expect(page).toHaveURL(/\/play\/[^/]+$/) // the player has its own route
   // Pause and a seek to a later second save the position (each a
-  // `req:/UserItems/<id>/UserData` channel, closed once answered; the seek's
-  // second is always new, so at least one saves): wait for one, or the reload
-  // could cut it off. Either one saved 3 s or later.
+  // `req:/UserItems/<id>/UserData` channel; the seek's second is always new, so
+  // at least one saves): wait for one, or the reload could cut it off. Either
+  // one saved 3 s or later. Answered = the response's EOF message arrived; not
+  // the channel's `close`, which sometimes never fired (#566; cause unproven).
   await page.evaluate(() => {
     const w = window as unknown as { saved: number }
     w.saved = 0
     const make = RTCPeerConnection.prototype.createDataChannel
     RTCPeerConnection.prototype.createDataChannel = function (l, o) {
       const dc = make.call(this, l, o)
-      if (l.endsWith('/UserData')) dc.addEventListener('close', () => w.saved++)
+      if (l.endsWith('/UserData'))
+        dc.addEventListener('message', (e) => {
+          if (typeof e.data === 'string' && JSON.parse(e.data).eof) w.saved++
+        })
       return dc
     }
   })

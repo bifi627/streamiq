@@ -14,7 +14,7 @@ test('clampSeek has no upper bound while the duration is unknown', () => {
   assert.equal(clampSeek(-5, 0), 0)
 })
 
-const tv = { id: 's1', name: 'TV' }
+const tv = { id: 's1', name: 'TV', state: null }
 
 test('screen found: shown, error cleared, keep polling', () => {
   assert.deepEqual(polled('s1', { screens: [{ ...tv, id: 's0' }, tv] }), {

@@ -50,7 +50,14 @@ func TestVerifyAuthRefusesOtherKeys(t *testing.T) {
 		"long signature":  {b64(vecSpki), append(sig[:64:64], 0)},
 		"no signature":    {b64(vecSpki), nil},
 	} {
-		if _, err := VerifyAuth(c.spki, c.sig, vecGatewayFp, vecBrowser, vecN); err == nil || !strings.Contains(err.Error(), "P-256") {
+		if _, err := VerifyAuth(
+			c.spki,
+			c.sig,
+			vecGatewayFp,
+			vecBrowser,
+			vecN,
+		); err == nil ||
+			!strings.Contains(err.Error(), "P-256") {
 			t.Errorf("%s: err = %v, want refused before the signature check", name, err)
 		}
 	}

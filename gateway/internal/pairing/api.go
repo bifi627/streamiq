@@ -51,7 +51,11 @@ func keyIn(w http.ResponseWriter, r *http.Request, what string) (keyFp, name str
 		return "", "", false
 	}
 	if who := tunnel.SessionOf(r); in.KeyFp != who.Key && who.Role != tunnel.Admin {
-		tunnel.Fail(w, http.StatusForbidden, fmt.Errorf("gateway API: %s client: a member may only touch its own", what))
+		tunnel.Fail(
+			w,
+			http.StatusForbidden,
+			fmt.Errorf("gateway API: %s client: a member may only touch its own", what),
+		)
 		return "", "", false
 	}
 	return in.KeyFp, in.Name, true

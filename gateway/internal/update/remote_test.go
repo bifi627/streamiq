@@ -57,8 +57,13 @@ func TestRemote(t *testing.T) {
 // refusal is 409 with its reason, a failed start 500.
 func TestRemoteAPI(t *testing.T) {
 	started, fail := 0, error(nil)
-	r := &Remote{Version: "1.4.0", Supported: true, Newer: func() string { return "1.5.0" }, Task: func() bool { return true },
-		Start: func() (func(), error) { started++; return func() {}, fail }}
+	r := &Remote{
+		Version:   "1.4.0",
+		Supported: true,
+		Newer:     func() string { return "1.5.0" },
+		Task:      func() bool { return true },
+		Start:     func() (func(), error) { started++; return func() {}, fail },
+	}
 	api := tunnel.NewRouter()
 	api.Handle("POST "+Path, r, tunnel.AdminOnly)
 	call := func(role string) (int, string) {

@@ -10,7 +10,10 @@ import (
 )
 
 func TestAuth(t *testing.T) {
-	h := Auth("secret", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("page")) }))
+	h := Auth(
+		"secret",
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("page")) }),
+	)
 	do := func(method, target, remote, cookie string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, target, nil)
 		r.RemoteAddr = remote

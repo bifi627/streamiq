@@ -45,9 +45,19 @@ func LoginCLI(ctx context.Context, s *Setup, in io.Reader, out io.Writer, readPw
 	case strings.EqualFold(user, before.User):
 		fmt.Fprintf(out, "Stored the new %s password and reset %s.\n", before.User, ViewerName)
 	default:
-		fmt.Fprintf(out, "Reset %s. The stored %s password is unchanged: if Jellyfin refuses it, run this again as %s.\n", ViewerName, after.User, after.User)
+		fmt.Fprintf(
+			out,
+			"Reset %s. The stored %s password is unchanged: if Jellyfin refuses it, run this again as %s.\n",
+			ViewerName,
+			after.User,
+			after.User,
+		)
 	}
-	fmt.Fprintf(out, "Saved to %s. A running gateway picks it up within a minute: check with `gateway status`.\n", s.path())
+	fmt.Fprintf(
+		out,
+		"Saved to %s. A running gateway picks it up within a minute: check with `gateway status`.\n",
+		s.path(),
+	)
 	return nil
 }
 

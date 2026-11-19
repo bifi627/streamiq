@@ -45,7 +45,13 @@ func TestLoginCLI(t *testing.T) {
 
 			cli := &Setup{Client: srv.Client(), URL: srv.URL, StateDir: gw.StateDir, OnKey: func(string, string) {}}
 			var out strings.Builder
-			err := LoginCLI(ctx, cli, strings.NewReader(tc.user+"\n"), &out, func() (string, error) { return tc.pw, nil })
+			err := LoginCLI(
+				ctx,
+				cli,
+				strings.NewReader(tc.user+"\n"),
+				&out,
+				func() (string, error) { return tc.pw, nil },
+			)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -264,7 +264,11 @@ func PrintStatus(ctx context.Context, w io.Writer, port, pageLink string) error 
 		}
 	}
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("port %s: HTTP %d (another program, or an older gateway: run `gateway update`)", port, res.StatusCode)
+		return fmt.Errorf(
+			"port %s: HTTP %d (another program, or an older gateway: run `gateway update`)",
+			port,
+			res.StatusCode,
+		)
 	}
 	if err := json.NewDecoder(res.Body).Decode(&s); err != nil {
 		return fmt.Errorf("port %s: %w", port, err)
@@ -292,8 +296,16 @@ func PrintStatus(ctx context.Context, w io.Writer, port, pageLink string) error 
 	if s.Update != "" {
 		upd = "available: " + s.Update
 	}
-	fmt.Fprintf(w, "gateway    %s, version %s\nupdate     %s\nStreamIQ   %s\nJellyfin   %s\nlocal page http://localhost:%s\n",
-		s.Name, s.Version, upd, beat, jf, port)
+	fmt.Fprintf(
+		w,
+		"gateway    %s, version %s\nupdate     %s\nStreamIQ   %s\nJellyfin   %s\nlocal page http://localhost:%s\n",
+		s.Name,
+		s.Version,
+		upd,
+		beat,
+		jf,
+		port,
+	)
 	if pageLink != "" {
 		fmt.Fprintf(w, "           from another device: %s\n", pageLink)
 	}

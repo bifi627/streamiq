@@ -87,7 +87,8 @@ func roundTrip(t *testing.T, compose []byte) {
 		t.Fatal(err)
 	}
 	docker := func(ctx context.Context, args ...string) (string, error) {
-		out, err := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", file}, args...)...).CombinedOutput()
+		out, err := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", file}, args...)...).
+			CombinedOutput()
 		return string(out), err
 	}
 	t.Cleanup(func() { // also on failure; before t.TempDir's removal (LIFO)
@@ -102,7 +103,20 @@ func roundTrip(t *testing.T, compose []byte) {
 			t.Error(err)
 		}
 		// Jellyfin writes jellyfin-config as root (Linux): emptied from inside, or the temp dir stays
-		if out, err := docker(ctx, "run", "--rm", "--no-deps", "-T", "--entrypoint", "find", service, "/config", "-mindepth", "1", "-delete"); err != nil {
+		if out, err := docker(
+			ctx,
+			"run",
+			"--rm",
+			"--no-deps",
+			"-T",
+			"--entrypoint",
+			"find",
+			service,
+			"/config",
+			"-mindepth",
+			"1",
+			"-delete",
+		); err != nil {
 			t.Logf("emptying jellyfin-config: %v: %s", err, out)
 		}
 		if out, err := docker(ctx, "down", "-v", "--remove-orphans"); err != nil {
@@ -113,11 +127,18 @@ func roundTrip(t *testing.T, compose []byte) {
 	if err := Compose(ctx, file, "up", "-d"); err != nil { // what `gateway jellyfin up` runs
 		t.Fatal(err)
 	}
-	port, err := exec.CommandContext(ctx, "docker", "compose", "-f", file, "port", "forwarder", "8096").Output() // stdout only: it's parsed
+	port, err := exec.CommandContext(ctx, "docker", "compose", "-f", file, "port", "forwarder", "8096").
+		Output()
+		// stdout only: it's parsed
 	if err != nil {
 		t.Fatalf("compose port: %v", err)
 	}
-	s := &Setup{Client: http.DefaultClient, URL: "http://" + strings.TrimSpace(string(port)), StateDir: t.TempDir(), OnKey: func(string, string) {}}
+	s := &Setup{
+		Client:   http.DefaultClient,
+		URL:      "http://" + strings.TrimSpace(string(port)),
+		StateDir: t.TempDir(),
+		OnKey:    func(string, string) {},
+	}
 
 	// 1. The gateway completes the setup wizard.
 	for deadline := time.Now().Add(3 * time.Minute); !s.View().HasKey; time.Sleep(2 * time.Second) {

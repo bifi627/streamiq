@@ -260,7 +260,19 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
 			s.serveAuth(id, user, pc, d, &authed, &why)
 		case d.Label() != "auth" && authed.Load():
-			tunnel.Serve(d, s.Root, tunnel.Session{ID: id, User: user, Role: role, Key: s.key(id), Name: func() string { return s.name(id) }, Route: func() string { return route(pc, &cands) }}, slots)
+			tunnel.Serve(
+				d,
+				s.Root,
+				tunnel.Session{
+					ID:    id,
+					User:  user,
+					Role:  role,
+					Key:   s.key(id),
+					Name:  func() string { return s.name(id) },
+					Route: func() string { return route(pc, &cands) },
+				},
+				slots,
+			)
 		default:
 			d.OnOpen(func() { d.Close() }) // not paired: nothing but `auth`; a second `auth`: never
 		}
@@ -272,7 +284,13 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 // failed/closed, bye, a removed client, a failed answer) goes through it: the
 // report is read before pc.Close() (pion's stats are gone after it) and sent
 // once, whichever path comes first.
-func (s *Sessions) ender(id string, pc *webrtc.PeerConnection, cands *signaled, authed *atomic.Bool, why *atomic.Value) func(iceFailed bool) {
+func (s *Sessions) ender(
+	id string,
+	pc *webrtc.PeerConnection,
+	cands *signaled,
+	authed *atomic.Bool,
+	why *atomic.Value,
+) func(iceFailed bool) {
 	return func(iceFailed bool) {
 		s.mu.Lock()
 		_, live := s.ends[id]
@@ -347,7 +365,13 @@ type authMsg struct {
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
 // approved/rejected), once per connection (newPeer). Messages on one channel
 // arrive in order, one at a time; after a refusal none is handled.
-func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool, why *atomic.Value) {
+func (s *Sessions) serveAuth(
+	id, user string,
+	pc *webrtc.PeerConnection,
+	d *webrtc.DataChannel,
+	authed *atomic.Bool,
+	why *atomic.Value,
+) {
 	a := &authRun{s: s, id: id, user: user, pc: pc, d: d, authed: authed, why: why,
 		challenge: pairing.Nonce(), done: make(chan struct{})}
 	d.OnOpen(func() { a.say(authMsg{Type: "challenge", N: a.challenge}) })
@@ -473,7 +497,13 @@ func (a *authRun) commit(m authMsg) {
 
 // pair is the exchange after an accepted commit. It owns the pairing slot and
 // gives it back however the exchange ends.
-func (s *Sessions) pair(id, keyFp, commit, name, nA string, reveal <-chan string, done <-chan struct{}, fail func(string), approved func()) {
+func (s *Sessions) pair(
+	id, keyFp, commit, name, nA string,
+	reveal <-chan string,
+	done <-chan struct{},
+	fail func(string),
+	approved func(),
+) {
 	defer s.Store.Release()
 	var nB string
 	select {

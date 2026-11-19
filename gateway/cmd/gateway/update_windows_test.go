@@ -138,7 +138,14 @@ func updateAndRollBack(t *testing.T, install string) {
 	if p := ps.Paired(); len(p) != 1 || p[0].KeyFp != "sha-256 AA:BB" {
 		t.Fatalf("paired clients after the update: %+v, want the old one", p)
 	}
-	if st, err := onboarding.LoadOrEnroll(t.Context(), state, "", "", fp); err != nil || st.GatewayID != "7d1c1f0e-4b7a-4c55-9a43-2f1a8e1f3b10" {
+	if st, err := onboarding.LoadOrEnroll(
+		t.Context(),
+		state,
+		"",
+		"",
+		fp,
+	); err != nil ||
+		st.GatewayID != "7d1c1f0e-4b7a-4c55-9a43-2f1a8e1f3b10" {
 		t.Fatalf("gateway.json after the update: %+v, %v; want the old gateway id", st, err)
 	}
 	if err := jellyfinSetup().Load(); err != nil {
@@ -157,7 +164,11 @@ func updateAndRollBack(t *testing.T, install string) {
 		t.Fatal("after the rollback the binary isn't the old release")
 	}
 	if after := files(t, state); !maps.Equal(after, before) {
-		t.Fatalf("after the rollback the state is %v, want the old release's %v", slices.Sorted(maps.Keys(after)), slices.Sorted(maps.Keys(before)))
+		t.Fatalf(
+			"after the rollback the state is %v, want the old release's %v",
+			slices.Sorted(maps.Keys(after)),
+			slices.Sorted(maps.Keys(before)),
+		)
 	}
 	if dirs := backupDirs(t, install); len(dirs) != 0 {
 		t.Fatalf("backups after the rollback: %v, want none (used up)", dirs)
@@ -249,7 +260,8 @@ func build(t *testing.T, dst, v string) {
 		}
 		return
 	}
-	if out, err := exec.Command("go", "build", "-ldflags", "-X main.version="+v, "-o", dst, ".").CombinedOutput(); err != nil {
+	if out, err := exec.Command("go", "build", "-ldflags", "-X main.version="+v, "-o", dst, ".").
+		CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 	built[v] = read(t, dst)

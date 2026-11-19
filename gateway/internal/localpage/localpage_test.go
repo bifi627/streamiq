@@ -64,7 +64,15 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 		Reachable, HasKey, NeedsLogin, Untested, Managed          bool
 		Version, Tested, Err, User, Viewer, PasswordFile, HWAccel string
 	}{Reachable: true, HasKey: true, Managed: true, User: "streamiq", Viewer: "streamiq-viewer", PasswordFile: "/home/u/state/jellyfin.json"}
-	h := Handler(Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
+	h := Handler(
+		Config{
+			Name:     func() string { return "" },
+			LastBeat: &beat,
+			Update:   &upd,
+			Store:    store,
+			Jellyfin: func() any { return jf },
+		},
+	)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "password in <code>/home/u/state/jellyfin.json</code>") ||
@@ -73,12 +81,19 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 	}
 	// The jail state (#321): a line only with a compose Jellyfin.
 	for offline, want := range map[string]string{"": "", "enforced": "Offline: enforced", "allowed": "Online lookups allowed"} {
-		c := Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf },
-			Offline: func() string { return offline }}
+		c := Config{
+			Name:     func() string { return "" },
+			LastBeat: &beat,
+			Update:   &upd,
+			Store:    store,
+			Jellyfin: func() any { return jf },
+			Offline:  func() string { return offline },
+		}
 		w := httptest.NewRecorder()
 		Handler(c).ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
 		body := w.Body.String()
-		if want == "" && (strings.Contains(body, "Offline") || strings.Contains(body, "Online lookups")) || !strings.Contains(body, want) {
+		if want == "" && (strings.Contains(body, "Offline") || strings.Contains(body, "Online lookups")) ||
+			!strings.Contains(body, want) {
 			t.Errorf("offline %q, body:\n%s", offline, body)
 		}
 	}
@@ -106,7 +121,16 @@ func TestStatusJSON(t *testing.T) {
 		Reachable, HasKey bool
 		Version           string
 	}{true, true, "10.11.2"}
-	h := Handler(Config{Name: func() string { return "nas" }, Version: "1.0.0", LastBeat: &beat, Update: &upd, Store: store, Jellyfin: func() any { return jf }})
+	h := Handler(
+		Config{
+			Name:     func() string { return "nas" },
+			Version:  "1.0.0",
+			LastBeat: &beat,
+			Update:   &upd,
+			Store:    store,
+			Jellyfin: func() any { return jf },
+		},
+	)
 
 	r := httptest.NewRequest("GET", "/status.json", nil)
 	r.RemoteAddr = "192.168.1.30:5555"
@@ -130,7 +154,13 @@ func TestStatusJSON(t *testing.T) {
 		}
 	}
 	srv.Close()
-	if err := PrintStatus(context.Background(), &out, port, ""); err == nil || !strings.Contains(err.Error(), "not running") {
+	if err := PrintStatus(
+		context.Background(),
+		&out,
+		port,
+		"",
+	); err == nil ||
+		!strings.Contains(err.Error(), "not running") {
 		t.Fatalf("stopped gateway: err = %v", err)
 	}
 }
@@ -186,12 +216,24 @@ func TestLibrariesPage(t *testing.T) {
 	if w := do(c, "POST", "/libraries/extras", "id=a&on=1"); w.Code != http.StatusSeeOther || extras != "a true" {
 		t.Fatalf("extras: %d %q", w.Code, extras)
 	}
-	if w := do(c, "POST", "/libraries/offline", "id=a"); offlined != "a" || !strings.Contains(w.Body.String(), "Jellyfin: HTTP 500") ||
+	if w := do(
+		c,
+		"POST",
+		"/libraries/offline",
+		"id=a",
+	); offlined != "a" ||
+		!strings.Contains(w.Body.String(), "Jellyfin: HTTP 500") ||
 		!strings.Contains(w.Body.String(), "Home videos") {
 		t.Fatalf("error: %d\n%s", w.Code, w.Body)
 	}
 	c.Libraries = nil
-	if w := do(c, "GET", "/libraries", ""); w.Code != http.StatusNotFound || strings.Contains(do(c, "GET", "/", "").Body.String(), "/libraries") {
+	if w := do(
+		c,
+		"GET",
+		"/libraries",
+		"",
+	); w.Code != http.StatusNotFound ||
+		strings.Contains(do(c, "GET", "/", "").Body.String(), "/libraries") {
 		t.Fatalf("no Libraries: %d", w.Code)
 	}
 }

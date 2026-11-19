@@ -121,15 +121,19 @@ Config: gateway.env next to the binary (see docs/install.md).`,
 			},
 		},
 		{
-			Use: "version", GroupID: "gateway", Args: none, ValidArgsFunction: noFiles,
-			Short:   "Print this binary's version",
-			Example: "  gateway version",
-			Run:     func(*cobra.Command, []string) { fmt.Println(version) }, // install.sh / install.ps1 name the pre-update backup with it
+			Use:               "version",
+			GroupID:           "gateway",
+			Args:              none,
+			ValidArgsFunction: noFiles,
+			Short:             "Print this binary's version",
+			Example:           "  gateway version",
+			Run:               func(*cobra.Command, []string) { fmt.Println(version) }, // install.sh / install.ps1 name the pre-update backup with it
 		},
 		group(&cobra.Command{
-			Use: "service", GroupID: "gateway",
-			Short: "Start the gateway at logon in its own window (Windows)",
-			Long:  "Start the gateway at logon in its own console window, as a Windows scheduled task (" + service.Task + ").",
+			Use:     "service",
+			GroupID: "gateway",
+			Short:   "Start the gateway at logon in its own window (Windows)",
+			Long:    "Start the gateway at logon in its own console window, as a Windows scheduled task (" + service.Task + ").",
 		},
 			&cobra.Command{
 				Use: "install", Args: none, ValidArgsFunction: noFiles,
@@ -178,16 +182,19 @@ binary and its state back, starts it again.`,
 			RunE:    func(*cobra.Command, []string) error { return rollback(ctx, exe) },
 		},
 		group(&cobra.Command{
-			Use: "jellyfin", GroupID: "jellyfin",
-			Short: "Run, configure and repair the Jellyfin the gateway set up",
-			Long:  "Run, configure and repair Jellyfin. up, upgrade, offline and gpu drive the Docker Jellyfin from jellyfin-compose.yml.",
+			Use:     "jellyfin",
+			GroupID: "jellyfin",
+			Short:   "Run, configure and repair the Jellyfin the gateway set up",
+			Long:    "Run, configure and repair Jellyfin. up, upgrade, offline and gpu drive the Docker Jellyfin from jellyfin-compose.yml.",
 		},
 			&cobra.Command{
-				Use: "up", Args: none, ValidArgsFunction: noFiles,
-				Short:   "Start Jellyfin in Docker",
-				Long:    "Start Jellyfin in Docker (downloads jellyfin-compose.yml once: point its media folders at yours, then run it again).",
-				Example: "  gateway jellyfin up",
-				RunE:    func(*cobra.Command, []string) error { return jellyfinUp(ctx, compose) },
+				Use:               "up",
+				Args:              none,
+				ValidArgsFunction: noFiles,
+				Short:             "Start Jellyfin in Docker",
+				Long:              "Start Jellyfin in Docker (downloads jellyfin-compose.yml once: point its media folders at yours, then run it again).",
+				Example:           "  gateway jellyfin up",
+				RunE:              func(*cobra.Command, []string) error { return jellyfinUp(ctx, compose) },
 			},
 			&cobra.Command{
 				Use: "upgrade", Args: none, ValidArgsFunction: noFiles,
@@ -237,7 +244,13 @@ gateway page does; docs/install.md). Needs a terminal: the password isn't shown.
 						fmt.Println()
 						os.Exit(130)
 					}()
-					err := jellyfin.LoginCLI(ctx, jellyfinSetup(), os.Stdin, os.Stdout, func() (string, error) { return jellyfin.ReadPassword(os.Stdin) })
+					err := jellyfin.LoginCLI(
+						ctx,
+						jellyfinSetup(),
+						os.Stdin,
+						os.Stdout,
+						func() (string, error) { return jellyfin.ReadPassword(os.Stdin) },
+					)
 					if errors.Is(err, jellyfin.ErrInterrupted) {
 						os.Exit(130)
 					}

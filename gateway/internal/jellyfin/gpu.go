@@ -163,7 +163,13 @@ func GPUCLI(ctx context.Context, compose, envFile string, on bool, restart func(
 		if err := Compose(context.WithoutCancel(ctx), compose, "up", "-d"); err != nil {
 			return fmt.Errorf("%w; Jellyfin did not come back up: %v (run `gateway jellyfin up`)", why, err)
 		}
-		fmt.Fprintf(out, "Nothing changed: %v\nPut %s and %s back as they were. See \"GPU transcoding\" in docs/install.md.\n", why, compose, envFile)
+		fmt.Fprintf(
+			out,
+			"Nothing changed: %v\nPut %s and %s back as they were. See \"GPU transcoding\" in docs/install.md.\n",
+			why,
+			compose,
+			envFile,
+		)
 		return why
 	}
 	if err := put(nc, ne); err != nil {

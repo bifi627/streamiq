@@ -108,7 +108,11 @@ func SetOffline(b []byte, offline bool) (out []byte, changed bool, err error) {
 		return nil, false, err
 	}
 	if jail == online {
-		return nil, false, fmt.Errorf("%w: the jail and online blocks are both %s", errShape, map[bool]string{true: "on", false: "off"}[jail])
+		return nil, false, fmt.Errorf(
+			"%w: the jail and online blocks are both %s",
+			errShape,
+			map[bool]string{true: "on", false: "off"}[jail],
+		)
 	}
 	if jail == offline {
 		return b, false, nil
@@ -152,7 +156,12 @@ func OfflineCLI(ctx context.Context, file string, offline bool, out io.Writer) e
 	}
 	res, changed, err := SetOffline(b, offline)
 	if err != nil {
-		fmt.Fprintf(out, "%s is unchanged. Run `gateway jellyfin upgrade` first if it predates the jail, else:\n%s", file, manualJail)
+		fmt.Fprintf(
+			out,
+			"%s is unchanged. Run `gateway jellyfin upgrade` first if it predates the jail, else:\n%s",
+			file,
+			manualJail,
+		)
 		return err
 	}
 	state := map[bool]string{true: "offline: nothing leaves the Jellyfin container", false: "online: lookups (posters, descriptions) allowed"}[offline]
@@ -363,7 +372,10 @@ func jailed(ls []string, svc jellyfinSpan, nl string) []byte {
 	if n := len(res); n > 0 && !strings.HasSuffix(res[n-1], "\n") {
 		res[n-1] += nl
 	}
-	res = append(res, pad+"# Offline (#321): the only way in to Jellyfin; `gateway jellyfin offline off` removes it."+nl)
+	res = append(
+		res,
+		pad+"# Offline (#321): the only way in to Jellyfin; `gateway jellyfin offline off` removes it."+nl,
+	)
 	fw := []string{pad + "forwarder:" + nl,
 		kpad + "image: " + Forwarder + nl,
 		kpad + "restart: unless-stopped" + nl,

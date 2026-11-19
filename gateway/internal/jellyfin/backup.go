@@ -45,11 +45,16 @@ func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive strin
 	}
 	c := s.View()
 	if !c.Managed {
-		return "", nil, errors.New("the gateway didn't set this Jellyfin up (back it up in Jellyfin: Dashboard → Backups)")
+		return "", nil, errors.New(
+			"the gateway didn't set this Jellyfin up (back it up in Jellyfin: Dashboard → Backups)",
+		)
 	}
 	config := filepath.Join(filepath.Dir(compose), "jellyfin-config")
 	if _, err := os.Stat(compose); err != nil {
-		return "", nil, fmt.Errorf("no %s next to the gateway (back Jellyfin up in Jellyfin: Dashboard → Backups)", ComposeFile)
+		return "", nil, fmt.Errorf(
+			"no %s next to the gateway (back Jellyfin up in Jellyfin: Dashboard → Backups)",
+			ComposeFile,
+		)
 	}
 	if _, err := os.Stat(config); err != nil {
 		return "", nil, fmt.Errorf("no %s: Jellyfin doesn't keep its data next to %s", config, ComposeFile)
@@ -59,7 +64,11 @@ func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive strin
 	s.mu.Unlock()
 	admin, err := s.signIn(ctx, user, pw)
 	if unauthorized(err) {
-		return "", nil, fmt.Errorf("Jellyfin refused the %s password stored in %s (changed in Jellyfin? Store the new one with `gateway jellyfin login`)", user, s.path())
+		return "", nil, fmt.Errorf(
+			"Jellyfin refused the %s password stored in %s (changed in Jellyfin? Store the new one with `gateway jellyfin login`)",
+			user,
+			s.path(),
+		)
 	} else if err != nil {
 		return "", nil, fmt.Errorf("Jellyfin not reachable at %s: %w", s.URL, err)
 	}
@@ -75,7 +84,12 @@ func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive strin
 	}
 	archive = filepath.Join(config, "data", "backups", base)
 	if _, err := os.Stat(archive); err != nil {
-		return "", nil, fmt.Errorf("Jellyfin's backup %s is not in %s: %s doesn't run this Jellyfin? (Jellyfin keeps the archive)", base, filepath.Dir(archive), ComposeFile)
+		return "", nil, fmt.Errorf(
+			"Jellyfin's backup %s is not in %s: %s doesn't run this Jellyfin? (Jellyfin keeps the archive)",
+			base,
+			filepath.Dir(archive),
+			ComposeFile,
+		)
 	}
 	return archive, func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
@@ -130,7 +144,11 @@ func versionWarning(backup, running string) string {
 	if backup == "" || version3(backup) == version3(running) {
 		return ""
 	}
-	return fmt.Sprintf("Warning: the backup is from Jellyfin %s, this one runs %s. Jellyfin may refuse it or migrate it.\n", backup, running)
+	return fmt.Sprintf(
+		"Warning: the backup is from Jellyfin %s, this one runs %s. Jellyfin may refuse it or migrate it.\n",
+		backup,
+		running,
+	)
 }
 
 // restoreLogins are the admin logins to try, in order: the current admin, else
@@ -187,7 +205,13 @@ func (s *Setup) signInFirst(ctx context.Context, logins [][2]string) (string, er
 // restore copies archive into the container, has Jellyfin (signed in as
 // admin) restore it, waits for the backup's admin bc to sign in, then writes
 // creds to the state dir.
-func (s *Setup) restore(ctx context.Context, compose, archive, admin string, bc Creds, creds []byte, out io.Writer) error {
+func (s *Setup) restore(
+	ctx context.Context,
+	compose, archive, admin string,
+	bc Creds,
+	creds []byte,
+	out io.Writer,
+) error {
 	if err := composeQuiet(ctx, compose, "exec", "-T", service, "mkdir", "-p", backupDir); err != nil {
 		return err
 	}
@@ -201,7 +225,14 @@ func (s *Setup) restore(ctx context.Context, compose, archive, admin string, bc 
 	}()
 	logs := fmt.Sprintf("see Jellyfin's log: docker compose -f %q logs %s", compose, service)
 	fmt.Fprintln(out, "Restoring; Jellyfin restarts…")
-	if err := s.call(ctx, "POST", "/Backup/Restore", admin, fmt.Sprintf(`{"ArchiveFileName":%q}`, restoreName), nil); err != nil {
+	if err := s.call(
+		ctx,
+		"POST",
+		"/Backup/Restore",
+		admin,
+		fmt.Sprintf(`{"ArchiveFileName":%q}`, restoreName),
+		nil,
+	); err != nil {
 		return fmt.Errorf("Jellyfin refused the restore (%w); %s", err, logs)
 	}
 	if err := s.awaitRestored(ctx, bc, opTimeout); err != nil {
@@ -214,7 +245,10 @@ func (s *Setup) restore(ctx context.Context, compose, archive, admin string, bc 
 		return err
 	}
 	fmt.Fprintf(out, "Restored Jellyfin and wrote the backup's Jellyfin login to %s.\n", s.path())
-	fmt.Fprintln(out, "Start the gateway. Posters and images come back with a library scan (Jellyfin: Dashboard → Libraries → Scan All Libraries).")
+	fmt.Fprintln(
+		out,
+		"Start the gateway. Posters and images come back with a library scan (Jellyfin: Dashboard → Libraries → Scan All Libraries).",
+	)
 	return nil
 }
 
@@ -234,7 +268,10 @@ func (s *Setup) awaitRestored(ctx context.Context, bc Creds, timeout time.Durati
 				return nil
 			}
 			if unauthorized(err) {
-				return fmt.Errorf("the restored Jellyfin refused the backup's %s password: the restore did not take", bc.User)
+				return fmt.Errorf(
+					"the restored Jellyfin refused the backup's %s password: the restore did not take",
+					bc.User,
+				)
 			}
 		}
 		select {

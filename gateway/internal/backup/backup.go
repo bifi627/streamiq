@@ -237,7 +237,8 @@ func checkEntries(path string, zf []*zip.File) error {
 		if n == ComposeEntry || n == JellyfinEntry {
 			continue
 		}
-		if n == "." || !filepath.IsLocal(n) || filepath.Base(n) != n || strings.ContainsAny(n, `/\:`) || f.FileInfo().IsDir() {
+		if n == "." || !filepath.IsLocal(n) || filepath.Base(n) != n || strings.ContainsAny(n, `/\:`) ||
+			f.FileInfo().IsDir() {
 			return fmt.Errorf("%s: not a gateway backup (entry %q)", path, n)
 		}
 		names = append(names, n)
@@ -358,7 +359,9 @@ func writeCompose(compose string, src io.Reader) (string, error) {
 }
 
 // ErrNoJellyfin: the backup holds no Jellyfin data.
-var ErrNoJellyfin = errors.New("this backup has no Jellyfin data (the gateway skipped Jellyfin when it was made; `gateway backup` says why)")
+var ErrNoJellyfin = errors.New(
+	"this backup has no Jellyfin data (the gateway skipped Jellyfin when it was made; `gateway backup` says why)",
+)
 
 // ExtractJellyfin streams the backup's Jellyfin archive into dst (a new file)
 // and returns the backup's jellyfin.json, the login that goes with it.

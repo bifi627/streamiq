@@ -148,7 +148,14 @@ func serveScreen(w http.ResponseWriter, r *http.Request) {
 		Fail(w, http.StatusConflict, fmt.Errorf("screen: session %s already holds a screen", who.ID))
 		return
 	}
-	s := &screen{id: rand.Text(), name: name, session: who.ID, closed: who.Closed, done: r.Context().Done(), cmds: make(chan []byte, maxQueued-1)}
+	s := &screen{
+		id:      rand.Text(),
+		name:    name,
+		session: who.ID,
+		closed:  who.Closed,
+		done:    r.Context().Done(),
+		cmds:    make(chan []byte, maxQueued-1),
+	}
 	screens.m[s.id] = s
 	screens.Unlock()
 	defer func() {

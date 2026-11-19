@@ -35,8 +35,11 @@ func TestServerStep(t *testing.T) {
 	s := newSetup(t, srv.URL, &got)
 	s.poll(context.Background())
 	p := f.person(t)
-	if !tmdbOnly(p["DisabledMetadataFetchers"]) || !tmdbOnly(p["DisabledImageFetchers"]) || f.cfg["ServerName"] != "keep me" ||
-		len(f.cfg["PluginRepositories"].([]any)) != 0 || len(f.cfg["MetadataOptions"].([]any)) != 2 || f.cfgPosts != 1 {
+	if !tmdbOnly(p["DisabledMetadataFetchers"]) || !tmdbOnly(p["DisabledImageFetchers"]) ||
+		f.cfg["ServerName"] != "keep me" ||
+		len(f.cfg["PluginRepositories"].([]any)) != 0 ||
+		len(f.cfg["MetadataOptions"].([]any)) != 2 ||
+		f.cfgPosts != 1 {
 		t.Fatalf("after bootstrap: %d posts, %v", f.cfgPosts, f.cfg)
 	}
 	f.mu.Lock()
@@ -49,7 +52,9 @@ func TestServerStep(t *testing.T) {
 
 	// A managed Jellyfin from before the step, with a Person entry of its own.
 	f.mu.Lock()
-	f.cfg["MetadataOptions"] = []any{map[string]any{"ItemType": "Person", "DisabledMetadataFetchers": []any{}, "MetadataFetcherOrder": []any{"x"}}}
+	f.cfg["MetadataOptions"] = []any{
+		map[string]any{"ItemType": "Person", "DisabledMetadataFetchers": []any{}, "MetadataFetcherOrder": []any{"x"}},
+	}
 	encPosts := f.encPosts
 	f.mu.Unlock()
 	c := s.creds
@@ -59,8 +64,11 @@ func TestServerStep(t *testing.T) {
 	}
 	s.poll(context.Background())
 	p = f.person(t)
-	if !tmdbOnly(p["DisabledMetadataFetchers"]) || !tmdbOnly(p["DisabledImageFetchers"]) || p["MetadataFetcherOrder"] == nil ||
-		f.cfgPosts != 2 || f.encPosts != encPosts || s.creds.ServerSteps != len(serverSteps) {
+	if !tmdbOnly(p["DisabledMetadataFetchers"]) || !tmdbOnly(p["DisabledImageFetchers"]) ||
+		p["MetadataFetcherOrder"] == nil ||
+		f.cfgPosts != 2 ||
+		f.encPosts != encPosts ||
+		s.creds.ServerSteps != len(serverSteps) {
 		t.Fatalf("existing Jellyfin: %d/%d posts, %v, creds %+v", f.cfgPosts, f.encPosts, f.cfg, s.creds)
 	}
 }
@@ -92,16 +100,30 @@ func TestLibraryState(t *testing.T) {
 	f.libs = []map[string]any{
 		lib("empty", "movies", []any{}), // missing entry: every fetcher on
 		lib("off", "movies", []any{off}, true, true, true, true, true),
-		lib("grabber", "movies", []any{typeOpt("Movie", []any{}, []any{"Screen Grabber"})}, true, false), // a grabbed frame shows the content
-		lib("mixed", "", []any{off}),                                                                     // Series, Season, Episode missing
+		lib(
+			"grabber",
+			"movies",
+			[]any{typeOpt("Movie", []any{}, []any{"Screen Grabber"})},
+			true,
+			false,
+		), // a grabbed frame shows the content
+		lib(
+			"mixed",
+			"",
+			[]any{off},
+		), // Series, Season, Episode missing
 	}
 	f.mu.Unlock()
 	libs, err := s.Libraries(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Library{{"empty", "lib empty", false, "Off"}, {"off", "lib off", true, "On"}, {"grabber", "lib grabber", false, "Custom"},
-		{"mixed", "lib mixed", false, "Off"}}
+	want := []Library{
+		{"empty", "lib empty", false, "Off"},
+		{"off", "lib off", true, "On"},
+		{"grabber", "lib grabber", false, "Custom"},
+		{"mixed", "lib mixed", false, "Off"},
+	}
 	if len(libs) != len(want) {
 		t.Fatalf("got %+v", libs)
 	}
@@ -125,8 +147,10 @@ func TestLibraryWrites(t *testing.T) {
 	s.poll(context.Background())
 	ctx := context.Background()
 	f.mu.Lock()
-	f.libs = []map[string]any{lib("a", "", []any{typeOpt("Movie", []any{"TheMovieDb"}, []any{"Screen Grabber"})}, true, false, true),
-		lib("b", "movies", []any{})}
+	f.libs = []map[string]any{
+		lib("a", "", []any{typeOpt("Movie", []any{"TheMovieDb"}, []any{"Screen Grabber"})}, true, false, true),
+		lib("b", "movies", []any{}),
+	}
 	b, _ := json.Marshal(f.libs)
 	var orig []map[string]any
 	if err := json.Unmarshal(b, &orig); err != nil {
@@ -149,7 +173,8 @@ func TestLibraryWrites(t *testing.T) {
 	}
 	a, origA := opts(0), orig[0]["LibraryOptions"].(map[string]any)
 	tos := a["TypeOptions"].([]any)
-	if len(tos) != 4 || !offline(a, []string{"Movie", "Series", "Season", "Episode"}) || tos[0].(map[string]any)["ImageOptions"] == nil {
+	if len(tos) != 4 || !offline(a, []string{"Movie", "Series", "Season", "Episode"}) ||
+		tos[0].(map[string]any)["ImageOptions"] == nil {
 		t.Fatalf("make offline: %v", a)
 	}
 	delete(a, "TypeOptions")
@@ -162,7 +187,8 @@ func TestLibraryWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	a = opts(0)
-	if extrasState(a) != "On" || !offline(a, []string{"Movie", "Series", "Season", "Episode"}) || a["SeasonZeroDisplayName"] != "Specials" {
+	if extrasState(a) != "On" || !offline(a, []string{"Movie", "Series", "Season", "Episode"}) ||
+		a["SeasonZeroDisplayName"] != "Specials" {
 		t.Fatalf("extras on: %v", a)
 	}
 	if err := s.SetExtras(ctx, "a", false); err != nil || extrasState(opts(0)) != "Off" {

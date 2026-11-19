@@ -39,11 +39,23 @@ func TestClientsAPI(t *testing.T) {
 		return s, reply, after
 	}
 	// A member (#341): sees only its own key, removing any other is 403 (known or not).
-	if s, list, _ := call(tunnel.Member, "GET", ClientsPath, ""); s != 200 || list != `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true}]` {
+	if s, list, _ := call(
+		tunnel.Member,
+		"GET",
+		ClientsPath,
+		"",
+	); s != 200 ||
+		list != `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true}]` {
 		t.Fatalf("member list: %d %s", s, list)
 	}
 	for _, fp := range []string{"bb", "zz"} {
-		if s, _, _ := call(tunnel.Member, "POST", ClientsRemovePath, `{"keyFp":"`+fp+`"}`); s != http.StatusForbidden || !store.Allowed("bb") {
+		if s, _, _ := call(
+			tunnel.Member,
+			"POST",
+			ClientsRemovePath,
+			`{"keyFp":"`+fp+`"}`,
+		); s != http.StatusForbidden ||
+			!store.Allowed("bb") {
 			t.Errorf("member removes %s: %d, want 403", fp, s)
 		}
 	}
@@ -54,7 +66,12 @@ func TestClientsAPI(t *testing.T) {
 	}
 	// Rename (#365): same access as remove, the name rule of /streamiq/name, saved.
 	for _, fp := range []string{"bb", "zz"} {
-		if s, _, _ := call(tunnel.Member, "POST", ClientsRenamePath, `{"keyFp":"`+fp+`","name":"Mine"}`); s != http.StatusForbidden {
+		if s, _, _ := call(
+			tunnel.Member,
+			"POST",
+			ClientsRenamePath,
+			`{"keyFp":"`+fp+`","name":"Mine"}`,
+		); s != http.StatusForbidden {
 			t.Errorf("member renames %s: %d, want 403", fp, s)
 		}
 	}
@@ -70,13 +87,31 @@ func TestClientsAPI(t *testing.T) {
 			t.Errorf("rename %s: %d, want %d", body, s, want)
 		}
 	}
-	if s, out, _ := call(tunnel.Member, "POST", ClientsRenamePath, `{"keyFp":"aa","name":" Anna's phone "}`); s != 200 || out != `{"name":"Anna's phone"}` {
+	if s, out, _ := call(
+		tunnel.Member,
+		"POST",
+		ClientsRenamePath,
+		`{"keyFp":"aa","name":" Anna's phone "}`,
+	); s != 200 ||
+		out != `{"name":"Anna's phone"}` {
 		t.Fatalf("member renames own: %d %s", s, out)
 	}
-	if s, out, _ := call(tunnel.Admin, "POST", ClientsRenamePath, `{"keyFp":"bb","name":"Living room TV"}`); s != 200 || out != `{"name":"Living room TV"}` {
+	if s, out, _ := call(
+		tunnel.Admin,
+		"POST",
+		ClientsRenamePath,
+		`{"keyFp":"bb","name":"Living room TV"}`,
+	); s != 200 ||
+		out != `{"name":"Living room TV"}` {
 		t.Fatalf("admin renames other: %d %s", s, out)
 	}
-	if again, _ := Open(dir); fmt.Sprint(again.Paired()[0].Name, "|", again.Paired()[1].Name) != "Anna's phone|Living room TV" {
+	if again, _ := Open(
+		dir,
+	); fmt.Sprint(
+		again.Paired()[0].Name,
+		"|",
+		again.Paired()[1].Name,
+	) != "Anna's phone|Living room TV" {
 		t.Fatalf("not saved: %v", again.Paired())
 	}
 	if s, _, _ := call(tunnel.Admin, "POST", ClientsRemovePath, `{"keyFp":"zz"}`); s != http.StatusNotFound {
@@ -86,7 +121,13 @@ func TestClientsAPI(t *testing.T) {
 		t.Errorf("bad body: %d, want 400", s)
 	}
 	// Another client: gone at once, its sessions closed.
-	if s, _, _ := call(tunnel.Admin, "POST", ClientsRemovePath, `{"keyFp":"bb"}`); s != 200 || store.Allowed("bb") || !slices.Equal(dropped, []string{"bb"}) {
+	if s, _, _ := call(
+		tunnel.Admin,
+		"POST",
+		ClientsRemovePath,
+		`{"keyFp":"bb"}`,
+	); s != 200 || store.Allowed("bb") ||
+		!slices.Equal(dropped, []string{"bb"}) {
 		t.Fatalf("remove other: %d allowed=%v dropped=%v", s, store.Allowed("bb"), dropped)
 	}
 	// The caller itself (Key "aa", here a member): only after the reply is delivered.
@@ -107,14 +148,24 @@ func TestRemoveSelfLogsFailedSave(t *testing.T) {
 	defer log.SetOutput(log.Writer())
 	log.SetOutput(&buf)
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[{"keyFp":"aa","name":"Phone"},{"keyFp":"bb","name":"TV"}]`), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(dir, "allowlist.json"),
+		[]byte(`[{"keyFp":"aa","name":"Phone"},{"keyFp":"bb","name":"TV"}]`),
+		0o600,
+	); err != nil {
 		t.Fatal(err)
 	}
 	store, _ := Open(dir)
 	api := tunnel.NewRouter()
 	api.Handle("POST "+ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
 	remove := func(fp string) {
-		_, _, _, after := tunnel.Do(api, tunnel.Session{Role: tunnel.Admin, Key: fp}, "POST", ClientsRemovePath, `{"keyFp":"`+fp+`"}`)
+		_, _, _, after := tunnel.Do(
+			api,
+			tunnel.Session{Role: tunnel.Admin, Key: fp},
+			"POST",
+			ClientsRemovePath,
+			`{"keyFp":"`+fp+`"}`,
+		)
 		after()
 	}
 	remove("aa")

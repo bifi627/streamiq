@@ -78,7 +78,10 @@ func Upgrade(ctx context.Context, file string, out io.Writer) error {
 		fmt.Fprintln(out, "`gateway jellyfin gpu nvidia` can now switch the NVIDIA GPU on.")
 	}
 	if migrated {
-		fmt.Fprintln(out, "Jellyfin is now offline: nothing leaves its container (`gateway jellyfin offline off` allows online lookups).")
+		fmt.Fprintln(
+			out,
+			"Jellyfin is now offline: nothing leaves its container (`gateway jellyfin offline off` allows online lookups).",
+		)
 	}
 	return nil
 }
@@ -107,10 +110,14 @@ func composeQuiet(ctx context.Context, file string, args ...string) error {
 
 func haveCompose(ctx context.Context) error {
 	if _, err := exec.LookPath("docker"); err != nil {
-		return errors.New("Docker not found: install Docker Desktop (Windows, macOS) or Docker Engine (Linux), then retry")
+		return errors.New(
+			"Docker not found: install Docker Desktop (Windows, macOS) or Docker Engine (Linux), then retry",
+		)
 	}
 	if exec.CommandContext(ctx, "docker", "compose", "version").Run() != nil {
-		return errors.New("Docker Compose v2 (`docker compose`) not found: update Docker Desktop, or install the docker-compose-plugin package")
+		return errors.New(
+			"Docker Compose v2 (`docker compose`) not found: update Docker Desktop, or install the docker-compose-plugin package",
+		)
 	}
 	return nil
 }

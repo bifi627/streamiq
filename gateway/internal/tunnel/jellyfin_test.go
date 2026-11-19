@@ -29,7 +29,10 @@ func TestOriginURLRefuses(t *testing.T) {
 }
 
 func TestOriginURLRewritesQuery(t *testing.T) {
-	r := &http.Request{Method: "GET", RequestURI: "/Items?ParentId=p&api_key=a&ApiKey=b&APIKEY=c&userId=x&USERID=y&UserID=z"}
+	r := &http.Request{
+		Method:     "GET",
+		RequestURI: "/Items?ParentId=p&api_key=a&ApiKey=b&APIKEY=c&userId=x&USERID=y&UserID=z",
+	}
 	u, err := originURL(r, "u1")
 	if err != nil {
 		t.Fatal(err)

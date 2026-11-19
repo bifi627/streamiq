@@ -112,12 +112,20 @@ func TestRunControlDialTimeout(t *testing.T) {
 
 	dialTimeout = time.Second // room for a loaded machine; the socket must outlive it
 	got := make(chan []byte, 1)
-	err := RunControl(context.Background(), srv.URL, &State{Credential: "ok", renamed: make(chan struct{}, 1)}, "", "dev", new(atomic.Int64),
-		func() string { return "" }, func(raw []byte, _ func(any)) {
+	err := RunControl(
+		context.Background(),
+		srv.URL,
+		&State{Credential: "ok", renamed: make(chan struct{}, 1)},
+		"",
+		"dev",
+		new(atomic.Int64),
+		func() string { return "" },
+		func(raw []byte, _ func(any)) {
 			if raw != nil {
 				got <- raw
 			}
-		})
+		},
+	)
 	if !strings.Contains(fmt.Sprint(err), "control closed") || len(got) != 1 {
 		t.Fatalf("want a message after the dial timeout, then a close; got %d messages, %v", len(got), err)
 	}
@@ -150,12 +158,22 @@ func TestRunControlHeartbeats(t *testing.T) {
 	var lastBeat atomic.Int64
 	// what it returns doesn't matter: the test checks what the fake server sees
 	go func() {
-		_ = RunControl(ctx, srv.URL, &State{Credential: "cred-1", Name: "nas"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat,
-			func() string { return "" }, func([]byte, func(any)) {})
+		_ = RunControl(
+			ctx,
+			srv.URL,
+			&State{Credential: "cred-1", Name: "nas"},
+			"http://192.168.1.20:8097",
+			"1.4.0",
+			&lastBeat,
+			func() string { return "" },
+			func([]byte, func(any)) {},
+		)
 	}()
 	select {
 	case hb := <-got:
-		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" || hb["protocol"] != float64(Protocol) || hb["name"] != "nas" {
+		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" ||
+			hb["protocol"] != float64(Protocol) ||
+			hb["name"] != "nas" {
 			t.Fatalf("heartbeat = %v", hb)
 		}
 		if len(hb) != 5 { // liveness + name only (#140): details are GET /streamiq/status
@@ -216,7 +234,16 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	<-st.renamed // drop the signal from the setup rename above
 	// what it returns doesn't matter: the test checks what the fake server sees
 	go func() {
-		_ = RunControl(ctx, srv.URL, st, "", "dev", new(atomic.Int64), func() string { return "" }, func([]byte, func(any)) {})
+		_ = RunControl(
+			ctx,
+			srv.URL,
+			st,
+			"",
+			"dev",
+			new(atomic.Int64),
+			func() string { return "" },
+			func([]byte, func(any)) {},
+		)
 	}()
 	next := func() string {
 		select {
@@ -236,7 +263,11 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	}
 	b, _ := os.ReadFile(path)
 	var saved State
-	if err := json.Unmarshal(b, &saved); err != nil || saved.Name != "Living room NAS" || saved.Credential != "cred-1" || saved.GatewayID != "g1" {
+	if err := json.Unmarshal(
+		b,
+		&saved,
+	); err != nil || saved.Name != "Living room NAS" || saved.Credential != "cred-1" ||
+		saved.GatewayID != "g1" {
 		t.Fatalf("gateway.json = %s", b)
 	}
 	if st.CurrentName() != "Living room NAS" {
@@ -268,7 +299,11 @@ func TestRunControlUpgradeRequired(t *testing.T) {
 // (or body) is 400, a failed save 500, never 502 (#327).
 func TestNameAPI(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "gateway.json"), []byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(dir, "gateway.json"),
+		[]byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`),
+		0o600,
+	); err != nil {
 		t.Fatal(err)
 	}
 	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
@@ -288,7 +323,14 @@ func TestNameAPI(t *testing.T) {
 		{tunnel.Admin, `{"name":"   "}`, http.StatusBadRequest, ""},
 		{tunnel.Admin, `not json`, http.StatusBadRequest, ""},
 	} {
-		if s, _, reply, _ := tunnel.Do(api, tunnel.Session{Role: c.role}, "POST", NamePath, c.body); s != c.want || reply != c.reply {
+		if s, _, reply, _ := tunnel.Do(
+			api,
+			tunnel.Session{Role: c.role},
+			"POST",
+			NamePath,
+			c.body,
+		); s != c.want ||
+			reply != c.reply {
 			t.Errorf("%q %s: %d %s, want %d %s", c.role, c.body, s, reply, c.want, c.reply)
 		}
 	}
@@ -296,7 +338,13 @@ func TestNameAPI(t *testing.T) {
 		t.Fatalf("stored %q", st.CurrentName())
 	}
 	st.path = filepath.Join(dir, "missing", "gateway.json") // the state dir unwritable
-	if s, _, _, _ := tunnel.Do(api, tunnel.Session{Role: tunnel.Admin}, "POST", NamePath, `{"name":"x"}`); s != http.StatusInternalServerError {
+	if s, _, _, _ := tunnel.Do(
+		api,
+		tunnel.Session{Role: tunnel.Admin},
+		"POST",
+		NamePath,
+		`{"name":"x"}`,
+	); s != http.StatusInternalServerError {
 		t.Fatalf("failed save: %d, want 500", s)
 	}
 }

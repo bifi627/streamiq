@@ -188,7 +188,16 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 		t := time.NewTicker(heartbeatEvery)
 		defer t.Stop()
 		for first := true; ; first = false {
-			send(heartbeat{Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol, Name: st.CurrentName()})
+			send(
+				heartbeat{
+					Type:     "heartbeat",
+					LanURL:   lanURL,
+					Version:  version,
+					Update:   update(),
+					Protocol: Protocol,
+					Name:     st.CurrentName(),
+				},
+			)
 			lastBeat.Store(time.Now().Unix())
 			if first {
 				handle(nil, send)

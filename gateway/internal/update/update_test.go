@@ -73,7 +73,13 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 	}
 
 	bin = []byte("tampered")
-	if err := Download(context.Background(), srv.URL, "streamiq-gateway-windows-amd64.exe", dst); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
+	if err := Download(
+		context.Background(),
+		srv.URL,
+		"streamiq-gateway-windows-amd64.exe",
+		dst,
+	); err == nil ||
+		!strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("tampered binary: err = %v", err)
 	}
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
@@ -86,7 +92,16 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 
 func TestSwap(t *testing.T) {
 	dir := t.TempDir()
-	exe, nw, out := filepath.Join(dir, "gateway.exe"), filepath.Join(dir, "gateway.exe.new"), filepath.Join(dir, "gateway.exe.old")
+	exe, nw, out := filepath.Join(
+		dir,
+		"gateway.exe",
+	), filepath.Join(
+		dir,
+		"gateway.exe.new",
+	), filepath.Join(
+		dir,
+		"gateway.exe.old",
+	)
 	if err := os.WriteFile(exe, []byte("v1"), 0o755); err != nil {
 		t.Fatal(err)
 	}

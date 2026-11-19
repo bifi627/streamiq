@@ -1,6 +1,7 @@
-// Library browsing over the tunnel (MVP item 5, consumption only). Functional,
-// not pretty: the UI is refactored later. Routes (App.tsx): /g/$gatewayId owns the
-// tunnel; its children (home, /i/$itemId) render through <Outlet /> and share it.
+// Library browsing over the tunnel: the gateway shell (GatewayLibrary), the item
+// page (title, seasons, folders) and the player page; home lives in Home.tsx.
+// Routes (App.tsx): /g/$gatewayId owns the tunnel; its children (home, /i, /play,
+// /screen, /remote) render through <Outlet /> and share it.
 import { useContext, useEffect, useState } from 'react'
 import {
   Link,

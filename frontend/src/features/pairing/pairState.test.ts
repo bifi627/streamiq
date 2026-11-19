@@ -19,11 +19,13 @@ test('show pair: no usable pin, or a pairing run in progress', () => {
   assert.equal(showPair({ step: 'code', code: '123456' }, true), true)
 })
 
+const path = { relay: false, ipv6: false, bytesReceived: 0, bytesSent: 0 }
+
 test('route line', () => {
   assert.equal(routeLine(null), 'unknown')
-  assert.equal(routeLine({ relay: false, ipv6: false }), 'direct')
+  assert.equal(routeLine({ ...path, relay: false }), 'direct')
   assert.equal(
-    routeLine({ relay: true, ipv6: false, rttMs: 12 }),
+    routeLine({ ...path, relay: true, rttMs: 12 }),
     `relayed (TURN) · ${(12).toLocaleString()} ms round trip`,
   )
 })

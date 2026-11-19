@@ -2,19 +2,19 @@
 // browser's client key, and (when pairing) run commit/reveal for the
 // comparison code. docs/protocol.md, "Broker" + "Pairing".
 import { auth } from '../../firebase'
-import { API, authed } from '../../api'
+import { API } from '../../api'
 import { diag, pcState, relayOn, relayTlsOn } from '../../diag'
-import { measure, type Speed } from '../../speed'
 import {
+  answerCheck,
   authMessage,
   b64,
   comparisonCode,
   hex,
   nonce,
-  pinCheck,
   sdpFingerprint,
   sha256,
 } from './crypto'
+import { lifetime, type Session } from './session'
 import { clientKey, getPin, persistStorage, setPin } from './store'
 import { sharer } from './shared'
 import { relayLine, relayServers } from './relay'
@@ -26,15 +26,7 @@ import {
   type Kind,
 } from '../../errors'
 
-export type Session = {
-  pc: RTCPeerConnection
-  close: () => void
-  /** close() ran (the pc closes a moment later, after the throughput PATCH). */
-  closed: boolean
-  /** gateway → client throughput (#162): starts the measurement on the first
-   * call, once per session, so sessions that never stream cost no bursts. */
-  speed: () => Speed
-}
+export type { Session }
 
 type Msg = Record<string, string | undefined> & { type: string }
 
@@ -42,7 +34,6 @@ type Msg = Record<string, string | undefined> & { type: string }
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
  * unpaired browser starts pairing and onCode receives the code to compare.
  */
-// oxlint-disable-next-line max-lines-per-function -- #607
 export async function connect(
   gatewayId: string,
   onCode?: (code: string) => void,
@@ -63,39 +54,7 @@ export async function connect(
   // addEventListener: the handlers below own the on* properties.
   pc.addEventListener('connectionstatechange', () => pcState(pc))
   pc.addEventListener('iceconnectionstatechange', () => pcState(pc))
-  // Tunnel telemetry (#390): the broker and the gateway record the tunnel; this
-  // browser only adds the throughput it measured, to the tunnel id from the answer.
-  // ponytail: a closed tab skips that PATCH (the row keeps no throughput).
-  let tunnel: string | undefined
-  let speed: Speed | undefined
-  let ping: ReturnType<typeof setInterval> | undefined
-  const teardown = () => {
-    clearInterval(ping)
-    pc.close()
-    ws.close() // the broker tells the gateway `bye`
-  }
-  let closed = false
-  const close = () => {
-    if (closed) return
-    closed = true
-    speed?.stop()
-    const throughputKbps = kbps(speed?.fresh())
-    if (!tunnel || !throughputKbps) return teardown()
-    void authed(`/tunnels/${tunnel}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ throughputKbps }),
-    })
-      .catch(() => {})
-      .finally(teardown)
-  }
-  const up = (): Session => ({
-    pc,
-    close,
-    get closed() {
-      return closed
-    },
-    speed: () => (speed ??= measure(pc, gatewayId)),
-  })
+  const { close, setTunnel, keepAlive, up } = lifetime(pc, ws, gatewayId)
   const send = (m: object) => ws.send(JSON.stringify(m))
 
   return new Promise<Session>((resolve, reject) => {
@@ -107,7 +66,7 @@ export async function connect(
       reject(e)
     }
     let gatewayFp = ''
-    let verdict: ReturnType<typeof pinCheck> = 'refuse'
+    let verdict: 'pinned' | 'unpinned' | 'refuse' = 'refuse'
     let nB = ''
     let noTurn = '' // why there's no relay, once `ready` says so
 
@@ -115,10 +74,7 @@ export async function connect(
     ws.onopen = () => {
       opened = true
       send({ type: 'auth', token })
-      // The socket lives as long as the session, often idle (a screen waiting,
-      // #180); a proxy (Railway edge, Cloudflare tunnel) may drop a quiet one,
-      // and that ends the tunnel too. The broker ignores the ping.
-      ping = setInterval(() => send({ type: 'ping' }), 25_000)
+      keepAlive(send)
     }
     ws.onclose = (e) => fail(brokerClosed(opened, { gatewayId }, e.reason))
     // Handle broker messages strictly in order. The gateway can still trickle a
@@ -146,29 +102,12 @@ export async function connect(
         await pc.setLocalDescription(await pc.createOffer())
         send({ type: 'offer', gatewayId, sdp: pc.localDescription })
       } else if (m.type === 'answer') {
-        tunnel = m.tunnel
-        try {
-          gatewayFp = sdpFingerprint(m.sdp.sdp)
-        } catch (e) {
-          // No single certificate to compare with the pin: refuse like a mismatch.
-          return fail(
-            err(
-              'pin-mismatch',
-              `gateway answer refused: ${toAppError(e).message}`,
-            ),
-          )
-        }
-        // Before a single byte goes to the gateway: an unexpected certificate means
-        // someone (possibly StreamIQ's own server) is in the middle. Pairing again is
-        // allowed: the comparison code authenticates the new certificate.
-        verdict = pinCheck(pin, gatewayFp, !!onCode)
-        if (verdict === 'refuse')
-          return fail(
-            err(
-              'pin-mismatch',
-              `gateway certificate changed: pinned ${pin}, got ${gatewayFp}`,
-            ),
-          )
+        setTunnel(m.tunnel)
+        // Before a single byte goes to the gateway (pairing again is allowed).
+        const a = answerCheck(m.sdp.sdp, pin, !!onCode)
+        if ('refused' in a) return fail(err('pin-mismatch', a.refused))
+        gatewayFp = a.fp
+        verdict = a.verdict
         await pc.setRemoteDescription(m.sdp)
         for (const c of early.splice(0)) await pc.addIceCandidate(c)
       } else if (m.type === 'ice') {
@@ -263,8 +202,6 @@ const shared = sharer(
 )
 export const share = shared.share
 export const dropShared = shared.drop
-
-const kbps = (mbps?: number) => (mbps ? Math.round(mbps * 1000) : null)
 
 /** The pairing name this browser sends (also its screen name, #180). */
 export function browserName() {

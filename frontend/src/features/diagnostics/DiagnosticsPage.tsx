@@ -19,17 +19,20 @@ import { isKind } from '../../errors'
 import { useGateways } from '../gateways/api'
 import { describe, probe } from '../library/profile'
 import { useHousehold } from '../households/household'
+import {
+  defaultGateway,
+  gatewayLabel,
+  report as reportText,
+  throughputLine,
+  type Test,
+} from './report'
 
-type Test = { lines: string[]; failed?: string }
-
-// oxlint-disable-next-line complexity, max-lines-per-function -- render branching + effect wiring; length: #607
 export function DiagnosticsPage() {
   useSyncExternalStore(subscribe, snapshot) // Force relay checkbox, cpu/memory lines
   const [caps, setCaps] = useState('probing…')
   const gateways = useGateways().data ?? []
   const [picked, setGatewayId] = useState('')
-  const gatewayId =
-    picked || ((gateways.find((g) => g.online) ?? gateways[0])?.id ?? '')
+  const gatewayId = picked || defaultGateway(gateways)
   const [test, setTest] = useState<Test | null>(null)
   const [running, setRunning] = useState(false)
   const [copied, setCopied] = useState('')
@@ -74,9 +77,7 @@ export function DiagnosticsPage() {
       await speed.get(60_000)
       const mbps = speed.fresh()
       if (!mbps) throw new Error(speed.error() ?? 'timed out')
-      lines.push(
-        `throughput: ${mbps.toFixed(1)} Mbps (median of ${dataSaverOn() ? '3 × 1 MiB bursts, data saver on' : '3 ~2 s bursts after a warm-up'}; Auto caps at ${(mbps * 0.7).toFixed(1)} Mbps)`,
-      )
+      lines.push(throughputLine(mbps, dataSaverOn()))
       show()
     } catch (e) {
       show(
@@ -89,22 +90,17 @@ export function DiagnosticsPage() {
   }
 
   const gw = gateways.find((g) => g.id === gatewayId)
-  const report = [
-    'StreamIQ diagnostics',
-    `browser: ${navigator.userAgent}`,
-    `screen: ${screen.width}x${screen.height} @${devicePixelRatio}x, window ${innerWidth}x${innerHeight}`,
-    `codecs: ${caps}`,
-    ...(diag.cpu ? [`cpu: ${diag.cpu}`] : []),
-    ...(diag.memory ? [`memory: ${diag.memory}`] : []),
-    ...(diag.lastRun ? [diag.lastRun] : []),
-    ...(test
-      ? [
-          `gateway: ${gw?.name ?? gatewayId} (${gw?.version ?? '?'})`,
-          ...test.lines,
-          ...(test.failed ? [test.failed] : []),
-        ]
-      : ['connection test: not run']),
-  ].join('\n')
+  const report = reportText({
+    cpu: diag.cpu,
+    memory: diag.memory,
+    lastRun: diag.lastRun,
+    browser: navigator.userAgent,
+    screen: `${screen.width}x${screen.height} @${devicePixelRatio}x, window ${innerWidth}x${innerHeight}`,
+    caps,
+    test,
+    gatewayId,
+    gw,
+  })
 
   const copy = async () =>
     setCopied(
@@ -145,12 +141,7 @@ export function DiagnosticsPage() {
               </select>
             </label>
           ) : (
-            <span>
-              Gateway:{' '}
-              {gw
-                ? `${gw.name ?? gw.id}${gw.online ? '' : ' (offline)'}`
-                : 'none'}
-            </span>
+            <span>Gateway: {gatewayLabel(gw)}</span>
           )}
           <button
             type="button"

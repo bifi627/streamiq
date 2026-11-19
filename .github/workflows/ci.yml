@@ -70,7 +70,10 @@ jobs:
       - run: bash scripts/check-docs-drift.sh # #488: STREAMIQ_* env vars + gateway routes documented
       - run: test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
         working-directory: gateway
-      - run: go vet ./... && go build ./... && go test -race ./...
+      # #559: golangci-lint (its govet replaces go vet), pinned like scripts/check.sh
+      - run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./... && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --build-tags docker ./...
+        working-directory: gateway
+      - run: go build ./... && go test -race ./...
         working-directory: gateway
 
   # #452: Windows-only code (service, update, rollback) runs here; the update test
@@ -94,7 +97,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
       - run: |
           race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race
-          go vet ./... && go build ./... && go test $race ./...
+          go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./... && go build ./... && go test $race ./...
         env:
           STREAMIQ_TEST_OLD_GATEWAY: ${{ runner.temp }}/streamiq-gateway-windows-amd64.exe
 
@@ -116,7 +119,7 @@ jobs:
       - run: gh release download --repo "$GITHUB_REPOSITORY" --pattern jellyfin-compose.yml --dir "$RUNNER_TEMP"
         env:
           GH_TOKEN: ${{ github.token }}
-      - run: go vet -tags docker ./internal/jellyfin/ && go test -tags docker -run TestRealJellyfin -v -timeout 15m ./internal/jellyfin/
+      - run: go test -tags docker -run TestRealJellyfin -v -timeout 15m ./internal/jellyfin/
         env:
           STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE: ${{ runner.temp }}/jellyfin-compose.yml
 

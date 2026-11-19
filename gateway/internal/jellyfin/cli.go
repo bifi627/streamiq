@@ -62,7 +62,8 @@ func ReadPassword(f *os.File) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer term.Restore(int(f.Fd()), old)
+	// nothing left to do if it fails: the password is read either way
+	defer func() { _ = term.Restore(int(f.Fd()), old) }()
 	return readLine(f)
 }
 

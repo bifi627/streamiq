@@ -129,14 +129,18 @@ func TestLibraryWrites(t *testing.T) {
 		lib("b", "movies", []any{})}
 	b, _ := json.Marshal(f.libs)
 	var orig []map[string]any
-	json.Unmarshal(b, &orig)
+	if err := json.Unmarshal(b, &orig); err != nil {
+		t.Fatal(err)
+	}
 	f.mu.Unlock()
 	opts := func(i int) map[string]any {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		b, _ := json.Marshal(f.libs[i]["LibraryOptions"])
 		var m map[string]any
-		json.Unmarshal(b, &m)
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatal(err)
+		}
 		return m
 	}
 

@@ -82,7 +82,9 @@ func SetGPU(b []byte, on bool) (out []byte, changed bool, err error) {
 	if cur == on {
 		return b, false, nil
 	}
-	setBlock(ls, gpuBlock, on)
+	if err := setBlock(ls, gpuBlock, on); err != nil {
+		return nil, false, err
+	}
 	return []byte(strings.Join(ls, "")), true, nil
 }
 

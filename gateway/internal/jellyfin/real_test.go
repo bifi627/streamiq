@@ -97,7 +97,10 @@ func roundTrip(t *testing.T, compose []byte) {
 			out, _ := docker(ctx, "logs", "--no-color", "--tail", "100", service)
 			t.Log("Jellyfin's log:\n" + out)
 		}
-		docker(ctx, "stop", service) // nothing writes while it's emptied
+		// nothing writes while it's emptied; t.Error: the cleanup below still runs
+		if _, err := docker(ctx, "stop", service); err != nil {
+			t.Error(err)
+		}
 		// Jellyfin writes jellyfin-config as root (Linux): emptied from inside, or the temp dir stays
 		if out, err := docker(ctx, "run", "--rm", "--no-deps", "-T", "--entrypoint", "find", service, "/config", "-mindepth", "1", "-delete"); err != nil {
 			t.Logf("emptying jellyfin-config: %v: %s", err, out)
@@ -149,7 +152,7 @@ func roundTrip(t *testing.T, compose []byte) {
 	if !slices.Contains(users(t, s, admin), added) {
 		t.Fatal("the added user isn't there")
 	}
-	s.call(ctx, "POST", "/Sessions/Logout", admin, "", nil)
+	s.logout(ctx, admin)
 
 	// The pin bump: `gateway jellyfin upgrade` (prints "Already on" on the current file).
 	var out bytes.Buffer
@@ -164,7 +167,7 @@ func roundTrip(t *testing.T, compose []byte) {
 		s.mu.Unlock()
 		admin, err := s.signIn(ctx, adminName, pw)
 		if err == nil {
-			s.call(ctx, "POST", "/Sessions/Logout", admin, "", nil)
+			s.logout(ctx, admin)
 			break
 		}
 		if unauthorized(err) || time.Now().After(deadline) || ctx.Err() != nil {
@@ -185,7 +188,7 @@ func roundTrip(t *testing.T, compose []byte) {
 		t.Fatal(err)
 	}
 	admin = signIn(t, r)
-	defer r.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
+	defer r.logout(ctx, admin)
 	if u := users(t, r, admin); slices.Contains(u, added) || !slices.Contains(u, adminName) {
 		t.Fatalf("users after the restore: %v", u)
 	}

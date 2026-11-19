@@ -331,7 +331,12 @@ func startUpdater() (wait func(), err error) {
 		return nil, err
 	}
 	slog.Info("gateway: remote update started", "pid", c.Process.Pid, "log", f.Name())
-	return func() { c.Wait(); f.Close() }, nil
+	return func() {
+		if err := c.Wait(); err != nil {
+			slog.Warn("gateway: remote update failed", "err", err, "log", f.Name())
+		}
+		f.Close()
+	}, nil
 }
 
 // remoteUpdate is /streamiq/status's remoteUpdate: true, or why not.
@@ -423,7 +428,8 @@ func stopGateway(exe string) {
 		service.Stop(exe)
 		return
 	}
-	exec.Command("pkill", "-f", "^"+regexp.QuoteMeta(exe)+"$").Run()
+	// best effort: pkill fails when nothing matches, and nothing running is fine
+	_ = exec.Command("pkill", "-f", "^"+regexp.QuoteMeta(exe)+"$").Run()
 }
 
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +

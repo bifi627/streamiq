@@ -62,7 +62,7 @@ func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive strin
 	} else if err != nil {
 		return "", nil, fmt.Errorf("Jellyfin not reachable at %s: %w", s.URL, err)
 	}
-	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
+	defer s.logout(ctx, admin)
 	var m struct{ Path string }
 	if err := s.callT(ctx, opTimeout, "POST", "/Backup/Create", admin,
 		`{"Metadata":false,"Trickplay":false,"Subtitles":false,"Database":true}`, &m); err != nil {
@@ -184,7 +184,7 @@ func (s *Setup) awaitRestored(ctx context.Context, bc Creds, timeout time.Durati
 		if down && up {
 			tok, err := s.signIn(ctx, bc.User, bc.Password)
 			if err == nil {
-				s.call(ctx, "POST", "/Sessions/Logout", tok, "", nil)
+				s.logout(ctx, tok)
 				return nil
 			}
 			if unauthorized(err) {

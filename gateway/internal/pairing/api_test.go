@@ -19,9 +19,11 @@ import (
 // only after the reply is delivered.
 func TestClientsAPI(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[
+	if err := os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[
 		{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z"},
-		{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z"}]`), 0o600)
+		{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	store, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -105,7 +107,9 @@ func TestRemoveSelfLogsFailedSave(t *testing.T) {
 	defer log.SetOutput(log.Writer())
 	log.SetOutput(&buf)
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[{"keyFp":"aa","name":"Phone"},{"keyFp":"bb","name":"TV"}]`), 0o600)
+	if err := os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[{"keyFp":"aa","name":"Phone"},{"keyFp":"bb","name":"TV"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	store, _ := Open(dir)
 	api := tunnel.NewRouter()
 	api.Handle("POST "+ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
@@ -118,7 +122,10 @@ func TestRemoveSelfLogsFailedSave(t *testing.T) {
 		t.Fatalf("saved self-removal: allowed=%v, logged %q", store.Allowed("aa"), buf.String())
 	}
 	os.Remove(filepath.Join(dir, "allowlist.json"))
-	os.Mkdir(filepath.Join(dir, "allowlist.json"), 0o700) // the save can't write a directory
+	// the save can't write a directory
+	if err := os.Mkdir(filepath.Join(dir, "allowlist.json"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	remove("bb")
 	if !strings.Contains(buf.String(), "gateway: remove client:") || store.Allowed("bb") {
 		t.Fatalf("failed save: allowed=%v, logged %q", store.Allowed("bb"), buf.String())

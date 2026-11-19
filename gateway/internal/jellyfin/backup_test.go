@@ -18,8 +18,12 @@ func managed(t *testing.T) (*fake, *Setup, string) {
 	s.poll(context.Background())
 	dir := t.TempDir()
 	compose := filepath.Join(dir, ComposeFile)
-	os.WriteFile(compose, []byte("services: {}"), 0o644)
-	os.MkdirAll(filepath.Join(dir, "jellyfin-config", "data", "backups"), 0o755)
+	if err := os.WriteFile(compose, []byte("services: {}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "jellyfin-config", "data", "backups"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	return f, s, compose
 }
 
@@ -32,7 +36,9 @@ func TestCreateBackup(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 	want := filepath.Join(filepath.Dir(compose), "jellyfin-config", "data", "backups", "jellyfin-backup-1.zip")
-	os.WriteFile(want, []byte("zip"), 0o644)
+	if err := os.WriteFile(want, []byte("zip"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	got, remove, err := s.CreateBackup(ctx, compose)
 	if err != nil || got != want || remove == nil {
 		t.Fatalf("archive %q, err %v", got, err)
@@ -71,7 +77,9 @@ func TestCreateBackupSkips(t *testing.T) {
 		"not set up by the gateway": func(f *fake, s *Setup, compose string) string {
 			c := s.creds
 			c.BYO = true
-			s.save(c)
+			if err := s.save(c); err != nil {
+				t.Error(err) // the subtest's goroutine: no t.Fatal on the parent
+			}
 			return compose
 		},
 	} {

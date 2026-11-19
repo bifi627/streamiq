@@ -31,10 +31,10 @@ import (
 func TestPairThenTunnel(t *testing.T) {
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/Users" {
-			w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
+			_, _ = w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
 			return
 		}
-		w.Write([]byte("jellyfin"))
+		_, _ = w.Write([]byte("jellyfin"))
 	}))
 	defer origin.Close()
 	dir := t.TempDir()
@@ -77,7 +77,9 @@ func TestPairThenTunnel(t *testing.T) {
 	if want := pairing.Code(fp, identity.Fingerprint(spki(key)), nA, nB); p.Code != want || p.Name != "test phone" {
 		t.Fatalf("pending = %+v, want code %s", p, want)
 	}
-	store.Decide(p.ID, true)
+	if err := store.Decide(p.ID, true); err != nil {
+		t.Fatal(err)
+	}
 	if b.say(nil)["type"] != "approved" {
 		t.Fatal("want approved")
 	}
@@ -128,10 +130,10 @@ func TestOfferWithoutUserOrRoleRefused(t *testing.T) {
 func TestRemoveClosesOpenSessions(t *testing.T) {
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/Users" {
-			w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
+			_, _ = w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
 			return
 		}
-		w.Write([]byte("jellyfin"))
+		_, _ = w.Write([]byte("jellyfin"))
 	}))
 	defer origin.Close()
 	dir := t.TempDir()
@@ -153,7 +155,9 @@ func TestRemoveClosesOpenSessions(t *testing.T) {
 		for len(store.Pending()) == 0 {
 			time.Sleep(10 * time.Millisecond)
 		}
-		store.Decide(store.Pending()[0].ID, true)
+		if err := store.Decide(store.Pending()[0].ID, true); err != nil {
+			t.Fatal(err)
+		}
 		if b.say(nil)["type"] != "approved" {
 			t.Fatal("want approved")
 		}
@@ -258,7 +262,9 @@ func TestSecondAuthChannelRefused(t *testing.T) {
 	for len(store.Pending()) == 0 {
 		time.Sleep(10 * time.Millisecond)
 	}
-	store.Decide(store.Pending()[0].ID, true)
+	if err := store.Decide(store.Pending()[0].ID, true); err != nil {
+		t.Fatal(err)
+	}
 	if b.say(nil)["type"] != "approved" {
 		t.Fatal("want approved")
 	}
@@ -371,7 +377,9 @@ func TestPairingSlotReservedAtCommit(t *testing.T) {
 	for len(store.Pending()) == 0 {
 		time.Sleep(10 * time.Millisecond)
 	}
-	store.Decide(store.Pending()[0].ID, false)
+	if err := store.Decide(store.Pending()[0].ID, false); err != nil {
+		t.Fatal(err)
+	}
 	if m := b.say(nil); m["type"] != "rejected" {
 		t.Fatalf("Reject = %v", m)
 	}
@@ -433,12 +441,16 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 	b.auth, _ = pc.CreateDataChannel("auth", nil)
 	b.auth.OnMessage(func(m webrtc.DataChannelMessage) {
 		var v map[string]any
-		json.Unmarshal(m.Data, &v)
+		if err := json.Unmarshal(m.Data, &v); err != nil {
+			t.Error(err)
+		}
 		b.in <- v
 	})
 	offer, _ := pc.CreateOffer(nil)
 	inOrder.Lock() // candidates gathered from here on queue behind the offer
-	pc.SetLocalDescription(offer)
+	if err := pc.SetLocalDescription(offer); err != nil {
+		t.Fatal(err)
+	}
 	role := tunnel.Member // ids starting with "admin" offer as a household admin
 	if strings.HasPrefix(id, "admin") {
 		role = tunnel.Admin
@@ -470,21 +482,28 @@ func (b *browser) fromGateway(m Msg) {
 	defer b.mu.Unlock()
 	switch m.Type {
 	case "answer":
-		b.pc.SetRemoteDescription(*m.SDP)
+		if err := b.pc.SetRemoteDescription(*m.SDP); err != nil {
+			b.t.Error(err)
+		}
 		for _, c := range b.early {
-			b.pc.AddICECandidate(c)
+			_ = b.pc.AddICECandidate(c) // fails once the test closed pc: the gateway sends late candidates
 		}
 		b.early = nil
 	case "ice":
 		if b.pc.RemoteDescription() == nil {
 			b.early = append(b.early, *m.Candidate)
 		} else {
-			b.pc.AddICECandidate(*m.Candidate)
+			_ = b.pc.AddICECandidate(*m.Candidate) // fails once the test closed pc: the gateway sends late candidates
 		}
 	}
 }
 
-func (b *browser) send(v map[string]any) { raw, _ := json.Marshal(v); b.auth.SendText(string(raw)) }
+func (b *browser) send(v map[string]any) {
+	raw, _ := json.Marshal(v)
+	if err := b.auth.SendText(string(raw)); err != nil {
+		b.t.Fatal(err)
+	}
+}
 
 // say sends v (if any) and returns the gateway's next auth message.
 func (b *browser) say(v map[string]any) map[string]any {
@@ -509,7 +528,8 @@ func (b *browser) fetch() string {
 	body := make(chan string, 2)
 	var got []byte
 	var head, eof atomic.Bool
-	d.OnOpen(func() { d.SendText(`{"method":"GET","url":"/System/Info/Public"}`) })
+	// a refused channel (unpaired, over the cap) may be closed before the send: the test sees no answer
+	d.OnOpen(func() { _ = d.SendText(`{"method":"GET","url":"/System/Info/Public"}`) })
 	d.OnMessage(func(m webrtc.DataChannelMessage) {
 		switch {
 		case !m.IsString:
@@ -561,7 +581,9 @@ func TestScreenOverTunnel(t *testing.T) {
 		for len(store.Pending()) == 0 {
 			time.Sleep(10 * time.Millisecond)
 		}
-		store.Decide(store.Pending()[0].ID, true)
+		if err := store.Decide(store.Pending()[0].ID, true); err != nil {
+			t.Fatal(err)
+		}
 		if b.say(nil)["type"] != "approved" {
 			t.Fatal("want approved")
 		}
@@ -588,7 +610,9 @@ func TestScreenOverTunnel(t *testing.T) {
 		t.Fatalf("screen head = %s", head)
 	}
 	var screens []struct{ ID, Name string } // the TV's head came after the screen registered
-	json.Unmarshal([]byte(phone.body(`{"method":"GET","url":"/streamiq/screens"}`)), &screens)
+	if err := json.Unmarshal([]byte(phone.body(`{"method":"GET","url":"/streamiq/screens"}`)), &screens); err != nil {
+		t.Fatal(err)
+	}
 	if len(screens) != 1 || screens[0].Name != "Living room TV" {
 		t.Fatalf("screens = %+v", screens)
 	}
@@ -611,7 +635,11 @@ func TestScreenOverTunnel(t *testing.T) {
 func (b *browser) open(req string) (chan string, *webrtc.DataChannel) {
 	d, _ := b.pc.CreateDataChannel("req", nil)
 	frames := make(chan string, 16)
-	d.OnOpen(func() { d.SendText(req) })
+	d.OnOpen(func() {
+		if err := d.SendText(req); err != nil {
+			b.t.Error(err)
+		}
+	})
 	d.OnMessage(func(m webrtc.DataChannelMessage) { frames <- string(m.Data) })
 	return frames, d
 }
@@ -653,7 +681,7 @@ func TestTunnelChannelCap(t *testing.T) {
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		inFlight.Add(1)
 		<-release
-		w.Write([]byte("jellyfin"))
+		_, _ = w.Write([]byte("jellyfin"))
 	}))
 	defer origin.Close()
 	gateway, store := newGateway(t)
@@ -665,7 +693,9 @@ func TestTunnelChannelCap(t *testing.T) {
 	for len(store.Pending()) == 0 {
 		time.Sleep(10 * time.Millisecond)
 	}
-	store.Decide(store.Pending()[0].ID, true)
+	if err := store.Decide(store.Pending()[0].ID, true); err != nil {
+		t.Fatal(err)
+	}
 	if b.say(nil)["type"] != "approved" {
 		t.Fatal("want approved")
 	}
@@ -704,10 +734,10 @@ func TestTunnelChannelCap(t *testing.T) {
 func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/Users" {
-			w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
+			_, _ = w.Write([]byte(`[{"Name":"home","Id":"0123456789abcdef0123456789abcdef"}]`))
 			return
 		}
-		w.Write([]byte("jellyfin"))
+		_, _ = w.Write([]byte("jellyfin"))
 	}))
 	defer origin.Close()
 	dir := t.TempDir()
@@ -741,7 +771,9 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	for len(store.Pending()) == 0 {
 		time.Sleep(10 * time.Millisecond)
 	}
-	store.Decide(store.Pending()[0].ID, true)
+	if err := store.Decide(store.Pending()[0].ID, true); err != nil {
+		t.Fatal(err)
+	}
 	if b.say(nil)["type"] != "approved" || b.fetch() != "jellyfin" {
 		t.Fatal("want a working tunnel")
 	}
@@ -833,7 +865,9 @@ func TestBrowserCloseReportsNoFailure(t *testing.T) {
 	for len(store.Pending()) == 0 {
 		time.Sleep(10 * time.Millisecond)
 	}
-	store.Decide(store.Pending()[0].ID, true)
+	if err := store.Decide(store.Pending()[0].ID, true); err != nil {
+		t.Fatal(err)
+	}
 	if b.say(nil)["type"] != "approved" {
 		t.Fatal("want approved")
 	}
@@ -855,9 +889,13 @@ func TestSignalingIgnored(t *testing.T) {
 	gateway, _ := newGateway(t)
 	pc, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
 	t.Cleanup(func() { pc.Close() })
-	pc.CreateDataChannel("auth", nil)
+	if _, err := pc.CreateDataChannel("auth", nil); err != nil {
+		t.Fatal(err)
+	}
 	offer, _ := pc.CreateOffer(nil)
-	pc.SetLocalDescription(offer)
+	if err := pc.SetLocalDescription(offer); err != nil {
+		t.Fatal(err)
+	}
 	var answers atomic.Int32
 	handle := func(m Msg) {
 		raw, _ := json.Marshal(m)

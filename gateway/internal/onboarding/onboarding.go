@@ -171,7 +171,7 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 	if err != nil {
 		return fmt.Errorf("dial control: %w", err)
 	}
-	defer conn.CloseNow()
+	defer func() { _ = conn.CloseNow() }() // it only fails on a connection already closed
 	defer lastBeat.Store(0)
 	defer handle(nil, nil)
 	conn.SetReadLimit(1 << 20) // SDP exceeds the 32KB default

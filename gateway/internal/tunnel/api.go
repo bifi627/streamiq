@@ -161,7 +161,7 @@ func JSON(w http.ResponseWriter, status int, v any) {
 	h.Set("Content-Length", strconv.Itoa(len(b)))
 	h.Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	w.Write(b)
+	_, _ = w.Write(b) // the status is sent: a failed write only means the client left
 }
 
 // Do runs one gateway API request on api the way the tunnel does, minus WebRTC,

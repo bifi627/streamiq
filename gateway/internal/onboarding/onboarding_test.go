@@ -26,12 +26,14 @@ func TestEnrollOnceThenReuseState(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		var req map[string]string
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+		}
 		if r.URL.Path != "/api/gateways/enroll" || req["token"] != "tok" || req["fingerprint"] != "fp" {
 			http.Error(w, "bad", http.StatusBadRequest)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"gatewayId": "dev-1", "credential": "cred-1"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"gatewayId": "dev-1", "credential": "cred-1"})
 	}))
 	defer srv.Close()
 	dir := t.TempDir()
@@ -87,9 +89,9 @@ func TestRunControlDialTimeout(t *testing.T) {
 		if err != nil {
 			return
 		}
-		c.Read(r.Context())                 // the first heartbeat
+		_, _, _ = c.Read(r.Context())       // the first heartbeat
 		time.Sleep(1500 * time.Millisecond) // past the second dial's 1 s timeout
-		c.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
+		_ = c.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
 		c.Close(websocket.StatusNormalClosure, "")
 	}))
 	defer srv.Close()
@@ -135,7 +137,9 @@ func TestRunControlHeartbeats(t *testing.T) {
 		}
 		_, b, _ := c.Read(r.Context())
 		var hb map[string]any
-		json.Unmarshal(b, &hb)
+		if err := json.Unmarshal(b, &hb); err != nil {
+			t.Error(err)
+		}
 		got <- hb
 		c.Close(websocket.StatusNormalClosure, "")
 	}))
@@ -144,8 +148,11 @@ func TestRunControlHeartbeats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var lastBeat atomic.Int64
-	go RunControl(ctx, srv.URL, &State{Credential: "cred-1", Name: "nas"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat,
-		func() string { return "" }, func([]byte, func(any)) {})
+	// what it returns doesn't matter: the test checks what the fake server sees
+	go func() {
+		_ = RunControl(ctx, srv.URL, &State{Credential: "cred-1", Name: "nas"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat,
+			func() string { return "" }, func([]byte, func(any)) {})
+	}()
 	select {
 	case hb := <-got:
 		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" || hb["protocol"] != float64(Protocol) || hb["name"] != "nas" {
@@ -167,7 +174,9 @@ func TestRunControlHeartbeats(t *testing.T) {
 func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "gateway.json")
-	os.WriteFile(path, []byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600)
+	if err := os.WriteFile(path, []byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
 	if err != nil {
 		t.Fatal(err)
@@ -195,7 +204,9 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 				return
 			}
 			var hb map[string]any
-			json.Unmarshal(b, &hb)
+			if err := json.Unmarshal(b, &hb); err != nil {
+				t.Error(err)
+			}
 			beats <- hb["name"].(string)
 		}
 	}))
@@ -203,7 +214,10 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	<-st.renamed // drop the signal from the setup rename above
-	go RunControl(ctx, srv.URL, st, "", "dev", new(atomic.Int64), func() string { return "" }, func([]byte, func(any)) {})
+	// what it returns doesn't matter: the test checks what the fake server sees
+	go func() {
+		_ = RunControl(ctx, srv.URL, st, "", "dev", new(atomic.Int64), func() string { return "" }, func([]byte, func(any)) {})
+	}()
 	next := func() string {
 		select {
 		case n := <-beats:
@@ -222,7 +236,7 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	}
 	b, _ := os.ReadFile(path)
 	var saved State
-	if json.Unmarshal(b, &saved); saved.Name != "Living room NAS" || saved.Credential != "cred-1" || saved.GatewayID != "g1" {
+	if err := json.Unmarshal(b, &saved); err != nil || saved.Name != "Living room NAS" || saved.Credential != "cred-1" || saved.GatewayID != "g1" {
 		t.Fatalf("gateway.json = %s", b)
 	}
 	if st.CurrentName() != "Living room NAS" {
@@ -237,7 +251,7 @@ func TestRunControlUpgradeRequired(t *testing.T) {
 		if err != nil {
 			return
 		}
-		c.Read(r.Context())
+		_, _, _ = c.Read(r.Context())
 		c.Close(websocket.StatusPolicyViolation, "upgrade required")
 	}))
 	defer srv.Close()
@@ -254,7 +268,9 @@ func TestRunControlUpgradeRequired(t *testing.T) {
 // (or body) is 400, a failed save 500, never 502 (#327).
 func TestNameAPI(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "gateway.json"), []byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600)
+	if err := os.WriteFile(filepath.Join(dir, "gateway.json"), []byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
 	if err != nil {
 		t.Fatal(err)

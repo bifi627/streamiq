@@ -105,11 +105,13 @@ func TestAskEndsWhenConnectionCloses(t *testing.T) {
 func TestRemovePersists(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := Open(dir)
-	go s.Ask("phone", "fp-1", "123456", nil)
+	go func() { _, _ = s.Ask("phone", "fp-1", "123456", nil) }() // the Decide below answers it
 	for len(s.Pending()) == 0 {
 		time.Sleep(time.Millisecond)
 	}
-	s.Decide(s.Pending()[0].ID, true)
+	if err := s.Decide(s.Pending()[0].ID, true); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.Remove("fp-1"); err != nil || s.Allowed("fp-1") {
 		t.Fatalf("still allowed after Remove (err %v)", err)
 	}
@@ -141,7 +143,7 @@ func TestDecideAllowlist(t *testing.T) {
 	decide := func(fp string, approve bool) {
 		t.Helper()
 		done := make(chan struct{})
-		go func() { s.Ask("phone", fp, "123456", nil); close(done) }()
+		go func() { _, _ = s.Ask("phone", fp, "123456", nil); close(done) }() // the Decide below answers it
 		for len(s.Pending()) == 0 {
 			time.Sleep(time.Millisecond)
 		}

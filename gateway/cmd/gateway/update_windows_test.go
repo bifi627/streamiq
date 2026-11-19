@@ -50,7 +50,9 @@ func TestUpdateFromLastRelease(t *testing.T) {
 	}
 	install, _ := setup(t, newVersion)
 	exe := filepath.Join(install, "gateway.exe")
-	os.WriteFile(exe, read(t, old), 0o755)
+	if err := os.WriteFile(exe, read(t, old), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	updateAndRollBack(t, install)
 }
 
@@ -74,7 +76,9 @@ func updateAndRollBack(t *testing.T, install string) {
 
 	gateway(t, exe, install, "reset-identity") // the old release writes its identity
 	for f, b := range oldState {
-		os.WriteFile(filepath.Join(state, f), []byte(b), 0o600)
+		if err := os.WriteFile(filepath.Join(state, f), []byte(b), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	_, fp, _ := identity.LoadOrCreate(state)
 	before := files(t, state)
@@ -141,8 +145,12 @@ func updateAndRollBack(t *testing.T, install string) {
 		t.Fatalf("jellyfin.json after the update: %v", err)
 	}
 	// What the new version may have changed since: rollback puts it back.
-	os.WriteFile(filepath.Join(state, "allowlist.json"), []byte("[]"), 0o600)
-	os.WriteFile(filepath.Join(state, "new-in-this-version.json"), []byte("{}"), 0o600)
+	if err := os.WriteFile(filepath.Join(state, "allowlist.json"), []byte("[]"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(state, "new-in-this-version.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	gateway(t, exe, install, "rollback")
 	if !bytes.Equal(read(t, exe), oldBin) {
@@ -211,7 +219,7 @@ func setup(t *testing.T, latest string) (install, state string) {
 		case "/download/SHA256SUMS":
 			fmt.Fprintf(w, "%s  %s\n", hex.EncodeToString(sum[:]), update.Asset())
 		case "/download/" + update.Asset():
-			w.Write(bin)
+			_, _ = w.Write(bin)
 		default:
 			http.NotFound(w, r)
 		}
@@ -220,7 +228,9 @@ func setup(t *testing.T, latest string) (install, state string) {
 
 	install = t.TempDir()
 	state = filepath.Join(install, "state")
-	os.Mkdir(state, 0o700)
+	if err := os.Mkdir(state, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("STREAMIQ_LATEST", srv.URL+"/latest")
 	t.Setenv("STREAMIQ_DOWNLOAD", srv.URL+"/download")
 	t.Setenv("STREAMIQ_STATE_DIR", state)
@@ -234,7 +244,9 @@ var built = map[string][]byte{} // version → binary: one build each
 func build(t *testing.T, dst, v string) {
 	t.Helper()
 	if b, ok := built[v]; ok {
-		os.WriteFile(dst, b, 0o755)
+		if err := os.WriteFile(dst, b, 0o755); err != nil {
+			t.Fatal(err)
+		}
 		return
 	}
 	if out, err := exec.Command("go", "build", "-ldflags", "-X main.version="+v, "-o", dst, ".").CombinedOutput(); err != nil {

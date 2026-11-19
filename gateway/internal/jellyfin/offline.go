@@ -110,8 +110,12 @@ func SetOffline(b []byte, offline bool) (out []byte, changed bool, err error) {
 	if jail == offline {
 		return b, false, nil
 	}
-	setBlock(ls, "jail", offline)
-	setBlock(ls, "online", !offline)
+	if err := setBlock(ls, "jail", offline); err != nil {
+		return nil, false, err
+	}
+	if err := setBlock(ls, "online", !offline); err != nil {
+		return nil, false, err
+	}
 	return []byte(strings.Join(ls, "")), true, nil
 }
 
@@ -159,8 +163,8 @@ func OfflineCLI(ctx context.Context, file string, offline bool, out io.Writer) e
 	// --remove-orphans: turning the jail off comments the forwarder out, and its
 	// container still holds the port Jellyfin publishes again.
 	if err := Compose(ctx, file, "up", "-d", "--remove-orphans"); err != nil {
-		os.WriteFile(file, b, 0o644) // the status reads the file: keep it saying what runs
-		return err
+		// the status reads the file: keep it saying what runs
+		return errors.Join(err, os.WriteFile(file, b, 0o644))
 	}
 	fmt.Fprintln(out, "Jellyfin is now", state)
 	return nil

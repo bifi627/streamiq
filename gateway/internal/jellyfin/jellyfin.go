@@ -411,7 +411,7 @@ func (s *Setup) connect(ctx context.Context, user, pw string, ownAdmin bool) (Cr
 	if err != nil {
 		return Creds{}, err
 	}
-	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
+	defer s.logout(ctx, admin)
 	v, err := s.makeViewer(ctx, admin, ViewerName)
 	if err != nil {
 		return Creds{}, fmt.Errorf("create the viewer user (needs a Jellyfin administrator): %w", err)
@@ -521,7 +521,7 @@ func (s *Setup) applyConfig(ctx context.Context, c Creds) error {
 	if err != nil {
 		return err
 	}
-	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
+	defer s.logout(ctx, admin)
 	if c.ServerSteps < len(serverSteps) {
 		if err := s.edit(ctx, admin, "/System/Configuration", serverSteps[c.ServerSteps:]); err != nil {
 			return err
@@ -697,7 +697,7 @@ func (s *Setup) newViewer(ctx context.Context, c Creds, user string) (v Viewer, 
 	if err != nil {
 		return Viewer{}, unauthorized(err), err
 	}
-	defer s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", admin, "", nil)
+	defer s.logout(ctx, admin)
 	v, err = s.makeViewer(ctx, admin, "streamiq-"+user)
 	return v, false, err
 }
@@ -748,6 +748,11 @@ func status(err error) int {
 		return h.status
 	}
 	return 0
+}
+
+// logout ends an admin session. Best effort: a session left open only expires later.
+func (s *Setup) logout(ctx context.Context, token string) {
+	_ = s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", token, "", nil)
 }
 
 // call does one Jellyfin request; out (if non-nil) receives the JSON body.

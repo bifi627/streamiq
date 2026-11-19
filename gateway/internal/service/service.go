@@ -74,12 +74,12 @@ func Stop(exe string) {
 	if !Supported() {
 		return
 	}
-	exec.Command("schtasks", "/End", "/TN", Task).Run()
+	_ = exec.Command("schtasks", "/End", "/TN", Task).Run() // best effort (above)
 	// The task's cmd /k is the parent; make sure the gateway itself is gone too,
 	// including one started by an older install.ps1 (no task).
 	ps := fmt.Sprintf("Get-Process | Where-Object { $_.Path -eq '%s' -and $_.Id -ne %d } | Stop-Process -Force",
 		strings.ReplaceAll(exe, "'", "''"), os.Getpid())
-	exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps).Run()
+	_ = exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps).Run() // best effort (above)
 }
 
 func schtasks(args ...string) error {
@@ -97,7 +97,7 @@ func schtasks(args ...string) error {
 func TaskXML(userID, exe, dir string) []byte {
 	esc := func(s string) string {
 		var b strings.Builder
-		xml.EscapeText(&b, []byte(s))
+		_ = xml.EscapeText(&b, []byte(s)) // a strings.Builder never fails a write
 		return b.String()
 	}
 	doc := `<?xml version="1.0" encoding="UTF-16"?>

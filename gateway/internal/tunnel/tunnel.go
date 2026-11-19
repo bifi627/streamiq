@@ -260,7 +260,8 @@ func serveBurst(w http.ResponseWriter, r *http.Request) {
 	h.Set("Content-Length", strconv.FormatInt(n, 10))
 	h.Set("Cache-Control", "no-store")
 	// ponytail: zeros; the tunnel never compresses. ChunkSize writes: one frame each.
-	io.CopyBuffer(w, io.LimitReader(zeros{}, n), make([]byte, ChunkSize))
+	// a failed copy means the client stopped the test: nothing to tell it
+	_, _ = io.CopyBuffer(w, io.LimitReader(zeros{}, n), make([]byte, ChunkSize))
 }
 
 // zeros is an endless stream of zero bytes: the burst is generated a chunk at a

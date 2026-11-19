@@ -158,7 +158,9 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 	case "ice":
 		if pc != nil && m.Candidate != nil {
 			cands.saw(m.Candidate.Candidate)
-			pc.AddICECandidate(*m.Candidate)
+			if err := pc.AddICECandidate(*m.Candidate); err != nil {
+				log.Printf("gateway: session %s: ice: %v", m.Session, err)
+			}
 		}
 	case "bye":
 		if end != nil {
@@ -307,7 +309,8 @@ type authMsg struct {
 // approved/rejected), once per connection (newPeer). Messages on one channel
 // arrive in order, one at a time; after a refusal none is handled.
 func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool, why *atomic.Value) {
-	say := func(m authMsg) { b, _ := json.Marshal(m); d.SendText(string(b)) }
+	// a failed send means the channel closed, and its OnClose ends the handshake
+	say := func(m authMsg) { b, _ := json.Marshal(m); _ = d.SendText(string(b)) }
 	done := make(chan struct{}) // closed when the channel closes or we refuse
 	var once sync.Once
 	end := func() { once.Do(func() { close(done) }) }

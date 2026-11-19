@@ -70,8 +70,8 @@ func Upgrade(ctx context.Context, file string, out io.Writer) error {
 		return err
 	}
 	if err := Compose(ctx, file, "up", "-d"); err != nil {
-		os.WriteFile(file, orig, 0o644) // the status reads the file: keep it saying what runs
-		return err
+		// the status reads the file: keep it saying what runs
+		return errors.Join(err, os.WriteFile(file, orig, 0o644))
 	}
 	fmt.Fprintln(out, "Jellyfin now runs", Image)
 	if marked {

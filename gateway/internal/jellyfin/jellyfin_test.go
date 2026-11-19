@@ -99,20 +99,26 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		json.NewEncoder(w).Encode(map[string]any{"Version": "12.4.0", "StartupWizardCompleted": f.wizard})
+		_ = json.NewEncoder(w).Encode(map[string]any{"Version": "12.4.0", "StartupWizardCompleted": f.wizard})
 	case "POST /Startup/Configuration", "GET /Startup/User", "POST /Startup/RemoteAccess":
 		if f.wizard {
 			deny(401)
 		}
 	case "POST /Startup/User":
 		var u struct{ Name, Password string }
-		json.NewDecoder(r.Body).Decode(&u)
+		if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		f.users[u.Name] = &fakeUser{id: "id-admin", pw: u.Password, admin: true}
 	case "POST /Startup/Complete":
 		f.wizard = true
 	case "POST /Users/AuthenticateByName":
 		var b struct{ Username, Pw string }
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		f.signIns++
 		u := f.users[b.Username]
 		if u == nil || u.pw != b.Pw || u.pw == "" {
@@ -123,7 +129,7 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.n++
 		t := fmt.Sprintf("tok-%d", f.n)
 		f.tokens[t] = b.Username
-		json.NewEncoder(w).Encode(map[string]any{"AccessToken": t, "User": map[string]string{"Id": u.id}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"AccessToken": t, "User": map[string]string{"Id": u.id}})
 	case "GET /Users/Me":
 		if f.booting {
 			deny(503)
@@ -139,10 +145,13 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for n, u := range f.users {
 			out = append(out, map[string]any{"Name": n, "Id": u.id, "Policy": u.policy})
 		}
-		json.NewEncoder(w).Encode(out)
+		_ = json.NewEncoder(w).Encode(out)
 	case "POST /Users/New":
 		var b struct{ Name, Password string }
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if !admin || f.users[b.Name] != nil {
 			deny(400)
 			return
@@ -153,10 +162,13 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"AuthenticationProviderId": "Default", "PasswordResetProviderId": "Default",
 		}}
 		f.users[b.Name] = u
-		json.NewEncoder(w).Encode(map[string]any{"Name": b.Name, "Id": u.id, "Policy": u.policy})
+		_ = json.NewEncoder(w).Encode(map[string]any{"Name": b.Name, "Id": u.id, "Policy": u.policy})
 	case "POST /Users/{id}/Password":
 		var b struct{ NewPw string }
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		u := byID()
 		if !admin || u == nil {
 			deny(403)
@@ -170,7 +182,10 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case "POST /Users/{id}/Policy":
 		var p map[string]any
-		json.NewDecoder(r.Body).Decode(&p)
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		u := byID()
 		if !admin || u == nil || p["AuthenticationProviderId"] == nil { // Jellyfin requires the whole object
 			deny(400)
@@ -182,10 +197,13 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			deny(401)
 			return
 		}
-		json.NewEncoder(w).Encode(f.enc)
+		_ = json.NewEncoder(w).Encode(f.enc)
 	case "POST /System/Configuration/encoding":
 		var e map[string]any
-		json.NewDecoder(r.Body).Decode(&e)
+		if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if !admin || e["QsvDevice"] == nil { // the whole object goes back
 			deny(400)
 			return
@@ -197,10 +215,13 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			deny(401)
 			return
 		}
-		json.NewEncoder(w).Encode(f.cfg)
+		_ = json.NewEncoder(w).Encode(f.cfg)
 	case "POST /System/Configuration":
 		var c map[string]any
-		json.NewDecoder(r.Body).Decode(&c)
+		if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if !admin || c["ServerName"] == nil { // the whole object goes back
 			deny(400)
 			return
@@ -212,20 +233,23 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			deny(401)
 			return
 		}
-		json.NewEncoder(w).Encode(f.libs)
+		_ = json.NewEncoder(w).Encode(f.libs)
 	case "GET /Libraries/AvailableOptions":
 		types := map[string][]string{"movies": {"Movie"}, "": {"Movie", "Series", "Season", "Episode"}}[r.URL.Query().Get("LibraryContentType")]
 		var to []map[string]any
 		for _, t := range types {
 			to = append(to, map[string]any{"Type": t, "MetadataFetchers": []any{map[string]any{"Name": "TheMovieDb"}}})
 		}
-		json.NewEncoder(w).Encode(map[string]any{"TypeOptions": to})
+		_ = json.NewEncoder(w).Encode(map[string]any{"TypeOptions": to})
 	case "POST /Library/VirtualFolders/LibraryOptions":
 		var b struct {
 			Id             string
 			LibraryOptions map[string]any
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if !admin || b.LibraryOptions["SeasonZeroDisplayName"] == nil { // the whole object goes back
 			deny(400)
 			return
@@ -238,16 +262,22 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.libPosts++
 	case "POST /Backup/Create":
 		var o struct{ Database, Metadata, Trickplay, Subtitles bool }
-		json.NewDecoder(r.Body).Decode(&o)
+		if err := json.NewDecoder(r.Body).Decode(&o); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if !admin || !o.Database || o.Metadata || o.Trickplay || o.Subtitles {
 			deny(400)
 			return
 		}
 		f.backups++
-		json.NewEncoder(w).Encode(map[string]any{"ServerVersion": "12.4.0.0", "Path": "/config/data/backups/jellyfin-backup-1.zip"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ServerVersion": "12.4.0.0", "Path": "/config/data/backups/jellyfin-backup-1.zip"})
 	case "POST /Backup/Restore":
 		var b struct{ ArchiveFileName string }
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if !admin {
 			deny(401)
 			return
@@ -442,7 +472,9 @@ func TestLegacyKeyNeedsLogin(t *testing.T) {
 	var got [2]string
 	s := newSetup(t, srv.URL, &got)
 	f.users["streamiq"] = &fakeUser{id: "id-admin", pw: "pw", admin: true} // the gateway set Jellyfin up
-	os.WriteFile(s.path(), []byte(`{"apiKey":"legacy-key","user":"streamiq","password":"pw"}`), 0o600)
+	if err := os.WriteFile(s.path(), []byte(`{"apiKey":"legacy-key","user":"streamiq","password":"pw"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.Load(); err != nil {
 		t.Fatal(err)
 	}
@@ -633,7 +665,9 @@ func TestManagedAdminLoginStoresPassword(t *testing.T) {
 	stored := func() string {
 		var c Creds
 		b, _ := os.ReadFile(s.path())
-		json.Unmarshal(b, &c)
+		if err := json.Unmarshal(b, &c); err != nil {
+			t.Fatal(err)
+		}
 		return c.Password
 	}
 	if s.creds.Password != old || stored() != old || !s.View().NeedsLogin {

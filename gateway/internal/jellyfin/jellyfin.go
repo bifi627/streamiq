@@ -253,7 +253,7 @@ func (s *Setup) Run(ctx context.Context) {
 	}
 }
 
-func (s *Setup) poll(ctx context.Context) {
+func (s *Setup) poll(ctx context.Context) { //nolint:gocyclo // #543: split there
 	const kept = " (kept the credentials from before)"
 	if err := s.Load(); err != nil {
 		s.setErr("Jellyfin: " + err.Error() + kept)

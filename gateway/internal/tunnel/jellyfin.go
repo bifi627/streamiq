@@ -135,7 +135,7 @@ func (j *Jellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // prepare turns a browser request into the origin request, or returns the
 // HTTP status to refuse it with. It reads the frame's URL as sent (RequestURI).
-func (j *Jellyfin) prepare(r *http.Request, c cred) (*http.Request, int, error) {
+func (j *Jellyfin) prepare(r *http.Request, c cred) (*http.Request, int, error) { //nolint:gocyclo // #546: split there
 	if c.key == "" || c.userID == "" {
 		return nil, http.StatusServiceUnavailable, fmt.Errorf("no Jellyfin token yet (see the gateway's local page)")
 	}

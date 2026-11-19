@@ -60,7 +60,7 @@ type ScreenCommand struct {
 
 var itemID = regexp.MustCompile(`^` + id + `$`)
 
-func (c ScreenCommand) valid() bool {
+func (c ScreenCommand) valid() bool { //nolint:gocyclo // #546: split there
 	switch c.Type {
 	case "pause", "resume", "stop":
 		return c.ItemID == "" && c.StartTicks == nil && c.Ticks == nil && c.Audio == nil && c.Subtitle == nil

@@ -183,7 +183,7 @@ var (
 // online block plus networks: [jail], the forwarder service (publishing those
 // same ports) and the networks: block are added, every other byte stays. A file
 // with the markers keeps the user's choice (changed false).
-func Jail(b []byte) (out []byte, changed bool, err error) {
+func Jail(b []byte) (out []byte, changed bool, err error) { //nolint:gocyclo // #543: split there
 	if alreadyJail.Match(b) {
 		return b, false, nil
 	}

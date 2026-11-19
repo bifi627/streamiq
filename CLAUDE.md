@@ -256,4 +256,7 @@ Copy `.env.example` only to override.
   ordering goes in a plain `.ts` beside the component with a `node --test`; the `.tsx` only
   wires it (render branching stays). oxlint `complexity` ≤ 15 on `.tsx` enforces part of it;
   a disable comment names the issue that removes it or the reason it stays.
+  The gateway's limit is the same: golangci-lint `gocyclo` > 15 fails (#542; tests
+  excluded). Split into pieces that take and return values; a new `//nolint:gocyclo`
+  names the issue that splits it or the reason it stays.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

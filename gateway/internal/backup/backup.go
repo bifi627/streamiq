@@ -60,7 +60,7 @@ func FileName(dir string, now time.Time) string {
 // Write zips every regular file in dir except skip, compose (the managed
 // Jellyfin's compose file) if it exists, and jellyfin (Jellyfin's backup
 // archive) unless "". It only reads, so it works while the gateway runs.
-func Write(dir, compose, jellyfin string, w io.Writer) error {
+func Write(dir, compose, jellyfin string, w io.Writer) error { //nolint:gocyclo // #544: split there
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
@@ -126,7 +126,7 @@ func Write(dir, compose, jellyfin string, w io.Writer) error {
 // the user's, their media folders are in it). It checks the whole zip before it
 // writes anything, and refuses to replace an existing identity unless force.
 // It returns what it did with the compose file (Compose*).
-func Restore(path, dir, compose string, force bool) (string, error) {
+func Restore(path, dir, compose string, force bool) (string, error) { //nolint:gocyclo // #544: split there
 	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return ComposeNone, err

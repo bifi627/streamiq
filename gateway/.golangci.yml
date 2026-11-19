@@ -21,6 +21,10 @@ linters:
       # G112: an http.Server without ReadHeaderTimeout; G114: a bare http.ListenAndServe/Serve
       # (no timeouts at all). Only these two: the rest of gosec is a separate decision.
       includes: [G112, G114]
+    nolintlint:
+      # #579: every //nolint names its linter and says why (an issue or the reason it stays)
+      require-explanation: true
+      require-specific: true
     gocyclo:
       # reports a function over 15, like oxlint's complexity (#533) and CA1502 (#540);
       # split into pieces that take and return values. A //nolint:gocyclo needs a reason.

@@ -231,22 +231,32 @@ func findJellyfin(ls []string) (jellyfinSpan, error) {
 // jellyfinService returns the jellyfin service's line (-1 without one) and the
 // end of the services: block: the next top-level key, less the column-0
 // comments right above it (they stay with it, above volumes:). A #-line at
-// column 0 doesn't end the block: it may be a commented-out mount.
+// column 0 doesn't end the block: it may be a commented-out mount. Only a
+// jellyfin: at the indent of the service names counts, not one nested in
+// another service (its depends_on:, #584).
 func jellyfinService(ls []string) (svc, end int) {
 	svc, end = -1, len(ls)
 	i := slices.IndexFunc(ls, servicesKey.MatchString)
 	if i < 0 {
 		return svc, end
 	}
+	names := -1 // the indent of the service names: the first key under services:
 	for j := i + 1; j < len(ls); j++ {
-		if t := strings.TrimSpace(ls[j]); t != "" && t[0] != '#' && indent(ls[j]) == 0 {
+		t := strings.TrimSpace(ls[j])
+		if t == "" || t[0] == '#' {
+			continue
+		}
+		if indent(ls[j]) == 0 {
 			end = j
 			for end > i+1 && strings.HasPrefix(ls[end-1], "#") {
 				end--
 			}
 			break
 		}
-		if svc < 0 && jellyfinKey.MatchString(ls[j]) {
+		if names < 0 {
+			names = indent(ls[j])
+		}
+		if svc < 0 && indent(ls[j]) == names && jellyfinKey.MatchString(ls[j]) {
 			svc = j
 		}
 	}

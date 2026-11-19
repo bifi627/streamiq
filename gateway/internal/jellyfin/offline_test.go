@@ -93,6 +93,14 @@ func TestJail(t *testing.T) {
 		t.Fatalf("Jail: changed %v, err %v\n%q\nwant\n%q", changed, err, got, want)
 	}
 
+	// Another service naming jellyfin: in its depends_on: above it doesn't hide
+	// the service: jailed like the file without that service (#584).
+	web := "services:\r\n  web:\r\n    image: w\r\n    depends_on:\r\n      jellyfin:\r\n        condition: service_started\r\n"
+	got, changed, err = Jail([]byte(strings.Replace(in, "services:\r\n", web, 1)))
+	if err != nil || !changed || string(got) != strings.Replace(want, "services:\r\n", web, 1) {
+		t.Fatalf("Jail with a nested jellyfin: first: changed %v, err %v\n%q", changed, err, got)
+	}
+
 	// A mount commented out at column 0 is still inside the jellyfin service:
 	// the forwarder goes after all of it, not in the middle (review of #355).
 	mounts := strings.Replace(readFile(t, "testdata/jellyfin-compose-pre321.yml"), "      - ./jellyfin-config:/config", "#      - ./jellyfin-config:/config", 1)
@@ -138,6 +146,7 @@ func TestJail(t *testing.T) {
 func TestJailUnknownShape(t *testing.T) {
 	for name, in := range map[string]string{
 		"no jellyfin":            "services:\n  media:\n    ports:\n      - 1:1\n",
+		"only nested jellyfin":   "services:\n  web:\n    depends_on:\n      jellyfin:\n        condition: service_started\n    ports:\n      - 1:1\n",
 		"no ports":               "services:\n  jellyfin:\n    image: x\n",
 		"own networks":           "services:\n  jellyfin:\n    ports: [\"1:1\"]\nnetworks:\n  x: {}\n",
 		"service network":        "services:\n  jellyfin:\n    network_mode: host\n    ports: [\"1:1\"]\n",
@@ -165,6 +174,8 @@ func TestJellyfinService(t *testing.T) {
 		"second service":    {"services:\n  media:\n    image: y\n  jellyfin:\n    image: x\n", 3, 5},
 		"no jellyfin":       {"services:\n  media:\n    image: y\nvolumes:\n  jellyfin:\n", -1, 3},
 		"no services":       {"volumes:\n  jellyfin:\n", -1, 2},
+		"nested first":      {"services:\n  web:\n    depends_on:\n      jellyfin:\n        condition: service_started\n  jellyfin:\n    image: x\n", 5, 7},
+		"only nested":       {"services:\n  web:\n    depends_on:\n      jellyfin:\n", -1, 4},
 	} {
 		ls := lines([]byte(c.in))
 		if svc, end := jellyfinService(ls[:len(ls)-1]); svc != c.svc || end != c.end {

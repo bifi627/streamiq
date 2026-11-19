@@ -264,6 +264,6 @@ Copy `.env.example` only to override.
   gateway (golangci-lint `funlen`) fails, and so does a source file over 500 in any stack
   (`scripts/check-file-size.sh`; migrations and generated files excluded). Split along a
   real seam, never `Part1`/`Part2`. An exemption (`max-lines-per-function` in the disable
-  comment, `//nolint:funlen // …`, a line in `scripts/file-size-allowlist.txt`) names the
+  comment, `//nolint:funlen // #N`, a line in `scripts/file-size-allowlist.txt`) names the
   issue that removes it or the reason it stays.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

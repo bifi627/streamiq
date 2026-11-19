@@ -59,7 +59,13 @@ public static class BrowserSocket
                     switch (Broker.Str(msg, "type"))
                     {
                         case "offer" when gateway is null:
-                            (session, gateway) = await OfferAsync(db, user, me, Offer.Parse(msg), log, ct);
+                            (session, gateway, var forward) = await OfferAsync(db, user, me, Offer.Parse(msg), log, ct);
+                            // Sent only once this handler holds the session: a failed send still
+                            // ends it (finally: bye, ended_at, no stale entry in Broker.Sessions).
+                            if (gateway is not null && forward is not null)
+                            {
+                                await gateway.SendAsync(forward, ct);
+                            }
                             break;
                         case "ice" when gateway is not null:
                             await gateway.SendAsync(new JsonObject
@@ -153,9 +159,9 @@ public static class BrowserSocket
 
     // The household is the gateway's tenant, and only if the user is a member of it; the
     // filter then scopes the revocation check to it. Not a member = same answer as
-    // unknown/offline (no existence oracle). Returns the new session and its gateway, or
-    // (Guid.Empty, null) after sending the error.
-    static async Task<(Guid Session, Broker.Link? Gateway)> OfferAsync(StreamIqDbContext db, AppUser user,
+    // unknown/offline (no existence oracle). Returns the new session, its gateway and the
+    // offer to send it (the caller sends it), or (Guid.Empty, null, null) after sending the error.
+    static async Task<(Guid Session, Broker.Link? Gateway, JsonObject? Forward)> OfferAsync(StreamIqDbContext db, AppUser user,
         Broker.Link me, Offer offer, ILogger log, CancellationToken ct)
     {
         Broker.Link? gateway = null;
@@ -171,7 +177,7 @@ public static class BrowserSocket
         if (!ok || gateway is null || membership is null)
         {
             await me.SendAsync(new JsonObject { ["type"] = "error", ["error"] = "gateway offline or unknown" }, ct);
-            return (Guid.Empty, null);
+            return (Guid.Empty, null, null);
         }
         var session = Guid.NewGuid();
         // The row exists before the gateway hears of the session, so its report finds it.
@@ -187,7 +193,7 @@ public static class BrowserSocket
             log.LogWarning(e, "tunnel {Session}: row not recorded", session);
         }
         Broker.Sessions[session] = new Broker.Link(me.Socket, gateway.TenantId, gateway.GatewayId, gateway);
-        await gateway.SendAsync(new JsonObject
+        return (session, gateway, new JsonObject
         {
             ["type"] = "offer",
             ["session"] = session.ToString(),
@@ -196,13 +202,18 @@ public static class BrowserSocket
             // Their role in the gateway's household, from that same membership lookup (#194).
             ["role"] = membership.Role,
             ["sdp"] = offer.Sdp?.DeepClone(),
-        }, ct);
-        return (session, gateway);
+        });
     }
 
     /// The first message; null when it isn't `auth`. A missing token fails verification.
     internal sealed record Auth(string? Token)
     {
+        // A log line or a failed test's message must never print the ID token.
+        public override string ToString()
+        {
+            return "Auth { Token = *** }";
+        }
+
         internal static Auth? Parse(JsonObject m)
         {
             return Broker.Str(m, "type") == "auth" ? new(Broker.Str(m, "token")) : null;

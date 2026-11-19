@@ -148,7 +148,7 @@ func TestRunControlHeartbeats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var lastBeat atomic.Int64
-	// it returns when ctx ends: the test is over by then
+	// what it returns doesn't matter: the test checks what the fake server sees
 	go func() {
 		_ = RunControl(ctx, srv.URL, &State{Credential: "cred-1", Name: "nas"}, "http://192.168.1.20:8097", "1.4.0", &lastBeat,
 			func() string { return "" }, func([]byte, func(any)) {})
@@ -214,7 +214,7 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	<-st.renamed // drop the signal from the setup rename above
-	// it returns when ctx ends: the test is over by then
+	// what it returns doesn't matter: the test checks what the fake server sees
 	go func() {
 		_ = RunControl(ctx, srv.URL, st, "", "dev", new(atomic.Int64), func() string { return "" }, func([]byte, func(any)) {})
 	}()

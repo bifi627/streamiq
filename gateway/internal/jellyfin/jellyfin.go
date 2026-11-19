@@ -750,12 +750,12 @@ func status(err error) int {
 	return 0
 }
 
-// call does one Jellyfin request; out (if non-nil) receives the JSON body.
 // logout ends an admin session. Best effort: a session left open only expires later.
 func (s *Setup) logout(ctx context.Context, token string) {
 	_ = s.call(context.WithoutCancel(ctx), "POST", "/Sessions/Logout", token, "", nil)
 }
 
+// call does one Jellyfin request; out (if non-nil) receives the JSON body.
 func (s *Setup) call(ctx context.Context, method, path, token, body string, out any) error {
 	return s.callT(ctx, 30*time.Second, method, path, token, body, out)
 }

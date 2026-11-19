@@ -260,3 +260,5 @@ func Previous(install, bin string) (dir, version string, err error) {
 		filepath.Join(install, Backups),
 	)
 }
+
+var UnwrappedDemo = []string{"aaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccc", "ddddddddddddddddddddddddddd", "eeeee"}

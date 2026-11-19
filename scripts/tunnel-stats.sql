@@ -14,6 +14,7 @@ WITH t AS (
   FROM tunnels
   WHERE "CreatedAt" >= date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
         - (coalesce(nullif(current_setting('stats.weeks', true), '')::int, 8) - 1) * interval '1 week'
+    AND "TenantId" <> '01a1f29f-e670-748a-9047-fb9f6886d050' -- the prod smoke's household (#574)
 )
 SELECT week,
        count(*)                                  AS tunnels,
@@ -29,6 +30,7 @@ WITH t AS (
   FROM tunnels
   WHERE "CreatedAt" >= date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
         - (coalesce(nullif(current_setting('stats.weeks', true), '')::int, 8) - 1) * interval '1 week'
+    AND "TenantId" <> '01a1f29f-e670-748a-9047-fb9f6886d050' -- the prod smoke's household (#574)
 )
 SELECT week,
        count(*)                                                             AS tunnels,
@@ -47,6 +49,7 @@ WITH t AS (
   FROM tunnels
   WHERE "CreatedAt" >= date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
         - (coalesce(nullif(current_setting('stats.weeks', true), '')::int, 8) - 1) * interval '1 week'
+    AND "TenantId" <> '01a1f29f-e670-748a-9047-fb9f6886d050' -- the prod smoke's household (#574)
 )
 SELECT week,
        "LocalCandidateType" || ' / ' || "RemoteCandidateType" AS pair,
@@ -63,6 +66,7 @@ WITH t AS (
   FROM tunnels
   WHERE "CreatedAt" >= date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
         - (coalesce(nullif(current_setting('stats.weeks', true), '')::int, 8) - 1) * interval '1 week'
+    AND "TenantId" <> '01a1f29f-e670-748a-9047-fb9f6886d050' -- the prod smoke's household (#574)
 )
 SELECT week,
        count(*) FILTER (WHERE "BytesSent" IS NOT NULL)                            AS reported,
@@ -78,6 +82,7 @@ WITH t AS (
   FROM tunnels
   WHERE "CreatedAt" >= date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
         - (coalesce(nullif(current_setting('stats.weeks', true), '')::int, 8) - 1) * interval '1 week'
+    AND "TenantId" <> '01a1f29f-e670-748a-9047-fb9f6886d050' -- the prod smoke's household (#574)
 ), r AS (
   SELECT week, "Failure" AS reason, count(*) AS tunnels,
          row_number() OVER (PARTITION BY week ORDER BY count(*) DESC, "Failure") AS rank
@@ -92,6 +97,7 @@ WITH t AS (
   FROM tunnels
   WHERE "CreatedAt" >= date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
         - (coalesce(nullif(current_setting('stats.weeks', true), '')::int, 8) - 1) * interval '1 week'
+    AND "TenantId" <> '01a1f29f-e670-748a-9047-fb9f6886d050' -- the prod smoke's household (#574)
 )
 SELECT week,
        CASE WHEN "BytesSent" IS NULL THEN 'unreported' WHEN "Relay" THEN 'relayed' ELSE 'direct' END AS route,
@@ -107,6 +113,7 @@ WITH t AS (
   FROM tunnels
   WHERE "CreatedAt" >= date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
         - (coalesce(nullif(current_setting('stats.weeks', true), '')::int, 8) - 1) * interval '1 week'
+    AND "TenantId" <> '01a1f29f-e670-748a-9047-fb9f6886d050' -- the prod smoke's household (#574)
 )
 SELECT week,
        round(coalesce(sum("BytesSent" + "BytesReceived"), 0) / 1e9, 2)                       AS "total GB",
@@ -121,6 +128,7 @@ WITH t AS (
   SELECT * FROM tunnels
   WHERE "CreatedAt" >= date_trunc('week', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
         - (coalesce(nullif(current_setting('stats.weeks', true), '')::int, 8) - 1) * interval '1 week'
+    AND "TenantId" <> '01a1f29f-e670-748a-9047-fb9f6886d050' -- the prod smoke's household (#574)
 )
 SELECT "TenantId"                                          AS household,
        count(*)                                            AS "relayed tunnels",

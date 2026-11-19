@@ -12,7 +12,6 @@
 // (installed gateways break the same way). So: in the `!` PR, give the launch both
 // forms where it can (an unknown env var is harmless); otherwise fix the launch in
 // a follow-up PR right after that release ships.
-import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -26,38 +25,8 @@ import {
   videoTime,
 } from './helpers.ts'
 import { JELLYFIN_ADMIN } from './jellyfin.ts'
+import { asset, download } from './release.ts'
 import { freePort, root, start, waitHttp } from './stack.ts'
-
-const goos =
-  { win32: 'windows', darwin: 'darwin', linux: 'linux' }[
-    process.platform as string
-  ] ?? process.platform
-const goarch =
-  { x64: 'amd64', arm64: 'arm64' }[process.arch as string] ?? process.arch
-const asset = `streamiq-gateway-${goos}-${goarch}${goos === 'windows' ? '.exe' : ''}`
-
-/** The latest release's asset, as the gateway-windows CI job gets it; null = none. */
-function download(dir: string) {
-  const r = spawnSync(
-    'gh',
-    [
-      'release',
-      'download',
-      '--repo',
-      process.env.GITHUB_REPOSITORY ?? 'bifi627/streamiq',
-      '--pattern',
-      asset,
-      '--dir',
-      dir,
-    ],
-    { encoding: 'utf8', timeout: 120_000 }, // sync: Playwright's timeout can't fire
-  )
-  if (r.error || r.signal) throw r.error ?? new Error(`gh: ${r.signal}`) // gh missing, timed out
-  if (r.status === 0) return path.join(dir, asset)
-  // A fork or a repo before its first release: nothing to test against.
-  if (/release not found|no assets/i.test(r.stderr)) return null
-  throw new Error(`gh release download ${asset}: ${r.stderr}`)
-}
 
 test('the last released gateway works with this API, or is told to update @compat', async ({
   browser,

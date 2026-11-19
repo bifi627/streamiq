@@ -224,7 +224,7 @@ not calendar-driven**: fixed triggers, each with a fixed response.
 
 | Trigger | Response |
 |---|---|
-| A model mistake survives to human review — **twice** | It's two bugs: one in the code, one in the harness. Fix the code now; on the second occurrence encode the rule (lint rule / check / example / memory entry) **in the same PR as the fix** — fix + vaccinate in one diff. |
+| A model mistake survives to human review — **twice** | It's two bugs: one in the code, one in the harness. Fix the code now; on the second occurrence encode the rule (check / example / memory entry) **in the same PR as the fix** — fix + vaccinate in one diff. A lint rule is the exception: it becomes a proposed `tech-debt` issue, never a lint-config change in the fix PR (#556). |
 | You type the same correction into a prompt twice | That sentence belongs in the harness (instructions line or example), not in your chat history. |
 | A pattern shows up a second time | Extract the template / exemplar / skill (rule of two, §5). |
 | A check turns slow or flaky | Harness regression — fix or quarantine immediately. A flaky check teaches everyone, model included, to ignore red. |

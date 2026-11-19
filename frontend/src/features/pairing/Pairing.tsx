@@ -19,7 +19,7 @@ type State =
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
 // and tunnel one request through it ("Test connection": a cheap diagnostic).
-// oxlint-disable-next-line complexity -- render branching + effect wiring
+// oxlint-disable-next-line complexity, max-lines-per-function -- render branching + effect wiring; length: #607
 export function Pairing({
   gatewayId,
   lanUrl,

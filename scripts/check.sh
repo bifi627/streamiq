@@ -7,6 +7,9 @@ cd "$(dirname "$0")/.."
 echo "== docs drift: STREAMIQ_* env vars + gateway routes documented =="
 bash scripts/check-docs-drift.sh
 
+echo "== file size: no source file over 500 code lines outside the allowlist =="
+bash scripts/check-file-size.sh
+
 echo "== workflows + bash: actionlint (shellcheck on run: blocks) + shellcheck scripts/*.sh + the installer =="
 # #581: one pinned image holds both; Docker is already needed below. MSYS_NO_PATHCONV keeps Git Bash off /repo
 docker_lint=(env MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/repo" -w /repo)

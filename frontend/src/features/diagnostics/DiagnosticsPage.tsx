@@ -22,7 +22,7 @@ import { useHousehold } from '../households/household'
 
 type Test = { lines: string[]; failed?: string }
 
-// oxlint-disable-next-line complexity -- render branching + effect wiring
+// oxlint-disable-next-line complexity, max-lines-per-function -- render branching + effect wiring; length: #607
 export function DiagnosticsPage() {
   useSyncExternalStore(subscribe, snapshot) // Force relay checkbox, cpu/memory lines
   const [caps, setCaps] = useState('probing…')

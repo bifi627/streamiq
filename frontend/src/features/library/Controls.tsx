@@ -118,7 +118,7 @@ export type Setting = {
 /** The settings popover's page: closed, main, or that setting's options. */
 type Page = null | 'main' | number
 
-// oxlint-disable-next-line complexity -- render branching
+// oxlint-disable-next-line complexity, max-lines-per-function -- render branching; length: #603
 export function Controls({
   video,
   duration,

@@ -259,4 +259,11 @@ Copy `.env.example` only to override.
   The gateway's limit is the same: golangci-lint `gocyclo` > 15 fails (#542; tests
   excluded). Split into pieces that take and return values; a new `//nolint:gocyclo`
   names the issue that splits it or the reason it stays.
+  Size limits (#600, code lines: blank and comment lines skipped, tests excluded): a
+  function over 150 lines in the frontend (oxlint `max-lines-per-function`) or 80 in the
+  gateway (golangci-lint `funlen`) fails, and so does a source file over 500 in any stack
+  (`scripts/check-file-size.sh`; migrations and generated files excluded). Split along a
+  real seam, never `Part1`/`Part2`. An exemption (`max-lines-per-function` in the disable
+  comment, `//nolint:funlen // #N`, a line in `scripts/file-size-allowlist.txt`) names the
+  issue that removes it or the reason it stays.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

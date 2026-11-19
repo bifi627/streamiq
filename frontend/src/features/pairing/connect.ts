@@ -42,6 +42,7 @@ type Msg = Record<string, string | undefined> & { type: string }
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
  * unpaired browser starts pairing and onCode receives the code to compare.
  */
+// oxlint-disable-next-line max-lines-per-function -- #607
 export async function connect(
   gatewayId: string,
   onCode?: (code: string) => void,

@@ -145,7 +145,7 @@ type Config struct {
 // Handler renders the status page and takes the Approve/Reject/Remove and
 // Jellyfin login posts. Only someone on the home LAN reaches it, and Guard
 // stops other sites driving it.
-func Handler(c Config) http.Handler {
+func Handler(c Config) http.Handler { //nolint:funlen // #608
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		var beat any // nil renders "not connected"

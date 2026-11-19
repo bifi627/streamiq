@@ -183,6 +183,56 @@ func TestCompose(t *testing.T) {
 	}
 }
 
+// A compose write that fails leaves the state dir as it was (#592).
+func TestComposeFailsFirst(t *testing.T) {
+	zipPath := zipOf(t, "cert.pem", "gateway.json", ComposeEntry)
+	bad := filepath.Join(t.TempDir(), "no-such-dir", "jellyfin-compose.yml")
+	old := map[string]string{"gateway.json": `{"name":"other"}`, "metadata.json": "{}"}
+	for _, force := range []bool{false, true} {
+		dst := writeDir(t, old)
+		if !force {
+			dst = filepath.Join(t.TempDir(), "state")
+		}
+		if _, err := Restore(zipPath, dst, bad, force); err == nil {
+			t.Fatalf("force=%v: no error for a missing install dir", force)
+		}
+		if force {
+			if got := readDir(t, dst); !maps.Equal(got, old) {
+				t.Fatalf("force=%v: state dir changed to %v", force, got)
+			}
+		} else if _, err := os.Stat(dst); err == nil {
+			t.Fatal("created the state dir")
+		}
+	}
+}
+
+// A state write that fails removes the compose file the restore just wrote,
+// so a rerun writes it again instead of keeping it as the user's (#592).
+func TestStateFailsRemovesCompose(t *testing.T) {
+	zipPath := zipOf(t, "cert.pem", "gateway.json", ComposeEntry)
+	dst := filepath.Join(t.TempDir(), "state")
+	if err := os.WriteFile(dst, nil, 0o600); err != nil { // a file where the dir should be
+		t.Fatal(err)
+	}
+	into := filepath.Join(t.TempDir(), "jellyfin-compose.yml")
+	if _, err := Restore(zipPath, dst, into, false); err == nil {
+		t.Fatal("no error for a state dir that is a file")
+	}
+	if _, err := os.Stat(into); err == nil {
+		t.Fatal("left the compose file it wrote")
+	}
+	// The user's own compose file stays, also when the state write fails.
+	if err := os.WriteFile(into, []byte("mine"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Restore(zipPath, dst, into, true); err == nil {
+		t.Fatal("no error for a state dir that is a file")
+	}
+	if b, _ := os.ReadFile(into); string(b) != "mine" {
+		t.Fatalf("compose = %q, want the user's", b)
+	}
+}
+
 func TestComposeTooBig(t *testing.T) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)

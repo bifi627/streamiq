@@ -29,7 +29,7 @@ const store = () =>
 
 /** Playback per gateway (#378): when it started (cached data from before may
  * predate its progress) and, once the player is left, its exit save, which
- * every read for that gateway waits for. Player.tsx sets it. */
+ * every read for that gateway waits for. The player (engine.ts) sets it. */
 export const playback = new Map<
   string,
   { at: number; saved?: Promise<unknown> }

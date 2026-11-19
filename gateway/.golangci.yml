@@ -31,3 +31,10 @@ linters:
         # ... minus ST1005 (lowercase error strings): ours are capitalized CLI messages the
         # user reads as is ("Jellyfin …", "Docker …"), not strings wrapped inside other errors
         "-ST1005"]
+formatters:
+  # #601: gofmt never wraps; golines wraps at 120 columns (long string literals stay whole).
+  # `golangci-lint run` (check.sh, CI) reports unformatted files; `golangci-lint fmt` fixes them.
+  enable: [golines]
+  settings:
+    golines:
+      max-len: 120

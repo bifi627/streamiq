@@ -8,6 +8,8 @@ export type PairInfo = {
   local?: string
   remote?: string
   protocol?: string
+  /** browser ↔ TURN transport of a relayed path: udp / tcp / tls (#576) */
+  relayProtocol?: string
   bytesReceived: number
   bytesSent: number
   /** current round-trip time of the pair, ms (absent until measured) */
@@ -35,6 +37,7 @@ export function pairInfo(report: Stats): PairInfo | null {
     local: local?.candidateType,
     remote: remote?.candidateType,
     protocol: local?.protocol,
+    relayProtocol: local?.relayProtocol,
     bytesReceived: pair.bytesReceived ?? 0,
     bytesSent: pair.bytesSent ?? 0,
     rttMs:
@@ -42,4 +45,14 @@ export function pairInfo(report: Stats): PairInfo | null {
         ? undefined
         : Math.round(pair.currentRoundTripTime * 1000),
   }
+}
+
+/** The diagnostics report's path line. A relayed path names its browser ↔ TURN
+ * transport: `protocol` stays udp over a TLS relay (it is TURN ↔ peer). */
+export function pathLine(p: PairInfo | null): string {
+  if (!p) return 'path: no selected candidate pair'
+  const route = p.relay
+    ? `relayed (TURN) over ${p.relayProtocol ?? '?'}`
+    : 'direct'
+  return `path: ${route} · ${p.ipv6 ? 'IPv6' : 'IPv4'} · ${p.protocol ?? '?'} · ${p.local ?? '?'} → ${p.remote ?? '?'} · RTT ${p.rttMs ?? '?'} ms`
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pairInfo } from './stats.ts'
+import { pairInfo, pathLine } from './stats.ts'
 
 const report = (pair: Record<string, unknown>, localType: string) =>
   new Map<string, Record<string, any>>([
@@ -45,6 +45,7 @@ test('selected pair: relay, IPv6, bytes, RTT', () => {
       local: 'relay',
       remote: 'host',
       protocol: 'udp',
+      relayProtocol: undefined,
       bytesReceived: 7,
       bytesSent: 3,
       rttMs: 23,
@@ -86,8 +87,21 @@ test('relay seen only on the remote side; stats in any order; no RTT yet', () =>
     local: 'srflx',
     remote: 'relay',
     protocol: 'udp',
+    relayProtocol: undefined,
     bytesReceived: 0,
     bytesSent: 0,
     rttMs: undefined,
   })
+})
+
+test('path line: relay transport named, direct unchanged, no pair', () => {
+  const tls = report({ currentRoundTripTime: 0.05 }, 'relay')
+  tls.set('L', { ...tls.get('L')!, relayProtocol: 'tls' })
+  assert.equal(
+    pathLine(pairInfo(tls)),
+    'path: relayed (TURN) over tls · IPv6 · udp · relay → host · RTT 50 ms',
+  )
+  assert.match(pathLine(pairInfo(report({}, 'relay'))), /over \? · /)
+  assert.match(pathLine(pairInfo(report({}, 'host'))), /^path: direct · /)
+  assert.equal(pathLine(null), 'path: no selected candidate pair')
 })

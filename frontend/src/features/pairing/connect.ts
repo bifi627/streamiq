@@ -3,7 +3,8 @@
 // comparison code. docs/protocol.md, "Broker" + "Pairing".
 import { auth } from '../../firebase'
 import { API, authed } from '../../api'
-import { pcState, relayOn } from '../../diag'
+import { pcState, relayOn, relayTlsOn } from '../../diag'
+import { tlsOnly } from './ice'
 import { measure, type Speed } from '../../speed'
 import {
   authMessage,
@@ -54,7 +55,8 @@ export async function connect(
   // ICE servers arrive with the broker's `ready`: this session's own TURN
   // credential, revoked when the session ends.
   const pc = new RTCPeerConnection({
-    // Diagnostic: `?relay` or the diagnostics panel's toggle forces the TURN path.
+    // Diagnostic: `?relay` or the diagnostics panel's toggle forces the TURN path;
+    // `?relay=tls` or its TLS toggle keeps only the `turns:` servers (#576).
     iceTransportPolicy: relayOn() ? 'relay' : 'all',
   })
   // addEventListener: the handlers below own the on* properties.
@@ -129,7 +131,7 @@ export async function connect(
       if (m.type === 'ready') {
         pc.setConfiguration({
           ...pc.getConfiguration(),
-          iceServers: m.iceServers,
+          iceServers: relayTlsOn() ? tlsOnly(m.iceServers) : m.iceServers,
         })
         await pc.setLocalDescription(await pc.createOffer())
         send({ type: 'offer', gatewayId, sdp: pc.localDescription })
@@ -245,7 +247,10 @@ export async function connect(
 
 /** The library and the gateway details share one session per gateway (#152);
  * Diagnostics and Pairing call connect() for a fresh one. */
-const shared = sharer((id) => connect(id), relayOn)
+const shared = sharer(
+  (id) => connect(id),
+  () => `${relayOn()}/${relayTlsOn()}`,
+)
 export const share = shared.share
 export const dropShared = shared.drop
 

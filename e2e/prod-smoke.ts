@@ -1,6 +1,7 @@
 // Prod smoke (#574, spike #570): the last released gateway on this machine, enrolled against the
 // real deployment (SMOKE_URL), played to from a browser signed in with real
-// Firebase: direct, then forced relay (real Cloudflare TURN). Fixed test account
+// Firebase: direct, forced relay (real Cloudflare TURN), then relay over TLS
+// (#576). Fixed test account
 // (SMOKE_EMAIL / SMOKE_PASSWORD) with one household; its gateway is revoked at
 // the end, and stale ones from a crashed run at the start.
 // Not a *.spec.ts: the normal e2e run never picks it up (prod-smoke.config.ts).
@@ -39,7 +40,7 @@ async function idToken() {
 const report = (p: Page) =>
   p.locator('pre', { hasText: 'StreamIQ diagnostics' })
 
-test('prod smoke: sign in, enroll, play direct, test connection direct + relay', async ({
+test('prod smoke: sign in, enroll, play direct, test connection direct + relay + TLS relay', async ({
   browser,
 }) => {
   test.setTimeout(300_000)
@@ -143,6 +144,17 @@ test('prod smoke: sign in, enroll, play direct, test connection direct + relay',
     console.log(`smoke: relay report\n${await report(page).textContent()}`)
     await expect(report(page)).toContainText(/path: relayed \(TURN\)/)
     lap('relay ok')
+
+    // #576: the `turns:` relay a 443-only (hotel/office) network needs.
+    await page.reload()
+    await page.getByLabel('Force relay over TLS (443)', { exact: true }).check()
+    await page.getByRole('button', { name: 'Test connection' }).click()
+    await expect(report(page)).toContainText(/throughput: [\d.]+ Mbps/, {
+      timeout: 60_000,
+    })
+    console.log(`smoke: TLS relay report\n${await report(page).textContent()}`)
+    await expect(report(page)).toContainText(/path: relayed \(TURN\) over tls/)
+    lap('tls relay ok')
   } finally {
     await Promise.allSettled(ctxs.map((c) => c.close()))
     await gateway.stop()

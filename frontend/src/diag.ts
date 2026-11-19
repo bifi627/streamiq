@@ -145,7 +145,18 @@ export function setFlag(name: string, on: boolean) {
 }
 const q = () => new URLSearchParams(location.search)
 export const debugOn = () => q().has('debug') || flag('debug')
-export const relayOn = () => q().has('relay') || flag('relay')
+/** Relay over TLS only (#576): `?relay=tls` or the diagnostics checkbox. */
+export const relayTlsOn = () => q().get('relay') === 'tls' || flag('relayTls')
+/** Relay forced; TLS-only implies it. */
+export const relayOn = () => q().has('relay') || flag('relay') || relayTlsOn()
+/** The report's `relay forced:` value. */
+export const relayForced = () =>
+  relayTlsOn() ? 'tls' : relayOn() ? 'yes' : 'no'
+/** "Force relay" off also drops TLS-only, which implies it. */
+export function setRelay(on: boolean) {
+  if (!on) setFlag('relayTls', false)
+  setFlag('relay', on)
+}
 /** The diagnostics dock's sheet is open (#230); collapsed until opened once. */
 export const dockOpen = () => flag('dock')
 /** ?fail=<n>: the first n player loads look stuck (forces the #238 escalation). */

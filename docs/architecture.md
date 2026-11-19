@@ -56,7 +56,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   message buckets, 10 s auth deadline.
 - TURN: credentials minted per broker session in `ready` and revoked at its end; no
   standalone TURN endpoint. Cloudflare in prod; coturn in dev via TURN REST
-  (`STREAMIQ_TURN_SECRET`). `?relay` forces the relay path.
+  (`STREAMIQ_TURN_SECRET`). `?relay` forces the relay path; `?relay=tls` keeps only the
+  `turns:` servers (TLS 443 relay, #576: checked by the prod smoke only, local coturn has no TLS).
 
 ## Tunnel telemetry
 

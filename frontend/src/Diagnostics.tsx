@@ -7,6 +7,7 @@ import {
   dockOpen,
   relayOn,
   setFlag,
+  setRelay,
   snapshot,
   subscribe,
 } from './diag'
@@ -71,7 +72,7 @@ export function Diagnostics() {
                 <input
                   type="checkbox"
                   checked={relayOn()}
-                  onChange={(e) => setFlag('relay', e.target.checked)}
+                  onChange={(e) => setRelay(e.target.checked)}
                 />{' '}
                 Force relay (TURN) on next connect
               </label>

@@ -716,8 +716,9 @@ export function RemotePage({ screenId }: { screenId: string }) {
     () =>
       serial(
         (c: ScreenCommand) =>
-          commandScreen(pc, screenId, c).catch((e) =>
-            setMsg(toAppError(e).message),
+          commandScreen(pc, screenId, c).then(
+            () => setMsg(''), // a command that works clears the last one's error (#553)
+            (e) => setMsg(toAppError(e).message),
           ),
         (queued, c) => queued.type === 'seek' && c.type === 'seek',
       ),

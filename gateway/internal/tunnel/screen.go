@@ -60,21 +60,31 @@ type ScreenCommand struct {
 
 var itemID = regexp.MustCompile(`^` + id + `$`)
 
-func (c ScreenCommand) valid() bool { //nolint:gocyclo // #546: split there
+func (c ScreenCommand) valid() bool {
 	switch c.Type {
 	case "pause", "resume", "stop":
-		return c.ItemID == "" && c.StartTicks == nil && c.Ticks == nil && c.Audio == nil && c.Subtitle == nil
+		return c.bare()
 	case "play":
-		return itemID.MatchString(c.ItemID) && (c.StartTicks == nil || *c.StartTicks >= 0) &&
-			c.Ticks == nil && c.Audio == nil && c.Subtitle == nil
+		ok := itemID.MatchString(c.ItemID) && atLeast(c.StartTicks, 0)
+		c.ItemID, c.StartTicks = "", nil
+		return ok && c.bare()
 	case "seek":
-		return c.Ticks != nil && *c.Ticks >= 0 && c.ItemID == "" && c.StartTicks == nil && c.Audio == nil && c.Subtitle == nil
+		ok := c.Ticks != nil && *c.Ticks >= 0
+		c.Ticks = nil
+		return ok && c.bare()
 	case "tracks":
-		return (c.Audio != nil || c.Subtitle != nil) && (c.Audio == nil || *c.Audio >= 0) &&
-			(c.Subtitle == nil || *c.Subtitle >= -1) && c.ItemID == "" && c.StartTicks == nil && c.Ticks == nil
+		ok := (c.Audio != nil || c.Subtitle != nil) && atLeast(c.Audio, 0) && atLeast(c.Subtitle, -1)
+		c.Audio, c.Subtitle = nil, nil
+		return ok && c.bare()
 	}
 	return false
 }
+
+// bare: no field but Type is set. valid clears the fields a type takes, then asks.
+func (c ScreenCommand) bare() bool { return c == ScreenCommand{Type: c.Type} }
+
+// atLeast: unset, or set to min or more.
+func atLeast[T int | int64](p *T, min T) bool { return p == nil || *p >= min }
 
 // screen is one open screen, held by its GET /streamiq/screen.
 type screen struct {

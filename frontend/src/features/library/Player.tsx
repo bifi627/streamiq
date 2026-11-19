@@ -1,140 +1,47 @@
-// HLS playback through the tunnel. Jellyfin decides remux vs transcode from a
-// DeviceProfile built from a capability probe (profile.ts, #115); hls.js plays
-// the TranscodingUrl it returns via the tunnel loader.
-// Resume: start at Jellyfin's saved position; report it every 10 s, on pause
-// and on exit, straight to the viewer's UserData (/Sessions/Playing* is not
-// on the gateway allowlist), with LastPlayedDate (Continue watching sorts by
-// it) and Played: false (a partial rewatch is in progress again), #330. Only
-// once this playback has really played watchMin() (60 s): clicking through
-// saves nothing.
-// Fallback (#81): some devices (webOS TV, Chrome 87) drop stream-copied video
-// after a seek/resume. When video appends stop covering the playhead, reload
-// there with a video transcode for the rest of this playback.
-// Audio fallback (#115): on an audio decode/append error, reload there with
-// stereo AAC (no audio copy) for the rest of this playback.
-// Compatible escalation (#238): a failure after one of those fallbacks reloads
-// once more with the compatible profile and no stream copy (H.264 + stereo AAC
-// in .ts, ≤1080p) for the rest of this playback; a failure after that is the
-// error. Not in Raw or compatible mode. Debug: ?fail=<n> makes the first n
-// loads look stuck. The chain is decided by onFailure() (profile.ts).
-// Quality (#108): the picker's limit goes into the profile; a switch reloads at
-// the playhead the same way (Jellyfin serves one HLS level per load). The
-// picker (#161) offers only rungs that scale this source down, and says what
-// plays (original or transcode size).
-// Audio (#109): the same reload with AudioStreamIndex (no switchable audio
-// renditions in Jellyfin's HLS) + MediaSourceId (without it Jellyfin ignores
-// the index); the first load plays Jellyfin's default track, or a track of
-// its language this device decodes when it can't (autoAudio, #252; not in Raw
-// or compatible mode). Remux keeps stream copy of the chosen track.
-// Auto (#162): the session's measured throughput (speed.ts) picks the rung
-// (autoQuality); a load waits at most ~3 s for a running measurement. Source
-// and the rungs ignore it, apart from Source's "may stutter" hint.
-// Raw (#164, behind a setting): a profile with every codec, no probe; no
-// fallbacks, a decode failure is an error naming the source codecs. Compatible
-// mode disables Source and Raw (settings.quality() plays them as Auto).
-// Subtitles (#136): the picked text subtitle as WebVTT (Jellyfin's Stream.vtt,
-// over the tunnel) in our own <track>; a pick never reloads. Starts Off. Not
-// Jellyfin's HLS rendition: hls.js maps its X-TIMESTAMP-MAP (MPEGTS:900000)
-// against segment timestamps that shift with where the transcode job started,
-// so its cues landed seconds off (#269). Stream.vtt is in content time, which
-// is the playlist's and so the <video>'s.
-// Screen mode (#180): `remote` feeds it a phone's pause/resume/seek/tracks
-// commands, applied like the TV's own controls; play/stop are the screen's.
+// The player page: the video, its controls and settings menus, and the next
+// episode button. Playback itself (loads, fallbacks, resume, screen mode) is
+// the Engine's (engine.ts); `remote` feeds it a phone's commands (#180) and
 // `onState` gets the playback state about once a second and on every change
-// (#181); a phone's pause holds through startup and reloads.
+// (#181).
 import { useContext, useEffect, useRef, useState } from 'react'
-import { queryClient } from '../../query'
-import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
-import Hls from 'hls.js'
-import { tunnelFetch, tunnelJson } from '../../tunnel'
-import {
-  changed,
-  diag,
-  event,
-  failLoads,
-  ranges,
-  watchMin,
-  watchVideo,
-} from '../../diag'
-import {
-  compatibleOn,
-  dataSaverOn,
-  quality,
-  rawOn,
-  setQuality,
-} from '../../settings'
+import { tunnelJson } from '../../tunnel'
+import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
 import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
-import { tunnelLoader, TUNNEL_ORIGIN } from './loader'
 import * as jf from './jellyfin'
-import { Tunnel, playback } from './art'
+import { Tunnel } from './art'
 import { Controls } from './Controls'
 import { Privacy } from './Privacy'
-import {
-  audioCodecs,
-  autoAudio,
-  autoCap,
-  autoQuality,
-  effective,
-  decision,
-  describe,
-  deviceProfile,
-  escalates,
-  onFailure,
-  type Copy,
-  type Failure,
-  limit,
-  nowPlaying,
-  probe,
-  qualities,
-  QUALITY,
-  rawStatus,
-  sourceHint,
-  type Probe,
-  type Quality,
-  type Size,
-} from './profile'
-import {
-  audioTracks,
-  covers,
-  subtitleTracks,
-  STUCK_APPENDS,
-  TICKS_PER_SECOND,
-  type Item,
-} from './items'
+import { Engine, START_VIEW, type View } from './engine'
+import { qualityOptions } from './quality'
+import type { Quality } from './profile'
+import { TICKS_PER_SECOND, type Item } from './items'
 
-// Auto's video transcode output ceilings (e.g. the #81 fallback), set on the
-// TranscodingUrl only when Jellyfin transcodes video; with a quality limit
-// Jellyfin puts that limit there itself. Jellyfin only scales down and clamps
-// the bitrate to the source's, so smaller sources keep their size. Never with
-// stream copy: a bitrate there makes Jellyfin transcode anything above it.
-const AUTO_TRANSCODE = {
-  VideoBitrate: String(QUALITY['1080p'].bitrate),
-  MaxHeight: String(QUALITY['1080p'].height),
-  MaxWidth: String(QUALITY['1080p'].width),
+// Next episode (#205): the series' episode after this one, if any.
+function useNext(pc: RTCPeerConnection, itemId: string, series?: string) {
+  const [next, setNext] = useState<Item>()
+  useEffect(() => {
+    setNext(undefined) // never the episode now playing
+    if (!series) return
+    let gone = false // a late answer for the previous episode
+    // This episode and the one after it, not the whole series (#344).
+    tunnelJson<{ Items: Item[] }>(pc, jf.nextEpisodes(series, itemId)).then(
+      (p) => {
+        if (gone) return
+        // Not listed first (e.g. missing): no button.
+        setNext(p.Items[0]?.Id === itemId ? p.Items[1] : undefined)
+      },
+      () => {}, // ponytail: no list = no button
+    )
+    return () => {
+      gone = true
+    }
+  }, [pc, series, itemId])
+  return next
 }
 
-/** Shows the current frame as the poster: a reload detaches the media, and
- * without it the box goes black and falls back to 300×150 until the new
- * stream's first frame (the poster also keeps the box's size). */
-function freeze(v: HTMLVideoElement) {
-  if (!v.videoWidth) return
-  const c = document.createElement('canvas')
-  c.width = v.videoWidth
-  c.height = v.videoHeight
-  try {
-    c.getContext('2d')?.drawImage(v, 0, 0)
-    v.poster = c.toDataURL('image/jpeg', 0.8)
-  } catch {
-    // no frame to copy: the reload just flickers
-  }
-}
-
-const mbpsText = (mbps: number) =>
-  mbps.toLocaleString(undefined, { maximumSignificantDigits: 2 })
-
-// oxlint-disable-next-line complexity, max-lines-per-function -- render branching; length: #602
+// oxlint-disable-next-line complexity -- render branching
 export function Player({
   pc,
   speed,
@@ -158,479 +65,31 @@ export function Player({
   onNext?: (item: Item) => void
 }) {
   const { gatewayId } = useContext(Tunnel)
-  const [item, setItem] = useState<Item | null>(null)
-  const [blocked, setBlocked] = useState(false)
   const video = useRef<HTMLVideoElement>(null)
-  const [err, setErr] = useState<AppError | null>(null)
+  const [view, setView] = useState<View>(START_VIEW)
+  const patch = (p: Partial<View>) => setView((v) => ({ ...v, ...p }))
+  const { item, file, link, tracks, subs } = view
   const [q, setQ] = useState(quality)
-  const [compat] = useState(compatibleOn) // as the effect reads it: once
-  const [file, setFile] = useState<{ size: Size; bitrate?: number }>({
-    size: { width: 0, height: 0 },
-  })
-  const [now, setNow] = useState<string>()
-  // The measured link (Mbps) and Auto's pick from it, as of the last load.
-  const [link, setLink] = useState<{
-    mbps?: number
-    auto: Quality
-    saver?: boolean
-  }>({ auto: 'Auto' })
-  const pick = useRef<(q: Quality) => void>(() => {})
-  // The audio menu: the item's tracks and the one playing (from the URL).
-  const [tracks, setTracks] = useState<ReturnType<typeof audioTracks>>([])
-  const [audio, setAudio] = useState('')
-  const pickAudio = useRef<(index: number) => void>(() => {})
-  // The subtitle menu: Off + the item's text subtitles, and the one shown.
-  const [subs, setSubs] = useState<ReturnType<typeof subtitleTracks>>([])
-  const [subtitle, setSubtitle] = useState('-1')
-  const pickSub = useRef<(index: number) => void>(() => {})
-  // Next episode (#205): the series' episode after this one, if any.
-  const [next, setNext] = useState<Item>()
+  const [compat] = useState(compatibleOn) // as the engine reads it: once
+  const engine = useRef<Engine>(null)
   const series = onNext && item?.Type === 'Episode' ? item.SeriesId : undefined
-  useEffect(() => {
-    setNext(undefined) // never the episode now playing
-    if (!series) return
-    let gone = false // a late answer for the previous episode
-    // This episode and the one after it, not the whole series (#344).
-    tunnelJson<{ Items: Item[] }>(pc, jf.nextEpisodes(series, itemId)).then(
-      (p) => {
-        if (gone) return
-        // Not listed first (e.g. missing): no button.
-        setNext(p.Items[0]?.Id === itemId ? p.Items[1] : undefined)
-      },
-      () => {}, // ponytail: no list = no button
-    )
-    return () => {
-      gone = true
-    }
-  }, [pc, series, itemId])
+  const next = useNext(pc, itemId, series)
   const stateRef = useRef(onState)
   useEffect(() => {
     stateRef.current = onState
   })
 
-  // oxlint-disable-next-line max-lines-per-function -- #602
   useEffect(() => {
-    const v = video.current!
-    let h: Hls | null = null
-    let gone = false
-    let lastSaved = -1
-    let played = 0 // seconds really played: playhead steps, not seeks or pauses
-    let lastT = -Infinity
-    const min = watchMin()
-    const onTime = () => {
-      const t = v.currentTime
-      if (!v.seeking && t > lastT && t - lastT < 1) played += t - lastT
-      lastT = t
-    }
-    const at = Date.now()
-    playback.set(gatewayId, { at })
-    // A read still in flight predates this playback: drop its result (#378).
-    void queryClient.cancelQueries({ queryKey: ['tunnel', gatewayId] })
-    let saving: Promise<unknown> = Promise.resolve()
-    const save = (body: object) =>
-      (saving = tunnelJson(pc, jf.userData(itemId), body).catch(() => {}))
-    const report = () => {
-      const t = Math.floor(v.currentTime)
-      // Not after the end: its `pause` comes before `ended` (Played: true).
-      if (h && t > 0 && t !== lastSaved && played >= min && !v.ended) {
-        lastSaved = t
-        save({
-          PlaybackPositionTicks: t * TICKS_PER_SECOND,
-          Played: false,
-          LastPlayedDate: new Date().toISOString(),
-        })
-      }
-    }
-
-    let caps: Probe
-    let compatible = compatibleOn() // read once: applies from the next playback
-    let escalated = false // compatible since a fallback failed (#238)
-    let q = quality()
-    let sub = -1 // the subtitle stream shown, -1 off
-    let vtt: HTMLTrackElement | undefined // its <track>
-    let track: number | undefined // audio stream; unset = Jellyfin's default
-    let source: string | undefined // Jellyfin ignores AudioStreamIndex without it
-    let copy: Copy = { video: true, audio: true }
-    let bitrate: number | undefined // the source's, bps (Auto's input)
-    let playing: number | null = null // the audio stream the URL asks for
-    let runTicks = 0
-    let held = false // paused: start() doesn't play
-    let seekTo: number | undefined // a phone's seek while nothing is attached
-    let at0 = 0 // where the current load starts, seconds
-    // Media loaded: else (starting, reloading) the element says 0 / paused.
-    const live = () => !!h && v.readyState > 0
-    const now = () => (live() ? v.currentTime : (seekTo ?? at0))
-    const emit = () =>
-      stateRef.current?.({
-        itemId,
-        positionTicks: Math.floor(now() * TICKS_PER_SECOND),
-        durationTicks: runTicks,
-        paused: live() ? v.paused : held,
-        audio: track ?? playing, // the requested one, like the subtitle
-        subtitle: sub,
-      })
-    let loads = 0 // only the latest start() attaches (quick quality switches)
-    // Loads the stream at `at` seconds; called again by reload().
-    // oxlint-disable-next-line complexity, max-lines-per-function -- builds the load (URL params, log lines), not decisions; length: #602
-    const start = async (at: number) => {
-      const load = ++loads
-      at0 = at
-      const mbps = await speed?.get(q === 'Auto' ? 3000 : 0)
-      if (gone || load !== loads) return
-      const saver = dataSaverOn() // #291: caps Auto only (effective)
-      const eff = effective(q, mbps, bitrate, saver)
-      const cap = q === 'Auto' ? autoCap(mbps) : undefined
-      setLink({ mbps, auto: autoQuality(mbps, bitrate, saver), saver }) // Auto's pick, also while a rung is picked
-      if (q === 'Auto' && (mbps || saver))
-        event(
-          `auto: link ${mbps ? `~${mbps.toFixed(1)} Mbps${speed?.fresh() ? '' : ' (stored hint)'} → cap ${(cap! / 1e6).toFixed(1)} Mbps` : 'unknown'}, source ${bitrate ? `${(bitrate / 1e6).toFixed(1)} Mbps` : '?'}${saver ? ', data saver on' : ''} → ${eff === 'Auto' ? 'no limit (fits)' : eff}`,
-        )
-      const max = limit(eff, compatible)
-      const rate = Math.min(max?.bitrate ?? Infinity, cap ?? Infinity) / 1e6
-      event(
-        `quality: ${q}${max ? ` (≤${max.height}p, ${rate} Mbps)` : cap ? ` (≤${rate} Mbps)` : ' (no limit)'}`,
-      )
-      // Raw: always full copy, even after an earlier fallback (#164).
-      const raw = eff === 'Raw' && !compatible // the picker after an escalation
-      const allow: Copy = raw ? { video: true, audio: true } : copy
-      // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
-      const info = await tunnelJson<jf.PlaybackInfo>(
-        pc,
-        jf.playbackInfo(itemId),
-        {
-          DeviceProfile: deviceProfile(
-            caps,
-            !allow.audio,
-            compatible,
-            eff,
-            cap,
-          ),
-          EnableDirectPlay: false,
-          EnableDirectStream: false,
-          AllowVideoStreamCopy: allow.video,
-          AllowAudioStreamCopy: allow.audio,
-          ...(!allow.audio && { MaxAudioChannels: 2 }),
-          // None in the stream: else Jellyfin picks a default/forced one and,
-          // image subtitles being Encode-only here, burns it in. Ours: <track>.
-          SubtitleStreamIndex: -1,
-          ...(track !== undefined && {
-            AudioStreamIndex: track,
-            MediaSourceId: source,
-          }),
-        },
-      )
-      if (gone || load !== loads) return
-      const src = info.MediaSources[0]
-      if (!src?.TranscodingUrl)
-        throw new AppError(
-          'playback',
-          `Jellyfin offers no stream (${info.ErrorCode ?? 'no TranscodingUrl'})`,
-        )
-      const [path, query] = src.TranscodingUrl.split('?')
-      const params = new URLSearchParams(query)
-      // Raw: no bitrate cap at all. Jellyfin transcodes a source of unknown
-      // bitrate whenever VideoBitrate is set (spike on #164).
-      if (raw) params.delete('VideoBitrate')
-      const d = decision(`?${params}`, src.MediaStreams)
-      event(`jellyfin: ${d.text}`)
-      // The fallback chain decides (onFailure); this carries it out.
-      let over = false // the chain ended in an error: this load is done (#552)
-      const failed = (f: Failure) => {
-        if (over) return
-        const n = onFailure(f, { raw, copy, compatible, escalated })
-        if (!n) return
-        if ('reload' in n) {
-          if (n.escalate) compatible = escalated = true
-          return reload(n.reload, n.less)
-        }
-        // Stop fetching over the tunnel (and Jellyfin transcoding); keeps the
-        // buffered picture. A reload (another quality) starts a fresh load.
-        over = true
-        h?.stopLoad()
-        event('load stopped: playback error')
-        setErr(
-          new AppError(
-            'playback',
-            'raw' in n // Raw: say what the device could not play
-              ? `This device can't play the original streams (${d.codecs}). Pick another quality.`
-              : n.error,
-          ),
-        )
-      }
-      const sv = src.MediaStreams.find((s) => s.Type === 'Video')
-      const size = { width: sv?.Width ?? 0, height: sv?.Height ?? 0 }
-      bitrate = src.Bitrate ?? sv?.BitRate
-      setFile({ size, bitrate })
-      source = src.Id
-      setTracks(audioTracks(src.MediaStreams))
-      setAudio(params.get('AudioStreamIndex') ?? '')
-      playing = params.has('AudioStreamIndex')
-        ? Number(params.get('AudioStreamIndex'))
-        : null
-      emit()
-      if (!d.videoCopy && !max) {
-        Object.entries(AUTO_TRANSCODE).forEach(([k, val]) => params.set(k, val))
-        if (cap)
-          params.set(
-            'VideoBitrate',
-            String(Math.min(cap, QUALITY['1080p'].bitrate)),
-          )
-      }
-      if (!d.videoCopy)
-        event(
-          `transcode to ≤${params.get('MaxHeight') ?? '?'}p, ${params.get('VideoBitrate')} bps`,
-        )
-      setNow(
-        raw && d.videoCopy
-          ? rawStatus(d.codecs)
-          : nowPlaying(d.videoCopy, params, size),
-      )
-      h = new Hls({
-        loader: tunnelLoader(pc),
-        startPosition: seekTo ?? at,
-        // hls.js grows the forward buffer up to 600 s for low bitrates; a TV's
-        // MSE quota fills long before that (bufferFullError on webOS).
-        maxMaxBufferLength: 60,
-        // Byte budget (#262): forward = max(maxBufferSize (60 MB) in seconds
-        // at the level bitrate, maxBufferLength). The default 30 s floor is
-        // ~230 MB at 4K/60 Mbps, past Chrome's ~150 MB MSE quota
-        // (bufferFullError, segments re-fetched). A 4 s floor lets the 60 MB
-        // budget rule at high bitrates; ≤8 Mbps still gets the 60 s cap.
-        // No backBufferLength: on a full buffer the browser and hls.js evict
-        // played media themselves once the forward fits (a 10 s cap made
-        // 1080p re-fetch on a seek back).
-        maxBufferLength: 4,
-      })
-      h.on(Hls.Events.ERROR, (_e, e) => {
-        event(
-          `hls ${e.fatal ? 'FATAL' : 'error'}: ${e.details}${e.error ? ` (${e.error.message})` : ''}`,
-        )
-        // Audio fallback: the device can't take the audio Jellyfin sent
-        // (e.g. 5.1 AAC on old webOS). Once per playback.
-        const audio =
-          e.sourceBufferName === 'audio' ||
-          /audio/i.test(
-            `${e.mimeType ?? ''} ${e.error?.message ?? ''} ${v.error?.message ?? ''}`,
-          )
-        failed({
-          media: e.type === Hls.ErrorTypes.MEDIA_ERROR,
-          fatal: e.fatal,
-          audio,
-          details: e.details,
-        })
-      })
-      // What the device is asked to decode, and whether it says it can.
-      h.on(Hls.Events.BUFFER_CODECS, (_e, d) =>
-        Object.entries(d).forEach(([k, t]) => {
-          const type = t?.codec && `${t.container};codecs="${t.codec}"`
-          const m = t?.metadata
-          if (type)
-            event(
-              `hls ${k}: ${type} supported=${MediaSource.isTypeSupported(type)}${m?.channelCount ? ` ${m.channelCount}ch` : ''}${m?.width ? ` ${m.width}x${m.height}` : ''}`,
-            )
-        }),
-      )
-      // Are segments parsed and appended, and where do audio and video land?
-      // video.buffered is only their overlap; an empty video range here is the
-      // stuck state the fallback below detects.
-      let parsed = 0
-      let appended = 0
-      let r: Partial<Record<string, TimeRanges>> = {}
-      const sb = () => {
-        diag.sb = [
-          `frags parsed ${parsed}`,
-          `appends ${appended}`,
-          ...Object.entries(r).map(([k, t]) => t && `${k} ${ranges(t)}`),
-        ]
-          .filter(Boolean)
-          .join(' · ')
-        changed()
-      }
-      h.on(Hls.Events.FRAG_PARSED, () => {
-        parsed++
-        sb()
-      })
-      let stuck = 0 // video appends in a row that left the playhead empty
-      const forced = load <= failLoads() // debug: ?fail=<n>
-      // Stream copy, or a transcode after a fallback (may escalate or fail, #238).
-      const watch =
-        d.videoCopy || escalated || escalates(copy, compatible) || forced
-      h.on(Hls.Events.BUFFER_APPENDED, (_e, a) => {
-        appended++
-        r = a.timeRanges
-        sb()
-        // fMP4 (HEVC/AV1-capable devices) muxes into one 'audiovideo' buffer.
-        if (!watch || (a.type !== 'video' && a.type !== 'audiovideo')) return
-        if (!forced && covers(a.timeRanges[a.type], v.currentTime)) stuck = 0
-        else if (++stuck >= STUCK_APPENDS) failed('stuck')
-      })
-      seekTo = undefined
-      h.attachMedia(v)
-      h.loadSource(`${TUNNEL_ORIGIN}${path}?${params}`)
-      // Autoplay is blocked without a user gesture (deep link / reload): the
-      // control bar stays up with Play focused, one Enter/tap starts it.
-      if (!held) v.play().catch(refused)
-    }
-    const refused = (e: Error) => {
-      event(`autoplay blocked: ${e.name}`)
-      setBlocked(true)
-    }
-
-    // Restarts at the playhead: with less stream copy (the fallbacks), another
-    // quality or audio track. Keeps the other choices.
-    const reload = (why: string, less: Partial<Copy> = {}) => {
-      if (!caps) return // still starting: the first load picks it up
-      const t = now()
-      if (live()) held = v.paused // else keep: a reload in flight paused it
-      event(`${why} @${t.toFixed(1)}`)
-      setErr(null) // a new load: e.g. Raw failed, another quality picked
-      copy = { ...copy, ...less }
-      freeze(v)
-      const old = h
-      h = null // no position reports while the media detaches
-      old?.destroy()
-      start(t).catch((e) => setErr(toAppError(e)))
-    }
-    pick.current = (next) => {
-      q = next
-      reload(`quality: switch to ${next}`)
-    }
-    pickAudio.current = (index) => {
-      track = index
-      reload(`audio: switch to stream ${index}`)
-    }
-    const unshow = () => {
-      if (!vtt) return
-      vtt.track.mode = 'disabled' // Chrome keeps showing a removed track's cues
-      URL.revokeObjectURL(vtt.src)
-      vtt.remove()
-      vtt = undefined
-    }
-    pickSub.current = (index) => {
-      sub = index
-      event(`subtitles: ${index < 0 ? 'off' : `stream ${index}`}`)
-      emit()
-      unshow()
-      if (index < 0) return
-      // ponytail: no media source yet (a phone's pick during startup) = the
-      // item's id, which is its one source's; multi-version items then get
-      // the default version's subtitle.
-      tunnelFetch(pc, jf.subtitle(itemId, source ?? itemId, index))
-        .then((r) => {
-          if (r.status !== 200) throw new Error(`HTTP ${r.status}`)
-          if (gone || sub !== index) return // picked again meanwhile
-          unshow()
-          vtt = document.createElement('track')
-          vtt.kind = 'subtitles'
-          vtt.src = URL.createObjectURL(
-            new Blob([r.body], { type: 'text/vtt' }),
-          )
-          v.append(vtt)
-          vtt.track.mode = 'showing'
-        })
-        .catch((e) => event(`subtitles: stream ${index} failed: ${e}`))
-    }
-    const unremote = remote?.((c) => {
-      if (c.type === 'pause') {
-        held = true
-        v.pause()
-        emit()
-      } else if (c.type === 'resume') {
-        held = false
-        v.play().catch(refused)
-      } else if (c.type === 'seek') {
-        if (h) v.currentTime = c.ticks / TICKS_PER_SECOND
-        else seekTo = c.ticks / TICKS_PER_SECOND // start() picks it up
-      } else if (c.type === 'tracks') {
-        if (c.audio !== undefined) {
-          setAudio(String(c.audio))
-          pickAudio.current(c.audio)
-        }
-        if (c.subtitle !== undefined) {
-          setSubtitle(String(c.subtitle))
-          pickSub.current(c.subtitle)
-        }
-      }
+    const e = new Engine({
+      pc,
+      v: video.current!,
+      itemId,
+      speed,
+      set: patch,
+      onState: () => stateRef.current,
     })
-
-    // oxlint-disable-next-line complexity -- startup wiring (probe, item fetch)
-    ;(async () => {
-      if (!Hls.isSupported())
-        throw new AppError(
-          'playback',
-          'this browser has no MSE (iOS Safari is not supported yet)',
-        )
-      if (compatible) event('compatible mode: on')
-      caps = await probe()
-      event(`probe: ${describe(caps)}`)
-      deviceProfile(caps, false, compatible) // throws without H.264, before anything loads
-      // Fresh UserData: the listing may be stale (resume position).
-      const fresh = await tunnelJson<Item>(pc, jf.item(itemId))
-      if (gone) return
-      setItem(fresh)
-      runTicks = fresh.RunTimeTicks ?? 0
-      bitrate =
-        fresh.MediaSources?.[0]?.Bitrate ??
-        fresh.MediaStreams?.find((s) => s.Type === 'Video')?.BitRate
-      const ms = fresh.MediaSources?.[0]
-      const auto =
-        compatible || q === 'Raw' || track !== undefined
-          ? undefined
-          : autoAudio(
-              fresh.MediaStreams,
-              ms?.DefaultAudioStreamIndex,
-              audioCodecs(caps),
-              caps.surround,
-            )
-      if (auto !== undefined) {
-        track = auto
-        source = ms?.Id
-        event(`audio: default not decodable, stream ${auto} instead`)
-      }
-      const st = subtitleTracks(fresh.MediaStreams)
-      setSubs(st)
-      await start(
-        (startTicks ?? fresh.UserData?.PlaybackPositionTicks ?? 0) /
-          TICKS_PER_SECOND,
-      )
-    })().catch((e) => setErr(toAppError(e)))
-
-    const unwatch = watchVideo(v)
-    const tick = setInterval(report, 10_000)
-    const ended = () => save({ Played: true, PlaybackPositionTicks: 0 })
-    const onPlay = () => {
-      held = false
-      setBlocked(false)
-    }
-    const state = setInterval(() => stateRef.current && emit(), 1000)
-    const changes = ['play', 'pause', 'seeked', 'ended']
-    changes.forEach((e) => v.addEventListener(e, emit))
-    v.addEventListener('play', onPlay)
-    v.addEventListener('timeupdate', onTime)
-    v.addEventListener('pause', report)
-    v.addEventListener('seeked', report)
-    v.addEventListener('ended', ended)
-    window.addEventListener('pagehide', report)
-    return () => {
-      gone = true
-      unremote?.()
-      unwatch()
-      clearInterval(tick)
-      clearInterval(state)
-      changes.forEach((e) => v.removeEventListener(e, emit))
-      report()
-      // The pages left behind refetch, after the exit save (#360, #378).
-      playback.set(gatewayId, { at, saved: saving })
-      void queryClient.invalidateQueries({ queryKey: ['tunnel', gatewayId] })
-      v.removeEventListener('play', onPlay)
-      v.removeEventListener('timeupdate', onTime)
-      v.removeEventListener('pause', report)
-      v.removeEventListener('seeked', report)
-      v.removeEventListener('ended', ended)
-      window.removeEventListener('pagehide', report)
-      h?.destroy()
-      unshow()
-    }
+    engine.current = e
+    return e.open(gatewayId, startTicks, remote)
   }, [pc, speed, itemId, startTicks, remote, gatewayId])
 
   return (
@@ -638,51 +97,19 @@ export function Player({
       <Controls
         video={video}
         duration={(item?.RunTimeTicks ?? 0) / TICKS_PER_SECOND}
-        blocked={blocked}
+        blocked={view.blocked}
         settings={[
           {
             name: 'Quality',
             value: q,
-            status: now,
-            // oxlint-disable-next-line complexity -- render branching
-            options: qualities(file.size, q, rawOn()).map((o) => ({
-              value: o,
-              label:
-                o === 'Auto' && (link.mbps || link.saver)
-                  ? `Auto${link.auto === 'Auto' ? '' : ` · ${link.auto}`} (${[
-                      link.saver && 'data saver',
-                      link.mbps &&
-                        `your connection ~${mbpsText(link.mbps)} Mbps`,
-                    ]
-                      .filter(Boolean)
-                      .join(', ')})`
-                  : o,
-              hint: QUALITY[o]
-                ? `${(QUALITY[o].bitrate / 1e6).toLocaleString()} Mbps`
-                : o === 'Source'
-                  ? [
-                      sourceHint(file.size, file.bitrate) || 'no limit',
-                      link.mbps &&
-                        (file.bitrate ?? 0) > link.mbps * 1e6 &&
-                        'faster than your connection, may stutter',
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')
-                  : o === 'Raw'
-                    ? 'original streams, unchecked'
-                    : 'no limit',
-              ...(compat &&
-                (o === 'Source' || o === 'Raw') && {
-                  disabled: true,
-                  hint: 'Off in compatible mode — turn it off in Settings',
-                }),
-            })),
+            status: view.now,
+            options: qualityOptions(file, q, link, rawOn(), compat),
             pick: (v) => {
               const next = v as Quality
               setQ(next)
-              setNow(undefined) // until the reload's decision
+              patch({ now: undefined }) // until the reload's decision
               setQuality(next)
-              pick.current(next)
+              engine.current?.pickQuality(next)
             },
           },
           // Only with a choice to make: one track = no entry.
@@ -690,11 +117,11 @@ export function Player({
             ? [
                 {
                   name: 'Audio',
-                  value: audio,
+                  value: view.audio,
                   options: tracks,
                   pick: (v: string) => {
-                    setAudio(v)
-                    pickAudio.current(Number(v))
+                    patch({ audio: v })
+                    engine.current?.pickAudio(Number(v))
                   },
                 },
               ]
@@ -704,11 +131,11 @@ export function Player({
             ? [
                 {
                   name: 'Subtitles',
-                  value: subtitle,
+                  value: view.subtitle,
                   options: subs,
                   pick: (v: string) => {
-                    setSubtitle(v)
-                    pickSub.current(Number(v))
+                    patch({ subtitle: v })
+                    engine.current?.pickSub(Number(v))
                   },
                 },
               ]
@@ -733,8 +160,8 @@ export function Player({
       >
         <video ref={video} />
       </Controls>
-      {blocked && <p>Press play to start.</p>}
-      {err && <ErrorView error={err} />}
+      {view.blocked && <p>Press play to start.</p>}
+      {view.err && <ErrorView error={view.err} />}
     </div>
   )
 }

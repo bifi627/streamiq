@@ -3,7 +3,6 @@
 frontend/src/App.tsx  # #606
 frontend/src/features/gateways/Gateways.tsx  # #605
 frontend/src/features/library/Library.tsx  # #604
-frontend/src/features/library/Player.tsx  # #602
 gateway/cmd/gateway/main.go  # #608
 gateway/internal/jellyfin/jellyfin.go  # #608
 gateway/internal/sessions/sessions.go  # #608

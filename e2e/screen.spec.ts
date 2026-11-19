@@ -11,6 +11,16 @@ import { keepPcs, openLibrary, pitch, videoTime, viaTunnel } from './helpers.ts'
 
 const CLIP = 'streamiq e2e clip' // 30 s, English 440 Hz + German 880 Hz, .en.srt
 
+// The diagnostics dock on the TV and the phones (diag.ts; one context, one
+// localStorage): a failure's trace shows their event log, pc state and why a
+// screen ended (#485).
+test.beforeEach(async ({ paired: { page } }) => {
+  await page
+    .context()
+    .addInitScript(() => localStorage.setItem('streamiq.debug', '1'))
+  await page.reload()
+})
+
 /** TV on /gateways → the card's Use as screen; the screen's name. */
 async function useAsScreen(tv: Page) {
   await tv.getByRole('link', { name: 'Use as screen' }).click()

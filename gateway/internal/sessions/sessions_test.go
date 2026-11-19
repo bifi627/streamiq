@@ -989,3 +989,17 @@ func TestTrim(t *testing.T) {
 		}
 	}
 }
+
+// A Disconnected session lives on (#485): it recovers, or pion turns it Failed.
+func TestEnds(t *testing.T) {
+	for st, want := range map[webrtc.PeerConnectionState]bool{
+		webrtc.PeerConnectionStateConnected:    false,
+		webrtc.PeerConnectionStateDisconnected: false,
+		webrtc.PeerConnectionStateFailed:       true,
+		webrtc.PeerConnectionStateClosed:       true,
+	} {
+		if ends(st) != want {
+			t.Errorf("ends(%s) = %v, want %v", st, !want, want)
+		}
+	}
+}

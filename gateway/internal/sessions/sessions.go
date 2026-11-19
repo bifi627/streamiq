@@ -244,8 +244,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	})
 	pc.OnConnectionStateChange(func(st webrtc.PeerConnectionState) {
 		log.Printf("gateway: session %s: %s", id, st)
-		if st == webrtc.PeerConnectionStateFailed || st == webrtc.PeerConnectionStateClosed ||
-			st == webrtc.PeerConnectionStateDisconnected {
+		if ends(st) {
 			end(st == webrtc.PeerConnectionStateFailed)
 		}
 	})
@@ -274,6 +273,14 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 		}
 	})
 	return pc, nil
+}
+
+// ends: the states that end a session (#485). Not Disconnected: pion reports it
+// after 5 s without inbound ICE traffic, and it recovers; under load that was
+// enough to drop a live session. A lasting loss turns Failed 25 s later, a
+// closed tab is a bye from the broker, like the browser's own #632.
+func ends(st webrtc.PeerConnectionState) bool {
+	return st == webrtc.PeerConnectionStateFailed || st == webrtc.PeerConnectionStateClosed
 }
 
 // ender builds the session's one way out. Every way a session ends (ICE

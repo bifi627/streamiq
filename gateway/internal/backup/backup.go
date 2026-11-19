@@ -6,6 +6,7 @@ package backup
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,12 +61,28 @@ func FileName(dir string, now time.Time) string {
 // Write zips every regular file in dir except skip, compose (the managed
 // Jellyfin's compose file) if it exists, and jellyfin (Jellyfin's backup
 // archive) unless "". It only reads, so it works while the gateway runs.
-func Write(dir, compose, jellyfin string, w io.Writer) error { //nolint:gocyclo // #544: split there
+func Write(dir, compose, jellyfin string, w io.Writer) error {
+	zw := zip.NewWriter(w)
+	if err := zipState(zw, dir); err != nil {
+		return err
+	}
+	if err := zipCompose(zw, compose); err != nil {
+		return err
+	}
+	if err := zipJellyfin(zw, jellyfin); err != nil {
+		return err
+	}
+	return zw.Close()
+}
+
+// zipState adds every regular file in dir except skip, each under its own name,
+// and fails on a cut-short JSON file (checkJSON) or a dir without the required
+// identity files.
+func zipState(zw *zip.Writer, dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
-	zw := zip.NewWriter(w)
 	have := 0
 	for _, e := range entries {
 		if !e.Type().IsRegular() || slices.Contains(skip, e.Name()) {
@@ -75,15 +92,10 @@ func Write(dir, compose, jellyfin string, w io.Writer) error { //nolint:gocyclo 
 		if err != nil {
 			return err
 		}
-		// The gateway rewrites its JSON files in place: a read mid-write is cut short.
-		if strings.HasSuffix(e.Name(), ".json") && !json.Valid(b) {
-			return fmt.Errorf("%s was being written: run the backup again", e.Name())
-		}
-		f, err := zw.Create(e.Name())
-		if err != nil {
+		if err := checkJSON(e.Name(), b); err != nil {
 			return err
 		}
-		if _, err := f.Write(b); err != nil {
+		if err := zipBytes(zw, e.Name(), b); err != nil {
 			return err
 		}
 		if slices.Contains(required, e.Name()) {
@@ -93,32 +105,56 @@ func Write(dir, compose, jellyfin string, w io.Writer) error { //nolint:gocyclo 
 	if have != len(required) {
 		return fmt.Errorf("%s has no gateway identity (%s): nothing to back up", dir, strings.Join(required, ", "))
 	}
-	if b, err := os.ReadFile(compose); err == nil {
-		f, err := zw.Create(ComposeEntry)
-		if err != nil {
-			return err
-		}
-		if _, err := f.Write(b); err != nil {
-			return err
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
+	return nil
+}
+
+// checkJSON refuses a .json file that isn't valid JSON: the gateway rewrites
+// its JSON files in place, so a read mid-write is cut short.
+func checkJSON(name string, b []byte) error {
+	if strings.HasSuffix(name, ".json") && !json.Valid(b) {
+		return fmt.Errorf("%s was being written: run the backup again", name)
+	}
+	return nil
+}
+
+// zipBytes adds b to zw as the entry name.
+func zipBytes(zw *zip.Writer, name string, b []byte) error {
+	f, err := zw.Create(name)
+	if err != nil {
 		return err
 	}
-	if jellyfin != "" {
-		src, err := os.Open(jellyfin)
-		if err != nil {
-			return err
-		}
-		defer src.Close()
-		f, err := zw.CreateHeader(&zip.FileHeader{Name: JellyfinEntry, Method: zip.Store}) // a zip already
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(f, src); err != nil {
-			return err
-		}
+	_, err = f.Write(b)
+	return err
+}
+
+// zipCompose adds the compose file as ComposeEntry, or nothing if it doesn't exist.
+func zipCompose(zw *zip.Writer, compose string) error {
+	b, err := os.ReadFile(compose)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
 	}
-	return zw.Close()
+	return zipBytes(zw, ComposeEntry, b)
+}
+
+// zipJellyfin streams the Jellyfin archive in as JellyfinEntry, stored (it is a
+// zip already); nothing if jellyfin is "".
+func zipJellyfin(zw *zip.Writer, jellyfin string) error {
+	if jellyfin == "" {
+		return nil
+	}
+	src, err := os.Open(jellyfin)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	f, err := zw.CreateHeader(&zip.FileHeader{Name: JellyfinEntry, Method: zip.Store})
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, src)
+	return err
 }
 
 // Restore unpacks the zip at path into dir, and its compose file to compose
@@ -126,108 +162,174 @@ func Write(dir, compose, jellyfin string, w io.Writer) error { //nolint:gocyclo 
 // the user's, their media folders are in it). It checks the whole zip before it
 // writes anything, and refuses to replace an existing identity unless force.
 // It returns what it did with the compose file (Compose*).
-func Restore(path, dir, compose string, force bool) (string, error) { //nolint:gocyclo // #544: split there
+func Restore(path, dir, compose string, force bool) (string, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return ComposeNone, err
 	}
 	defer zr.Close()
-	var names []string
-	for _, f := range zr.File {
-		n := f.Name
-		if n == ComposeEntry || n == JellyfinEntry {
-			continue
-		}
-		// Flat names only: no directories, no zip-slip.
-		if n == "." || !filepath.IsLocal(n) || filepath.Base(n) != n || strings.ContainsAny(n, `/\:`) || f.FileInfo().IsDir() {
-			return ComposeNone, fmt.Errorf("%s: not a gateway backup (entry %q)", path, n)
-		}
-		names = append(names, n)
-	}
-	for _, r := range required {
-		if !slices.Contains(names, r) {
-			return ComposeNone, fmt.Errorf("%s: not a gateway backup (no %s)", path, r)
-		}
+	if err := checkEntries(path, zr.File); err != nil {
+		return ComposeNone, err
 	}
 	if !force {
-		var there []string
-		for _, r := range required {
-			if _, err := os.Stat(filepath.Join(dir, r)); err == nil {
-				there = append(there, r)
-			}
-		}
-		if len(there) > 0 {
-			return ComposeNone, fmt.Errorf("%s already holds a gateway (%s): restoring replaces its identity, "+
-				"credential and paired browsers. Rerun with --force to overwrite", dir, strings.Join(there, ", "))
-		}
-	}
-	files := map[string][]byte{}
-	for _, f := range zr.File {
-		if f.Name == JellyfinEntry { // never into RAM or state/
-			continue
-		}
-		rc, err := f.Open()
-		if err != nil {
+		if err := checkNoIdentity(dir); err != nil {
 			return ComposeNone, err
 		}
-		b, err := io.ReadAll(io.LimitReader(rc, maxFile+1))
-		rc.Close()
-		if err != nil {
-			return ComposeNone, fmt.Errorf("%s: %s: %w", path, f.Name, err)
-		}
-		if len(b) > maxFile {
-			return ComposeNone, fmt.Errorf("%s: %s is too big for a gateway backup", path, f.Name)
-		}
-		files[f.Name] = b
+	}
+	files, err := readEntries(path, zr.File)
+	if err != nil {
+		return ComposeNone, err
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return ComposeNone, err
 	}
 	// Every write goes through root: the OS refuses a path that leaves dir (.., symlinks),
-	// a second guard behind the name check above.
+	// a second guard behind checkEntries.
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return ComposeNone, err
 	}
 	defer root.Close()
-	if force { // the old gateway's files the backup doesn't have (e.g. its allowlist.json) go
-		old, err := os.ReadDir(dir)
+	if force {
+		old, err := stale(dir, files)
 		if err != nil {
 			return ComposeNone, err
 		}
-		for _, e := range old {
-			if _, ok := files[e.Name()]; !ok && e.Type().IsRegular() && !slices.Contains(skip, e.Name()) {
-				if err := root.Remove(e.Name()); err != nil {
-					return ComposeNone, err
-				}
-			}
+		if err := removeAll(root, old); err != nil {
+			return ComposeNone, err
 		}
 	}
 	c, hasCompose := files[ComposeEntry]
 	delete(files, ComposeEntry)
-	for n, b := range files {
-		if err := root.WriteFile(n, b, 0o600); err != nil {
-			return ComposeNone, err
-		}
-		if err := root.Chmod(n, 0o600); err != nil { // WriteFile keeps an existing file's mode
-			return ComposeNone, err
-		}
+	if err := writeState(root, files); err != nil {
+		return ComposeNone, err
 	}
 	if !hasCompose {
 		return ComposeNone, nil
 	}
+	return writeCompose(compose, bytes.NewReader(c))
+}
+
+// checkEntries refuses a zip that isn't a gateway backup: every entry but
+// ComposeEntry and JellyfinEntry must be a flat file name (no directories, no
+// zip-slip), and every required file must be there.
+func checkEntries(path string, zf []*zip.File) error {
+	var names []string
+	for _, f := range zf {
+		n := f.Name
+		if n == ComposeEntry || n == JellyfinEntry {
+			continue
+		}
+		if n == "." || !filepath.IsLocal(n) || filepath.Base(n) != n || strings.ContainsAny(n, `/\:`) || f.FileInfo().IsDir() {
+			return fmt.Errorf("%s: not a gateway backup (entry %q)", path, n)
+		}
+		names = append(names, n)
+	}
+	for _, r := range required {
+		if !slices.Contains(names, r) {
+			return fmt.Errorf("%s: not a gateway backup (no %s)", path, r)
+		}
+	}
+	return nil
+}
+
+// checkNoIdentity refuses a dir that already holds a required file: restoring
+// there replaces a gateway, which takes --force (Restore skips this check).
+func checkNoIdentity(dir string) error {
+	var there []string
+	for _, r := range required {
+		if _, err := os.Stat(filepath.Join(dir, r)); err == nil {
+			there = append(there, r)
+		}
+	}
+	if len(there) > 0 {
+		return fmt.Errorf("%s already holds a gateway (%s): restoring replaces its identity, "+
+			"credential and paired browsers. Rerun with --force to overwrite", dir, strings.Join(there, ", "))
+	}
+	return nil
+}
+
+// readEntries reads every entry but JellyfinEntry (never into RAM or state/)
+// into a map by name, refusing an entry over maxFile.
+func readEntries(path string, zf []*zip.File) (map[string][]byte, error) {
+	files := map[string][]byte{}
+	for _, f := range zf {
+		if f.Name == JellyfinEntry {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		b, err := io.ReadAll(io.LimitReader(rc, maxFile+1))
+		rc.Close()
+		if err != nil {
+			return nil, fmt.Errorf("%s: %s: %w", path, f.Name, err)
+		}
+		if len(b) > maxFile {
+			return nil, fmt.Errorf("%s: %s is too big for a gateway backup", path, f.Name)
+		}
+		files[f.Name] = b
+	}
+	return files, nil
+}
+
+// stale names the old gateway's files a forced restore removes (e.g. its
+// allowlist.json): the regular files in dir the backup (files) doesn't have,
+// except skip.
+func stale(dir string, files map[string][]byte) ([]string, error) {
+	old, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var gone []string
+	for _, e := range old {
+		if _, ok := files[e.Name()]; !ok && e.Type().IsRegular() && !slices.Contains(skip, e.Name()) {
+			gone = append(gone, e.Name())
+		}
+	}
+	return gone, nil
+}
+
+// removeAll removes names from root, stopping at the first error.
+func removeAll(root *os.Root, names []string) error {
+	for _, n := range names {
+		if err := root.Remove(n); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writeState writes files into root, each with mode 0600.
+func writeState(root *os.Root, files map[string][]byte) error {
+	for n, b := range files {
+		if err := root.WriteFile(n, b, 0o600); err != nil {
+			return err
+		}
+		if err := root.Chmod(n, 0o600); err != nil { // WriteFile keeps an existing file's mode
+			return err
+		}
+	}
+	return nil
+}
+
+// writeCompose writes src to compose unless a file is there already (ComposeKept:
+// it is the user's). A failed write removes the partial file, which every
+// later restore would otherwise keep.
+func writeCompose(compose string, src io.Reader) (string, error) {
 	f, err := os.OpenFile(compose, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644) // O_EXCL: never over theirs
 	if errors.Is(err, os.ErrExist) {
 		return ComposeKept, nil
 	} else if err != nil {
 		return ComposeNone, err
 	}
-	_, err = f.Write(c)
+	_, err = io.Copy(f, src)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
 	if err != nil {
-		os.Remove(compose) // a partial one would be "kept" by every later restore
+		os.Remove(compose)
 		return ComposeNone, err
 	}
 	return ComposeWritten, nil

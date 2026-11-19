@@ -33,7 +33,8 @@ linters:
         "-ST1005"]
 formatters:
   # #601: gofmt never wraps; golines wraps at 120 columns (long string literals stay whole).
-  # `golangci-lint run` (check.sh, CI) reports unformatted files; `golangci-lint fmt` fixes them.
+  # `golangci-lint run` (check.sh, CI) reports unformatted files; `golangci-lint fmt ./...` (from gateway/) fixes
+  # them; rerun it until git shows no change: a long condition can take two or three passes.
   enable: [golines]
   settings:
     golines:

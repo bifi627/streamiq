@@ -11,13 +11,14 @@ import { keepPcs, openLibrary, pitch, videoTime, viaTunnel } from './helpers.ts'
 
 const CLIP = 'streamiq e2e clip' // 30 s, English 440 Hz + German 880 Hz, .en.srt
 
-// The diagnostics dock on the TV and the phones (diag.ts; one context, one
-// localStorage): a failure's trace shows their event log, pc state and why a
-// screen ended (#485).
+// The diagnostics dock, open, on the TV and the phones (diag.ts; one context,
+// one localStorage): a failure's trace shows their event log, pc state and why
+// a screen ended (#485).
 test.beforeEach(async ({ paired: { page } }) => {
-  await page
-    .context()
-    .addInitScript(() => localStorage.setItem('streamiq.debug', '1'))
+  await page.context().addInitScript(() => {
+    localStorage.setItem('streamiq.debug', '1')
+    localStorage.setItem('streamiq.dock', '1')
+  })
   await page.reload()
 })
 
@@ -126,7 +127,7 @@ test('remote commands (#181): play / pause, audio, subtitles, position, ±10 s, 
       throw new Error('e2e: command lost')
     }
   })
-  const lost = phone.getByText(/e2e: command lost/)
+  const lost = phone.getByRole('main').getByText(/e2e: command lost/) // not the open dock's copy
   await button('Pause').click()
   await expect(lost).toBeVisible()
   expect(await paused(tv)).toBe(false)
@@ -147,7 +148,7 @@ test('remote commands (#181): play / pause, audio, subtitles, position, ±10 s, 
       throw new Error('e2e: gateway down')
     }
   })
-  const down = phone.getByText(/e2e: gateway down/)
+  const down = phone.getByRole('main').getByText(/e2e: gateway down/)
   await expect(down).toBeVisible() // the poll's
   await button('Play').click()
   await phone.evaluate(

@@ -2,12 +2,7 @@
 // remux vs transcode from a DeviceProfile built from a capability probe
 // (profile.ts, #115); hls.js plays the TranscodingUrl it returns via the
 // tunnel loader.
-// Resume: start at Jellyfin's saved position; report it every 10 s, on pause
-// and on exit, straight to the viewer's UserData (/Sessions/Playing* is not
-// on the gateway allowlist), with LastPlayedDate (Continue watching sorts by
-// it) and Played: false (a partial rewatch is in progress again), #330. Only
-// once this playback has really played watchMin() (60 s): clicking through
-// saves nothing.
+// Resume: start at Jellyfin's saved position; reporting is resume.ts.
 // Fallback (#81): some devices (webOS TV, Chrome 87) drop stream-copied video
 // after a seek/resume. When video appends stop covering the playhead, reload
 // there with a video transcode for the rest of this playback.
@@ -31,12 +26,7 @@
 // Raw (#164, behind a setting): a profile with every codec, no probe; no
 // fallbacks, a decode failure is an error naming the source codecs. Compatible
 // mode disables Source and Raw (settings.quality() plays them as Auto).
-// Subtitles (#136): the picked text subtitle as WebVTT (Jellyfin's Stream.vtt,
-// over the tunnel) in our own <track>; a pick never reloads. Starts Off. Not
-// Jellyfin's HLS rendition: hls.js maps its X-TIMESTAMP-MAP (MPEGTS:900000)
-// against segment timestamps that shift with where the transcode job started,
-// so its cues landed seconds off (#269). Stream.vtt is in content time, which
-// is the playlist's and so the <video>'s.
+// Subtitles (#136): subtitles.ts; a pick never reloads. Starts Off.
 // Screen mode (#180): `remote` feeds it a phone's pause/resume/seek/tracks
 // commands, applied like the TV's own controls; play/stop are the screen's.
 // The state goes to `onState` about once a second and on every change (#181);
@@ -44,8 +34,8 @@
 import Hls from 'hls.js'
 import { queryClient } from '../../query'
 import { AppError, toAppError } from '../../errors'
-import { tunnelFetch, tunnelJson } from '../../tunnel'
-import { event, failLoads, watchMin, watchVideo } from '../../diag'
+import { tunnelJson } from '../../tunnel'
+import { event, failLoads, watchVideo } from '../../diag'
 import { compatibleOn, dataSaverOn, quality } from '../../settings'
 import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
@@ -53,6 +43,8 @@ import { TUNNEL_ORIGIN } from './loader'
 import * as jf from './jellyfin'
 import { playback } from './art'
 import { newHls } from './hls'
+import { watchResume } from './resume'
+import { subtitleTrack } from './subtitles'
 import type { Link } from './quality'
 import { autoLine, qualityLine, transcodeParams, urlAudio } from './stream'
 import {
@@ -130,19 +122,12 @@ function freeze(v: HTMLVideoElement) {
 export class Engine {
   private h: Hls | null = null
   private gone = false
-  // Resume reporting.
-  private lastSaved = -1
-  private played = 0 // seconds really played: playhead steps, not seeks or pauses
-  private lastT = -Infinity
-  private readonly min = watchMin()
-  private saving: Promise<unknown> = Promise.resolve()
   // The playback's choices and what the current load plays.
   private caps?: Probe
   private compatible = compatibleOn() // read once: applies from the next playback
   private escalated = false // compatible since a fallback failed (#238)
   private q = quality()
   private sub = -1 // the subtitle stream shown, -1 off
-  private vtt?: HTMLTrackElement // its <track>
   private track?: number // audio stream; unset = Jellyfin's default
   private source?: string // Jellyfin ignores AudioStreamIndex without it
   private copy: Copy = { video: true, audio: true }
@@ -161,6 +146,7 @@ export class Engine {
   private readonly set: (p: Partial<View>) => void
   /** The screen's state callback (#181), read on each emit. */
   private readonly onState: () => ((s: ScreenState) => void) | undefined
+  private readonly subs: ReturnType<typeof subtitleTrack>
 
   constructor(d: {
     pc: RTCPeerConnection
@@ -176,6 +162,7 @@ export class Engine {
     this.speed = d.speed
     this.set = d.set
     this.onState = d.onState
+    this.subs = subtitleTrack(d.pc, d.v, d.itemId)
   }
 
   /** Starts playback; returns the teardown. `remote` subscribes to a phone's
@@ -193,34 +180,26 @@ export class Engine {
     const unremote = remote?.(this.command)
     this.init(startTicks).catch((e) => this.set({ err: toAppError(e) }))
     const unwatch = watchVideo(v)
-    const tick = setInterval(this.report, 10_000)
+    const unresume = watchResume(this.pc, v, this.itemId, () => !!this.h)
     const state = setInterval(() => this.onState() && this.emit(), 1000)
     const on: [string, () => void][] = [
       ...['play', 'pause', 'seeked', 'ended'].map(
         (e) => [e, this.emit] as [string, () => void],
       ),
       ['play', this.onPlay],
-      ['timeupdate', this.onTime],
-      ['pause', this.report],
-      ['seeked', this.report],
-      ['ended', this.ended],
     ]
     on.forEach(([e, f]) => v.addEventListener(e, f))
-    window.addEventListener('pagehide', this.report)
     return () => {
       this.gone = true
       unremote?.()
       unwatch()
-      clearInterval(tick)
       clearInterval(state)
-      this.report()
       // The pages left behind refetch, after the exit save (#360, #378).
-      playback.set(gatewayId, { at, saved: this.saving })
+      playback.set(gatewayId, { at, saved: unresume() })
       void queryClient.invalidateQueries({ queryKey: ['tunnel', gatewayId] })
       on.forEach(([e, f]) => v.removeEventListener(e, f))
-      window.removeEventListener('pagehide', this.report)
       this.h?.destroy()
-      this.unshow()
+      this.subs.close()
     }
   }
 
@@ -458,40 +437,11 @@ export class Engine {
     this.reload(`audio: switch to stream ${index}`)
   }
 
-  private unshow() {
-    const vtt = this.vtt
-    if (!vtt) return
-    vtt.track.mode = 'disabled' // Chrome keeps showing a removed track's cues
-    URL.revokeObjectURL(vtt.src)
-    vtt.remove()
-    this.vtt = undefined
-  }
-
   pickSub(index: number) {
     this.sub = index
     event(`subtitles: ${index < 0 ? 'off' : `stream ${index}`}`)
     this.emit()
-    this.unshow()
-    if (index < 0) return
-    // ponytail: no media source yet (a phone's pick during startup) = the
-    // item's id, which is its one source's; multi-version items then get
-    // the default version's subtitle.
-    tunnelFetch(
-      this.pc,
-      jf.subtitle(this.itemId, this.source ?? this.itemId, index),
-    )
-      .then((r) => {
-        if (r.status !== 200) throw new Error(`HTTP ${r.status}`)
-        if (this.gone || this.sub !== index) return // picked again meanwhile
-        this.unshow()
-        const vtt = document.createElement('track')
-        vtt.kind = 'subtitles'
-        vtt.src = URL.createObjectURL(new Blob([r.body], { type: 'text/vtt' }))
-        this.v.append(vtt)
-        vtt.track.mode = 'showing'
-        this.vtt = vtt
-      })
-      .catch((e) => event(`subtitles: stream ${index} failed: ${e}`))
+    this.subs.show(index, this.source)
   }
 
   // A phone's command (screen mode, #180), applied like the TV's own controls.
@@ -523,37 +473,4 @@ export class Engine {
     this.held = false
     this.set({ blocked: false })
   }
-
-  private onTime = () => {
-    const t = this.v.currentTime
-    if (!this.v.seeking && t > this.lastT && t - this.lastT < 1)
-      this.played += t - this.lastT
-    this.lastT = t
-  }
-
-  private save = (body: object) =>
-    (this.saving = tunnelJson(this.pc, jf.userData(this.itemId), body).catch(
-      () => {},
-    ))
-
-  private report = () => {
-    const t = Math.floor(this.v.currentTime)
-    // Not after the end: its `pause` comes before `ended` (Played: true).
-    if (
-      this.h &&
-      t > 0 &&
-      t !== this.lastSaved &&
-      this.played >= this.min &&
-      !this.v.ended
-    ) {
-      this.lastSaved = t
-      this.save({
-        PlaybackPositionTicks: t * TICKS_PER_SECOND,
-        Played: false,
-        LastPlayedDate: new Date().toISOString(),
-      })
-    }
-  }
-
-  private ended = () => this.save({ Played: true, PlaybackPositionTicks: 0 })
 }

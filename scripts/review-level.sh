@@ -24,16 +24,19 @@
 set -euo pipefail
 
 # xhigh + mid: a changed file is under one of these paths (the crown jewels). Paths,
-# not topics: CONTENT below catches the topics outside them.
+# not topics: CONTENT below catches the topics outside them. The broker's tests are
+# here too: they are the tenant-isolation proof (CLAUDE.md).
 XHIGH='
 backend/src/StreamIq.Api/Data/
 backend/src/StreamIq.Api/Auth/
 backend/src/StreamIq.Api/Features/Broker/
 backend/src/StreamIq.Api/Features/Gateways/
+backend/tests/StreamIq.Api.Tests/Features/Broker/
 gateway/internal/tunnel/
 gateway/internal/pairing/
 gateway/internal/identity/
 gateway/internal/localpage/
+gateway/internal/sessions/
 gateway/install/install.sh
 gateway/install/install.ps1
 .github/workflows/
@@ -78,8 +81,8 @@ while IFS=$'\t' read -r f a r; do
     CLAUDE.md | .claude/*) ;;
     docs/* | *.md) continue ;;
   esac
-  [ $level = xhigh ] || level=high
-  [ $rank -gt 0 ] || why=other
+  [ "$level" = xhigh ] || level=high
+  [ "$rank" -gt 0 ] || why=other
   case "$f" in gateway/*_test.go) ;; gateway/*) raise 1 gateway-release ;; esac
 done <<<"$stats"
 while IFS= read -r pat; do

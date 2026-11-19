@@ -36,8 +36,10 @@ added lines. The path lists and patterns live in that script and nowhere else.
 
 The suggestion is where you start, not a rule. Read the diff, then pick the level
 before you run the review (never change it afterwards to fit the result). Go lower
-when the evidence carries no risk the deeper review would find (e.g. the only
-crown-jewel hit is a comment, or one added CI `run:` step); go higher when the diff
+only when every hit is a comment or a single added line that changes no logic (e.g. a
+`//nolint` comment, one added CI `run:` step calling a script; rewritten shell in a
+workflow is logic and keeps `xhigh`), and a content hit only after you read its line
+(an added `permissions:` or `secrets.` line may widen CI's power); go higher when the diff
 touches tenant isolation, auth, the protocol or credentials outside the listed paths.
 `xhigh` is the ceiling (`max` only when the owner asks). A level different from the
 suggestion gets a few words of reason in your output (section 6). The level is only
@@ -125,7 +127,17 @@ label:
 | `risk:critical` | hard to undo: a migration that drops or rewrites data, a protocol / `gateway.env` / state dir / CLI change that reaches installed gateways | merges when they can watch the release |
 
 The question that decides it: which test drives the changed behavior? Name it, or the
-label is at least `risk:high`. Start at the script's suggested label and move it either
+label is at least `risk:high`. Strictly:
+
+- A helper's unit test doesn't drive the code that calls it: the caller's changed
+  path needs its own test.
+- A check that can only run after the merge (the prod smoke, a release) is not a test
+  that drives it: `risk:high`, and name when to run it.
+- A new check or gate (lint rule, `check.sh` step) is driven only if the PR shows it
+  failing on a bad input (fixture, or a mutant in the PR body); else `risk:high`.
+- A test-only diff: name the mutant the PR shows the new test catching, or say none.
+
+Start at the script's suggested label and move it either
 way with a reason. Going lower is also stated in the posted review (`agent-pr` puts
 your merge-risk line in the body): the build's own reviewer has a reason to go easy,
 so the owner must see it. A `device:*` label on the PR or its issue is a separate gate

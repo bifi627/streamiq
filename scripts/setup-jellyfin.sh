@@ -74,6 +74,7 @@ ITEM_ID=""; P1080_ID=""; SUB_IDX=""; HEVC_ID=""; FIRST_ID=""
 for i in $(seq 1 90); do
   ITEMS=$(curl -fsS "$BASE/Items?Recursive=true&IncludeItemTypes=Movie&userId=$USER_ID&Fields=Path,MediaStreams" \
     -H "Authorization: MediaBrowser Token=\"$TOKEN\"")
+  # shellcheck disable=SC2016 # ${...} in the node program is a JS template literal, not a shell expansion
   eval "$(printf '%s' "$ITEMS" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const its=(JSON.parse(s).Items||[]);const byPath=re=>its.find(i=>re.test(i.Path||""));const long=byPath(/h264-aac-long/i)||byPath(/long/i);const p=byPath(/1080p/i);const hevc=byPath(/hevc/i);const sub=p&&(p.MediaStreams||[]).find(x=>x.Type==="Subtitle");process.stdout.write(`ITEM_ID=${long?long.Id:""}\nP1080_ID=${p?p.Id:""}\nSUB_IDX=${sub?sub.Index:""}\nHEVC_ID=${hevc?hevc.Id:""}\nFIRST_ID=${its[0]?its[0].Id:""}\n`)})')"
   # Done once the last-to-scan 1080p clip is in; also stop if there's simply no
   # 1080p fixture on disk (long is in and the item count has settled).

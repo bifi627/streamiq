@@ -7,6 +7,13 @@ cd "$(dirname "$0")/.."
 echo "== docs drift: STREAMIQ_* env vars + gateway routes documented =="
 bash scripts/check-docs-drift.sh
 
+echo "== workflows + bash: actionlint (shellcheck on run: blocks) + shellcheck scripts/*.sh =="
+# #581: one pinned image holds both; Docker is already needed below. MSYS_NO_PATHCONV keeps Git Bash off /repo
+docker_lint=(env MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/repo" -w /repo)
+img=rhysd/actionlint:1.7.12
+"${docker_lint[@]}" "$img" -no-color
+"${docker_lint[@]}" --entrypoint shellcheck "$img" scripts/*.sh
+
 echo "== backend: tenant-filter bypasses + format + build + test =="
 bash scripts/check-tenant-filter.sh
 dotnet format backend/StreamIq.slnx --verify-no-changes
@@ -18,6 +25,7 @@ for d in frontend e2e; do [ -d "$d/node_modules/.bin" ] || npm ci --prefix "$d";
 echo "== frontend: format + lint + test + typecheck + build =="
 npm run format:check --prefix frontend
 (cd e2e && ../frontend/node_modules/.bin/prettier --check .)  # e2e has no own prettier; borrow frontend's
+frontend/node_modules/.bin/tsc -p e2e  # #581: Playwright strips types; also covers files no spec imports. Borrowed tsc too
 npm run lint --prefix frontend
 npm test --prefix frontend
 npm run build --prefix frontend

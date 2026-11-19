@@ -53,7 +53,7 @@ const tvRedirect = {
 
 export default {
   ...base,
-  plugins: [...base.plugins, tvRedirect],
+  plugins: [...(base.plugins ?? []), tvRedirect],
   define: {
     'import.meta.env.VITE_API_URL': 'location.origin',
     'import.meta.env.VITE_FIREBASE_AUTH_EMULATOR': 'location.origin',

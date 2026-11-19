@@ -27,6 +27,7 @@ names() {
 
 fail=0
 gw=$(names gateway); other=$(names backend/src scripts) # assignments, so a grep error aborts (set -e)
+# shellcheck disable=SC2016 # the backticks are literal markdown, not a command substitution
 table=$(grep -oE '^\| `STREAMIQ_[A-Z0-9_]+`' docs/install.md | tr -d '|` ' || true)
 for n in $gw; do
   grep -qxF "$n" <<<"$table" || { echo "  $n: read under gateway/, no row in the gateway.env table (docs/install.md)" >&2; fail=1; }

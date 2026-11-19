@@ -21,6 +21,7 @@ test('screen found: shown, error cleared, keep polling', () => {
     screen: tv,
     down: '',
     again: true,
+    recovered: false,
   })
 })
 
@@ -29,11 +30,25 @@ test('screen gone: closed, stop polling', () => {
     screen: null,
     down: '',
     again: false,
+    recovered: false,
   })
 })
 
 test('error: keep the last screen, show the error, keep polling', () => {
   const p = polled('s1', { error: 'Gateway offline' })
-  assert.deepEqual(p, { down: 'Gateway offline', again: true })
+  assert.deepEqual(p, {
+    down: 'Gateway offline',
+    again: true,
+    recovered: false,
+  })
   assert.equal('screen' in p, false)
+})
+
+test('the first good poll after an error: recovered (#553)', () => {
+  assert.equal(
+    polled('s1', { screens: [tv] }, 'Gateway offline').recovered,
+    true,
+  )
+  assert.equal(polled('s1', { screens: [tv] }, '').recovered, false)
+  assert.equal(polled('s1', { error: 'x' }, 'Gateway offline').recovered, false)
 })

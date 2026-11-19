@@ -685,6 +685,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
   useEffect(() => {
     let gone = false
     let t = 0
+    let wasDown = ''
     const poll = () =>
       screensOn(pc)
         .then(
@@ -693,8 +694,10 @@ export function RemotePage({ screenId }: { screenId: string }) {
         )
         .then((r) => {
           if (gone) return
-          const p = polled(screenId, r)
+          const p = polled(screenId, r, wasDown)
+          wasDown = p.down
           if (p.screen !== undefined) setScreen(p.screen)
+          if (p.recovered) setMsg('') // a command error from the outage is stale
           setDown(p.down)
           if (p.again) t = window.setTimeout(poll, 1000)
         })

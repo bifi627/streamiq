@@ -93,8 +93,9 @@ jobs:
           REPO: ${{ github.repository }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EVENT: ${{ github.event_name }}
+          SHA: ${{ inputs.sha || github.sha }}
         run: |
-          sha=$(git rev-parse --short HEAD 2>/dev/null || echo "${GITHUB_SHA::7}")
+          sha=$(git rev-parse --short HEAD 2>/dev/null || echo "${SHA::7}")
           msg="Prod smoke failed at \`$sha\` ($EVENT): $RUN"
           # One issue for all failures: the newest "Prod smoke failing", reopened if closed.
           read -r n state < <(gh issue list -R "$REPO" --state all --search 'in:title "Prod smoke failing"' \

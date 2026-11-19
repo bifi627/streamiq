@@ -73,3 +73,4 @@ Manual drills and incidents (the weekly runs are their own log under Actions).
 
 | Date | Dump | Target | Result |
 |---|---|---|---|
+| 2026-11-19 | fresh `pg_dump` of blue (stand-in for GCS) | green/`restore_20261119t210529` + `…210556`: `db-restore.yml`'s script run locally before merge (drill + manual mode), then `db-backup.yml`'s against `DB_LIVE=green/restore_20261119t210556` | Restored, 3 tenants / 43 gateways; the backup dumped the green database; both dropped |

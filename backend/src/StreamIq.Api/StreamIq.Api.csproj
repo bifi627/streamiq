@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- CA1502's limit (severity in /.editorconfig). -->
+    <AdditionalFiles Include="CodeMetricsConfig.txt" />
     <InternalsVisibleTo Include="StreamIq.Api.Tests" />
   </ItemGroup>
 

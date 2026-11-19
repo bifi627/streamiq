@@ -88,6 +88,36 @@ public class BrokerSteps(IntegrationFixture fx)
         await Send(_browser, new { type = "offer", gatewayId = _gateways[name].Id, sdp = new { type = "offer", sdp = "v=0 fake" } });
     }
 
+    // An escaped lone surrogate parses but can't be written back out: relaying the offer
+    // to the gateway throws after the broker registered the session.
+    [When("\"([^\"]*)\" offers to gateway \"([^\"]*)\" an SDP the broker can't relay")]
+    public async Task WhenOfferUnrelayable(string email, string name)
+    {
+        _offerer = email;
+        (await SignedIn(email)).Dispose();
+        await BrowserAuth(await IdToken(email));
+        Assert.Equal("ready", Assert.NotNull(await Receive(_browser)).GetProperty("type").GetString());
+        var raw = $$"""{"type":"offer","gatewayId":"{{_gateways[name].Id}}","sdp":"\ud800"}""";
+        await _browser.SendAsync(Encoding.UTF8.GetBytes(raw), WebSocketMessageType.Text, true, CancellationToken.None);
+        // The handler fails and drops the socket, which it disposes only after its finally ran.
+        try
+        {
+            Assert.Null(await Receive(_browser));
+        }
+        catch (IOException) { }   // the test host reports the dropped socket this way
+    }
+
+    [Then("the broker holds no session for gateway \"([^\"]*)\"")]
+    public async Task ThenNoSessionFor(string name)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (Hub.Sessions.Values.Any(s => s.GatewayId == _gateways[name].Id))
+        {
+            Assert.True(DateTime.UtcNow < deadline, "a session outlived its browser socket");
+            await Task.Delay(10);
+        }
+    }
+
     // The broker ignores any household the browser names, on the socket or in the offer.
     [When("\"([^\"]*)\" offers to gateway \"([^\"]*)\" naming the household of \"([^\"]*)\"")]
     public async Task WhenOfferNaming(string email, string name, string owner)

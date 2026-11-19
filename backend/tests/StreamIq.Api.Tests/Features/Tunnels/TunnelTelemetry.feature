@@ -26,6 +26,12 @@ Feature: Tunnel telemetry
     And the browser closes its socket
     Then the tunnel gets an end time
 
+  Scenario: An offer that fails on its way to the gateway still ends its tunnel and session
+    Given "alice@home.test" has an online gateway "nas"
+    When "alice@home.test" offers to gateway "nas" an SDP the broker can't relay
+    Then the tunnel gets an end time
+    And the broker holds no session for gateway "nas"
+
   Scenario: The gateway's report fills its own tunnel, also after the browser left
     Given "alice@home.test" has an online gateway "nas"
     When "alice@home.test" offers to gateway "nas"

@@ -80,7 +80,7 @@ headRefOid.
 - `body`: first text line `🤖 <model> · **Agent review** — <verdict>`, where verdict is `ready to merge`
   (no open BLOCKER/SPEC, counting still-open ones from section 3), `needs changes`, or
   `needs owner decision` (a BLOCKER/SPEC needs a judgement call the spec doesn't
-  settle). A level different from the script's, next line: `Level: ` + the level and
+  settle). A level different from the script's (not `delta`), next line: `Level: ` + the level and
   reason from `agent-review`'s item 1 (every verdict). Only on `ready to merge`, next line: `Merge risk: ` + the merge risk line
   `agent-review` returned. Then one line `Acceptance criteria: all met` or
   `Acceptance criteria: not met — <which>`. Then a short answer to anything the PR body

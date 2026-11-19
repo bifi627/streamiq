@@ -21,6 +21,7 @@ export const diag = {
   cpu: '', // sampler (#293), only while diagnostics is on
   memory: '', // Chromium only
   lastRun: '', // "last run ended without closing the page: …"
+  relay: '', // "relay: available|unavailable (…)" from the last broker `ready` (#585)
   inFlight: 0,
   peak: 0,
 }

@@ -186,7 +186,9 @@ TTL 4 h is only the backstop for a failed revoke; it must outlast a relayed
 session because TURN refreshes need a valid credential. Dev: TURN REST creds for
 `STREAMIQ_TURN_URLS`, `username = "<unix expiry>:<user id>"`, `credential =
 base64(HMAC-SHA1(STREAMIQ_TURN_SECRET, username))` (coturn `--use-auth-secret`),
-expiry only. Neither configured, or Cloudflare failing: STUN only. The browser
+expiry only. Neither configured, or Cloudflare failing: STUN only; the browser
+then reports `relay: unavailable` in the diagnostics test, fails a forced relay
+right after `ready`, and names it in an ICE failure (#585). The browser
 applies them with `setConfiguration` before creating its offer. `?relay` in the
 app URL, or "Force relay" in the Diagnostics panel (turned on in Settings, for TVs
 that can't edit the URL; `?debug` also opens it), sets `iceTransportPolicy: "relay"`

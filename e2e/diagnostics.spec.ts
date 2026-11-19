@@ -118,7 +118,7 @@ test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({
   const { row } = await testConnection(page)
   await expect(report(page)).toContainText(
     // over udp: the e2e coturn is UDP-only; the prod smoke checks `over tls` (#576)
-    /relay forced: yes[\s\S]*path: relayed \(TURN\) over udp/,
+    /relay forced: yes[\s\S]*relay: available[\s\S]*path: relayed \(TURN\) over udp/,
   )
   expect(row, JSON.stringify(row)).toMatchObject({ Relay: true, Failure: null })
 })

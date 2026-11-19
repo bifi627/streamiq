@@ -53,12 +53,17 @@ export function DiagnosticsPage() {
     show()
     let step = 'connect (broker → ICE → gateway auth)'
     let close = () => {}
+    diag.relay = ''
+    // The broker's `ready` sets diag.relay, also when connect fails after it (#585).
+    const relay = () => diag.relay && lines.push(diag.relay)
     try {
       const s = await connect(gatewayId).catch((e) => {
+        relay()
         if (isKind(e, 'not-paired')) lines.push('paired: no')
         throw e
       })
       close = s.close
+      relay()
       lines.push('paired: yes')
       show()
       step = 'path stats'

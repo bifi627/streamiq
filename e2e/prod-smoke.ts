@@ -138,6 +138,9 @@ test('prod smoke: sign in, enroll, play direct, test connection direct + relay +
     await page.reload()
     await page.getByLabel('Force relay (TURN)', { exact: true }).check()
     await page.getByRole('button', { name: 'Test connection' }).click()
+    // A TURN outage (#583) fails here, on the line that names it (#585).
+    await expect(report(page)).toContainText(/relay: \w+/, { timeout: 30_000 })
+    await expect(report(page)).toContainText('relay: available')
     await expect(report(page)).toContainText(/throughput: [\d.]+ Mbps/, {
       timeout: 60_000,
     })

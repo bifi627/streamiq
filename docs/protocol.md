@@ -139,7 +139,7 @@ gateway survives ends it too: rare, and the next open makes a fresh session.
 
 | direction | message |
 |---|---|
-| browser → broker | `{type:"auth", token:"<Firebase ID token>"}` — first frame (not a query param: keeps it out of logs). Bad token → close `1008`. |
+| browser → broker | `{type:"auth", token:"<Firebase ID token>"}` — first frame (not a query param: keeps it out of logs), within 10 s. Each failure closes `1008` with a reason: a first frame that isn't auth (or isn't a JSON object, or is over 8 KB) → "auth first"; nothing within 10 s → "auth timeout"; bad token → "unauthorized" (#555). |
 | broker → browser | `{type:"ready", iceServers}` — this session's ICE servers (below) |
 | browser → broker | `{type:"offer", gatewayId, sdp}` — browser is the offerer |
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |

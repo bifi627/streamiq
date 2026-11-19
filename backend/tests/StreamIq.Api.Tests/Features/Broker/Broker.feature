@@ -130,7 +130,19 @@ Feature: Signaling broker
 
   Scenario: A browser socket that never authenticates is closed after the auth timeout
     When a browser opens a broker socket and sends nothing
-    Then the browser socket is closed after the auth timeout
+    Then the browser socket is closed as "auth timeout" after the auth timeout
+
+  # A bad first frame is refused at once, not skipped until the timeout (#555).
+  Scenario Outline: A browser socket whose first frame is not a JSON object is refused
+    When a browser opens a broker socket and first sends <frame>
+    Then the browser socket is closed as "auth first"
+
+    Examples:
+      | frame          |
+      | invalid JSON   |
+      | a JSON array   |
+      | a JSON number  |
+      | a 9 KB frame  |
 
   Scenario: A browser socket whose first message is not auth is refused
     When a browser opens a broker socket and first sends an offer

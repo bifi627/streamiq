@@ -111,13 +111,19 @@ public static class BrowserSocket
 
     // Same verify path as the HTTP API (FirebaseAuthHandler), no bypass. An
     // unauthenticated socket gets AuthTimeout to speak, not forever. Null = the socket
-    // was closed with the reason.
+    // was closed with the reason. The timeout races the read instead of cancelling it:
+    // a cancelled receive aborts the socket, with no close frame to carry the reason (#555).
     static async Task<AppUser?> AuthenticateAsync(WebSocket socket, StreamIqDbContext db,
         UserProvisioner provisioner, CancellationToken ct)
     {
-        using var authCt = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        authCt.CancelAfter(AuthTimeout);
-        if (await Broker.ReadAsync(socket, authCt.Token, 8 * 1024) is not { } first || Auth.Parse(first) is not { } auth)
+        var read = Broker.ReadAsync(socket, ct, 8 * 1024, strict: true);
+        if (await Task.WhenAny(read, Task.Delay(AuthTimeout, ct)) != read)
+        {
+            // ponytail: the pending read faults when the handler disposes the socket; nobody awaits it.
+            await Broker.CloseAsync(socket, "auth timeout", ct);
+            return null;
+        }
+        if (await read is not { } first || Auth.Parse(first) is not { } auth)
         {
             await Broker.CloseAsync(socket, "auth first", ct);
             return null;

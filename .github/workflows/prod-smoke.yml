@@ -1,0 +1,37 @@
+# Spike for #570: e2e/prod-smoke.ts against production from a GitHub runner.
+# Push-triggered on the spike branch only (workflow_dispatch needs the file on main).
+name: Prod smoke (spike)
+
+on:
+  push:
+    branches: [feat/570-explore-prod-smoke-test]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - run: npm ci
+        working-directory: e2e
+      - run: npx playwright test -c prod-smoke.config.ts
+        working-directory: e2e
+        env:
+          GH_TOKEN: ${{ github.token }} # gh release download (the last gateway release)
+          SMOKE_URL: https://streamiq.up.railway.app
+          SMOKE_EMAIL: smoke@streamiq.invalid
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-logs
+          path: e2e/logs/ # not test-results/: a page snapshot would hold the typed password

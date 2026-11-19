@@ -8,7 +8,12 @@ import {
 } from './api'
 import { toAppError } from '../../errors'
 import { EditableName } from './EditableName'
-import { clientRenameMessage, clientsMessage, clientsNote } from './list'
+import {
+  clientRenameMessage,
+  clientsMessage,
+  clientsNote,
+  removeOutcome,
+} from './list'
 
 // The gateway's paired clients (#311; a member sees only its own, #341) over the shared tunnel
 // session, loaded each time the section opens. Removing one ends its sessions;
@@ -24,7 +29,8 @@ export function PairedClients({
 }) {
   const [open, setOpen] = useState(false)
   const [list, setList] = useState<Client[] | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
+  const [msg, setMsg] = useState<string | null>(null) // the load's error
+  const [actMsg, setActMsg] = useState<string | null>(null) // a Remove's (#637)
   const summary = useRef<HTMLElement>(null)
   const live = open && g.online && !unpaired
   useEffect(() => {
@@ -35,6 +41,7 @@ export function PairedClients({
         if (!on) return
         setList(l)
         setMsg(null)
+        setActMsg(null)
       })
       .catch((x) => {
         if (on) setMsg(clientsMessage(toAppError(x)))
@@ -46,7 +53,7 @@ export function PairedClients({
   const note = clientsNote({
     online: g.online,
     unpaired,
-    msg,
+    msg: msg ?? actMsg,
     loaded: list !== null,
   })
   const shown = g.online && !unpaired ? list : null
@@ -59,6 +66,7 @@ export function PairedClients({
         (l) =>
           l && l.map((x) => (x.keyFp === c.keyFp ? { ...x, name: stored } : x)),
       )
+      setActMsg(null) // a failed Remove's line is stale now (#637)
       return null
     } catch (x) {
       return clientRenameMessage(toAppError(x))
@@ -74,15 +82,18 @@ export function PairedClients({
       )
     )
       return
+    let err = null
     try {
       await removeClient(g.id, c.keyFp)
-      if (c.self) onRemovedSelf()
     } catch (x) {
-      const e = toAppError(x)
-      // 404: not paired anymore (removed elsewhere): drop the row all the same.
-      if (e.context.status !== 404) return setMsg(clientsMessage(e))
+      err = toAppError(x)
     }
-    if (!c.self) setList((l) => l && l.filter((x) => x.keyFp !== c.keyFp))
+    const o = removeOutcome(err, c.self)
+    setActMsg(o.msg)
+    if (!o.done) return
+    if (o.done === 'self') onRemovedSelf()
+    if (o.done === 'row')
+      setList((l) => l && l.filter((x) => x.keyFp !== c.keyFp))
     // The focused Remove is gone: keep the D-pad's place (#226), as Rename does.
     summary.current?.focus()
   }

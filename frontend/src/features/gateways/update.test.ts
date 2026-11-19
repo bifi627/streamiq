@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { updated, updateState } from './update.ts'
+import { AppError, describe } from '../../errors.ts'
+import { startOutcome, updated, updateState } from './update.ts'
 
 test('a remote update is done once online on another version (#312)', () => {
   const u = { to: '1.5.0', from: '1.4.0' }
@@ -78,4 +79,21 @@ test("updateState: can't update or remote unknown = by hand", () => {
     'byHand',
   )
   assert.equal(updateState({ ...base, remote: null }), 'byHand')
+})
+
+test('Update: started, refused, or the error (#312, #564)', () => {
+  assert.deepEqual(startOutcome({ version: '1.5.0' }, '1.4.0', false), {
+    started: { to: '1.5.0', from: '1.4.0' },
+  })
+  assert.deepEqual(startOutcome({ reason: 'not a service' }, '1.4.0', false), {
+    remote: 'not a service',
+  })
+  // A refused retry keeps the tracked update: a line next to Try again.
+  assert.deepEqual(startOutcome({ reason: 'busy' }, '1.4.0', true), {
+    msg: 'Refused: busy.',
+  })
+  const err = new AppError('http', 'x → HTTP', { status: 500 })
+  assert.deepEqual(startOutcome(err, '1.4.0', false), {
+    msg: describe(err).message,
+  })
 })

@@ -7,6 +7,7 @@ import {
   clientsMessage,
   clientsNote,
   detailsMessage,
+  removeOutcome,
   shownError,
 } from './list.ts'
 
@@ -45,4 +46,20 @@ test('client and status messages by error', () => {
   assert.equal(detailsMessage(np), 'pair this browser to see them')
   assert.match(detailsMessage(e(404)), /too old/)
   assert.equal(detailsMessage(e(500)), 'unavailable (x → HTTP)')
+})
+
+test("a Remove that works clears an earlier failed one's line (#637)", () => {
+  assert.deepEqual(removeOutcome(null, false), { done: 'row', msg: null })
+  assert.deepEqual(removeOutcome(null, true), { done: 'self', msg: null })
+  // 404: removed elsewhere: another client's row goes, this browser's stays
+  assert.deepEqual(removeOutcome(e(404), false), { done: 'row', msg: null })
+  assert.deepEqual(removeOutcome(e(404), true), { done: 'kept', msg: null })
+  assert.deepEqual(removeOutcome(e(500), false), {
+    done: null,
+    msg: clientsMessage(e(500)),
+  })
+  assert.equal(
+    removeOutcome(new AppError('not-paired', 'x'), true).msg,
+    'Pair this browser to see them.',
+  )
 })

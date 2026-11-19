@@ -1,3 +1,5 @@
+import { AppError, describe } from '../../errors.ts'
+
 // A remote update the gateway card started (#312): the target it named and
 // the version the gateway ran before.
 export type Started = { to: string; from: string | null }
@@ -44,4 +46,19 @@ export function updateState(x: {
   if (x.canUpdate && x.remote === true) return 'button'
   if (x.canUpdate && typeof x.remote === 'string') return 'reason'
   return 'byHand'
+}
+
+// What Update / Try again leads to (#312, #564, #637): the gateway's answer
+// (202: the version it installs; 409: why not) or the error. A refusal while
+// an update is tracked (a retry) is a line next to Try again, so the card
+// keeps that update and its rollback advice; else it's the notice's reason.
+export function startOutcome(
+  r: { version: string } | { reason: string } | AppError,
+  from: string | null,
+  tracking: boolean,
+): { msg: string } | { remote: string } | { started: Started } {
+  if (r instanceof AppError) return { msg: describe(r).message }
+  if ('reason' in r)
+    return tracking ? { msg: `Refused: ${r.reason}.` } : { remote: r.reason }
+  return { started: { to: r.version, from } }
 }

@@ -102,11 +102,17 @@ func swap(exe, keep string, task bool, stop func(exe string), start func() error
 	if task {
 		stop(exe)
 	}
-	err := update.Swap(exe, exe+".new", filepath.Join(keep, filepath.Base(exe)))
+	kept := filepath.Join(keep, filepath.Base(exe))
+	err := update.Swap(exe, exe+".new", kept)
 	if err == nil {
 		if perr := update.Prune(filepath.Dir(exe)); perr != nil { // the update itself is done
 			fmt.Fprintln(os.Stderr, "gateway: removing old backups:", perr)
 		}
+	} else if _, serr := os.Stat(kept); errors.Is(serr, os.ErrNotExist) {
+		// exe is back in place: nothing changed, and a backup without its binary
+		// is no rollback point that Prune should count (#635)
+		os.Remove(exe + ".new")
+		os.RemoveAll(keep)
 	}
 	if task {
 		if serr := start(); err == nil {

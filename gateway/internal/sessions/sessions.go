@@ -328,6 +328,18 @@ func (s *Sessions) authorize(user string, authed *atomic.Bool) {
 	authed.Store(true)
 }
 
+// record notes the client key fp of a live session; false if its ender already
+// ran, which would never remove a key recorded after it.
+func (s *Sessions) record(session, fp string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, live := s.ends[session]; !live {
+		return false
+	}
+	s.keys[session] = fp
+	return true
+}
+
 // key is the client key fp the session authed with.
 func (s *Sessions) key(session string) string {
 	s.mu.Lock()

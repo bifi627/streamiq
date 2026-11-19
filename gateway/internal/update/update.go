@@ -208,13 +208,17 @@ const (
 	keep     = 3 // install.sh and install.ps1 keep as many
 )
 
-// BackupDir makes the dir for one update's backup of version.
+// BackupDir makes the dir for one update's backup of version. "" on an error: a
+// dir that exists already is another update's, not this one's to clean up (#635).
 func BackupDir(install, version string, now time.Time) (string, error) {
 	d := filepath.Join(install, Backups, now.Format("20060102-150405")+"-"+version)
 	if err := os.MkdirAll(filepath.Dir(d), 0o700); err != nil {
 		return "", err
 	}
-	return d, os.Mkdir(d, 0o700)
+	if err := os.Mkdir(d, 0o700); err != nil {
+		return "", err
+	}
+	return d, nil
 }
 
 // Prune removes all but the newest keep backup dirs (names sort by time).

@@ -162,6 +162,11 @@ func TestBackupsKeepThreeAndPreviousIsNewest(t *testing.T) {
 	if err != nil || v != "1.3.0" || filepath.Base(d) != want[1] {
 		t.Fatalf("Previous = %s %q %v, want %s 1.3.0", d, v, err, want[1])
 	}
+	// Another update in the same second: an error and no dir, so the cleanup
+	// after it can't remove that update's backup (#635).
+	if d, err := BackupDir(install, "1.3.0", now.Add(3*time.Minute)); err == nil || d != "" {
+		t.Fatalf("existing dir: BackupDir = %q %v, want \"\" and an error", d, err)
+	}
 	if _, _, err := Previous(t.TempDir(), "gateway"); err == nil {
 		t.Fatal("no backups: want error")
 	}

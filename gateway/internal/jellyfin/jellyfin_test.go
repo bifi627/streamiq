@@ -37,6 +37,7 @@ type fake struct {
 	booting   bool           // a starting Jellyfin: 503 to /Users/Me (and the wizard reported not done)
 	info      []int          // next /System/Info/Public status codes (then 200)
 	signIns   int            // POST /Users/AuthenticateByName
+	signIn500 int            // next sign-ins answered 500 (a Jellyfin hiccup)
 	backups   int            // POST /Backup/Create
 	restored  string         // POST /Backup/Restore's ArchiveFileName
 	cfg       map[string]any // /System/Configuration
@@ -132,6 +133,11 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.signIns++
+		if f.signIn500 > 0 {
+			f.signIn500--
+			deny(500)
+			return
+		}
 		u := f.users[b.Username]
 		if u == nil || u.pw != b.Pw || u.pw == "" {
 			deny(401)
@@ -489,6 +495,30 @@ func TestRevokedTokenRepairs(t *testing.T) {
 	if v := s.View(); got[0] != "" || !v.NeedsLogin || v.HasKey {
 		t.Fatalf("viewer sign-in refused: onKey %v, view %+v", got, v)
 	}
+}
+
+// A token repair that fails once shows its error until the next one goes
+// through, then the page is clean again (#635).
+func TestFailedRepairErrorClears(t *testing.T) {
+	f, srv := newFake(t, true)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	if err := s.Login(context.Background(), "me", "pw"); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.revoke(ViewerName)
+	f.signIn500 = 1
+	f.mu.Unlock()
+	s.check(context.Background())
+	if e := s.View().Err; !strings.HasPrefix(e, checkErr) {
+		t.Fatalf("failed repair: err %q", e)
+	}
+	s.check(context.Background())
+	if e := s.View().Err; e != "" {
+		t.Fatalf("repaired, error still shown: %q", e)
+	}
+	connected(t, f, s, got)
 }
 
 // A state from before #50 (an admin API key, no viewer token) is like no token:

@@ -156,3 +156,23 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		t.Fatalf("name %q, updates started %d: a member's call went through", st.CurrentName(), started)
 	}
 }
+
+// Ctrl+C during `jellyfin login` exits 130; main's stop() after a successful
+// login cancels ctx too, and must not (#635).
+func TestExitOnCancel(t *testing.T) {
+	codes := make(chan int, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	exitOnCancel(ctx, func(c int) { codes <- c })
+	cancel()
+	if c := <-codes; c != 130 {
+		t.Fatalf("Ctrl+C: exit %d, want 130", c)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	exitOnCancel(ctx, func(c int) { codes <- c })()
+	cancel()
+	select {
+	case c := <-codes:
+		t.Fatalf("exit %d after the login was done", c)
+	default:
+	}
+}

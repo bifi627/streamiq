@@ -112,6 +112,10 @@ func TestSwapErrorPrecedence(t *testing.T) {
 			if b, _ := os.ReadFile(exe); string(b) != want {
 				t.Errorf("exe holds %q, want %q", b, want)
 			}
+			// a failed swap leaves no backup dir for Prune to count (#635)
+			if _, err := os.Stat(keep); tc.swapFails == !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("swap failed %v, backup dir: %v", tc.swapFails, err)
+			}
 		})
 	}
 }

@@ -97,10 +97,21 @@ func (s *Setup) ensureUser(ctx context.Context, admin, name string, isAdmin bool
 // check repairs revoked viewer tokens by signing in again with the stored
 // viewer passwords. If Jellyfin refuses the shared viewer's too, its token is
 // dropped and the page asks for an admin login; a refused user's viewer is
-// dropped and made again on their next session.
+// dropped and made again on their next session. Its error stays on the page
+// until a check goes through (#635).
 func (s *Setup) check(ctx context.Context) {
 	s.vmu.Lock()
 	defer s.vmu.Unlock()
+	failed := false
+	fail := func(err error) {
+		failed = true
+		s.setErr(checkErr + err.Error())
+	}
+	defer func() {
+		if !failed && strings.HasPrefix(s.View().Err, checkErr) {
+			s.setErr("") // fixed
+		}
+	}()
 	s.mu.Lock()
 	c := s.creds
 	s.mu.Unlock()
@@ -108,7 +119,7 @@ func (s *Setup) check(ctx context.Context) {
 	if c.Token != "" { // dropped: only a page login brings it back
 		var err error
 		if tok, err = s.renew(ctx, c.Token, c.Viewer, c.ViewerPassword); err != nil {
-			s.setErr("Jellyfin: " + err.Error()) // transient: retried next poll
+			fail(err) // transient: retried next poll
 			return
 		}
 		if tok == "" {
@@ -119,7 +130,7 @@ func (s *Setup) check(ctx context.Context) {
 	for u, v := range c.Users {
 		t, err := s.renew(ctx, v.Token, v.Name, v.Password)
 		if err != nil {
-			s.setErr("Jellyfin: " + err.Error())
+			fail(err)
 		}
 		if t != "" {
 			v.Token = t
@@ -131,9 +142,12 @@ func (s *Setup) check(ctx context.Context) {
 	}
 	c.Token, c.Users = tok, users
 	if err := s.save(c); err != nil {
-		s.setErr("Jellyfin: " + err.Error())
+		fail(err)
 	}
 }
+
+// checkErr starts check's errors, so a later check clears only its own.
+const checkErr = "Jellyfin token check: "
 
 // renew returns tok if Jellyfin still accepts it, else a new token for name;
 // "" if Jellyfin refuses the password, tok and an error if Jellyfin is unreachable.

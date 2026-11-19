@@ -22,6 +22,7 @@ import { Pairing } from '../pairing/Pairing'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
+import * as jf from './jellyfin'
 import { event } from '../../diag'
 import {
   clientsOn,
@@ -146,9 +147,9 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
 // Folder / series / movie by Jellyfin item ID, so a reload or deep link
 // restores it. A season opens its series' page on that season's tab (#204).
 export function ItemPage({ itemId }: { itemId: string }) {
-  const it = useTunnelQuery<Item>(`/Items/${itemId}`)
+  const it = useTunnelQuery<Item>(jf.item(itemId))
   const seriesId = it.data?.Type === 'Season' ? it.data.SeriesId : undefined
-  const series = useTunnelQuery<Item>(seriesId ? `/Items/${seriesId}` : null)
+  const series = useTunnelQuery<Item>(seriesId ? jf.item(seriesId) : null)
   const error = it.error ?? series.error
   const shown = !it.data
     ? null
@@ -212,10 +213,10 @@ function Title({
   const [tab, setTab] = useState(season)
   // ponytail: every episode in one request; per season if huge shows lag.
   const ss = useTunnelQuery<{ Items: Item[] }>(
-    series ? `/Shows/${item.Id}/Seasons` : null,
+    series ? jf.seasons(item.Id) : null,
   )
   const es = useTunnelQuery<{ Items: Item[] }>(
-    series ? `/Shows/${item.Id}/Episodes` : null,
+    series ? jf.episodes(item.Id) : null,
   )
   const lists = ss.data &&
     es.data && { seasons: ss.data.Items, episodes: es.data.Items }
@@ -710,8 +711,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
   const st = screen?.state
   const itemId = st?.itemId
   useEffect(() => {
-    if (itemId)
-      tunnelJson<Item>(pc, `/Items/${itemId}`).then(setFetched, () => {})
+    if (itemId) tunnelJson<Item>(pc, jf.item(itemId)).then(setFetched, () => {})
   }, [pc, itemId])
   const item = fetched?.Id === itemId ? fetched : null // not a late answer for another item
   // A drag sends many seeks: a queued seek is replaced by the newer one.
@@ -900,9 +900,7 @@ function Listing({
   item: Item
   onOpen: (i: Item) => void
 }) {
-  const q = useTunnelQuery<{ Items: Item[] }>(
-    `/Items?parentId=${item.Id}&sortBy=SortName`,
-  )
+  const q = useTunnelQuery<{ Items: Item[] }>(jf.children(item.Id))
   const items = q.data?.Items
   if (q.error && !items) return <ErrorView error={toAppError(q.error)} focus />
   if (!items)

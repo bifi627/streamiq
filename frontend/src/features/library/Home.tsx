@@ -22,13 +22,11 @@ import {
   TICKS_PER_SECOND,
   type Item,
 } from './items'
+import * as jf from './jellyfin'
 
 // Each row loads on its own (#317): one that fails shows its error, the others stay.
 type Shelf = Item[] | AppError
 type Lists = { resume: Shelf; recent: Shelf; views: Shelf }
-
-const RECENT =
-  '/Items?sortBy=DateCreated&sortOrder=Descending&recursive=true&includeItemTypes=Movie,Series&limit=16'
 
 export const minutes = new Intl.NumberFormat(undefined, {
   style: 'unit',
@@ -55,15 +53,12 @@ export function Home() {
   // libraries are cached queries (#360).
   const [resume, setResume] = useState<Shelf | null>(null)
   useEffect(() => {
-    items(pc, '/UserItems/Resume?mediaTypes=Video&limit=4').then(
-      setResume,
-      (e) => setResume(toAppError(e)),
-    )
+    items(pc, jf.resume).then(setResume, (e) => setResume(toAppError(e)))
   }, [pc])
   const shelf = (q: ReturnType<typeof useTunnelQuery<{ Items: Item[] }>>) =>
     q.data ? q.data.Items : q.error ? toAppError(q.error) : undefined
-  const added = shelf(useTunnelQuery(RECENT))
-  const views = shelf(useTunnelQuery('/UserViews'))
+  const added = shelf(useTunnelQuery(jf.recentlyAdded))
+  const views = shelf(useTunnelQuery(jf.userViews))
   // First visit: all settled before the home shows, so first focus lands as
   // before (#203). A revisit with both rows cached shows at once (#360); the
   // Resume spot joins when it answers.

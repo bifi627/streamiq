@@ -586,6 +586,6 @@ would also need register+activate before it controls the page, and it can be
 killed mid-stream. A SW only earns its keep to put arbitrary Jellyfin traffic
 behind a real URL (e.g. iOS native HLS, which needs a URL), so it's deferred
 until a concrete need appears. The master playlist is loaded from a sentinel
-origin (`https://jellyfin.tunnel`) that can never be fetched directly. The
+origin (`https://gateway.tunnel`) that can never be fetched directly. The
 loader strips it back to an origin-relative path, so nothing bypasses the
 tunnel. Posters go through the tunnel too, as blob URLs.

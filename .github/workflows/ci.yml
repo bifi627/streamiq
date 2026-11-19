@@ -40,6 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - run: bash scripts/check-jellyfin-paths.sh # #557: Jellyfin paths only in features/library/jellyfin.ts
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc

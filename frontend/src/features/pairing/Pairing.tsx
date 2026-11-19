@@ -4,17 +4,17 @@ import { clientKey, getPin } from './store'
 import { AppError, renameMessage, toAppError } from '../../errors'
 import { listClients, renameClient } from '../gateways/api'
 import { isBack } from '../library/items'
+import { systemInfo, type SystemInfo } from '../library/jellyfin'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { pairInfo, type PairInfo } from '../../stats'
 import { arrowFocus } from '../../focus'
 
-type Info = { ServerName?: string; Version?: string; ProductName?: string }
 type State =
   | { step: 'idle' }
   | { step: 'connecting'; pair: boolean }
   | { step: 'code'; code: string }
-  | { step: 'done'; paired: boolean; info: Info; path: PairInfo | null }
+  | { step: 'done'; paired: boolean; info: SystemInfo; path: PairInfo | null }
   | { step: 'failed'; err: AppError }
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
@@ -85,7 +85,7 @@ export function Pairing({
       if (pair) setPinned(true)
       try {
         const [info, stats] = await Promise.all([
-          tunnelJson<Info>(x.pc, '/System/Info/Public'),
+          tunnelJson<SystemInfo>(x.pc, systemInfo),
           x.pc.getStats(),
         ])
         setS({ step: 'done', paired: pair, info, path: pairInfo(stats) })

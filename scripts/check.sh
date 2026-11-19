@@ -22,7 +22,8 @@ dotnet test backend/StreamIq.slnx --nologo
 # Fresh worktrees have no node_modules (gitignored); an interrupted install leaves one without .bin. Install from the lockfile.
 for d in frontend e2e; do [ -d "$d/node_modules/.bin" ] || npm ci --prefix "$d"; done
 
-echo "== frontend: format + lint + test + typecheck + build =="
+echo "== frontend: Jellyfin paths + format + lint + test + typecheck + build =="
+bash scripts/check-jellyfin-paths.sh
 npm run format:check --prefix frontend
 (cd e2e && ../frontend/node_modules/.bin/prettier --check .)  # e2e has no own prettier; borrow frontend's
 frontend/node_modules/.bin/tsc -p e2e  # #581: Playwright strips types; also covers files no spec imports. Borrowed tsc too

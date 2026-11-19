@@ -4,7 +4,6 @@
 import { auth } from '../../firebase'
 import { API, authed } from '../../api'
 import { diag, pcState, relayOn, relayTlsOn } from '../../diag'
-import { tlsOnly } from './ice'
 import { measure, type Speed } from '../../speed'
 import {
   authMessage,
@@ -18,7 +17,7 @@ import {
 } from './crypto'
 import { clientKey, getPin, persistStorage, setPin } from './store'
 import { sharer } from './shared'
-import { hasTurn, NO_TURN, relayLine } from './relay'
+import { relayLine, relayServers } from './relay'
 import {
   AppError,
   brokerClosed,
@@ -109,7 +108,7 @@ export async function connect(
     let gatewayFp = ''
     let verdict: ReturnType<typeof pinCheck> = 'refuse'
     let nB = ''
-    let turn = true // until `ready` says otherwise
+    let noTurn = '' // why there's no relay, once `ready` says so
 
     let opened = false
     ws.onopen = () => {
@@ -131,15 +130,18 @@ export async function connect(
     }
     const onBroker = async (m: { type: string; [k: string]: any }) => {
       if (m.type === 'ready') {
-        turn = hasTurn(m.iceServers)
-        diag.relay = relayLine(turn)
+        const { iceServers, noTurn: why } = relayServers(
+          m.iceServers,
+          relayTlsOn(),
+        )
+        noTurn = why
+        diag.relay = relayLine(noTurn)
         // A forced relay without a TURN server can't connect: say why now (#585).
-        if (!turn && relayOn())
-          return fail(err('ice-failed', `relay forced, but ${NO_TURN}`))
-        pc.setConfiguration({
-          ...pc.getConfiguration(),
-          iceServers: relayTlsOn() ? tlsOnly(m.iceServers) : m.iceServers,
-        })
+        if (noTurn && relayOn())
+          return fail(
+            err('ice-failed', `relay forced, but relay unavailable: ${noTurn}`),
+          )
+        pc.setConfiguration({ ...pc.getConfiguration(), iceServers })
         await pc.setLocalDescription(await pc.createOffer())
         send({ type: 'offer', gatewayId, sdp: pc.localDescription })
       } else if (m.type === 'answer') {
@@ -180,7 +182,7 @@ export async function connect(
       fail(
         err(
           'ice-failed',
-          `ICE failed: no direct or relayed route to the gateway${turn ? '' : ` (${NO_TURN})`}`,
+          `ICE failed: no direct or relayed route to the gateway${noTurn ? ` (relay unavailable: ${noTurn})` : ''}`,
         ),
       )
     pc.onicecandidate = (e) =>

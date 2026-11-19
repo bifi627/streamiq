@@ -1,7 +1,6 @@
 # Source files allowed over 500 code lines (scripts/check-file-size.sh, #600).
 # One file per line: <path>  # <the issue that splits it, or the reason it stays>
 frontend/src/App.tsx  # #606
-frontend/src/features/gateways/Gateways.tsx  # #605
 gateway/cmd/gateway/main.go  # #608
 gateway/internal/jellyfin/jellyfin.go  # #608
 gateway/internal/sessions/sessions.go  # #608

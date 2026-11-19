@@ -298,6 +298,8 @@ const IDLE: ScreenState = {
   subtitle: null,
 }
 
+// Phone remote view (#181): follows the screen's state (GET /streamiq/screens
+// every second) and sends commands one at a time, in order (each POST is its
 // own channel). Two phones see the same state; the last command wins.
 export function RemotePage({ screenId }: { screenId: string }) {
   const { gatewayId, pc } = useContext(Tunnel)
@@ -365,7 +367,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
         Remote: {screen.name}
       </h2>
       {st?.itemId ? (
-        <Playing st={st} send={send} />
+        <Playing key={st.itemId} st={st} send={send} />
       ) : (
         <p>Nothing playing. {library}</p>
       )}

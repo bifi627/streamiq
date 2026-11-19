@@ -21,7 +21,7 @@ import { EditableName, STORED } from './EditableName'
 import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
 import { PairedClients } from './PairedClients'
-import { canManage, shownError, withId, type ActErr } from './list'
+import { canManage, shownError, type ActErr } from './list'
 
 // `/` (#225): straight into the library when the household has exactly one
 // gateway, else the list. History replace both ways, so Back doesn't bounce.
@@ -69,29 +69,6 @@ export function Gateways() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['gateways'] }),
     onError: (e) => setErr(toAppError(e)),
   })
-  // Gateways this browser holds a pin for: Rename goes over the tunnel, so it
-  // shows only there (#329). Each card's Pairing reports it (onPin, onPaired).
-  const [pinned, setPinned] = useState<ReadonlySet<string>>(new Set())
-  const pin = (id: string, p: boolean) => setPinned((s) => withId(s, id, p))
-  // Gateways this browser removed itself from (#311): Pair shows again.
-  const [unpaired, setUnpaired] = useState<ReadonlySet<string>>(new Set())
-  async function removedSelf(id: string) {
-    await deletePin(id).catch(() => {}) // a stale pin would only fail later
-    dropShared(id) // the gateway closed it anyway
-    pin(id, false)
-    setUnpaired((s) => withId(s, id, true))
-  }
-
-  function remove(d: Gateway) {
-    if (
-      !confirm(
-        `Remove "${d.name ?? 'gateway'}"? It disconnects now and must be installed again to come back.`,
-      )
-    )
-      return
-    removing.mutate(d.id)
-  }
-
   // null = renamed; else the error to show in the form.
   async function rename(d: Gateway, name: string) {
     try {
@@ -164,16 +141,8 @@ export function Gateways() {
               key={d.id}
               g={d}
               admin={admin}
-              manage={canManage(admin, d.online, pinned.has(d.id))}
-              unpaired={unpaired.has(d.id)}
-              onPin={(p) => pin(d.id, p)}
-              onPaired={() => {
-                pin(d.id, true)
-                setUnpaired((s) => withId(s, d.id, false))
-              }}
               onRename={(n) => rename(d, n)}
-              onRemove={() => remove(d)}
-              onRemovedSelf={() => removedSelf(d.id)}
+              onRemove={() => removing.mutate(d.id)}
             />
           ))}
         </ul>
@@ -222,30 +191,40 @@ function InstallCard({ install }: { install: Install }) {
   )
 }
 
-// One gateway's card. manage: Rename and Update over the tunnel (canManage).
+// One gateway's card. onRename / onRemove: the list's, it owns the query.
 // oxlint-disable-next-line complexity -- render branching
 function GatewayCard({
   g,
   admin,
-  manage,
-  unpaired,
-  onPin,
-  onPaired,
   onRename,
   onRemove,
-  onRemovedSelf,
 }: {
   g: Gateway
   admin: boolean
-  manage: boolean
-  unpaired: boolean
-  onPin: (pinned: boolean) => void
-  onPaired: () => void
   onRename: (name: string) => Promise<string | null>
   onRemove: () => void
-  onRemovedSelf: () => void
 }) {
   const navigate = useNavigate()
+  // This browser holds a pin for it: Rename and Update go over the tunnel, so
+  // they show only then (#329). Pairing reports it (onPin, onPaired).
+  const [pinned, setPinned] = useState(false)
+  const manage = canManage(admin, g.online, pinned)
+  // This browser removed itself from it (#311): Pair shows again.
+  const [unpaired, setUnpaired] = useState(false)
+  async function removedSelf() {
+    await deletePin(g.id).catch(() => {}) // a stale pin would only fail later
+    dropShared(g.id) // the gateway closed it anyway
+    setPinned(false)
+    setUnpaired(true)
+  }
+  function remove() {
+    if (
+      confirm(
+        `Remove "${g.name ?? 'gateway'}"? It disconnects now and must be installed again to come back.`,
+      )
+    )
+      onRemove()
+  }
   return (
     <li className="card" data-gateway={g.id}>
       <div className="card-head">
@@ -274,8 +253,11 @@ function GatewayCard({
           gatewayId={g.id}
           lanUrl={g.lanUrl}
           needsPair={unpaired}
-          onPin={onPin}
-          onPaired={onPaired}
+          onPin={setPinned}
+          onPaired={() => {
+            setPinned(true)
+            setUnpaired(false)
+          }}
           open={() =>
             navigate({ to: '/g/$gatewayId', params: { gatewayId: g.id } })
           }
@@ -291,18 +273,18 @@ function GatewayCard({
               Gateway page
             </a>
           )}
-          {admin && <RemoveButton onClick={onRemove} />}
+          {admin && <RemoveButton onClick={remove} />}
         </Pairing>
       ) : (
         admin && (
           <div className="actions">
-            <RemoveButton onClick={onRemove} />
+            <RemoveButton onClick={remove} />
           </div>
         )
       )}
       <StatusDetails g={g} />
       {/* A member's list is just this browser (#341). */}
-      <PairedClients g={g} unpaired={unpaired} onRemovedSelf={onRemovedSelf} />
+      <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
     </li>
   )
 }

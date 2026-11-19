@@ -8,7 +8,6 @@ import {
   clientsNote,
   detailsMessage,
   shownError,
-  withId,
 } from './list.ts'
 
 const e = (status?: number) => new AppError('http', 'x → HTTP', { status })
@@ -27,13 +26,6 @@ test('Rename / Update need admin, online and a pin (#329)', () => {
   assert.equal(canManage(false, true, true), false)
   assert.equal(canManage(true, false, true), false)
   assert.equal(canManage(true, true, false), false)
-})
-
-test('withId adds and drops without touching the input', () => {
-  const s = new Set(['a'])
-  assert.deepEqual([...withId(s, 'b', true)], ['a', 'b'])
-  assert.deepEqual([...withId(s, 'a', false)], [])
-  assert.deepEqual([...s], ['a'])
 })
 
 test('the Paired clients line: offline, then removed, then the error or loading', () => {

@@ -16,18 +16,6 @@ export const shownError = (
 export const canManage = (admin: boolean, online: boolean, pinned: boolean) =>
   admin && online && pinned
 
-// A copy of s with id in it or not.
-export function withId(
-  s: ReadonlySet<string>,
-  id: string,
-  on: boolean,
-): ReadonlySet<string> {
-  const n = new Set(s)
-  if (on) n.add(id)
-  else n.delete(id)
-  return n
-}
-
 // The Paired clients section's status line; null = the list (or its empty line).
 export function clientsNote(o: {
   online: boolean

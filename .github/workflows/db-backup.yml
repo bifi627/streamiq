@@ -53,4 +53,4 @@ jobs:
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/gcs.json"
           gcloud storage cp "$FILE" "gs://${BUCKET}/${ENV_NAME}/${FILE}"
 
-          echo "Backed up ${LIVE} →gs://${BUCKET}/${ENV_NAME}/${FILE} ($(du -h "$FILE" | cut -f1))"
+          echo "Backed up ${LIVE} → gs://${BUCKET}/${ENV_NAME}/${FILE} ($(du -h "$FILE" | cut -f1))"

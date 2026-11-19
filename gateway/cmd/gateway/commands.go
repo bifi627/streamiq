@@ -325,7 +325,7 @@ func jellyfinLogin(ctx context.Context) error {
 		os.Stdout,
 		func() (string, error) { return jellyfin.ReadPassword(os.Stdin) },
 	)
-	if errors.Is(err, jellyfin.ErrInterrupted) {
+	if errors.Is(err, jellyfin.ErrInterrupted) || (err != nil && ctx.Err() != nil) { // Ctrl+C mid-request too
 		os.Exit(130)
 	}
 	return err

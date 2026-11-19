@@ -152,6 +152,63 @@ func TestJailUnknownShape(t *testing.T) {
 	}
 }
 
+// The services: block ends at the next top-level key, less the column-0
+// comments right above it; a column-0 comment elsewhere doesn't end it.
+func TestJellyfinService(t *testing.T) {
+	for name, c := range map[string]struct {
+		in       string
+		svc, end int
+	}{
+		"to the end":        {"services:\n  jellyfin:\n    image: x\n", 1, 3},
+		"next key":          {"services:\n  jellyfin:\n    image: x\nvolumes:\n", 1, 3},
+		"comment above key": {"services:\n  jellyfin:\n#   x\n    image: x\n# vols\n# more\nvolumes:\n", 1, 4},
+		"second service":    {"services:\n  media:\n    image: y\n  jellyfin:\n    image: x\n", 3, 5},
+		"no jellyfin":       {"services:\n  media:\n    image: y\nvolumes:\n  jellyfin:\n", -1, 3},
+		"no services":       {"volumes:\n  jellyfin:\n", -1, 2},
+	} {
+		ls := lines([]byte(c.in))
+		if svc, end := jellyfinService(ls[:len(ls)-1]); svc != c.svc || end != c.end {
+			t.Errorf("%s: %d, %d; want %d, %d", name, svc, end, c.svc, c.end)
+		}
+	}
+}
+
+// The items of ports: run to the first line not indented deeper than the keys;
+// a comment among them, or an item after a blank line or column-0 comment, is refused.
+func TestPortItems(t *testing.T) {
+	for name, c := range map[string]struct {
+		in  string
+		end int // -1: refused
+	}{
+		"items":            {"    ports:\n      - 1:1\n      - 2:2\n    image: x\n", 3},
+		"last key":         {"    ports:\n      - 1:1\n", 2},
+		"flow":             {"    ports: [\"1:1\"]\n    image: x\n", 1},
+		"blank after":      {"    ports:\n      - 1:1\n\n    image: x\n", 2},
+		"comment after":    {"    ports:\n      - 1:1\n    # deploy:\n    image: x\n", 2},
+		"comment inside":   {"    ports:\n      # - 1900:1900\n      - 1:1\n", -1},
+		"blank inside":     {"    ports:\n      - 1:1\n\n      - 2:2\n", -1},
+		"col-0 comment in": {"    ports:\n      - 1:1\n#      - 2:2\n      - 3:3\n", -1},
+	} {
+		ls := lines([]byte(c.in))
+		ls = ls[:len(ls)-1]
+		end, err := portItems(ls, 0, len(ls), 4)
+		if c.end < 0 && !errors.Is(err, errShape) || c.end >= 0 && (err != nil || end != c.end) {
+			t.Errorf("%s: %d, %v; want %d", name, end, err, c.end)
+		}
+	}
+}
+
+func TestServiceKey(t *testing.T) {
+	if k, err := serviceKey("    ports:\n", 0); k != "ports" || err != nil {
+		t.Errorf("ports: %q, %v", k, err)
+	}
+	for _, l := range []string{"    - x\n", "    networks: [a]\n", "    network_mode: host\n"} {
+		if _, err := serviceKey(l, 0); !errors.Is(err, errShape) {
+			t.Errorf("%q: %v, want errShape", l, err)
+		}
+	}
+}
+
 // A migration that's refused, with the pin already current, changes nothing:
 // no write, no restart, no "now offline" (second review of #355).
 func TestUpgradeRefusedMigration(t *testing.T) {

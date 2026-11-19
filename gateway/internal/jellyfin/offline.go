@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -20,16 +21,18 @@ const (
 	OfflineAllowed  = "allowed"  // Jellyfin can reach the internet (online lookups)
 )
 
-// Marked blocks: compose features the CLI toggles (#320). A block is the lines
-// between `# streamiq:<name>` and `# streamiq:<name> end`; on = none of its
-// lines is a comment, off = each is commented with "# " after its indent. A
-// block holds no comments of its own, so the two states never mix.
+// errShape: a compose file the gateway won't edit, never a guess.
 var errShape = errors.New("not the shape the gateway expects")
 
 func lines(b []byte) []string { return strings.SplitAfter(string(b), "\n") }
 
 func indent(l string) int { return len(l) - len(strings.TrimLeft(l, " \t")) }
 
+// Marked blocks: compose features the CLI toggles (#320). A block is the lines
+// between `# streamiq:<name>` and `# streamiq:<name> end`; on = none of its
+// lines is a comment, off = each is commented with "# " after its indent. A
+// block holds no comments of its own, so the two states never mix.
+//
 // marked returns the indexes of the non-blank lines inside every <name> block.
 func marked(ls []string, name string) ([]int, error) {
 	begin, end := "# streamiq:"+name, "# streamiq:"+name+" end"
@@ -183,7 +186,7 @@ var (
 // online block plus networks: [jail], the forwarder service (publishing those
 // same ports) and the networks: block are added, every other byte stays. A file
 // with the markers keeps the user's choice (changed false).
-func Jail(b []byte) (out []byte, changed bool, err error) { //nolint:gocyclo // #543: split there
+func Jail(b []byte) (out []byte, changed bool, err error) {
 	if alreadyJail.Match(b) {
 		return b, false, nil
 	}
@@ -194,40 +197,72 @@ func Jail(b []byte) (out []byte, changed bool, err error) { //nolint:gocyclo // 
 	if ls[len(ls)-1] == "" {
 		ls = ls[:len(ls)-1] // SplitAfter's empty tail after the last newline
 	}
+	svc, err := findJellyfin(ls)
+	if err != nil {
+		return nil, false, err
+	}
 	nl := "\n"
 	if strings.Contains(string(b), "\r\n") {
 		nl = "\r\n"
 	}
-	// The jellyfin service: under services:, ends at the first line indented no deeper.
-	svc, end := -1, len(ls)
-	for i, l := range ls {
-		if servicesKey.MatchString(l) {
-			for j := i + 1; j < len(ls); j++ {
-				if t := strings.TrimSpace(ls[j]); t != "" && t[0] != '#' && indent(ls[j]) == 0 {
-					end = j // the next top-level key; a #-line at column 0 may be a commented-out mount
-					for end > i+1 && strings.HasPrefix(ls[end-1], "#") {
-						end-- // column-0 comments right above it stay with it (above volumes:)
-					}
-					break
-				}
-				if svc < 0 && jellyfinKey.MatchString(ls[j]) {
-					svc = j
-				}
+	return jailed(ls, svc, nl), true, nil
+}
+
+// jellyfinSpan is where the jellyfin service and its ports: sit in a compose file's lines.
+type jellyfinSpan struct {
+	indent, keyIndent int // of the service's name, of its keys
+	ports, portsEnd   int // the ports: key, the line after its last item
+	end               int // the line after the services: block
+}
+
+// findJellyfin locates the jellyfin service and its ports: key.
+func findJellyfin(ls []string) (jellyfinSpan, error) {
+	svc, end := jellyfinService(ls)
+	if svc < 0 {
+		return jellyfinSpan{}, fmt.Errorf("%w: no jellyfin service under services:", errShape)
+	}
+	ki, ports, portsEnd, err := portsKey(ls, svc, end)
+	if err != nil {
+		return jellyfinSpan{}, err
+	}
+	return jellyfinSpan{indent: indent(ls[svc]), keyIndent: ki, ports: ports, portsEnd: portsEnd, end: end}, nil
+}
+
+// jellyfinService returns the jellyfin service's line (-1 without one) and the
+// end of the services: block: the next top-level key, less the column-0
+// comments right above it (they stay with it, above volumes:). A #-line at
+// column 0 doesn't end the block: it may be a commented-out mount.
+func jellyfinService(ls []string) (svc, end int) {
+	svc, end = -1, len(ls)
+	i := slices.IndexFunc(ls, servicesKey.MatchString)
+	if i < 0 {
+		return svc, end
+	}
+	for j := i + 1; j < len(ls); j++ {
+		if t := strings.TrimSpace(ls[j]); t != "" && t[0] != '#' && indent(ls[j]) == 0 {
+			end = j
+			for end > i+1 && strings.HasPrefix(ls[end-1], "#") {
+				end--
 			}
 			break
 		}
+		if svc < 0 && jellyfinKey.MatchString(ls[j]) {
+			svc = j
+		}
 	}
-	if svc < 0 {
-		return nil, false, fmt.Errorf("%w: no jellyfin service under services:", errShape)
-	}
-	si := indent(ls[svc])
-	ki, ports, portsEnd := -1, -1, -1
+	return svc, end
+}
+
+// portsKey walks the keys of the service at line svc (up to end) and returns
+// their indent and the ports: key with the line after its items.
+func portsKey(ls []string, svc, end int) (ki, ports, portsEnd int, err error) {
+	ki, ports, portsEnd = -1, -1, -1
 	for j := svc + 1; j < end; j++ {
 		l := ls[j]
 		if strings.TrimSpace(l) == "" || l[indent(l)] == '#' {
 			continue
 		}
-		if indent(l) <= si {
+		if indent(l) <= indent(ls[svc]) {
 			break
 		}
 		if ki < 0 {
@@ -236,36 +271,66 @@ func Jail(b []byte) (out []byte, changed bool, err error) { //nolint:gocyclo // 
 		if indent(l) != ki {
 			continue
 		}
-		switch m := serviceKeyRe.FindStringSubmatch(l); {
-		case m == nil:
-			return nil, false, fmt.Errorf("%w: line %d is not a key of the jellyfin service", errShape, j+1)
-		case m[1] == "networks" || m[1] == "network_mode":
-			return nil, false, fmt.Errorf("%w: the jellyfin service already sets %s", errShape, m[1])
-		case m[1] == "ports" && ports >= 0:
-			return nil, false, fmt.Errorf("%w: two ports: keys", errShape)
-		case m[1] == "ports":
-			ports, portsEnd = j, j+1
-			for portsEnd < end && strings.TrimSpace(ls[portsEnd]) != "" && indent(ls[portsEnd]) > ki {
-				if ls[portsEnd][indent(ls[portsEnd])] == '#' {
-					return nil, false, fmt.Errorf("%w: a comment inside the jellyfin service's ports:", errShape)
-				}
-				portsEnd++
-			}
-			// A blank line or a column-0 comment ended the span: a port item after it is refused.
-			for k := portsEnd; k < end; k++ {
-				if t := strings.TrimSpace(ls[k]); t != "" && t[0] != '#' {
-					if indent(ls[k]) > ki {
-						return nil, false, fmt.Errorf("%w: a blank line or comment inside the jellyfin service's ports:", errShape)
-					}
-					break
-				}
-			}
+		key, err := serviceKey(l, j)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		if key != "ports" {
+			continue
+		}
+		if ports >= 0 {
+			return 0, 0, 0, fmt.Errorf("%w: two ports: keys", errShape)
+		}
+		ports = j
+		if portsEnd, err = portItems(ls, j, end, ki); err != nil {
+			return 0, 0, 0, err
 		}
 	}
 	if ports < 0 {
-		return nil, false, fmt.Errorf("%w: the jellyfin service has no ports:", errShape)
+		return 0, 0, 0, fmt.Errorf("%w: the jellyfin service has no ports:", errShape)
 	}
-	pad, kpad := strings.Repeat(" ", si), strings.Repeat(" ", ki)
+	return ki, ports, portsEnd, nil
+}
+
+// serviceKey is the key on line l (index j) of the jellyfin service; an error
+// for a non-key and for a network setting of its own (the jail sets those).
+func serviceKey(l string, j int) (string, error) {
+	m := serviceKeyRe.FindStringSubmatch(l)
+	switch {
+	case m == nil:
+		return "", fmt.Errorf("%w: line %d is not a key of the jellyfin service", errShape, j+1)
+	case m[1] == "networks" || m[1] == "network_mode":
+		return "", fmt.Errorf("%w: the jellyfin service already sets %s", errShape, m[1])
+	}
+	return m[1], nil
+}
+
+// portItems returns the line after the items of the ports: key at line ports
+// (keys indented ki, the service ending at end). Every item gets copied to the
+// forwarder, so a comment among them is refused, and so is an item after a
+// blank line or a column-0 comment, which ended the span.
+func portItems(ls []string, ports, end, ki int) (int, error) {
+	pe := ports + 1
+	for ; pe < end && strings.TrimSpace(ls[pe]) != "" && indent(ls[pe]) > ki; pe++ {
+		if ls[pe][indent(ls[pe])] == '#' {
+			return 0, fmt.Errorf("%w: a comment inside the jellyfin service's ports:", errShape)
+		}
+	}
+	for k := pe; k < end; k++ {
+		if t := strings.TrimSpace(ls[k]); t != "" && t[0] != '#' {
+			if indent(ls[k]) > ki {
+				return 0, fmt.Errorf("%w: a blank line or comment inside the jellyfin service's ports:", errShape)
+			}
+			break
+		}
+	}
+	return pe, nil
+}
+
+// jailed writes the migrated file: ls with svc's ports: swapped for the online
+// and jail blocks, the forwarder at the end of services:, the networks: block last.
+func jailed(ls []string, svc jellyfinSpan, nl string) []byte {
+	pad, kpad := strings.Repeat(" ", svc.indent), strings.Repeat(" ", svc.keyIndent)
 	withNL := func(l string) string {
 		if !strings.HasSuffix(l, "\n") {
 			return l + nl
@@ -273,7 +338,7 @@ func Jail(b []byte) (out []byte, changed bool, err error) { //nolint:gocyclo // 
 		return l
 	}
 	var portLines, commented []string
-	for _, l := range ls[ports:portsEnd] {
+	for _, l := range ls[svc.ports:svc.portsEnd] {
 		portLines = append(portLines, withNL(l))
 		commented = append(commented, withNL(l[:indent(l)]+"# "+l[indent(l):]))
 	}
@@ -281,10 +346,10 @@ func Jail(b []byte) (out []byte, changed bool, err error) { //nolint:gocyclo // 
 		return append(append([]string{p + "# streamiq:" + name + nl}, body...), p+"# streamiq:"+name+" end"+nl)
 	}
 	var res []string
-	res = append(res, ls[:ports]...)
+	res = append(res, ls[:svc.ports]...)
 	res = append(res, block(kpad, "online", commented...)...)
 	res = append(res, block(kpad, "jail", kpad+"networks: [jail]"+nl)...)
-	res = append(res, ls[portsEnd:end]...)
+	res = append(res, ls[svc.portsEnd:svc.end]...)
 	if n := len(res); n > 0 && !strings.HasSuffix(res[n-1], "\n") {
 		res[n-1] += nl
 	}
@@ -297,10 +362,10 @@ func Jail(b []byte) (out []byte, changed bool, err error) { //nolint:gocyclo // 
 	fw = append(fw, portLines...)
 	fw = append(fw, kpad+"networks: [jail, default]"+nl)
 	res = append(res, block(pad, "jail", fw...)...)
-	res = append(res, ls[end:]...)
+	res = append(res, ls[svc.end:]...)
 	if n := len(res); !strings.HasSuffix(res[n-1], "\n") {
 		res[n-1] += nl
 	}
 	res = append(res, block("", "jail", "networks:"+nl, pad+"jail:"+nl, pad+pad+"internal: true"+nl)...)
-	return []byte(strings.Join(res, "")), true, nil
+	return []byte(strings.Join(res, ""))
 }

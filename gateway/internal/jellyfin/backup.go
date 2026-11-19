@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -89,59 +90,104 @@ func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive strin
 // gateway made) back into the managed Jellyfin, then writes creds (that
 // backup's jellyfin.json) into the state dir, only once the restored Jellyfin
 // accepts its admin password. The gateway must not run (it rewrites jellyfin.json).
-func RestoreCLI(ctx context.Context, s *Setup, compose, archive string, creds []byte, out io.Writer) error { //nolint:gocyclo // #543: split there
-	var bc Creds
-	if err := json.Unmarshal(creds, &bc); err != nil || !bc.managed() {
-		return errors.New("the backup's jellyfin.json has no admin of the gateway's own")
+func RestoreCLI(ctx context.Context, s *Setup, compose, archive string, creds []byte, out io.Writer) error {
+	bc, err := restoreCreds(creds)
+	if err != nil {
+		return err
 	}
 	if _, err := os.Stat(compose); err != nil {
 		return fmt.Errorf("no %s: run `gateway jellyfin up` first", compose)
 	}
 	fmt.Fprintln(out, "This replaces Jellyfin's users, libraries and watch state with the backup's.")
+	running, err := s.readyForRestore(ctx, out)
+	if err != nil {
+		return err
+	}
+	fmt.Fprint(out, versionWarning(backupVersion(archive), running))
+	s.mu.Lock()
+	cur := s.creds
+	s.mu.Unlock()
+	admin, err := s.signInFirst(ctx, restoreLogins(cur, bc))
+	if err != nil {
+		return err
+	}
+	return s.restore(ctx, compose, archive, admin, bc, creds, out)
+}
+
+// restoreCreds is the backup's jellyfin.json; an error unless it holds the
+// admin of a Jellyfin the gateway set up.
+func restoreCreds(creds []byte) (Creds, error) {
+	var bc Creds
+	if err := json.Unmarshal(creds, &bc); err != nil || !bc.managed() {
+		return Creds{}, errors.New("the backup's jellyfin.json has no admin of the gateway's own")
+	}
+	return bc, nil
+}
+
+// versionWarning is the line to print when the backup comes from another
+// Jellyfin version than the running one ("" for the same or an unknown one).
+func versionWarning(backup, running string) string {
+	if backup == "" || version3(backup) == version3(running) {
+		return ""
+	}
+	return fmt.Sprintf("Warning: the backup is from Jellyfin %s, this one runs %s. Jellyfin may refuse it or migrate it.\n", backup, running)
+}
+
+// restoreLogins are the admin logins to try, in order: the current admin, else
+// the backup's (a Jellyfin restored before), each once (lockouts) and only
+// with a password.
+func restoreLogins(cur, bc Creds) [][2]string {
+	var ls [][2]string
+	for _, c := range []Creds{cur, bc} {
+		l := [2]string{c.User, c.Password}
+		if l[1] != "" && !slices.Contains(ls, l) {
+			ls = append(ls, l)
+		}
+	}
+	return ls
+}
+
+// readyForRestore returns the running Jellyfin's version once it has an
+// admin: it completes the setup wizard of a fresh one, else loads the stored login.
+func (s *Setup) readyForRestore(ctx context.Context, out io.Writer) (string, error) {
 	var info struct {
 		Version                string
 		StartupWizardCompleted bool
 	}
 	if err := s.call(ctx, "GET", "/System/Info/Public", "", "", &info); err != nil {
-		return fmt.Errorf("Jellyfin not reachable at %s (start it: gateway jellyfin up): %w", s.URL, err)
+		return "", fmt.Errorf("Jellyfin not reachable at %s (start it: gateway jellyfin up): %w", s.URL, err)
 	}
-	if !info.StartupWizardCompleted {
-		fmt.Fprintln(out, "Completing Jellyfin's setup wizard (an admin for its backup API)…")
-		// A Jellyfin just started answers 503 for a while: retried, nothing is done until it doesn't.
-		err := s.bootstrap(ctx)
-		for deadline := time.Now().Add(2 * time.Minute); status(err) == http.StatusServiceUnavailable && time.Now().Before(deadline); err = s.bootstrap(ctx) {
-			time.Sleep(2 * time.Second)
-		}
-		if err != nil {
-			return fmt.Errorf("Jellyfin setup: %w", err)
-		}
-	} else if err := s.Load(); err != nil {
-		return err
+	if info.StartupWizardCompleted {
+		return info.Version, s.Load()
 	}
-	if v := backupVersion(archive); v != "" && version3(v) != version3(info.Version) {
-		fmt.Fprintf(out, "Warning: the backup is from Jellyfin %s, this one runs %s. Jellyfin may refuse it or migrate it.\n", v, info.Version)
-	}
-	s.mu.Lock()
-	cur := s.creds
-	s.mu.Unlock()
-	// The current admin, else the backup's (a Jellyfin restored before). One try each: lockouts.
-	logins := [][2]string{{cur.User, cur.Password}}
-	if cur.User != bc.User || cur.Password != bc.Password {
-		logins = append(logins, [2]string{bc.User, bc.Password})
-	}
-	var admin string
-	err := errors.New("the gateway has no admin password for this Jellyfin (`gateway jellyfin login` stores one)")
-	for _, l := range logins {
-		if l[1] == "" {
-			continue
-		}
-		if admin, err = s.signIn(ctx, l[0], l[1]); err == nil {
-			break
-		}
+	fmt.Fprintln(out, "Completing Jellyfin's setup wizard (an admin for its backup API)…")
+	// A Jellyfin just started answers 503 for a while: retried, nothing is done until it doesn't.
+	err := s.bootstrap(ctx)
+	for deadline := time.Now().Add(2 * time.Minute); status(err) == http.StatusServiceUnavailable && time.Now().Before(deadline); err = s.bootstrap(ctx) {
+		time.Sleep(2 * time.Second)
 	}
 	if err != nil {
-		return err
+		return "", fmt.Errorf("Jellyfin setup: %w", err)
 	}
+	return info.Version, nil
+}
+
+// signInFirst returns the token of the first of logins Jellyfin accepts.
+func (s *Setup) signInFirst(ctx context.Context, logins [][2]string) (string, error) {
+	err := errors.New("the gateway has no admin password for this Jellyfin (`gateway jellyfin login` stores one)")
+	for _, l := range logins {
+		var admin string
+		if admin, err = s.signIn(ctx, l[0], l[1]); err == nil {
+			return admin, nil
+		}
+	}
+	return "", err
+}
+
+// restore copies archive into the container, has Jellyfin (signed in as
+// admin) restore it, waits for the backup's admin bc to sign in, then writes
+// creds to the state dir.
+func (s *Setup) restore(ctx context.Context, compose, archive, admin string, bc Creds, creds []byte, out io.Writer) error {
 	if err := composeQuiet(ctx, compose, "exec", "-T", service, "mkdir", "-p", backupDir); err != nil {
 		return err
 	}

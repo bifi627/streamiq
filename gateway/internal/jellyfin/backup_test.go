@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -144,5 +145,45 @@ func TestRestoreRefusals(t *testing.T) {
 func TestVersion3(t *testing.T) {
 	if version3("12.4.0.0") != version3("12.4.0") || version3("12.4.1") == version3("12.4.0") {
 		t.Fatal(version3("12.4.0.0"))
+	}
+}
+
+// Only the login of a Jellyfin the gateway set up is restored.
+func TestRestoreCreds(t *testing.T) {
+	if bc, err := restoreCreds([]byte(`{"user":"streamiq","password":"pw"}`)); err != nil || bc.User != "streamiq" {
+		t.Fatalf("%+v, %v", bc, err)
+	}
+	for _, in := range []string{`{"user":"me","password":"pw","byo":true}`, `{"user":"streamiq"}`, `not json`} {
+		if _, err := restoreCreds([]byte(in)); err == nil {
+			t.Errorf("%s: accepted", in)
+		}
+	}
+}
+
+func TestVersionWarning(t *testing.T) {
+	for _, c := range []struct {
+		backup, running string
+		warn            bool
+	}{{"12.4.0.0", "12.4.0", false}, {"", "12.4.0", false}, {"12.3.0.0", "12.4.0", true}} {
+		if got := versionWarning(c.backup, c.running); (got != "") != c.warn {
+			t.Errorf("%q vs %q: %q", c.backup, c.running, got)
+		}
+	}
+}
+
+// The current admin first, then the backup's; each once and only with a password.
+func TestRestoreLogins(t *testing.T) {
+	cur, bc := Creds{User: "streamiq", Password: "now"}, Creds{User: "streamiq", Password: "then"}
+	for name, c := range map[string]struct {
+		cur, bc Creds
+		want    [][2]string
+	}{
+		"both":       {cur, bc, [][2]string{{"streamiq", "now"}, {"streamiq", "then"}}},
+		"same":       {bc, bc, [][2]string{{"streamiq", "then"}}},
+		"no current": {Creds{}, bc, [][2]string{{"streamiq", "then"}}},
+	} {
+		if got := restoreLogins(c.cur, c.bc); !slices.Equal(got, c.want) {
+			t.Errorf("%s: %v, want %v", name, got, c.want)
+		}
 	}
 }

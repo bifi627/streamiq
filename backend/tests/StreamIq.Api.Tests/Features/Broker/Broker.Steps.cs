@@ -435,7 +435,9 @@ public class BrokerSteps(IntegrationFixture fx)
         return ws.SendAsync(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(msg)), WebSocketMessageType.Text, true, CancellationToken.None);
     }
 
-    // Next JSON message (one complete frame); with quiet, null if nothing arrives within a second.
+    // Next JSON message (one complete frame), null on a Close frame; with quiet, null if
+    // nothing arrives within a second, and a Close frame fails (#538): "receives nothing"
+    // means the socket stayed open, so a broker that closes instead of dropping the message fails.
     private static async Task<JsonElement?> Receive(WebSocket ws, bool quiet = false)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(quiet ? 1 : 10));
@@ -443,6 +445,8 @@ public class BrokerSteps(IntegrationFixture fx)
         try
         {
             var r = await ws.ReceiveAsync(buf, cts.Token);
+            Assert.False(quiet && r.MessageType == WebSocketMessageType.Close,
+                $"expected nothing, but the broker closed the socket ({ws.CloseStatus} \"{ws.CloseStatusDescription}\")");
             // One frame per message: a message the broker leaves unfinished never reaches a real peer.
             Assert.True(r.MessageType == WebSocketMessageType.Close || r.EndOfMessage, "message not marked complete");
             return r.MessageType == WebSocketMessageType.Close ? null : JsonDocument.Parse(buf.AsMemory(0, r.Count)).RootElement;

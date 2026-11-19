@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  # Environment `production` only lets `main` in, and a deploy run has no branch: this
+  # Environment `prod-smoke` only lets `main` in, and a deploy run has no branch: this
   # job holds no secret, it waits and dispatches the smoke on main at the deployed sha.
   after-deploy:
     # Railway's deploy, once live. Not other deployments, e.g. the smoke job's own.
@@ -51,7 +51,7 @@ jobs:
     if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production
+    environment: prod-smoke # its own: GitHub's Deployments list shows the last result
     # The runs share one test household and revoke its gateways: never two at once. Job
     # level, so skipped runs never take a slot. One pending run per group: a newer
     # deploy's run replaces an older waiting one (the newest is what's live).

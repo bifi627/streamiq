@@ -374,10 +374,11 @@ function UpdateNotice({ g, canUpdate }: { g: Gateway; canUpdate: boolean }) {
     keep.current = true
     try {
       const r = await updateGateway(g.id)
-      if ('reason' in r) {
-        setRemote(r.reason)
-        setUpdating(null) // a refused retry: the reason, not "hasn't happened"
-      } else {
+      // A refused retry (#564): next to Try again, still tracking the update
+      // that may be running (its rollback advice if it breaks).
+      if ('reason' in r && updating) setMsg(`Refused: ${r.reason}.`)
+      else if ('reason' in r) setRemote(r.reason)
+      else {
         setLate(false)
         setUpdating({ to: r.version, from: g.version })
       }

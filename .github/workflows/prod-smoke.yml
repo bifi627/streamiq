@@ -1,36 +1,73 @@
 # Smoke test of production (#574): e2e/prod-smoke.ts on a runner against the real
 # deployment (the last gateway release + Jellyfin here, real Firebase + Cloudflare TURN).
-# After every Railway deploy (it posts a GitHub Deployment per auto-deploy from main;
-# this event runs the workflow at the deployed sha, so spec and app match), daily,
-# and by hand. A failed run alerts through GitHub's workflow-failure email.
+# After every Railway deploy, daily, and by hand. A failed run opens (or comments on)
+# the issue "Prod smoke failing": deploy runs aren't started by a person, so GitHub's
+# failure email would reach nobody.
 name: Prod smoke
 
 on:
+  # Railway posts a GitHub Deployment per auto-deploy from main (ref = the raw sha).
   deployment_status:
   schedule:
     - cron: "30 5 * * *" # 05:30 UTC daily: what changes without a deploy (TURN key, Firebase)
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit on main to test (the deployed one); empty = the head of main
+        required: false
 
 permissions:
   contents: read
 
-# The runs share one test household and revoke its gateways: never two at once.
-concurrency:
-  group: prod-smoke
-  cancel-in-progress: false
-
 jobs:
-  smoke:
-    # Railway's deploy, once live. Not other deployments, e.g. this job's own `production`.
+  # Environment `production` only lets `main` in, and a deploy run has no branch: this
+  # job holds no secret, it waits and dispatches the smoke on main at the deployed sha.
+  after-deploy:
+    # Railway's deploy, once live. Not other deployments, e.g. the smoke job's own.
     if: >-
-      github.event_name != 'deployment_status' ||
-      (github.event.deployment_status.state == 'success' &&
-       github.event.deployment.environment == 'streamiq / production')
+      github.event_name == 'deployment_status' &&
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'streamiq / production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: write # gh workflow run (GITHUB_TOKEN may start workflow_dispatch)
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Railway deploys on push; CI cuts the gateway release later. Wait for that
+          # CI run, so the smoke gets this sha's gateway (or the last one, if CI made none).
+          # ponytail: 40 min cap, then it tests whatever release exists.
+          for _ in $(seq 80); do
+            s=$(gh run list -R "$REPO" -w ci -e push -c "$GITHUB_SHA" --json status -q '.[0].status')
+            [ "$s" = completed ] && break
+            sleep 30
+          done
+          gh workflow run prod-smoke.yml -R "$REPO" --ref main -f sha="$GITHUB_SHA"
+
+  smoke:
+    if: github.event_name != 'deployment_status'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
+    # The runs share one test household and revoke its gateways: never two at once. Job
+    # level, so skipped runs never take a slot. One pending run per group: a newer
+    # deploy's run replaces an older waiting one (the newest is what's live).
+    concurrency:
+      group: prod-smoke
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write # the failure issue
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          fetch-depth: 0
+      # The secret is only for code on main: a dispatched sha must be in main's history.
+      - run: git merge-base --is-ancestor HEAD origin/main
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -50,3 +87,25 @@ jobs:
         with:
           name: smoke-logs
           path: e2e/logs/ # never test-results/: a trace or page snapshot holds the typed password
+      - if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          msg="Prod smoke failed at \`$sha\` ($EVENT): $RUN"
+          n=$(gh issue list -R "$REPO" --state open --json number,title \
+            -q 'map(select(.title == "Prod smoke failing"))[0].number // empty')
+          if [ -n "$n" ]; then
+            gh issue comment "$n" -R "$REPO" --body "$msg"
+          else
+            gh issue create -R "$REPO" --title "Prod smoke failing" \
+              --label bug --label p1 --label size:s --label area:e2e --body "$msg
+
+          Opened by .github/workflows/prod-smoke.yml; later failures comment here.
+
+          ## Acceptance criteria
+          - [ ] The prod smoke passes again (a manual run on main); close this issue then"
+          fi

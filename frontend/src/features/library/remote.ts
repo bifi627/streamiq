@@ -8,12 +8,21 @@ export const clampSeek = (t: number, dur: number) =>
   Math.max(0, dur ? Math.min(dur, t) : t)
 
 /** What one poll of /streamiq/screens means: the screen to show (null: closed;
- * absent: keep the last one), the error line, and whether to poll again. */
+ * absent: keep the last one), the error line, whether to poll again, and
+ * whether the gateway is back after the last poll's error (wasDown): then a
+ * command error from the outage is stale too (#553). */
 export function polled(
   screenId: string,
   r: { screens: Screen[] } | { error: string },
-): { screen?: Screen | null; down: string; again: boolean } {
-  if ('error' in r) return { down: r.error, again: true }
+  wasDown = '',
+): {
+  screen?: Screen | null
+  down: string
+  again: boolean
+  recovered: boolean
+} {
+  if ('error' in r) return { down: r.error, again: true, recovered: false }
   const screen = r.screens.find((x) => x.id === screenId) ?? null
-  return { screen, down: '', again: screen !== null } // closed: ids never come back
+  // closed: ids never come back
+  return { screen, down: '', again: screen !== null, recovered: !!wasDown }
 }

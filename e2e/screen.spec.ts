@@ -104,8 +104,47 @@ test('remote commands (#181): play / pause, audio, subtitles, position, ±10 s, 
   const { phone } = await cast(tv)
   const button = (name: string) =>
     phone.getByRole('button', { name, exact: true })
+  // A failed command's error shows until a command works (#553): the next
+  // command channel throws once; the poll's (req:/streamiq/screens) doesn't.
+  await phone.evaluate(() => {
+    const p = RTCPeerConnection.prototype
+    const create = p.createDataChannel
+    p.createDataChannel = function (label, ...rest) {
+      if (!label.startsWith('req:/streamiq/screens/'))
+        return create.call(this, label, ...rest)
+      p.createDataChannel = create
+      throw new Error('e2e: command lost')
+    }
+  })
+  const lost = phone.getByText(/e2e: command lost/)
+  await button('Pause').click()
+  await expect(lost).toBeVisible()
+  expect(await paused(tv)).toBe(false)
   await button('Pause').click()
   await expect.poll(() => paused(tv)).toBe(true)
+  await expect(lost).toBeHidden()
+  await expect(button('Play')).toBeVisible() // the poll has the paused state
+  // An outage: poll and command both fail; once the gateway is back, the
+  // command's error doesn't show up under a working remote.
+  await phone.evaluate(() => {
+    const p = RTCPeerConnection.prototype
+    const create = p.createDataChannel
+    const w = window as { e2eDown?: boolean }
+    w.e2eDown = true
+    p.createDataChannel = function (label, ...rest) {
+      if (!w.e2eDown || !label.startsWith('req:/streamiq/screens'))
+        return create.call(this, label, ...rest)
+      throw new Error('e2e: gateway down')
+    }
+  })
+  const down = phone.getByText(/e2e: gateway down/)
+  await expect(down).toBeVisible() // the poll's
+  await button('Play').click()
+  await phone.evaluate(
+    () => ((window as { e2eDown?: boolean }).e2eDown = false),
+  )
+  await expect(down).toBeHidden()
+  expect(await paused(tv)).toBe(true)
   await button('Play').click()
   await expect.poll(() => paused(tv)).toBe(false)
   await expect(button('Pause')).toBeVisible()

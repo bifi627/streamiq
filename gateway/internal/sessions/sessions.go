@@ -109,7 +109,7 @@ func (s *Sessions) Active() int {
 
 // Handle processes one broker message; send writes JSON to the current control socket.
 // A nil raw announces the control socket that is up (send), or that it dropped (nil send).
-func (s *Sessions) Handle(raw []byte, send func(any)) {
+func (s *Sessions) Handle(raw []byte, send func(any)) { //nolint:gocyclo // #545: split there
 	if raw == nil {
 		s.mu.Lock()
 		s.ctl = send
@@ -188,7 +188,7 @@ func (s *Sessions) User(session string) string {
 	return s.users[session]
 }
 
-func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerConnection, error) {
+func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerConnection, error) { //nolint:gocyclo // #545: split there
 	api := s.API
 	if api == nil {
 		api = webrtc.NewAPI()
@@ -308,7 +308,7 @@ type authMsg struct {
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
 // approved/rejected), once per connection (newPeer). Messages on one channel
 // arrive in order, one at a time; after a refusal none is handled.
-func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool, why *atomic.Value) {
+func (s *Sessions) serveAuth(id, user string, pc *webrtc.PeerConnection, d *webrtc.DataChannel, authed *atomic.Bool, why *atomic.Value) { //nolint:gocyclo // #545: split there
 	// a failed send means the channel closed, and its OnClose ends the handshake
 	say := func(m authMsg) { b, _ := json.Marshal(m); _ = d.SendText(string(b)) }
 	done := make(chan struct{}) // closed when the channel closes or we refuse

@@ -89,7 +89,7 @@ func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive strin
 // gateway made) back into the managed Jellyfin, then writes creds (that
 // backup's jellyfin.json) into the state dir, only once the restored Jellyfin
 // accepts its admin password. The gateway must not run (it rewrites jellyfin.json).
-func RestoreCLI(ctx context.Context, s *Setup, compose, archive string, creds []byte, out io.Writer) error {
+func RestoreCLI(ctx context.Context, s *Setup, compose, archive string, creds []byte, out io.Writer) error { //nolint:gocyclo // #543: split there
 	var bc Creds
 	if err := json.Unmarshal(creds, &bc); err != nil || !bc.managed() {
 		return errors.New("the backup's jellyfin.json has no admin of the gateway's own")

@@ -252,7 +252,7 @@ func jellyfinUp(ctx context.Context, file string) error {
 
 // selfUpdate installs the latest release over exe (the user, or a remote update: startUpdater) and
 // restarts the logon task if there is one.
-func selfUpdate(ctx context.Context, exe string) error {
+func selfUpdate(ctx context.Context, exe string) error { //nolint:gocyclo // #547: split there
 	if !service.Supported() {
 		return service.ErrUnsupported
 	}

@@ -4,12 +4,21 @@ run:
   # 5 s, so check.sh keeps running concurrently across worktrees
   allow-serial-runners: true
 linters:
-  # the default set: errcheck, govet, ineffassign, staticcheck, unused
+  # the default set: errcheck, govet, ineffassign, staticcheck, unused; plus gocyclo (#542)
+  enable: [gocyclo]
   exclusions:
     # errcheck skips Close, fmt.Fprint*, os.Remove*, os.Setenv and the like (#560); test
     # files are checked too
     presets: [std-error-handling]
+    rules:
+      # table tests are long by design; every other linter still checks test files
+      - path: _test\.go
+        linters: [gocyclo]
   settings:
+    gocyclo:
+      # reports a function over 15, like oxlint's complexity (#533) and CA1502 (#540);
+      # split into pieces that take and return values. A //nolint:gocyclo needs a reason.
+      min-complexity: 15
     staticcheck:
       # golangci-lint's default checks (setting the list replaces them, so they're restated) ...
       checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022",

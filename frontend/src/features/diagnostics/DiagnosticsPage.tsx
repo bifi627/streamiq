@@ -1,9 +1,18 @@
 // /diagnostics (#90): what this client can play, and how good its path to a
 // gateway is, as a report to paste into a support request. No email, no IPs.
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { diag, relayOn, setFlag, snapshot, subscribe } from '../../diag'
+import {
+  diag,
+  relayOn,
+  relayForced,
+  relayTlsOn,
+  setFlag,
+  setRelay,
+  snapshot,
+  subscribe,
+} from '../../diag'
 import { copyText } from '../../clipboard'
-import { pairInfo } from '../../stats'
+import { pairInfo, pathLine } from '../../stats'
 import { dataSaverOn } from '../../settings'
 import { connect } from '../pairing/connect'
 import { isKind } from '../../errors'
@@ -38,7 +47,7 @@ export function DiagnosticsPage() {
     setRunning(true)
     const lines = [
       `tested: ${new Date().toLocaleString()}`,
-      `relay forced: ${relayOn() ? 'yes' : 'no'}`,
+      `relay forced: ${relayForced()}`,
     ]
     const show = (failed?: string) => setTest({ lines: [...lines], failed })
     show()
@@ -58,12 +67,7 @@ export function DiagnosticsPage() {
       lines.push('paired: yes')
       show()
       step = 'path stats'
-      const p = pairInfo(await s.pc.getStats())
-      lines.push(
-        p
-          ? `path: ${p.relay ? 'relayed (TURN)' : 'direct'} · ${p.ipv6 ? 'IPv6' : 'IPv4'} · ${p.protocol ?? '?'} · ${p.local ?? '?'} → ${p.remote ?? '?'} · RTT ${p.rttMs ?? '?'} ms`
-          : 'path: no selected candidate pair',
-      )
+      lines.push(pathLine(pairInfo(await s.pc.getStats())))
       show()
       step = 'throughput (gateway bursts)'
       const speed = s.speed() // the session's own measurement (speed.ts)
@@ -162,9 +166,17 @@ export function DiagnosticsPage() {
             <input
               type="checkbox"
               checked={relayOn()}
-              onChange={(e) => setFlag('relay', e.target.checked)}
+              onChange={(e) => setRelay(e.target.checked)}
             />{' '}
             Force relay (TURN)
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={relayTlsOn()}
+              onChange={(e) => setFlag('relayTls', e.target.checked)}
+            />{' '}
+            Force relay over TLS (443)
           </label>
         </div>
       </div>

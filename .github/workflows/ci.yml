@@ -16,16 +16,33 @@ permissions:
 
 # A new push to a PR cancels that PR's older run. Pushes to main each get their own group
 # (run_id): GitHub keeps only one pending run per group, so a shared group could drop a
-# main run, and with it its gateway release. The draft state is part of a PR's group: a
-# push right before "ready for review" starts a skipped draft run, which must not cancel
-# the ready run (#457).
+# main run, and with it its gateway release.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && format('{0}-{1}', github.ref, github.event.pull_request.draft) || github.run_id }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  # Drafts skip CI; ready_for_review runs it. The PR's live draft state, not the event's:
+  # a push right before "ready for review" carries draft=true, and its skipped checks, newer
+  # than the ready run's, satisfied the required checks while e2e still ran (#631 merged so).
+  # An API failure counts as "not a draft": run CI rather than skip it (a skipped job passes the gate).
+  draft:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      draft: ${{ steps.d.outputs.draft }}
+    steps:
+      - id: d
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: echo "draft=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft || echo false)" >> "$GITHUB_OUTPUT"
+
   backend:
-    if: ${{ !github.event.pull_request.draft }} # drafts skip CI; ready_for_review runs it
+    needs: draft
+    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +53,8 @@ jobs:
       - run: docker compose config --quiet && docker compose --profile relay config --quiet
 
   frontend:
-    if: ${{ !github.event.pull_request.draft }}
+    needs: draft
+    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -66,7 +84,8 @@ jobs:
         working-directory: frontend
 
   gateway-linux:
-    if: ${{ !github.event.pull_request.draft }}
+    needs: draft
+    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -91,7 +110,8 @@ jobs:
   # #452: Windows-only code (service, update, rollback) runs here; the update test
   # starts from the last release's real binary.
   gateway-windows:
-    if: ${{ !github.event.pull_request.draft }}
+    needs: draft
+    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: windows-latest
     timeout-minutes: 20
     defaults:
@@ -116,7 +136,8 @@ jobs:
   # #453: backup → restore against the real pinned Jellyfin (Docker), and a backup made
   # by the last release's pin restored into the current one.
   gateway-jellyfin:
-    if: ${{ !github.event.pull_request.draft }}
+    needs: draft
+    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -139,7 +160,8 @@ jobs:
   # e2e/playwright.config.ts). Containers via testcontainers-node, backend/Vite/gateway as
   # real processes — see e2e/global-setup.ts.
   e2e:
-    if: ${{ !github.event.pull_request.draft }}
+    needs: draft
+    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

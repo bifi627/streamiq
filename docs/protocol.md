@@ -216,7 +216,7 @@ the control socket that is up then (not the offer's: held until the next one if 
 `prflx` and every candidate the browser signaled is a relay (forced relay: a NAT in front of
 the TURN server, like Docker in the e2e, hides the signaled relay address). No pair (ICE
 never connected) = candidate fields absent. `failure`:
-  `"ice failed"`, else, when auth never succeeded, the gateway's last auth outcome
+  `"ice failed"` (ICE failed before it ever connected; a later loss keeps the pair it had), else, when auth never succeeded, the gateway's last auth outcome
   (`"unpaired"`, a refusal reason) or `"ended before auth"` (incl. a browser that refused the
   gateway's pin: it hangs up before auth); null = the tunnel came up and passed auth. The
   broker applies it only to a row with that id **and** this gateway's id, only the first

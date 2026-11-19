@@ -864,7 +864,7 @@ func TestClassify(t *testing.T) {
 }
 
 // A served tunnel the browser closes (its PeerConnection, no bye) is reported
-// without a failure (#520): only ICE failing is "ice failed".
+// without a failure (#520): only ICE failing before it came up is "ice failed" (#485).
 func TestBrowserCloseReportsNoFailure(t *testing.T) {
 	gateway, store := newGateway(t)
 	reps := make(chan Report, 4)
@@ -987,5 +987,42 @@ func TestTrim(t *testing.T) {
 		if got := trim(in); got != want {
 			t.Errorf("trim(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// A Disconnected session lives on (#485): it recovers, or pion turns it Failed.
+func TestEnds(t *testing.T) {
+	for st, want := range map[webrtc.PeerConnectionState]bool{
+		webrtc.PeerConnectionStateConnected:    false,
+		webrtc.PeerConnectionStateDisconnected: false,
+		webrtc.PeerConnectionStateFailed:       true,
+		webrtc.PeerConnectionStateClosed:       true,
+	} {
+		if endsSession(st) != want {
+			t.Errorf("endsSession(%s) = %v, want %v", st, !want, want)
+		}
+	}
+}
+
+// A tunnel that came up and then failed keeps its route in the report (#485):
+// pion has no selected pair any more, the one kept while connected counts.
+func TestReportKeepsLastPair(t *testing.T) {
+	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pc.Close()
+	last := &webrtc.ICECandidatePair{
+		Local: &webrtc.ICECandidate{
+			Typ:      webrtc.ICECandidateTypeRelay,
+			Address:  "192.0.2.1",
+			Protocol: webrtc.ICEProtocolUDP,
+		},
+		Remote: &webrtc.ICECandidate{Typ: webrtc.ICECandidateTypeHost, Address: "2001:db8::1"},
+	}
+	r := report("s", pc, &signaled{}, last, failure(false, true, ""))
+	if r.LocalCandidateType != "relay" || r.RemoteCandidateType != "host" || r.Protocol != "udp" ||
+		!r.Relay || !r.Ipv6 || r.Failure != nil {
+		t.Fatalf("report after Failed = %+v", r)
 	}
 }

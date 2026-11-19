@@ -228,7 +228,10 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	var authed, authSeen atomic.Bool
 	var cands signaled
 	var why atomic.Value // last auth outcome short of success ("unpaired", a refusal); the report's failure
-	end := s.ender(id, pc, &cands, &authed, &why)
+	// The selected pair while connected: pion drops it before it reports Failed,
+	// and the tunnel row keeps the route of a tunnel that came up (#485).
+	var pair atomic.Pointer[webrtc.ICECandidatePair]
+	end := s.ender(id, pc, &cands, &pair, &authed, &why)
 	s.mu.Lock()
 	s.pcs[id] = pc
 	s.users[id] = user
@@ -244,9 +247,11 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	})
 	pc.OnConnectionStateChange(func(st webrtc.PeerConnectionState) {
 		log.Printf("gateway: session %s: %s", id, st)
-		if st == webrtc.PeerConnectionStateFailed || st == webrtc.PeerConnectionStateClosed ||
-			st == webrtc.PeerConnectionStateDisconnected {
-			end(st == webrtc.PeerConnectionStateFailed)
+		if p, err := pc.SCTP().Transport().ICETransport().GetSelectedCandidatePair(); err == nil && p != nil {
+			pair.Store(p)
+		}
+		if endsSession(st) { // "ice failed" only when it never came up
+			end(st == webrtc.PeerConnectionStateFailed && pair.Load() == nil)
 		}
 	})
 
@@ -276,6 +281,14 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	return pc, nil
 }
 
+// endsSession: the states that end a session (#485). Not Disconnected: pion reports it
+// after 5 s without inbound ICE traffic, and it recovers; under load that was
+// enough to drop a live session. A lasting loss turns Failed 25 s later, a
+// closed tab is a bye from the broker, like the browser's own #632.
+func endsSession(st webrtc.PeerConnectionState) bool {
+	return st == webrtc.PeerConnectionStateFailed || st == webrtc.PeerConnectionStateClosed
+}
+
 // ender builds the session's one way out. Every way a session ends (ICE
 // failed/closed, bye, a removed client, a failed answer) goes through it: the
 // report is read before pc.Close() (pion's stats are gone after it) and sent
@@ -284,6 +297,7 @@ func (s *Sessions) ender(
 	id string,
 	pc *webrtc.PeerConnection,
 	cands *signaled,
+	pair *atomic.Pointer[webrtc.ICECandidatePair],
 	authed *atomic.Bool,
 	why *atomic.Value,
 ) func(iceFailed bool) {
@@ -300,7 +314,7 @@ func (s *Sessions) ender(
 			return
 		}
 		w, _ := why.Load().(string)
-		s.report(report(id, pc, cands, failure(iceFailed, authed.Load(), w)))
+		s.report(report(id, pc, cands, pair.Load(), failure(iceFailed, authed.Load(), w)))
 		pc.Close()
 	}
 }
@@ -407,11 +421,21 @@ func (c *signaled) saw(candidate string) {
 }
 
 // report reads the tunnel's selected candidate pair and transport bytes from pion
-// (empty pair = ICE never connected).
-func report(id string, pc *webrtc.PeerConnection, cands *signaled, failure *string) Report {
+// (the pair kept while connected once pion dropped it; empty = ICE never connected).
+func report(
+	id string,
+	pc *webrtc.PeerConnection,
+	cands *signaled,
+	last *webrtc.ICECandidatePair,
+	failure *string,
+) Report {
 	r := Report{Type: "tunnel", Session: id, Failure: failure}
 	ice := pc.SCTP().Transport().ICETransport()
-	if p, err := ice.GetSelectedCandidatePair(); err == nil && p != nil {
+	p, err := ice.GetSelectedCandidatePair()
+	if err != nil || p == nil {
+		p = last // gone after Failed: the pair it had while connected
+	}
+	if p != nil {
 		r.LocalCandidateType, r.RemoteCandidateType = p.Local.Typ.String(), p.Remote.Typ.String()
 		r.Relay, r.Ipv6 = classify(p, cands)
 		r.Protocol = p.Local.Protocol.String()
@@ -438,7 +462,7 @@ func classify(p *webrtc.ICECandidatePair, cands *signaled) (relay, ipv6 bool) {
 // The browser can't tell lan from its own stats (mDNS names, hidden host
 // candidates, stale ones); the gateway sees the real address.
 func route(pc *webrtc.PeerConnection, cands *signaled) string {
-	r := report("", pc, cands, nil)
+	r := report("", pc, cands, nil, nil)
 	remote := ""
 	if p, err := pc.SCTP().Transport().ICETransport().GetSelectedCandidatePair(); err == nil && p != nil {
 		remote = p.Remote.Address

@@ -137,8 +137,9 @@ a privacy indicator: on your network (the gateway sees the browser on one of its
 
 - The root `Dockerfile` builds the SPA into the API image (`wwwroot`, same origin, no CORS
   in prod). Railway Root Directory = repo root.
-- Postgres backups: daily `pg_dump` → GCS (`db-backup.yml`); restore runbook
-  `docs/db-recovery.md`.
+- Postgres is a blue/green pair on Railway (`DB_LIVE` names the live one): daily `pg_dump`
+  of the live one → GCS (`db-backup.yml`), restores into the idle one (`db-restore.yml`,
+  weekly as the drill); runbook `docs/db-recovery.md`.
 
 ## Feasibility record
 

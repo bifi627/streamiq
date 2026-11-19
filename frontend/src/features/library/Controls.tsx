@@ -1,6 +1,6 @@
 // Own control bar over <video> (#91): one UI for TV remote (D-pad), touch,
-// mouse and keyboard. Key model (decided in keyAction(), keys.ts; the handler
-// below only reads the DOM and runs the result):
+// mouse and keyboard. Key model (decided in keyAction(), keys.ts; onKey(),
+// handlers.ts, only reads the DOM and runs the result):
 // - Focus outside the bar (bar hidden, or shown by a pointer/seek key):
 //   ←/→ seek ±10 s, Enter/Space play-pause, ↑/↓ focus play/pause.
 // - Focus inside the bar: ←/→ move focus within a row (on the seek bar: seek),
@@ -31,11 +31,21 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react'
-import { clock, isBack } from './items'
-import { clamp, keyAction, SKIP, type Action } from './keys'
+import { summary, tap } from './bar'
+import {
+  loadVol,
+  makeUi,
+  onKey,
+  saveVol,
+  seekTo,
+  setVol,
+  type Page,
+  type Refs,
+  type Ui,
+} from './handlers'
+import { clock } from './items'
+import { SKIP } from './keys'
 import './Player.css'
-
-const HIDE_MS = 4000
 
 // Material icon paths (24×24); the remote and Play on… use them too.
 export const ICON = {
@@ -61,46 +71,6 @@ export const Icon = ({ d }: { d: string }) => (
   </svg>
 )
 
-// Media actions; plain functions so the component never mutates its props.
-const toggle = (v: HTMLVideoElement) =>
-  v.paused ? v.play().catch(() => {}) : v.pause()
-const mute = (v: HTMLVideoElement) => {
-  v.muted = !v.muted
-}
-const seekTo = (v: HTMLVideoElement, t: number) => {
-  v.currentTime = t
-  return t
-}
-const seekBy = (v: HTMLVideoElement, d: number, dur: number) =>
-  seekTo(v, Math.max(0, Math.min(dur || v.duration || 0, v.currentTime + d)))
-const setVol = (v: HTMLVideoElement, x: number) => {
-  v.volume = Math.max(0, Math.min(1, x))
-  v.muted = v.volume === 0
-}
-
-// Volume + mute per device (#479): restored when the player opens, 50 % when
-// unset. A stored 0 (slider dragged down = muted) comes back as muted at 50 %,
-// so unmuting is audible.
-const VOL = 'streamiq.volume'
-const MUTED = 'streamiq.muted'
-const loadVol = (v: HTMLVideoElement) => {
-  try {
-    const x = Number(localStorage.getItem(VOL) ?? NaN)
-    v.volume = x > 0 && x <= 1 ? x : 0.5
-    v.muted = localStorage.getItem(MUTED) === '1'
-  } catch {
-    v.volume = 0.5 // storage blocked (private mode)
-  }
-}
-const saveVol = (v: HTMLVideoElement) => {
-  try {
-    localStorage.setItem(VOL, String(v.volume))
-    localStorage.setItem(MUTED, v.muted ? '1' : '0')
-  } catch {
-    /* storage blocked: this session only */
-  }
-}
-
 /** A slider's filled part (Player.css paints it; Chrome 87: no accent-color). */
 const fill = (x: number) =>
   ({ '--p': `${Math.min(1, Math.max(0, x)) * 100}%` }) as CSSProperties
@@ -115,10 +85,257 @@ export type Setting = {
   pick: (value: string) => void
 }
 
-/** The settings popover's page: closed, main, or that setting's options. */
-type Page = null | 'main' | number
+/** The <video>'s state for the bar, kept in sync by its events; loads and
+ *  saves the volume. `onPlay` restarts the hide countdown. */
+function useMedia(
+  video: RefObject<HTMLVideoElement | null>,
+  setTime: (t: number) => void,
+  onPlay: () => void,
+) {
+  const [paused, setPaused] = useState(true)
+  const [muted, setMuted] = useState(false)
+  const [volume, setVolume] = useState(0.5)
+  const [full, setFull] = useState(false)
+  useEffect(() => {
+    const v = video.current!
+    const sync = () => {
+      setPaused(v.paused)
+      // No frame yet (a reload, #109): currentTime reads 0 until the new
+      // stream seeks to the playhead; keep the bar where it was.
+      if (v.readyState >= v.HAVE_CURRENT_DATA) setTime(v.currentTime)
+      setMuted(v.muted)
+      setVolume(v.volume)
+    }
+    const playing = () => {
+      sync()
+      onPlay()
+    }
+    const fs = () => setFull(!!document.fullscreenElement)
+    const evs = ['pause', 'timeupdate', 'volumechange', 'seeked'] as const
+    loadVol(v)
+    sync() // no volumechange when the stored level is the element's own (1)
+    evs.forEach((e) => v.addEventListener(e, sync))
+    const save = () => saveVol(v)
+    v.addEventListener('volumechange', save)
+    v.addEventListener('play', playing)
+    document.addEventListener('fullscreenchange', fs)
+    return () => {
+      evs.forEach((e) => v.removeEventListener(e, sync))
+      v.removeEventListener('volumechange', save)
+      v.removeEventListener('play', playing)
+      document.removeEventListener('fullscreenchange', fs)
+    }
+  }, [video, setTime, onPlay])
+  return { paused, muted, volume, full }
+}
 
-// oxlint-disable-next-line complexity, max-lines-per-function -- render branching; length: #603
+/** The seek bar and the clock. */
+function Seek({
+  time,
+  duration,
+  onSeek,
+}: {
+  time: number
+  duration: number
+  onSeek: (t: number) => void
+}) {
+  return (
+    <div data-row className="row">
+      <input
+        type="range"
+        data-seek="1"
+        aria-label="Seek"
+        min={0}
+        max={duration || 0}
+        step={1}
+        value={Math.min(time, duration || 0)}
+        style={fill(duration ? time / duration : 0)}
+        onChange={(e) => onSeek(Number(e.target.value))}
+      />
+      <span className="time">
+        {clock(time)} / {clock(duration)}
+      </span>
+    </div>
+  )
+}
+
+/** The popover: the main page (one row per setting) or one setting's options. */
+function Menu({
+  settings,
+  page,
+  from,
+  menuRow,
+  open,
+  close,
+}: {
+  settings: Setting[]
+  page: Page
+  /** The setting whose page was open last: the main page focuses it. */
+  from: number
+  menuRow: RefObject<HTMLDivElement | null>
+  open: (p: 'main' | number) => void
+  close: () => void
+}) {
+  if (page === 'main')
+    return (
+      <div
+        ref={menuRow}
+        className="popover"
+        data-page="main"
+        role="menu"
+        aria-label="Settings"
+      >
+        {settings.map((st, i) => (
+          <button
+            key={st.name}
+            type="button"
+            role="menuitem"
+            data-focus={i === from}
+            onClick={() => open(i)}
+          >
+            {st.name}
+            <small>{summary(st)}</small>
+          </button>
+        ))}
+      </div>
+    )
+  const st = page === null ? undefined : settings[page]
+  if (!st) return null
+  return (
+    <div ref={menuRow} className="popover" role="menu" aria-label={st.name}>
+      <button
+        type="button"
+        role="menuitem"
+        className="heading"
+        onClick={() => open('main')}
+      >
+        ‹ {st.name}
+      </button>
+      {st.options.map((o) => {
+        const on = o.value === st.value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="menuitemradio"
+            aria-checked={on}
+            data-focus={on}
+            disabled={o.disabled}
+            onClick={() => {
+              close()
+              if (!on) st.pick(o.value)
+            }}
+          >
+            <span className="check">{on ? '✓' : ''}</span>
+            {o.label}
+            {o.hint && <small>{o.hint}</small>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The button row: play, ±10 s, volume, Next episode, settings, fullscreen. */
+function Buttons({
+  media,
+  ui,
+  play,
+  qBtn,
+  menuOpen,
+  onGear,
+  onVolume,
+  onNext,
+}: {
+  media: ReturnType<typeof useMedia>
+  ui: Ui
+  play: RefObject<HTMLButtonElement | null>
+  qBtn: RefObject<HTMLButtonElement | null>
+  menuOpen: boolean
+  onGear: () => void
+  onVolume: (x: number) => void
+  onNext?: () => void
+}) {
+  const { paused, muted, volume, full } = media
+  return (
+    <div data-row className="row">
+      <button
+        ref={play}
+        type="button"
+        className="play"
+        aria-label={paused ? 'Play' : 'Pause'}
+        onClick={ui.toggle}
+      >
+        <Icon d={paused ? ICON.play : ICON.pause} />
+      </button>
+      <button
+        type="button"
+        className="skip"
+        aria-label="Rewind 10 seconds"
+        onClick={() => ui.seek(-SKIP)}
+      >
+        −10
+      </button>
+      <button
+        type="button"
+        className="skip"
+        aria-label="Forward 10 seconds"
+        onClick={() => ui.seek(SKIP)}
+      >
+        +10
+      </button>
+      <button
+        type="button"
+        aria-label={muted ? 'Unmute' : 'Mute'}
+        onClick={ui.mute}
+      >
+        <Icon d={muted || volume === 0 ? ICON.muted : ICON.sound} />
+      </button>
+      <input
+        type="range"
+        data-volume="1"
+        aria-label="Volume"
+        className="volume"
+        min={0}
+        max={1}
+        step={0.05}
+        value={muted ? 0 : volume}
+        style={fill(muted ? 0 : volume)}
+        onChange={(e) => onVolume(Number(e.target.value))}
+      />
+      <span className="spacer" />
+      {onNext && (
+        <button
+          type="button"
+          className="next"
+          aria-label="Next episode"
+          onClick={onNext}
+        >
+          <Icon d={ICON.next} />
+          <span>Next episode</span>
+        </button>
+      )}
+      <button
+        ref={qBtn}
+        type="button"
+        aria-label="Playback options"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onClick={onGear}
+      >
+        <Icon d={ICON.gear} />
+      </button>
+      <button
+        type="button"
+        aria-label={full ? 'Exit fullscreen' : 'Fullscreen'}
+        onClick={ui.fullscreen}
+      >
+        <Icon d={full ? ICON.unfull : ICON.full} />
+      </button>
+    </div>
+  )
+}
+
 export function Controls({
   video,
   duration,
@@ -142,14 +359,6 @@ export function Controls({
   const root = useRef<HTMLDivElement>(null)
   const bar = useRef<HTMLDivElement>(null)
   const play = useRef<HTMLButtonElement>(null)
-  const [shown, setShown] = useState(true)
-  const [paused, setPaused] = useState(true)
-  const [time, setTime] = useState(0)
-  const [muted, setMuted] = useState(false)
-  const [volume, setVolume] = useState(0.5)
-  const [full, setFull] = useState(false)
-  const [page, setPage] = useState<Page>(null)
-  const [from, setFrom] = useState(0) // setting whose page was open last (main focuses it)
   const menuRow = useRef<HTMLDivElement>(null)
   const qBtn = useRef<HTMLButtonElement>(null)
   const timer = useRef(0)
@@ -163,150 +372,34 @@ export function Controls({
     dur.current = duration
     isBlocked.current = blocked
   })
-
-  // Handlers for clicks and the key listener; only touch refs and setters.
-  const [ui] = useState(() => {
-    const ui = {
-      hide() {
-        clearTimeout(timer.current)
-        setShown(false)
-        setPage(null)
-        // the privacy explanation shuts with the bar (#337)
-        bar.current
-          ?.querySelector<HTMLElement>('.badge[aria-expanded="true"]')
-          ?.click()
-        if (bar.current?.contains(document.activeElement))
-          root.current?.focus({ preventScroll: true })
-      },
-      poke() {
-        setShown(true)
-        clearTimeout(timer.current)
-        timer.current = window.setTimeout(() => {
-          if (!isBlocked.current) ui.hide()
-        }, HIDE_MS)
-      },
-      toggle: () => toggle(video.current!),
-      mute: () => mute(video.current!),
-      seek: (d: number) => setTime(seekBy(video.current!, d, dur.current)),
-      fullscreen() {
-        if (document.fullscreenElement) return document.exitFullscreen()
-        root.current
-          ?.requestFullscreen()
-          // Phones: landscape while fullscreen (rejected on desktop; ignored).
-          .then(() =>
-            (
-              screen.orientation as ScreenOrientation & {
-                lock?: (o: string) => Promise<void>
-              }
-            )
-              .lock?.('landscape')
-              .catch(() => {}),
-          )
-          .catch(() => {})
-      },
-    }
-    return ui
-  })
+  const [shown, setShown] = useState(true)
+  const [page, setPage] = useState<Page>(null)
+  const [from, setFrom] = useState(0) // setting whose page was open last
+  const [time, setTime] = useState(0)
+  const [r] = useState<Refs>(() => ({
+    video,
+    root,
+    bar,
+    play,
+    menuRow,
+    qBtn,
+    timer,
+    back,
+    dur,
+    blocked: isBlocked,
+  }))
+  const [ui] = useState(() => makeUi(r, setShown, setPage, setTime))
+  const media = useMedia(video, setTime, ui.poke)
 
   useEffect(() => {
     const v = video.current!
-    const sync = () => {
-      setPaused(v.paused)
-      // No frame yet (a reload, #109): currentTime reads 0 until the new
-      // stream seeks to the playhead; keep the bar where it was.
-      if (v.readyState >= v.HAVE_CURRENT_DATA) setTime(v.currentTime)
-      setMuted(v.muted)
-      setVolume(v.volume)
-    }
-    const playing = () => {
-      sync()
-      ui.poke() // restart the hide countdown
-    }
-    const fs = () => setFull(!!document.fullscreenElement)
-    const evs = ['pause', 'timeupdate', 'volumechange', 'seeked'] as const
-    loadVol(v)
-    sync() // no volumechange when the stored level is the element's own (1)
-    evs.forEach((e) => v.addEventListener(e, sync))
-    const save = () => saveVol(v)
-    v.addEventListener('volumechange', save)
-    v.addEventListener('play', playing)
-    document.addEventListener('fullscreenchange', fs)
-
-    const key = (e: KeyboardEvent) => {
-      const t = e.target as Element
-      if (t !== document.body && !root.current?.contains(t)) return // other UI
-      const a = document.activeElement as HTMLElement
-      const pop = menuRow.current
-      const rows = Array.from(bar.current?.querySelectorAll('[data-row]') ?? [])
-      const row = rows.findIndex((r) => r.contains(a))
-      // Down from the last row: the diagnostics dock, if it's on (#230); not
-      // in fullscreen, where it isn't shown.
-      const dock = document.querySelector<HTMLElement>('.dock-bar')
-      const goBack = isBack(e)
-      const action = keyAction({
-        back: goBack,
-        key: e.key.toLowerCase(),
-        page: pop ? (pop.dataset.page === 'main' ? 'main' : 'options') : null,
-        inPopover: !!pop?.contains(a),
-        inBar: !!bar.current?.contains(a),
-        shown: bar.current?.dataset.shown === 'true',
-        seek: !!a.dataset.seek,
-        volume: !!a.dataset.volume,
-        lastRow: row === rows.length - 1,
-        dock: !!dock && !document.fullscreenElement,
-        ctrl: e.ctrlKey,
-        meta: e.metaKey,
-        alt: e.altKey,
-        repeat: e.repeat,
-      })
-      if (!goBack) ui.poke()
-      if (!action) return
-      e.preventDefault() // also Back: the browser's own would leave the player
-      const move = (its: HTMLElement[], by: number) =>
-        its[clamp(its.indexOf(a) + by, its.length)]?.focus()
-      const items = (r: Element) =>
-        Array.from(r.querySelectorAll<HTMLElement>('button, input'))
-      const run: {
-        [K in Action['do']]: (x: Extract<Action, { do: K }>) => unknown
-      } = {
-        close: () => {
-          setPage(null)
-          qBtn.current?.focus({ preventScroll: true })
-        },
-        up: () => setPage('main'),
-        hide: ui.hide,
-        exit: () => back.current(),
-        fullscreen: ui.fullscreen,
-        mute: ui.mute,
-        toggle: ui.toggle,
-        seek: (x) => ui.seek(x.by),
-        focusPlay: () => play.current?.focus(),
-        stay: () => {},
-        option: (x) =>
-          move(
-            Array.from(
-              pop?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [],
-            ),
-            x.by,
-          ),
-        item: (x) => move(items(rows[row]), x.by),
-        row: (x) =>
-          items(rows[(row + x.by + rows.length) % rows.length])[0].focus(),
-        volume: (x) => setVol(v, v.volume + x.by),
-        dock: () => dock?.focus(),
-      }
-      ;(run[action.do] as (x: Action) => unknown)(action)
-    }
+    const key = (e: KeyboardEvent) => onKey(e, v, r, ui, setPage)
     window.addEventListener('keydown', key)
     return () => {
-      evs.forEach((e) => v.removeEventListener(e, sync))
-      v.removeEventListener('volumechange', save)
-      v.removeEventListener('play', playing)
-      document.removeEventListener('fullscreenchange', fs)
       window.removeEventListener('keydown', key)
-      clearTimeout(timer.current)
+      ui.stop()
     }
-  }, [video, ui])
+  }, [video, r, ui])
 
   // Autoplay blocked: the bar stays up (paused) with Play focused, so one
   // Enter/tap starts playback.
@@ -337,11 +430,7 @@ export function Controls({
         const t = e.target as Element
         if (!menuRow.current?.contains(t) && !qBtn.current?.contains(t))
           setPage(null) // a click outside closes the popover
-        // Touch: a tap on the picture toggles the bar (a hidden bar ignores
-        // touches, see Player.css); mouse/pointer just shows it.
-        if (e.pointerType === 'mouse' || !onPicture(e)) ui.poke()
-        else if (visible) ui.hide()
-        else ui.poke()
+        ui[tap(e.pointerType === 'mouse', onPicture(e), visible)]()
       }}
       // A double click also toggles twice (net: unchanged), like most players.
       onClick={(e) =>
@@ -371,167 +460,32 @@ export function Controls({
         </div>
         <span className="spacer" />
         <div className="bottom">
-          <div data-row className="row">
-            <input
-              type="range"
-              data-seek="1"
-              aria-label="Seek"
-              min={0}
-              max={duration || 0}
-              step={1}
-              value={Math.min(time, duration || 0)}
-              style={fill(duration ? time / duration : 0)}
-              onChange={(e) => {
-                setTime(seekTo(video.current!, Number(e.target.value)))
-              }}
-            />
-            <span className="time">
-              {clock(time)} / {clock(duration)}
-            </span>
-          </div>
-          {page === 'main' && (
-            <div
-              ref={menuRow}
-              className="popover"
-              data-page="main"
-              role="menu"
-              aria-label="Settings"
-            >
-              {settings.map((st, i) => (
-                <button
-                  key={st.name}
-                  type="button"
-                  role="menuitem"
-                  data-focus={i === from}
-                  onClick={() => {
-                    setFrom(i)
-                    setPage(i)
-                  }}
-                >
-                  {st.name}
-                  <small>
-                    {st.options.find((o) => o.value === st.value)?.label}
-                    {st.status && ` · ${st.status}`} ›
-                  </small>
-                </button>
-              ))}
-            </div>
-          )}
-          {typeof page === 'number' && settings[page] && (
-            <div
-              ref={menuRow}
-              className="popover"
-              role="menu"
-              aria-label={settings[page].name}
-            >
-              <button
-                type="button"
-                role="menuitem"
-                className="heading"
-                onClick={() => setPage('main')}
-              >
-                ‹ {settings[page].name}
-              </button>
-              {settings[page].options.map((o) => {
-                const st = settings[page]
-                const on = o.value === st.value
-                return (
-                  <button
-                    key={o.value}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={on}
-                    data-focus={on}
-                    disabled={o.disabled}
-                    onClick={() => {
-                      setPage(null)
-                      qBtn.current?.focus({ preventScroll: true })
-                      if (!on) st.pick(o.value)
-                    }}
-                  >
-                    <span className="check">{on ? '✓' : ''}</span>
-                    {o.label}
-                    {o.hint && <small>{o.hint}</small>}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-          <div data-row className="row">
-            <button
-              ref={play}
-              type="button"
-              className="play"
-              aria-label={paused ? 'Play' : 'Pause'}
-              onClick={ui.toggle}
-            >
-              <Icon d={paused ? ICON.play : ICON.pause} />
-            </button>
-            <button
-              type="button"
-              className="skip"
-              aria-label="Rewind 10 seconds"
-              onClick={() => ui.seek(-SKIP)}
-            >
-              −10
-            </button>
-            <button
-              type="button"
-              className="skip"
-              aria-label="Forward 10 seconds"
-              onClick={() => ui.seek(SKIP)}
-            >
-              +10
-            </button>
-            <button
-              type="button"
-              aria-label={muted ? 'Unmute' : 'Mute'}
-              onClick={ui.mute}
-            >
-              <Icon d={muted || volume === 0 ? ICON.muted : ICON.sound} />
-            </button>
-            <input
-              type="range"
-              data-volume="1"
-              aria-label="Volume"
-              className="volume"
-              min={0}
-              max={1}
-              step={0.05}
-              value={muted ? 0 : volume}
-              style={fill(muted ? 0 : volume)}
-              onChange={(e) => setVol(video.current!, Number(e.target.value))}
-            />
-            <span className="spacer" />
-            {onNext && (
-              <button
-                type="button"
-                className="next"
-                aria-label="Next episode"
-                onClick={onNext}
-              >
-                <Icon d={ICON.next} />
-                <span>Next episode</span>
-              </button>
-            )}
-            <button
-              ref={qBtn}
-              type="button"
-              aria-label="Playback options"
-              aria-haspopup="menu"
-              aria-expanded={page !== null}
-              onClick={() => setPage(page === null ? 'main' : null)}
-            >
-              <Icon d={ICON.gear} />
-            </button>
-            <button
-              type="button"
-              aria-label={full ? 'Exit fullscreen' : 'Fullscreen'}
-              onClick={ui.fullscreen}
-            >
-              <Icon d={full ? ICON.unfull : ICON.full} />
-            </button>
-          </div>
+          <Seek
+            time={time}
+            duration={duration}
+            onSeek={(t) => setTime(seekTo(video.current!, t))}
+          />
+          <Menu
+            settings={settings}
+            page={page}
+            from={from}
+            menuRow={menuRow}
+            open={(p) => {
+              if (p !== 'main') setFrom(p)
+              setPage(p)
+            }}
+            close={ui.close}
+          />
+          <Buttons
+            media={media}
+            ui={ui}
+            play={play}
+            qBtn={qBtn}
+            menuOpen={page !== null}
+            onGear={() => setPage(page === null ? 'main' : null)}
+            onVolume={(x) => setVol(video.current!, x)}
+            onNext={onNext}
+          />
         </div>
       </div>
     </div>

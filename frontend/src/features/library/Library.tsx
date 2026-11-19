@@ -21,13 +21,19 @@ import { browserName, share, type Session } from '../pairing/connect'
 import { Pairing } from '../pairing/Pairing'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
-import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
+import { tunnelJson } from '../../tunnel'
 import { event } from '../../diag'
-import type {
-  GatewayStatus,
-  Screen,
-  ScreenCommand,
-  ScreenState,
+import {
+  clientsOn,
+  commandScreen,
+  postScreenState,
+  screenFeed,
+  screensOn,
+  statusOn,
+  type GatewayStatus,
+  type Screen,
+  type ScreenCommand,
+  type ScreenState,
 } from '../gateways/api'
 import { useHousehold } from '../households/household'
 import { guestNotice } from './guest'
@@ -442,11 +448,7 @@ export function ScreenPage() {
   const post = useMemo(
     () =>
       serial(
-        (s: ScreenState) =>
-          tunnelFetch(pc, '/streamiq/screen/state', {
-            method: 'POST',
-            body: JSON.stringify(s),
-          }),
+        (s: ScreenState) => postScreenState(pc, s),
         () => true,
       ),
     [pc],
@@ -482,11 +484,9 @@ export function ScreenPage() {
       last = Date.now()
     }, 5_000)
     let n = 0
-    const close = tunnelLines(
+    const close = screenFeed(
       pc,
-      '/streamiq/screen',
-      (line) => {
-        const c = JSON.parse(line) as ScreenCommand
+      (c) => {
         event(`screen: ${c.type} · user activation ${active()}`)
         if (c.type === 'play') {
           players.current.clear() // the old Player is on its way out
@@ -527,7 +527,7 @@ export function ScreenPage() {
   // the phone's Play on list offers. The auto name until it answers (older gateway).
   const [name, setName] = useState(browserName)
   useEffect(() => {
-    tunnelJson<{ name: string; self: boolean }[]>(pc, '/streamiq/clients').then(
+    clientsOn(pc).then(
       (l) => {
         const me = l.find((c) => c.self)
         if (me) setName(me.name)
@@ -595,9 +595,7 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
     setScreens(null)
     setMsg('')
     if (!open)
-      tunnelJson<Screen[]>(pc, '/streamiq/screens').then(setScreens, (e) =>
-        setMsg(toAppError(e).message),
-      )
+      screensOn(pc).then(setScreens, (e) => setMsg(toAppError(e).message))
   }
   const send = (s: Screen) => {
     // No startTicks: the TV resumes from fresh UserData (this listing may be stale).
@@ -605,7 +603,7 @@ function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
       type: 'play',
       itemId: item.Id,
     }
-    tunnelJson(pc, `/streamiq/screens/${s.id}`, play).then(
+    commandScreen(pc, s.id, play).then(
       () =>
         navigate({
           to: '/g/$gatewayId/remote/$screenId',
@@ -688,7 +686,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
     let gone = false
     let t = 0
     const poll = () =>
-      tunnelJson<Screen[]>(pc, '/streamiq/screens')
+      screensOn(pc)
         .then(
           (screens) => ({ screens }),
           (e) => ({ error: toAppError(e).message }),
@@ -718,7 +716,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
     () =>
       serial(
         (c: ScreenCommand) =>
-          tunnelJson(pc, `/streamiq/screens/${screenId}`, c).catch((e) =>
+          commandScreen(pc, screenId, c).catch((e) =>
             setMsg(toAppError(e).message),
           ),
         (queued, c) => queued.type === 'seek' && c.type === 'seek',
@@ -952,7 +950,7 @@ function Guest({ pc }: { pc: RTCPeerConnection }) {
   const [s, setS] = useState<GatewayStatus | null>(null)
   useEffect(() => {
     let live = true
-    tunnelJson<GatewayStatus>(pc, '/streamiq/status').then(
+    statusOn(pc).then(
       (r) => live && setS(r),
       () => {}, // ponytail: no status (older gateway, error) = no banner
     )

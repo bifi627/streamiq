@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { authed } from '../../api'
 import { share } from '../pairing/connect'
-import { tunnelFetch, tunnelJson } from '../../tunnel'
+import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { httpError } from '../../errors'
 
 export type Gateway = {
@@ -113,6 +113,9 @@ async function viaTunnel<T>(id: string, url: string, body?: unknown) {
 export const listClients = (id: string) =>
   viaTunnel<Client[]>(id, '/streamiq/clients')
 
+export const getStatus = (id: string) =>
+  viaTunnel<GatewayStatus>(id, '/streamiq/status')
+
 export const removeClient = (id: string, keyFp: string) =>
   viaTunnel(id, '/streamiq/clients/remove', { keyFp })
 
@@ -145,3 +148,47 @@ export async function updateGateway(
     release()
   }
 }
+
+// Gateway API calls on an already open tunnel (library, player, privacy badge,
+// speed test): the caller holds the session.
+type PC = RTCPeerConnection
+
+export const statusOn = (pc: PC) =>
+  tunnelJson<GatewayStatus>(pc, '/streamiq/status')
+
+export const clientsOn = (pc: PC) =>
+  tunnelJson<Client[]>(pc, '/streamiq/clients')
+
+// GET /streamiq/route (#428): 'lan' when the gateway sees this device on one of
+// its own subnets. Older gateways answer 404.
+export type Route = { route: string }
+export const routeOn = (pc: PC) => tunnelJson<Route>(pc, '/streamiq/route')
+
+// GET /streamiq/burst (#90): the raw response, so the speed test times it.
+export const burstOn = (pc: PC, size: number) =>
+  tunnelFetch(pc, `/streamiq/burst?size=${size}`)
+
+export const screensOn = (pc: PC) =>
+  tunnelJson<Screen[]>(pc, '/streamiq/screens')
+
+export const commandScreen = (pc: PC, screenId: string, c: ScreenCommand) =>
+  tunnelJson(pc, `/streamiq/screens/${screenId}`, c)
+
+export const postScreenState = (pc: PC, s: ScreenState) =>
+  tunnelFetch(pc, '/streamiq/screen/state', {
+    method: 'POST',
+    body: JSON.stringify(s),
+  })
+
+// GET /streamiq/screen: this browser as a screen, one ScreenCommand per line.
+export const screenFeed = (
+  pc: PC,
+  onCommand: (c: ScreenCommand) => void,
+  onEnd: (why: string) => void,
+) =>
+  tunnelLines(
+    pc,
+    '/streamiq/screen',
+    (line) => onCommand(JSON.parse(line) as ScreenCommand),
+    onEnd,
+  )

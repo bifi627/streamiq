@@ -12,21 +12,16 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # One leg per environment; each GitHub Environment holds its own DB_BACKUP_URL secret
-    # (Railway DATABASE_PUBLIC_URL). Add `stage` here once it exists. fail-fast off so one
-    # failing env doesn't skip the others.
-    strategy:
-      fail-fast: false
-      matrix:
-        env: [production]
-    environment: ${{ matrix.env }}
+    # Environment `db-backup` (main only) holds DB_BACKUP_URL (Railway DATABASE_PUBLIC_URL).
+    # ponytail: one database; a second one gets a matrix back.
+    environment: db-backup
     steps:
       - name: Dump and upload
         env:
           DB_URL: ${{ secrets.DB_BACKUP_URL }}
           SA_KEY: ${{ secrets.GCS_BACKUP_SA_KEY }}
           BUCKET: ${{ vars.GCS_BACKUP_BUCKET }}
-          ENV_NAME: ${{ matrix.env }}
+          ENV_NAME: production # file and bucket prefix
         run: |
           set -euo pipefail
           : "${DB_URL:?DB_BACKUP_URL secret not set for $ENV_NAME}"

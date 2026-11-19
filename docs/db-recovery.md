@@ -12,8 +12,8 @@ Credentials for everything below: `docs/tools.md`.
   before a risky migration). It runs `pg_dump -Fc --no-owner --no-privileges` in the
   `postgres:18` image and uploads to
   `gs://<GCS_BACKUP_BUCKET>/<env>/streamiq-<env>-<UTCstamp>.dump`.
-- **Environments:** `production` only. When stage exists, add it to the workflow matrix and
-  give its GitHub Environment its own `DB_BACKUP_URL`.
+- **Databases:** production only (`<env>` = `production`). `DB_BACKUP_URL` lives in GitHub
+  Environment `db-backup`. A second database (stage) needs a matrix and its own URL.
 - **Retention:** a 30-day delete rule on the bucket (a GCS lifecycle rule, not a script).
 - **Restore:** `scripts/restore-db.ps1 -DumpPath <file> -TargetUrl <url> [-Clean]`.
 - **RPO ~24 h** (daily dumps). RTO = provision + restore + repoint: minutes at current size.

@@ -1,0 +1,52 @@
+# Smoke test of production (#574): e2e/prod-smoke.ts on a runner against the real
+# deployment (the last gateway release + Jellyfin here, real Firebase + Cloudflare TURN).
+# After every Railway deploy (it posts a GitHub Deployment per auto-deploy from main;
+# this event runs the workflow at the deployed sha, so spec and app match), daily,
+# and by hand. A failed run alerts through GitHub's workflow-failure email.
+name: Prod smoke
+
+on:
+  deployment_status:
+  schedule:
+    - cron: "30 5 * * *" # 05:30 UTC daily: what changes without a deploy (TURN key, Firebase)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# The runs share one test household and revoke its gateways: never two at once.
+concurrency:
+  group: prod-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    # Railway's deploy, once live. Not other deployments, e.g. this job's own `production`.
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'streamiq / production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - run: npm ci
+        working-directory: e2e
+      - run: npx playwright test -c prod-smoke.config.ts
+        working-directory: e2e
+        env:
+          GH_TOKEN: ${{ github.token }} # gh release download (the last gateway release)
+          SMOKE_URL: https://streamiq.up.railway.app
+          SMOKE_EMAIL: smoke@streamiq.invalid
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-logs
+          path: e2e/logs/ # never test-results/: a trace or page snapshot holds the typed password

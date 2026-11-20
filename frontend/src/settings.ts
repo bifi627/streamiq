@@ -8,6 +8,7 @@ import {
   type Quality,
   type SaverMode,
 } from './features/library/profile'
+import { guessTv } from './tv'
 
 const KEY = 'streamiq.settings.compatible'
 const RAW_KEY = 'streamiq.settings.raw'
@@ -90,18 +91,35 @@ export const netInfo = () =>
 export const dataSaverOn = () => saverOn(dataSaver(), netInfo())
 
 /** TV mode: larger root size + 5 % safe-area padding (index.css
- * `html.tv`). Manual only, no TV detection. */
+ * `html.tv`). Stored '1' / '0'; unset = first visit, where the TV guess
+ * (tv.ts) picks the default: a known TV stores on, an unsure one asks. */
 const TV_KEY = 'streamiq.settings.tv'
-export const tvOn = () => flag(TV_KEY)
+function tvStored() {
+  try {
+    return localStorage.getItem(TV_KEY)
+  } catch {
+    return '0' // unreadable: off, and never ask
+  }
+}
+export const tvOn = () => tvStored() === '1'
 export function setTv(on: boolean) {
-  setFlag(TV_KEY, on)
-  applyTv()
+  try {
+    localStorage.setItem(TV_KEY, on ? '1' : '0')
+  } catch {
+    /* not saved: this page view only */
+  }
+  document.documentElement.classList.toggle('tv', on)
   dispatchEvent(new Event(TV_EVENT))
 }
 /** Fired on window when setTv changes TV mode (the shell re-reads tvOn). */
 export const TV_EVENT = 'streamiq:tv'
-export const applyTv = () =>
-  document.documentElement.classList.toggle('tv', tvOn())
+const guess = () => guessTv(navigator.userAgent, navigator.maxTouchPoints)
+/** First visit on an Android box that may be a TV: ask once. */
+export const askTv = () => tvStored() === null && guess() === 'unsure'
+export function applyTv() {
+  if (tvStored() === null && guess() === 'tv') setTv(true)
+  else document.documentElement.classList.toggle('tv', tvOn())
+}
 
 /** The last opened gateway: the nav's Library link outside its routes. */
 const LAST_GATEWAY_KEY = 'streamiq.lastGateway'

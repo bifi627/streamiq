@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Link,
   useCanGoBack,
@@ -7,7 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { signOut } from '@firebase/auth'
 import { auth } from '../../firebase'
-import { setTv, tvOn } from '../../settings'
+import { TvToggle } from '../../TvMode'
 import { arrowFocus } from '../../focus'
 import { AliasSetting } from '../../Alias'
 import { DiagnosticsToggle } from '../../Diagnostics'
@@ -19,7 +18,6 @@ export function Settings() {
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const navigate = useNavigate()
-  const [tv, setTvOn] = useState(tvOn)
   return (
     <section className="settings" onKeyDown={arrowFocus}>
       <button
@@ -47,17 +45,7 @@ export function Settings() {
         <h2>Display</h2>
         <ul className="rows">
           <li>
-            <label className="setting">
-              <input
-                type="checkbox"
-                checked={tv}
-                onChange={(e) => {
-                  setTv(e.target.checked)
-                  setTvOn(e.target.checked)
-                }}
-              />{' '}
-              TV mode
-            </label>
+            <TvToggle />
             <p className="muted">
               Larger text and a margin for TVs that crop the picture edges.
             </p>

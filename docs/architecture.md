@@ -128,9 +128,10 @@ a privacy indicator: on your network (the gateway sees the browser on one of its
   drops the choice and reloads `/` with a notice.
 - Design tokens and base styles (dark, pill buttons, one 3 px `:focus-visible` ring) in
   `frontend/src/index.css`, CSS that Chrome 87 / webOS reads. Shell nav, gateway chip.
-- Per-device **TV mode** (`settings.ts`, `html.tv`). Its routes are an allowlist
-  (`tvRoute.ts`): any other route, unknown ones included, renders the handoff page
-  (the URL to open on a phone or PC) and drops out of the nav. D-pad = arrow keys:
+- Per-device **TV mode** (`settings.ts`, `html.tv`); the user agent sets only its
+  first-visit default (`tv.ts`: known TV → on, Android box → ask once, #309). Its routes
+  are an allowlist (`tvRoute.ts`): any other route, unknown ones included, renders the
+  handoff page (the URL to open on a phone or PC) and drops out of the nav. D-pad = arrow keys:
   `onKeyDown={arrowFocus}` (`frontend/src/focus.ts`) on a container.
 - Library home (`features/library/Home.tsx`): Resume spot, Recently added, libraries.
   Artwork through `art.ts`: loads only on screen, cached per gateway in the Cache API,

@@ -23,7 +23,8 @@ import {
 } from './features/library/Library'
 import { RemotePage, ScreenPage } from './features/library/Screen'
 import { Diagnostics } from './Diagnostics'
-import { lastGateway, setLastGateway, TV_EVENT, tvOn } from './settings'
+import { askTv, lastGateway, setLastGateway, TV_EVENT, tvOn } from './settings'
+import { TvAsk } from './TvMode'
 import { handoffHome, shellPage, tvRoute } from './tvRoute'
 import { Handoff } from './Handoff'
 import { arrowFocus } from './focus'
@@ -292,6 +293,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [ready, setReady] = useState(false)
   const [, aliasSet] = useState(false) // updateProfile fires no auth event
+  const [ask, setAsk] = useState(askTv)
 
   useEffect(() => {
     let was: User | null = null
@@ -312,6 +314,7 @@ export default function App() {
     })
   }, [])
 
+  if (ask) return <TvAsk done={() => setAsk(false)} />
   if (!ready) return null
   // Signed out on a deep link: SignIn renders at that URL, so it loads after sign-in.
   if (!user) return <SignIn />

@@ -6,12 +6,14 @@ import { ErrorView, State } from '../../ErrorView'
 import { arrowFocus } from '../../focus'
 import {
   byGateway,
+  byUse,
   data,
   duration,
   gatewayLabel,
   gatewaysIn,
   route,
   throughput,
+  use,
   when,
   type TunnelRow,
 } from './tunnels'
@@ -23,7 +25,8 @@ export function Activity() {
     queryFn: () => authed<TunnelRow[]>('/tunnels'),
   })
   const [gateway, setGateway] = useState('')
-  const rows = byGateway(q.data ?? [], gateway)
+  const [all, setAll] = useState(false)
+  const rows = byUse(byGateway(q.data ?? [], gateway), all)
   const choices = gatewaysIn(q.data ?? [])
 
   return (
@@ -51,12 +54,21 @@ export function Activity() {
               </option>
             ))}
           </select>
+          <label>
+            <input
+              type="checkbox"
+              checked={all}
+              onChange={(e) => setAll(e.target.checked)}
+            />{' '}
+            Show management and diagnostics connections
+          </label>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
                   <th>When</th>
                   <th>Gateway</th>
+                  <th>Use</th>
                   <th>Route</th>
                   <th>Duration</th>
                   <th>Data</th>
@@ -68,6 +80,7 @@ export function Activity() {
                   <tr key={t.id}>
                     <td>{when(t)}</td>
                     <td>{gatewayLabel(t)}</td>
+                    <td>{use(t)}</td>
                     <td>{route(t)}</td>
                     <td>{duration(t)}</td>
                     <td>{data(t)}</td>

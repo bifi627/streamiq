@@ -142,11 +142,14 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
-    await test.step('Activity lists the tunnels so far as Direct', async () => {
+    await test.step('Activity lists the tunnels so far as Direct, one for Playback', async () => {
       // Tunnels ended so far: those the gateway reported show their route.
       await a.getByRole('link', { name: 'Activity' }).click()
       await expect(
         a.getByRole('cell', { name: /^Direct( · IPv6)?$/ }).first(),
+      ).toBeVisible()
+      await expect(
+        a.getByRole('cell', { name: 'Playback', exact: true }).first(),
       ).toBeVisible()
       await expect(
         a.getByText('Showing the last 30 days (up to 200 tunnels).'),

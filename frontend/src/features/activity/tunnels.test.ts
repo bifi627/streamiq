@@ -2,10 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   byGateway,
+  byUse,
   data,
   duration,
   gatewaysIn,
   route,
+  use,
   type TunnelRow,
 } from './tunnels.ts'
 
@@ -21,6 +23,8 @@ const row = (o: Partial<TunnelRow> = {}): TunnelRow => ({
   bytesReceived: 0,
   throughputKbps: null,
   failure: null,
+  use: 'playback',
+  activeMs: null,
   ...o,
 })
 
@@ -81,4 +85,40 @@ test('a value that rounds up to the next unit is shown in it', () => {
     data(row({ bytesSent: 999_960, bytesReceived: 0 })),
     /1[,.]?000/,
   )
+})
+
+test('use: each known word, an unknown one as is, none', () => {
+  assert.equal(use(row()), 'Playback')
+  assert.equal(use(row({ use: 'browsing' })), 'Browsing')
+  assert.equal(use(row({ use: 'diagnostics' })), 'Diagnostics')
+  assert.equal(use(row({ use: 'management' })), 'Management')
+  assert.equal(use(row({ use: 'casting' })), 'casting')
+  assert.equal(use(row({ use: null })), '—')
+})
+
+test('duration: the active time when reported, else end − start', () => {
+  const minutes = (n: number) =>
+    new Intl.NumberFormat(undefined, {
+      style: 'unit',
+      unit: 'minute',
+      unitDisplay: 'short',
+      maximumFractionDigits: 0,
+    }).format(n)
+  assert.equal(duration(row()), minutes(5))
+  assert.equal(duration(row({ activeMs: 120_000 })), minutes(2))
+  assert.equal(duration(row({ endedAt: null, activeMs: 120_000 })), minutes(2))
+})
+
+test('management and diagnostics rows hide unless failed or shown', () => {
+  const rows = [
+    row({ id: 'play' }),
+    row({ id: 'mgmt', use: 'management' }),
+    row({ id: 'diag', use: 'diagnostics' }),
+    row({ id: 'failed', use: 'management', failure: 'ice failed' }),
+    row({ id: 'new', use: 'casting' }),
+    row({ id: 'none', use: null }),
+  ]
+  const ids = (r: typeof rows) => r.map((t) => t.id)
+  assert.deepEqual(ids(byUse(rows, false)), ['play', 'failed', 'new', 'none'])
+  assert.deepEqual(ids(byUse(rows, true)), ids(rows))
 })

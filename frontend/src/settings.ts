@@ -96,7 +96,10 @@ export const tvOn = () => flag(TV_KEY)
 export function setTv(on: boolean) {
   setFlag(TV_KEY, on)
   applyTv()
+  dispatchEvent(new Event(TV_EVENT))
 }
+/** Fired on window when setTv changes TV mode (the shell re-reads tvOn). */
+export const TV_EVENT = 'streamiq:tv'
 export const applyTv = () =>
   document.documentElement.classList.toggle('tv', tvOn())
 

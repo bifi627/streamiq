@@ -107,6 +107,31 @@ test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
 })
 
 // Each toggle once, then a reload: per-device settings live in localStorage.
+test('TV mode: /household hands off, the nav drops Household, /settings opens @shell', async ({
+  browser,
+}) => {
+  const p = await signedIn(browser, '/settings')
+  const nav = p.getByRole('navigation', { name: 'Main' })
+  const h1 = p.getByRole('heading', { level: 1 })
+  await p.getByLabel('TV mode').check() // applies at once, no reload
+  await expect(nav.getByRole('link', { name: 'Household' })).toHaveCount(0)
+  await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible()
+
+  await p.goto(appUrl('/household?x=1'))
+  await expect(h1).toHaveText('Do this on your phone or PC')
+  await expect(
+    p.getByText(appUrl('/household?x=1'), { exact: true }),
+  ).toBeVisible()
+  await expect(p.getByRole('button', { name: 'Back' })).toBeFocused()
+
+  await p.goto(appUrl('/settings'))
+  await expect(h1).toHaveText('Settings')
+  await p.getByLabel('TV mode').uncheck()
+  await p.goto(appUrl('/household'))
+  await expect(h1).toHaveText(/^Household/)
+  await expect(nav.getByRole('link', { name: 'Household' })).toBeVisible()
+})
+
 test('Settings toggles persist across a reload @shell', async ({ browser }) => {
   const p = await signedIn(browser, '/settings')
   const saver = p.getByRole('group', { name: 'Data saver' })

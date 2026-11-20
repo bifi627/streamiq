@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react'
-import { getStatus, type Gateway, type GatewayStatus } from './api'
+import { useState } from 'react'
+import {
+  readCache,
+  useGatewayStatus,
+  type Gateway,
+  type GatewayStatus,
+} from './api'
 import { toAppError } from '../../errors'
 import { detailsMessage } from './list'
-import { loadHints, loadLine, nextAsk } from './host'
+import { loadHints, loadLine } from './host'
 
 const tokenText = {
   ok: 'token set',
@@ -39,69 +44,14 @@ const transcodingText: Record<string, string> = {
   unmanaged: 'not managed by StreamIQ',
 }
 
-type Cached = { at: string; s: GatewayStatus }
-const cacheKey = (id: string) => `streamiq.gatewayStatus.${id}`
-
-// Offline view: the last response per gateway, from localStorage (may be
-// unavailable: private mode, blocked storage). Never with `host`, also
-// from a build that cached it.
-function readCache(id: string): Cached | null {
-  try {
-    const c = JSON.parse(localStorage.getItem(cacheKey(id)) ?? 'null')
-    return c && { ...c, s: { ...c.s, host: undefined } }
-  } catch {
-    return null
-  }
-}
-
-// Without `host`: stale load misleads.
-function writeCache(id: string, s: GatewayStatus) {
-  try {
-    localStorage.setItem(
-      cacheKey(id),
-      JSON.stringify({
-        at: new Date().toISOString(),
-        s: { ...s, host: undefined },
-      }),
-    )
-  } catch {
-    // ignore: the live view still works
-  }
-}
-
 // The gateway's shared tunnel session while online, released once the
 // status is in, asked again for the live load (nextAsk); offline, the cached
 // last response, dated.
 function Details({ g }: { g: Gateway }) {
-  const [s, setS] = useState<GatewayStatus | null>(null)
-  const [msg, setMsg] = useState('checking…')
-  useEffect(() => {
-    if (!g.online) return
-    let live = true
-    let t: ReturnType<typeof setTimeout> | undefined
-    const ask = () =>
-      getStatus(g.id)
-        .then((r) => {
-          writeCache(g.id, r)
-          if (live) setS(r)
-          return true
-        })
-        .catch((x) => {
-          if (!live) return false
-          setS(null) // a reading that can't be refreshed would pass for live
-          setMsg(detailsMessage(toAppError(x)))
-          return false
-        })
-        .then((ok) => {
-          const wait = nextAsk(ok)
-          if (live && wait !== null) t = setTimeout(ask, wait)
-        })
-    void ask()
-    return () => {
-      live = false
-      clearTimeout(t)
-    }
-  }, [g.id, g.online])
+  const q = useGatewayStatus(g.id, g.online)
+  // An error hides the last reading: one that can't be refreshed would pass for live.
+  const s = q.isError ? null : q.data
+  const msg = q.isError ? detailsMessage(toAppError(q.error)) : 'checking…'
 
   if (!g.online) {
     const c = readCache(g.id)

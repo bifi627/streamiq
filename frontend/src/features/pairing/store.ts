@@ -1,5 +1,6 @@
 // IndexedDB: this browser's client key (non-extractable CryptoKey — script on
 // the page can use it but never read it out) and the gateway pins, per gateway id.
+import { useQuery } from '@tanstack/react-query'
 import { fingerprint } from './crypto'
 import { event } from '../../diag'
 
@@ -43,6 +44,18 @@ export async function clientKey(): Promise<ClientKey> {
 
 export const getPin = (gatewayId: string) =>
   kv<string | undefined>('readonly', (s) => s.get(`pin:${gatewayId}`))
+
+/** Whether this browser holds a pin for the gateway; a failed read = no. */
+export const usePinned = (gatewayId: string) =>
+  useQuery({
+    queryKey: ['pin', gatewayId],
+    queryFn: () =>
+      getPin(gatewayId).then(
+        (p) => !!p,
+        () => false,
+      ),
+    gcTime: 0, // read again on every mount: setPin/deletePin don't update it
+  }).data
 
 export const setPin = (gatewayId: string, gatewayFp: string) =>
   kv('readwrite', (s) => s.put(gatewayFp, `pin:${gatewayId}`))

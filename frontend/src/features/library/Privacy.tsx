@@ -5,36 +5,19 @@
 // to end (pinned both ways).
 // Focusing or clicking the badge shows the one-line explanation
 // (CSS: .badge:focus / [aria-expanded] + .explain); the relayed MB live there.
-import { useEffect, useState } from 'react'
-import { pairInfo, type PairInfo } from '../../stats'
-import { routeOn } from '../gateways/api'
+import { useState } from 'react'
+import { useOnLan, usePairInfo } from './queries'
 
-export function Privacy({ pc }: { pc: RTCPeerConnection }) {
-  const [p, setP] = useState<PairInfo | null>(null)
-  const [lan, setLan] = useState<boolean | null>(null) // null: not asked yet
+export function Privacy({
+  gatewayId,
+  pc,
+}: {
+  gatewayId: string
+  pc: RTCPeerConnection
+}) {
+  const p = usePairInfo(gatewayId, pc)
+  const lan = useOnLan(gatewayId, pc)
   const [open, setOpen] = useState(false)
-  useEffect(() => {
-    const poll = () =>
-      pc.getStats().then(
-        (s) => setP(pairInfo(s)),
-        () => {},
-      )
-    // A gateway without /streamiq/route answers 404: relayed or direct only.
-    const ask = () =>
-      routeOn(pc).then(
-        (r) => setLan(r.route === 'lan'),
-        () => setLan((l) => l ?? false), // keep the last answer over a hiccup
-      )
-    poll()
-    ask()
-    const t = setInterval(poll, 2000)
-    // ponytail: every 10 s, a changed network shows up that late; each ask is a request
-    const u = setInterval(ask, 10_000)
-    return () => {
-      clearInterval(t)
-      clearInterval(u)
-    }
-  }, [pc])
   if (!p || lan === null) return null
   const mb = ((p.bytesReceived + p.bytesSent) / 1e6).toLocaleString(undefined, {
     minimumFractionDigits: 1,

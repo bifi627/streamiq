@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { browserName, connect } from './connect'
-import { clientKey, getPin } from './store'
+import { clientKey, usePinned } from './store'
 import { renameMessage, toAppError } from '../../errors'
 import { listClients, renameClient } from '../gateways/api'
 import { isBack } from '../library/items'
@@ -30,9 +30,10 @@ export function Pairing({
   needsPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
-  /** Whether this browser has a stored pin for the gateway, read on mount. A
-   * failed test doesn't call it again: the pin stays stored. Pass a
-   * stable function (a state setter or useCallback): a new one re-reads the pin. */
+  /** Whether this browser has a stored pin for the gateway, read on mount
+   * (usePinned). A failed test doesn't call it again: the pin stays stored.
+   * Pass a stable function (a state setter or useCallback): a new one is
+   * called again with the read. */
   onPin?: (pinned: boolean) => void
   /** Gateway card: Open takes Pair's place once this browser is paired. */
   open?: () => void
@@ -42,17 +43,12 @@ export function Pairing({
   const [s, setS] = useState<State>({ step: 'idle' })
   // Pair shows while this browser has no pin for the gateway. ponytail: a pin
   // the gateway dropped (Remove on its page) only shows on a failed test.
-  const [pinned, setPinned] = useState<boolean | null>(null)
+  const stored = usePinned(gatewayId)
+  const [known, setPinned] = useState<boolean | null>(null) // what a run found out since
+  const pinned = known ?? stored ?? null
   useEffect(() => {
-    const got = (p: boolean) => {
-      setPinned(p)
-      onPin?.(p)
-    }
-    getPin(gatewayId).then(
-      (p) => got(!!p),
-      () => got(false),
-    )
-  }, [gatewayId, onPin])
+    if (stored !== undefined) onPin?.(stored)
+  }, [stored, onPin])
 
   const root = useRef<HTMLDivElement>(null)
   const testBtn = useRef<HTMLButtonElement>(null)

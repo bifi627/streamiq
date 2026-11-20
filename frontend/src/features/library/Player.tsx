@@ -4,41 +4,17 @@
 // `onState` gets the playback state about once a second and on every change.
 import { useContext, useEffect, useRef, useState } from 'react'
 import { ErrorView } from '../../ErrorView'
-import { tunnelJson } from '../../tunnel'
 import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
 import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
-import * as jf from './jellyfin'
 import { Tunnel } from './art'
 import { Controls } from './Controls'
 import { Privacy } from './Privacy'
+import { useNext } from './queries'
 import { Engine, START_VIEW, type View } from './engine'
 import { qualityOptions } from './quality'
 import type { Quality } from './profile'
 import { TICKS_PER_SECOND, type Item } from './items'
-
-// Next episode: the series' episode after this one, if any.
-function useNext(pc: RTCPeerConnection, itemId: string, series?: string) {
-  const [next, setNext] = useState<Item>()
-  useEffect(() => {
-    setNext(undefined) // never the episode now playing
-    if (!series) return
-    let gone = false // a late answer for the previous episode
-    // This episode and the one after it, not the whole series.
-    tunnelJson<{ Items: Item[] }>(pc, jf.nextEpisodes(series, itemId)).then(
-      (p) => {
-        if (gone) return
-        // Not listed first (e.g. missing): no button.
-        setNext(p.Items[0]?.Id === itemId ? p.Items[1] : undefined)
-      },
-      () => {}, // ponytail: no list = no button
-    )
-    return () => {
-      gone = true
-    }
-  }, [pc, series, itemId])
-  return next
-}
 
 // oxlint-disable-next-line complexity -- render branching
 export function Player({
@@ -72,7 +48,7 @@ export function Player({
   const [compat] = useState(compatibleOn) // as the engine reads it: once
   const engine = useRef<Engine>(null)
   const series = onNext && item?.Type === 'Episode' ? item.SeriesId : undefined
-  const next = useNext(pc, itemId, series)
+  const next = useNext(itemId, series)
   const stateRef = useRef(onState)
   useEffect(() => {
     stateRef.current = onState
@@ -153,7 +129,7 @@ export function Player({
                 </p>
               )}
             </hgroup>
-            <Privacy pc={pc} />
+            <Privacy gatewayId={gatewayId} pc={pc} />
           </>
         }
       >

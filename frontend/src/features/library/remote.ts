@@ -5,21 +5,17 @@ import type { Screen } from '../gateways/api'
 export const clampSeek = (t: number, dur: number) =>
   Math.max(0, dur ? Math.min(dur, t) : t)
 
-/** One poll of /streamiq/screens: the screen to show (null: closed; absent:
- * keep the last), the error line, poll again?, and recovered (back after
- * wasDown's error: a command error from the outage is stale too). */
+/** The last /streamiq/screens answer (undefined: none yet) and the current
+ * poll error: the screen to show (null: closed; undefined: none yet), poll
+ * again?, and recovered (back after wasDown's error: a command error from
+ * the outage is stale too). An error keeps the last answer's screen. */
 export function polled(
   screenId: string,
-  r: { screens: Screen[] } | { error: string },
+  screens: Screen[] | undefined,
+  down: string,
   wasDown = '',
-): {
-  screen?: Screen | null
-  down: string
-  again: boolean
-  recovered: boolean
-} {
-  if ('error' in r) return { down: r.error, again: true, recovered: false }
-  const screen = r.screens.find((x) => x.id === screenId) ?? null
+): { screen?: Screen | null; again: boolean; recovered: boolean } {
   // closed: ids never come back
-  return { screen, down: '', again: screen !== null, recovered: !!wasDown }
+  const screen = screens && (screens.find((x) => x.id === screenId) ?? null)
+  return { screen, again: screen !== null, recovered: !!wasDown && !down }
 }

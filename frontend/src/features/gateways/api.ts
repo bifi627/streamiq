@@ -3,7 +3,7 @@ import { authed } from '../../api'
 import { share } from '../pairing/connect'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { httpError } from '../../errors'
-import type { HostLoad } from './host'
+import { nextAsk, type HostLoad } from './host'
 
 export type Gateway = {
   id: string
@@ -117,6 +117,53 @@ export const listClients = (id: string) =>
 
 export const getStatus = (id: string) =>
   viaTunnel<GatewayStatus>(id, '/streamiq/status')
+
+type Cached = { at: string; s: GatewayStatus }
+const cacheKey = (id: string) => `streamiq.gatewayStatus.${id}`
+
+// Offline view: the last response per gateway, from localStorage (may be
+// unavailable: private mode, blocked storage). Never with `host`, also
+// from a build that cached it.
+export function readCache(id: string): Cached | null {
+  try {
+    const c = JSON.parse(localStorage.getItem(cacheKey(id)) ?? 'null')
+    return c && { ...c, s: { ...c.s, host: undefined } }
+  } catch {
+    return null
+  }
+}
+
+// Without `host`: stale load misleads.
+function writeCache(id: string, s: GatewayStatus) {
+  try {
+    localStorage.setItem(
+      cacheKey(id),
+      JSON.stringify({
+        at: new Date().toISOString(),
+        s: { ...s, host: undefined },
+      }),
+    )
+  } catch {
+    // ignore: the live view still works
+  }
+}
+
+// The details' status while online: polled every nextAsk, stopped by an
+// error; each answer kept for the offline view.
+export const useGatewayStatus = (id: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['gatewayStatus', id],
+    queryFn: async () => {
+      const s = await getStatus(id)
+      writeCache(id, s)
+      return s
+    },
+    enabled,
+    refetchInterval: (q) => nextAsk(q.state.status !== 'error') ?? false,
+    gcTime: 0, // reopened: "checking…" again, never an old reading
+    refetchOnWindowFocus: false, // nextAsk: no retry, each would open a tunnel
+    refetchOnReconnect: false,
+  })
 
 export const removeClient = (id: string, keyFp: string) =>
   viaTunnel(id, '/streamiq/clients/remove', { keyFp })

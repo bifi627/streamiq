@@ -9,9 +9,9 @@ import { ErrorView, State } from '../../ErrorView'
 import {
   backdrop,
   items,
-  load,
   primary,
   Tunnel,
+  useArt,
   useTunnelQuery,
   type Art,
 } from './art'
@@ -275,41 +275,27 @@ export function Artwork({
   width: number
   className: string
 }) {
-  const { gatewayId, pc } = useContext(Tunnel)
   const box = useRef<HTMLDivElement>(null)
-  const { id, type, tag } = art ?? {}
-  const key = `${id}/${type}/${tag}/${width}`
-  const [got, setGot] = useState<{ key: string; url: string } | null>(null)
-  const [failed, setFailed] = useState('')
+  const key = art && `${art.id}/${art.type}/${art.tag}/${width}`
+  const [seen, setSeen] = useState<string | null>(null) // the key whose box came on screen
   useEffect(() => {
     const el = box.current
-    if (!id || !type || !tag || !el) return
-    let url = ''
-    let gone = false
-    const seen = new IntersectionObserver(
+    if (!key || !el) return
+    const io = new IntersectionObserver(
       (es) => {
         if (!es.some((e) => e.isIntersecting)) return
-        seen.disconnect()
-        load(pc, gatewayId, { id, type, tag }, width).then(
-          (b) => {
-            if (gone) return
-            if (!b) return setFailed(key)
-            url = URL.createObjectURL(b)
-            setGot({ key, url })
-          },
-          () => !gone && setFailed(key),
-        )
+        io.disconnect()
+        setSeen(key)
       },
       { rootMargin: '100px' },
     )
-    seen.observe(el)
-    return () => {
-      gone = true
-      seen.disconnect()
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [pc, gatewayId, id, type, tag, width, key])
-  if (card && (!art || failed === key))
+    io.observe(el)
+    return () => io.disconnect()
+  }, [key])
+  const q = useArt(art, width, seen !== null && seen === key)
+  const url = q.data
+  const failed = q.isError || q.data === null
+  if (card && (!art || failed))
     return (
       <div
         ref={box}
@@ -323,7 +309,7 @@ export function Artwork({
     )
   return (
     <div ref={box} className={`art ${className}`}>
-      {art && got?.key === key && <img src={got.url} alt="" />}
+      {art && url && <img src={url} alt="" />}
     </div>
   )
 }

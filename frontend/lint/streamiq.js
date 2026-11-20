@@ -148,8 +148,9 @@ const CODE_SPAN = /`[^`]*`/g
 // The file header is the module's overview and may run longer; a why-block in the code may not.
 const MAX_COMMENT_LINES = 6
 const LICENSE = /^!|@license|\bcopyright\b|\bSPDX-License-Identifier\b/i
+// `;` optional: our Prettier is semicolon-free. A bare `a = b` needs its `;`: prose uses `=` too.
 const COMMENTED_CODE =
-  /^(?:(?:(?:const|let|var)\s+[\w${}[\], ]+=.*|import\s.+\sfrom\s+["'].+["']|(?:await\s+|return\s+)?[\w$.]+\(.*\)|[\w$.[\]]+\s*=\s*.+);|(?:if|for|while|switch)\s*\(.*\)\s*\{|\}(?:\s*else\s*\{)?)$/
+  /^(?:(?:(?:const|let|var)\s+[\w${}[\], ]+=.*|import\s.+\sfrom\s+["'].+["']|(?:await\s+|return\s+)?[\w$.]+\([^()]*\));?|[\w$.[\]]+\s*=\s*.+;|(?:if|for|while|switch)\s*\(.*\)\s*\{|\}(?:\s*else\s*\{)?)$/
 const DECLARATION =
   /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:static\s+)?(?:readonly\s+)?(?:(?:const|let|var|function\*?|class|interface|type|enum)\s+)?([A-Za-z_$][\w$]*)\s*[?!]?\s*[:=(<{]/
 const FILLER = new Set(

@@ -4,8 +4,8 @@ using StreamIq.Api.Data;
 
 namespace StreamIq.Api.Features.Tunnels;
 
-/// Tunnel telemetry, the browser's one part (#390): the gateway → client throughput
-/// it measured (#162). The broker writes the row and its end, the gateway its route
+/// Tunnel telemetry, the browser's one part: the gateway → client throughput it
+/// measured. The broker writes the row and its end, the gateway its route
 /// and bytes. Only the caller's own tunnel; another tenant's row is invisible to the
 /// global filter → 404.
 public static class EndTunnel

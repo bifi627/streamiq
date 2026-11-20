@@ -35,7 +35,7 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
         b.Entity<Membership>(e =>
         {
             e.ToTable("memberships", t => t.HasCheckConstraint("CK_memberships_Role", "\"Role\" IN ('admin', 'member')"));
-            e.HasKey(x => new { x.TenantId, x.UserId });   // unique on (tenant, user)
+            e.HasKey(x => new { x.TenantId, x.UserId });
             e.HasIndex(x => x.UserId);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
@@ -67,8 +67,7 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
 
-        // DB-level FKs matching the design doc (tenant_id uuid NOT NULL REFERENCES
-        // tenants(id)). No navigation properties — entities stay plain scalars.
+        // No navigation properties: entities stay plain scalars.
         b.Entity<Membership>().HasOne<Tenant>().WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Membership>().HasOne<AppUser>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Gateway>().HasOne<Tenant>().WithMany().HasForeignKey(d => d.TenantId).OnDelete(DeleteBehavior.Cascade);
@@ -79,9 +78,8 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
         b.Entity<Tunnel>().HasOne<Gateway>().WithMany().HasForeignKey(c => c.GatewayId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Tunnel>().HasOne<AppUser>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.SetNull);   // the telemetry outlives the account
 
-        // ONE place: apply the tenant filter to every ITenantOwned entity. A
-        // strongly-typed generic lambda referencing the instance property is the
-        // documented EF multi-tenancy pattern (value read per query, not baked).
+        // A generic lambda on the instance property: EF reads CurrentTenantId per query,
+        // not once at model build.
         foreach (var et in b.Model.GetEntityTypes()
                      .Where(t => typeof(ITenantOwned).IsAssignableFrom(t.ClrType)))
         {

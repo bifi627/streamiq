@@ -4,7 +4,7 @@ using StreamIq.Api.Data;
 
 namespace StreamIq.Api.Features.Household;
 
-/// A signed-in user creates a household on purpose and becomes its admin (#387);
+/// A signed-in user creates a household on purpose and becomes its admin;
 /// sign-up makes none. Works with or without a household already. Unnamed until an
 /// admin names it (RenameHousehold). One SaveChanges: tenant + membership atomic.
 public static class CreateHousehold

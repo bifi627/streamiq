@@ -7,7 +7,7 @@ namespace StreamIq.Api.Features.Me;
 
 /// Signed-in user, the household this request acts in, and every household the
 /// user belongs to (oldest first). First call for a new Firebase UID adds the user
-/// (auth handler); with no household yet, tenantId is null and memberships empty (#387).
+/// (auth handler); with no household yet, tenantId is null and memberships empty.
 public static class GetMe
 {
     public static void Map(IEndpointRouteBuilder app)

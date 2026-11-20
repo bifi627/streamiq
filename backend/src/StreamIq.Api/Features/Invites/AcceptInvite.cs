@@ -7,7 +7,7 @@ using StreamIq.Api.Features.Onboarding;
 
 namespace StreamIq.Api.Features.Invites;
 
-/// Opening an invite link (#191): preview shows which household it is, accept makes
+/// Opening an invite link: preview shows which household it is, accept makes
 /// the signed-in user a `member` of it. The token establishes the household, so the
 /// lookup by hash bypasses the tenant filter (Find); the only row accept ever adds
 /// is a membership for the signed-in user in that household.
@@ -32,7 +32,7 @@ public static class AcceptInvite
                 return Results.NotFound();
             }
             return Results.Ok(new { householdId = invite.TenantId, name = await NameOf(db, invite, ct), member });
-        }).RequireAuthorization().WithMetadata(Households.Optional);   // the way in without a household (#387)
+        }).RequireAuthorization().WithMetadata(Households.Optional);   // the way in without a household
 
         app.MapPost("/invites/accept", async (Request req, ClaimsPrincipal user, StreamIqDbContext db, CancellationToken ct) =>
         {
@@ -68,7 +68,7 @@ public static class AcceptInvite
             }
             await tx.CommitAsync(ct);
             return Results.Ok(new { householdId = invite.TenantId });
-        }).RequireAuthorization().WithMetadata(Households.Optional);   // the way in without a household (#387)
+        }).RequireAuthorization().WithMetadata(Households.Optional);   // the way in without a household
     }
 
     // Tenant-filter exception: the invite token establishes the household.

@@ -2,7 +2,7 @@ using StreamIq.Api.Data;
 
 namespace StreamIq.Api.Features.Household;
 
-/// An admin names the request's household (#384); until then the web app shows
+/// An admin names the request's household; until then the web app shows
 /// the end of its id. Trimmed, 1–100 characters, no control characters (like a
 /// gateway name).
 public static class RenameHousehold

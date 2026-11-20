@@ -16,11 +16,11 @@ namespace StreamIq.Api.Features.Broker;
 /// their role in that gateway's household (from the same membership) as `role`.
 /// `ready` carries this session's ICE servers; a revocable TURN credential is
 /// revoked when the socket closes (closing it also ends the session: `bye`).
-/// Telemetry (#390): a routed offer inserts its `tunnels` row (id = session), and the
+/// Telemetry: a routed offer inserts its `tunnels` row (id = session), and the
 /// socket closing stamps its end; the gateway's report fills in the rest (GatewaySocket).
 public static class BrowserSocket
 {
-    internal static TimeSpan AuthTimeout = TimeSpan.FromSeconds(10);   // tests shorten it (#530)
+    internal static TimeSpan AuthTimeout = TimeSpan.FromSeconds(10);   // tests shorten it
 
     public static void Map(IEndpointRouteBuilder app)
     {
@@ -112,7 +112,7 @@ public static class BrowserSocket
     // Same verify path as the HTTP API (FirebaseAuthHandler), no bypass. An
     // unauthenticated socket gets AuthTimeout to speak, not forever. Null = the socket
     // was closed with the reason. The timeout races the read instead of cancelling it:
-    // a cancelled receive aborts the socket, with no close frame to carry the reason (#555).
+    // a cancelled receive aborts the socket, with no close frame to carry the reason.
     static async Task<AppUser?> AuthenticateAsync(WebSocket socket, StreamIqDbContext db,
         UserProvisioner provisioner, CancellationToken ct)
     {
@@ -139,7 +139,7 @@ public static class BrowserSocket
             await Broker.CloseAsync(socket, "unauthorized", ct);
             return null;
         }
-        // In no household at all (#387): nothing to offer to, and no TURN credential for it.
+        // In no household at all: nothing to offer to, and no TURN credential for it.
         if (!await Households.AnyAsync(db, user.Id, ct))
         {
             await Broker.CloseAsync(socket, "no household", ct);
@@ -205,7 +205,7 @@ public static class BrowserSocket
             ["session"] = session.ToString(),
             // Who acts (users.id, never the Firebase UID); the client key says which device.
             ["user"] = user.Id.ToString(),
-            // Their role in the gateway's household, from that same membership lookup (#194).
+            // Their role in the gateway's household, from that same membership lookup.
             ["role"] = membership.Role,
             ["sdp"] = offer.Sdp?.DeepClone(),
         });

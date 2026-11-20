@@ -8,8 +8,8 @@ namespace StreamIq.Api.Features.Members;
 
 /// The request's household members (any member may list): role and joined date from
 /// the tenant-filtered memberships, name and email looked up in Firebase at read
-/// time and never stored (no PII in our DB, #65). The name is the user's alias
-/// (Firebase displayName, #388), or their email for a pre-alias account; the email
+/// time and never stored (no PII in our DB). The name is the user's alias
+/// (Firebase displayName), or their email for a pre-alias account; the email
 /// itself goes only to its owner (admins don't get others' either).
 public static class ListMembers
 {

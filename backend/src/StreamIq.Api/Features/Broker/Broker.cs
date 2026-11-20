@@ -6,14 +6,13 @@ using System.Threading.RateLimiting;
 
 namespace StreamIq.Api.Features.Broker;
 
-/// Tenant-scoped signaling broker (design: specs/2026-11-01-streamiq-agent-pairing-
-/// design.md). Connected gateways by gateway id, live browser sessions by session
-/// id. The broker relays SDP/ICE but can't make either side trust the other:
+/// Tenant-scoped signaling broker: connected gateways by gateway id, live browser
+/// sessions by session id. The broker relays SDP/ICE but can't make either side trust the other:
 /// pins + pairing do that. ponytail: in-memory, single API instance (Railway);
 /// Postgres LISTEN/NOTIFY or Redis when there's a second instance.
 public static class Broker
 {
-    public static readonly ConcurrentDictionary<Guid, Link> Gateways = new();      // gateway id → gateway
+    public static readonly ConcurrentDictionary<Guid, Link> Gateways = new();
     public static readonly ConcurrentDictionary<Guid, Link> Sessions = new();    // session id → browser
 
     /// One end of a relay. Several readers may write to one socket (many browser
@@ -25,7 +24,7 @@ public static class Broker
         public Guid TenantId => tenantId;
         public Guid GatewayId => gatewayId;
         /// A session's gateway link (the socket its offer went to): when that socket
-        /// closes, the session's socket is closed as "gateway gone" (#172). A reconnected gateway is a new link.
+        /// closes, the session's socket is closed as "gateway gone". A reconnected gateway is a new link.
         public Link? Via => via;
 
         /// Ends this link from outside its own loop (revocation): a best-effort close
@@ -88,7 +87,7 @@ public static class Broker
 
     /// Next whole JSON text message, or null when the socket closes. Messages over
     /// max or not a JSON object are skipped (SDP is a few KB; 64KB is generous), or with
-    /// strict return null (the auth read: a bad first frame is refused, #555). A message
+    /// strict return null (the auth read: a bad first frame is refused). A message
     /// past the limiter's budget closes the socket (1008 "rate limited") and returns null.
     public static async Task<JsonObject?> ReadAsync(WebSocket socket, CancellationToken ct, int max = 64 * 1024,
         RateLimiter? limiter = null, bool strict = false)
@@ -144,7 +143,7 @@ public static class Broker
     }
 
     /// A string field of an untrusted message. Any other JSON type reads as missing,
-    /// never a throw that drops the socket in silence (#540).
+    /// never a throw that drops the socket in silence.
     internal static string? Str(JsonObject m, string key)
     {
         return m[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;

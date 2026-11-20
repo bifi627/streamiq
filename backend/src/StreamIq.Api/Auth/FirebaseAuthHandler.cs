@@ -49,8 +49,8 @@ public class FirebaseAuthHandler(
             ? Guid.TryParse(h.ToString(), out var id) ? id : Guid.Empty
             : null;
         var membership = await Households.PickAsync(db, user.Id, wanted, Context.RequestAborted);
-        // No household at all (#387): only the endpoints marked Households.Optional,
-        // with no tenant claims and CurrentTenantId left null (the filter shows nothing).
+        // No household at all: only Households.Optional endpoints, with no tenant claims
+        // and CurrentTenantId left null (the filter shows nothing).
         var optional = wanted is null && Context.GetEndpoint()?.Metadata.Contains(Households.Optional) == true;
         if (membership is null && !optional)
         {

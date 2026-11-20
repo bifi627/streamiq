@@ -3,11 +3,8 @@ using Microsoft.EntityFrameworkCore.Design;
 
 namespace StreamIq.Api.Data;
 
-/// dotnet-ef needs to build a DbContext without the app's DI container (which
-/// only registers StreamIqDbContext once request wiring lands — a later task).
-/// Design-time only: `migrations add` never opens a connection, so the
-/// connection string just has to parse, not resolve. Same local-compose
-/// default as Program.cs's fallback.
+/// For dotnet-ef, without the app's startup. `migrations add` never opens a
+/// connection, so the connection string only has to parse.
 public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<StreamIqDbContext>
 {
     public StreamIqDbContext CreateDbContext(string[] args)

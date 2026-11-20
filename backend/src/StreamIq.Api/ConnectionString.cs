@@ -6,8 +6,6 @@ namespace StreamIq.Api;
 // key-value string. If a host ever emits some other URL scheme, widen the check.
 public static class ConnectionString
 {
-    // Npgsql accepts "Host=...;Port=...;" but not "postgres://u:p@host:port/db".
-    // Convert the URL form; pass a key-value string through untouched.
     public static string Normalize(string raw)
     {
         if (!raw.StartsWith("postgres://") && !raw.StartsWith("postgresql://"))

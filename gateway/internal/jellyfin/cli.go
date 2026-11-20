@@ -13,9 +13,9 @@ import (
 	"golang.org/x/term"
 )
 
-// LoginCLI is `gateway jellyfin login` (#241): the local page's admin login,
+// LoginCLI is `gateway jellyfin login`: the local page's admin login,
 // from a shell on the gateway box. It writes jellyfin.json; a running gateway
-// re-reads it on its next poll (#240). readPw reads a line without echo; the
+// re-reads it on its next poll. readPw reads a line without echo; the
 // password is never printed.
 // ponytail: a viewer the running gateway saves between this Load and Login's save is lost; the member's next session makes it again.
 func LoginCLI(ctx context.Context, s *Setup, in io.Reader, out io.Writer, readPw func() (string, error)) error {

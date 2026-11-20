@@ -8,11 +8,11 @@ import (
 	"streamiq/gateway/internal/tunnel"
 )
 
-// Remote is an update started from the web app (#312, gateway API POST
+// Remote is an update started from the web app (gateway API POST
 // /streamiq/update): only where the logon task brings the new binary back up.
 type Remote struct {
 	Version   string        // this binary's
-	Supported bool          // service.Supported: Windows only for now (#119, #277)
+	Supported bool          // service.Supported: Windows only for now; TODO(#119), TODO(#277)
 	Newer     func() string // the newer release the daily check found, "" = none
 	Task      func() bool   // service.Installed: nothing else would restart the gateway
 	// Start runs the detached `gateway update`; wait returns once it has exited
@@ -58,7 +58,7 @@ func (r *Remote) Run() (target, refused string, err error) {
 	return target, "", nil
 }
 
-// Path starts a remote update (#312, gateway API, admin-only): POST → 202
+// Path starts a remote update (gateway API, admin-only): POST → 202
 // {"version": target}, the gateway goes down for the swap right after; refused →
 // 409 {"reason": "…"}.
 const Path = "/streamiq/update"

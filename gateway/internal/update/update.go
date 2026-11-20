@@ -1,9 +1,9 @@
 // Package update tells the user when a newer gateway release exists, and on
-// Windows `gateway update` downloads, verifies and swaps the binary (#117).
+// Windows `gateway update` downloads, verifies and swaps the binary.
 // Nothing updates in the background: the user runs `gateway update`, or an admin
-// starts it from the web app (Remote, #312: Windows with the logon task). An
+// starts it from the web app (Remote: Windows with the logon task). An
 // update keeps the state and the binary it replaced in backups/ for
-// `gateway rollback` (#296).
+// `gateway rollback`.
 package update
 
 import (
@@ -26,7 +26,7 @@ import (
 )
 
 // LatestURL is GitHub's latest *non-prerelease* release (STREAMIQ_LATEST
-// overrides it: the update test serves its own, #452). ponytail: assumes every release in the repo is a gateway release (tag gateway-vX.Y.Z); filter
+// overrides it: the update test serves its own). ponytail: assumes every release in the repo is a gateway release (tag gateway-vX.Y.Z); filter
 // by tag prefix over /releases if the repo ever publishes other releases.
 const LatestURL = "https://api.github.com/repos/bifi627/streamiq/releases/latest"
 
@@ -118,7 +118,7 @@ func Asset() string {
 // Download fetches dl/asset to dst and checks it against dl/SHA256SUMS, as the
 // installers do. On a mismatch dst is removed and nothing else changes.
 // ponytail: SHA256SUMS comes from the same release, so it catches corruption,
-// not a compromised release; signing is #69.
+// not a compromised release; code signing would.
 func Download(ctx context.Context, dl, asset, dst string) error {
 	want, err := sum(ctx, dl+"/SHA256SUMS", asset)
 	if err != nil {
@@ -184,7 +184,7 @@ func get(ctx context.Context, url string) (io.ReadCloser, error) {
 
 // Swap puts in at exe and moves exe to out (replacing a file there). Windows
 // can't overwrite a running exe but can rename it. If the move-in fails, exe is
-// put back. An update moves exe into its backup dir (#296); a rollback moves the
+// put back. An update moves exe into its backup dir; a rollback moves the
 // kept binary in and the current one to exe.old (removed by the next update).
 func Swap(exe, in, out string) error {
 	if err := os.Remove(out); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -199,7 +199,7 @@ func Swap(exe, in, out string) error {
 	return nil
 }
 
-// Backups is the install dir's folder of pre-update backups (#296): one dir per
+// Backups is the install dir's folder of pre-update backups: one dir per
 // update, <time>-<version>, with the state backup (StateZip) and the binary that
 // was replaced. Unencrypted secrets, like any gateway backup: 0700.
 const (
@@ -209,7 +209,7 @@ const (
 )
 
 // BackupDir makes the dir for one update's backup of version. "" on an error: a
-// dir that exists already is another update's, not this one's to clean up (#635).
+// dir that exists already is another update's, not this one's to clean up.
 func BackupDir(install, version string, now time.Time) (string, error) {
 	d := filepath.Join(install, Backups, now.Format("20060102-150405")+"-"+version)
 	if err := os.MkdirAll(filepath.Dir(d), 0o700); err != nil {

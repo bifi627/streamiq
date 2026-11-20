@@ -61,7 +61,7 @@ func Auth(token string, h http.Handler) http.Handler {
 			if ok(t) {
 				// No Secure: the page is plain HTTP on a LAN IP, and browsers drop Secure
 				// cookies from http:// origins (login would loop). HTTPS on the LAN is out
-				// of scope (#42); the cookie is sniffable on shared Wi-Fi, accepted.
+				// of scope; the cookie is sniffable on shared Wi-Fi, accepted.
 				http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/",
 					MaxAge: 365 * 24 * 3600, HttpOnly: true, SameSite: http.SameSiteStrictMode})
 				http.Redirect(w, r, "/", http.StatusSeeOther)

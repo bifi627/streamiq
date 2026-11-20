@@ -1,6 +1,6 @@
 package tunnel
 
-// Screen relay (#95/#179, docs/protocol.md "Screens"): a TV in screen mode holds
+// Screen relay (docs/protocol.md "Screens"): a TV in screen mode holds
 // GET /streamiq/screen open; phones on the same gateway list open screens and
 // POST commands, which the gateway writes to that held response as NDJSON lines.
 // Opt-in is structural: only a session holding the channel has a screen id, so
@@ -28,11 +28,11 @@ const (
 // the request's data channel closes.
 type Session struct {
 	ID     string
-	User   string // the user's users.id, from the broker's offer: picks their Jellyfin viewer (#195)
+	User   string // the user's users.id, from the broker's offer: picks their Jellyfin viewer
 	Role   string // the user's role in this gateway's household, from the broker's offer: Admin | Member
 	Key    string // the client key fp the session authed with (which device)
 	Name   func() string
-	Route  func() string // relay | lan | direct, decided at call time (#428); nil outside a tunnel
+	Route  func() string // relay | lan | direct, decided at call time; nil outside a tunnel
 	Closed <-chan struct{}
 }
 

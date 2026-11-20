@@ -19,7 +19,7 @@ import (
 
 // Router is the gateway API: a stdlib ServeMux (Go 1.22 patterns, e.g.
 // "POST /streamiq/screens/{id}"). An unknown path is 404, a known one called
-// with a method it isn't registered for 405 + Allow (#436).
+// with a method it isn't registered for 405 + Allow.
 type Router struct {
 	mux     *http.ServeMux
 	methods []string // every method a pattern names, for Allow
@@ -44,7 +44,7 @@ var builtin = NewRouter()
 type Option func(http.Handler) http.Handler
 
 // AdminOnly: only a household admin may call the route; a member (or a session
-// without a role) gets 403. #89 decides per endpoint.
+// without a role) gets 403.
 func AdminOnly(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if SessionOf(r).Role != Admin {
@@ -131,7 +131,7 @@ func AfterReply(r *http.Request, f func()) {
 }
 
 // Fail refuses a request: status (500 for a gateway API handler's own failure,
-// never 502, which the web app shows as "media server down", #327; the
+// never 502, which the web app shows as "media server down"; the
 // Jellyfin proxy's 502 means just that) with no headers or body; err goes to
 // the gateway log only.
 func Fail(w http.ResponseWriter, status int, err error) {

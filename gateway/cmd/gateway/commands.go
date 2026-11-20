@@ -332,7 +332,7 @@ func jellyfinLogin(ctx context.Context) error {
 }
 
 // exitOnCancel exits 130 when ctx ends, until the func it returns is called:
-// main's deferred stop() cancels ctx after a successful run too (#635).
+// main's deferred stop() cancels ctx after a successful run too.
 func exitOnCancel(ctx context.Context, exit func(int)) (release func()) {
 	done, gone := make(chan struct{}), make(chan struct{})
 	go func() {

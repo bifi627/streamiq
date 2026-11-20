@@ -1,29 +1,17 @@
-// Package jellyfin gets the gateway a non-admin Jellyfin user token without
-// manual steps and watches Jellyfin's health for the status page (design:
-// specs/2026-11-04-streamiq-gateway-productization-design.md, goals 4, 5, 7;
-// viewer token: #50). With an admin session it creates (or adopts) the hidden
-// viewer user "streamiq-viewer", signs in as it and keeps that token, then logs
-// the admin out. The admin session comes from:
-//   - fresh Jellyfin (wizard not done): complete the wizard, create admin
-//     "streamiq" with a random password (kept only in state/jellyfin.json, 0600; the
-//     local page shows the file's path, never the password). If a human changes it
-//     in Jellyfin, a page login as "streamiq" stores the new one, and so does
-//     editing the file (re-read when it changes, #240). A Jellyfin found back
-//     in this state with creds stored (its data wiped, #280) is set up again
-//     the same way, replacing all stored creds, BYO ones too;
-//   - Jellyfin already set up: the local page asks once for an admin login (the
-//     password typed is never stored); with it the gateway also creates its own
-//     hidden admin "streamiq-admin" (random password, stored like above), so it can
-//     create viewers later without asking again (#195).
+// Package jellyfin gets the gateway non-admin Jellyfin user tokens without
+// manual steps and watches Jellyfin's health for the status page. The admin
+// session that creates the hidden viewers comes from:
+//   - fresh Jellyfin (wizard not done, also one wiped later): the gateway
+//     completes the wizard as admin "streamiq" with a random password, kept only
+//     in state/jellyfin.json (0600). The gateway owns this Jellyfin's
+//     transcoding settings ("managed").
+//   - Jellyfin already set up (BYO): the local page asks once for an admin login,
+//     never stored; with it the gateway creates its own hidden admin
+//     "streamiq-admin", so it can create viewers later without asking again.
 //
-// Each StreamIQ user also gets a hidden viewer of their own, "streamiq-<users.id>",
-// created with the gateway's admin on the user's first session (#195), so
-// resume and played state are per user; "streamiq-viewer" is the fallback.
-//
-// The viewers' own passwords are stored, so a revoked token repairs itself.
-//
-// Transcoding settings (#82): only on a Jellyfin the gateway set up, never on
-// one the user brought (BYO), though both store an admin password. See configure.
+// Each StreamIQ user gets a hidden viewer "streamiq-<users.id>" so resume and
+// played state are per user; "streamiq-viewer" is the fallback. Viewer
+// passwords are stored, so a revoked token repairs itself.
 package jellyfin
 
 import (
@@ -50,14 +38,14 @@ const Tested = "12.4"
 
 const (
 	adminName  = "streamiq"        // the admin the wizard bootstrap creates (visible: the human manages Jellyfin with it)
-	byoAdmin   = "streamiq-admin"  // the gateway's own hidden admin on BYO (#195); not "streamiq": a human may have that one
-	ViewerName = "streamiq-viewer" // the shared viewer: fallback when a user's own one can't be made (#195)
+	byoAdmin   = "streamiq-admin"  // the gateway's own hidden admin on BYO; not "streamiq": a human may have that one
+	ViewerName = "streamiq-viewer" // the shared viewer: fallback when a user's own one can't be made
 	clientHdr  = `MediaBrowser Client="streamiq-gateway", Device="gateway", DeviceId="streamiq-gateway", Version="1"`
 )
 
 // Creds is state/jellyfin.json.
 // Its JSON format changed? Update oldState in cmd/gateway/update_windows_test.go
-// to the new format, in the same PR (the update test starts from it, #452).
+// in the same PR: the update test starts from it.
 type Creds struct {
 	Token          string            `json:"token,omitempty"` // the viewer's access token
 	Viewer         string            `json:"viewer,omitempty"`
@@ -69,7 +57,7 @@ type Creds struct {
 	ConfigSteps    int               `json:"configSteps,omitempty"`    // len(configSteps) applied (managed Jellyfin only)
 	ServerSteps    int               `json:"serverSteps,omitempty"`    // len(serverSteps) applied (managed Jellyfin only)
 	HWAccel        string            `json:"hwAccel,omitempty"`        // STREAMIQ_JELLYFIN_HWACCEL last applied
-	Users          map[string]Viewer `json:"users,omitempty"`          // StreamIQ users.id → their own viewer (#195)
+	Users          map[string]Viewer `json:"users,omitempty"`          // StreamIQ users.id → their own viewer
 }
 
 // Viewer is one StreamIQ user's own hidden Jellyfin user.
@@ -116,15 +104,15 @@ type Setup struct {
 	// a page login as that admin, or an edit of the file): Jellyfin locks users out after failed sign-ins.
 	refused bool
 	logged  bool      // transcoding state logged (once per start; poll's goroutine only)
-	mtime   time.Time // jellyfin.json as last read or written: an edit shows as a change (#240)
+	mtime   time.Time // jellyfin.json as last read or written: an edit shows as a change
 }
 
 func (s *Setup) path() string { return filepath.Join(s.StateDir, "jellyfin.json") }
 
 // Load reads stored creds, if the file changed since the last read or save, and
-// installs the token, if any. At start, and on each poll: an edit of the file
-// takes effect without a restart (#240). A file that doesn't parse keeps the
-// creds in memory.
+// installs the token, if any. Runs on each poll, so a human editing the admin
+// password in the file takes effect without a restart. A file that doesn't
+// parse keeps the creds in memory.
 func (s *Setup) Load() error {
 	s.vmu.Lock()
 	defer s.vmu.Unlock()
@@ -200,14 +188,14 @@ func (s *Setup) poll(ctx context.Context) {
 	wizard, c, err := s.probe(ctx)
 	switch {
 	case err != nil:
-	case !wizard && s.wiped(ctx, c): // first: set a wiped Jellyfin (#280) up again over stale creds
+	case !wizard && s.wiped(ctx, c): // before check: a wiped Jellyfin makes the stored creds stale
 		if err := s.bootstrap(ctx); err != nil {
 			s.setErr("Jellyfin setup: " + err.Error())
 			slog.Error("gateway: Jellyfin setup failed", "err", err)
 			return
 		}
 		slog.Info("gateway: completed the Jellyfin setup wizard", "admin", adminName, "password_in", s.path())
-		s.configure(ctx) // seed now, not a poll later
+		s.configure(ctx)
 	case c.Token != "" || len(c.Users) > 0:
 		s.check(ctx)
 		s.configure(ctx)
@@ -226,7 +214,7 @@ func (s *Setup) reload() {
 		s.setErr("Jellyfin: " + err.Error() + kept)
 		slog.Error("gateway: could not re-read the Jellyfin credentials; kept the ones from before", "err", err)
 	} else if strings.HasSuffix(s.View().Err, kept) {
-		s.setErr("") // fixed
+		s.setErr("")
 	}
 }
 
@@ -276,7 +264,7 @@ func (s *Setup) wiped(ctx context.Context, c Creds) bool {
 }
 
 // logTranscoding says once per start how Jellyfin transcodes and where to
-// change it (#250): without it, a GPU left off goes unnoticed.
+// change it: without it, a GPU left off goes unnoticed.
 func logTranscoding(v View) {
 	switch {
 	case !v.Managed:
@@ -344,7 +332,7 @@ func (s *Setup) bootstrap(ctx context.Context) error {
 // Login connects with an existing admin's login (from the local page). The
 // password typed is not stored, except on a Jellyfin the gateway set up when the
 // login is as its own admin (streamiq): that password was in the file already,
-// and storing it recovers one a human changed (#240).
+// and storing it recovers one a human changed.
 func (s *Setup) Login(ctx context.Context, user, pw string) error {
 	s.vmu.Lock()
 	defer s.vmu.Unlock()
@@ -477,8 +465,7 @@ func (s *Setup) View() View {
 	v := View{
 		Reachable: s.reachable, Version: s.version, Tested: Tested, Err: s.err,
 		HasKey: c.Token != "", Untested: s.reachable && untested(s.version),
-		// also offered on BYO until the gateway has its own admin (#195)
-		// and when the gateway's admin was refused (BYO: a login makes it again; managed: one as it stores its new password, #240)
+		// also on BYO until the gateway has its own admin, and when its admin was refused
 		NeedsLogin: s.reachable && s.wizard && (c.Token == "" || c.Password == "" || s.refused),
 		User:       c.User, Viewer: c.Viewer,
 		Managed: c.managed(), HWAccel: c.HWAccel,
@@ -489,10 +476,10 @@ func (s *Setup) View() View {
 	return v
 }
 
-// Transcoding is the gateway API's transcoding setting (#146): the applied
+// Transcoding is the gateway API's transcoding setting: the applied
 // STREAMIQ_JELLYFIN_HWACCEL ("nvenc", or "none") on a Jellyfin the gateway set
 // up, else "unmanaged". The setting is the honest answer: Jellyfin doesn't fall
-// back to the CPU silently (a broken GPU setup fails the transcode; #86).
+// back to the CPU silently (a broken GPU setup fails the transcode).
 func (v View) Transcoding() string {
 	switch {
 	case !v.Managed:

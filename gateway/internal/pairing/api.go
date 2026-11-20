@@ -11,11 +11,11 @@ import (
 	"streamiq/gateway/internal/tunnel"
 )
 
-// Gateway API (docs/protocol.md): ClientsPath lists the paired clients (#311): GET →
+// Gateway API (docs/protocol.md): ClientsPath lists the paired clients: GET →
 // [{keyFp, name, addedAt, self}], self = the calling session's client key.
 // ClientsRemovePath removes one: POST {"keyFp": "…"} → 200 {}, unknown → 404. The
 // allowlist lives on the gateway only. A member sees and removes only its own
-// client key (#341): any other key → 403. ClientsRenamePath renames one (#365):
+// client key: any other key → 403. ClientsRenamePath renames one:
 // POST {"keyFp", "name"} → 200 {"name": stored}, same access and 404 as remove, a
 // bad name 400.
 const (

@@ -1,6 +1,5 @@
 // Package identity is the gateway's long-term DTLS identity: one persistent
-// certificate whose Fingerprint browsers pin (design: specs/2026-11-01-streamiq-
-// agent-pairing-design.md, "Gateway certificate").
+// certificate whose Fingerprint browsers pin.
 package identity
 
 import (

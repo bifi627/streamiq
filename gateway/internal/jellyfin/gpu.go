@@ -10,12 +10,12 @@ import (
 	"strings"
 )
 
-// HWAccelKey is the gateway.env line `gateway jellyfin gpu` sets (#334).
+// HWAccelKey is the gateway.env line `gateway jellyfin gpu` sets.
 const HWAccelKey = "STREAMIQ_JELLYFIN_HWACCEL"
 
 const gpuBlock = "gpu-nvidia"
 
-// oldNvidia is the commented NVIDIA block of the releases before #334, which
+// oldNvidia is the commented NVIDIA block older releases shipped, which
 // MarkGPU wraps in the markers when it finds it word for word.
 var oldNvidia = []string{
 	"    # deploy:",

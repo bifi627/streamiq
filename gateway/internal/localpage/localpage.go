@@ -128,15 +128,15 @@ doesn't show them, and they cost CPU and disk.</p>
 
 // Config is what the page shows and drives.
 type Config struct {
-	Name                            func() string // live: a rename (#310) shows without a restart
+	Name                            func() string // live: a rename shows without a restart
 	GatewayID, Fingerprint, Version string
 	LastBeat                        *atomic.Int64           // unix time of the last heartbeat, 0 = disconnected
 	Update                          *atomic.Pointer[string] // update notice, "" = up to date
 	Store                           *pairing.Store
 	Jellyfin                        func() any                                       // status snapshot (jellyfin.View)
 	Login                           func(ctx context.Context, user, pw string) error // connect Jellyfin (viewer token)
-	Offline                         func() string                                    // jellyfin.Offline: "" = no line (#321); nil = none
-	// A managed Jellyfin's libraries (#322; jellyfin.Setup's methods); nil = no list.
+	Offline                         func() string                                    // jellyfin.Offline: "" = no line; nil = none
+	// A managed Jellyfin's libraries (jellyfin.Setup's methods); nil = no list.
 	Libraries   func(ctx context.Context) (any, error)
 	MakeOffline func(ctx context.Context, id string) error
 	SetExtras   func(ctx context.Context, id string, on bool) error

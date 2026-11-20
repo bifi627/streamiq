@@ -5,7 +5,6 @@ namespace StreamIq.Api.Features.Onboarding;
 
 /// Onboarding secrets (enrollment token, gateway credential): random, URL-safe,
 /// stored server-side as SHA-256 hex only — never the plaintext.
-/// Design: docs/superpowers/specs/2026-11-01-streamiq-agent-pairing-design.md (flow 1).
 public static class Secrets
 {
     public static string New(int bytes)

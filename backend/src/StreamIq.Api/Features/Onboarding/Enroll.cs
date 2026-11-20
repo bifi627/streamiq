@@ -28,7 +28,7 @@ public static partial class Enroll
             var now = DateTimeOffset.UtcNow;
             await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-            // Tenant-filter exception 1 of 2: the token establishes the tenant, so the
+            // Tenant-filter exception: the token establishes the tenant, so the
             // lookup can't be tenant-scoped. Conditional UPDATE = single-use under races.
             var tokens = db.EnrollmentTokens.IgnoreQueryFilters().Where(t => t.TokenHash == hash);
             var claimed = await tokens.Where(t => t.UsedAt == null && t.ExpiresAt > now)

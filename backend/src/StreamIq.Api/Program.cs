@@ -16,42 +16,30 @@ using StreamIq.Api.Features.Members;
 using StreamIq.Api.Features.Onboarding;
 using StreamIq.Api.Features.Tunnels;
 
-// Wiring only (services, middleware, one Map per use case): its branches are config
-// switches, not decisions to test, so the complexity limit doesn't apply here (#540).
+// Wiring only: its branches are config switches, not decisions to test.
 [assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1502",
     Scope = "member", Target = "~M:Program.<Main>$(System.String[])", Justification = "wiring")]
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CORS allowlist = the SPA origins (comma-separated CORS_ORIGINS; default = vite dev).
-// The gateway isn't a browser, and WebSockets ignore CORS (/api/broker/ws
-// authenticates in-band), so only the SPA needs listing.
+// Only the SPA needs listing: the gateway isn't a browser, and WebSockets ignore CORS
+// (/api/broker/ws authenticates in-band).
 var corsOrigins = (builder.Configuration["CORS_ORIGINS"] ?? "http://localhost:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.WithOrigins(corsOrigins).WithHeaders("Authorization", "Content-Type", Households.Header)
         .WithExposedHeaders(Households.NotMemberHeader).AllowAnyMethod()));
 
-// EF Core control-plane store. Key mirrors .env.example (ConnectionStrings__Default);
-// falls back to the local compose Postgres.
-// User-secrets load via CreateBuilder in Development only, before env vars — so
-// ConnectionStrings__Default in the environment always wins.
-// Railway's Postgres hands out DATABASE_URL in URL form (postgres://u:p@host:port/db),
-// which Npgsql can't parse. Accept either a native key-value string OR a URL from any
-// of the usual keys, converting the URL case. ponytail: covers ConnectionStrings__Default
-// and Railway's DATABASE_URL with no hand-assembled connection string to get wrong.
+// User-secrets (Development only) load before env vars, so ConnectionStrings__Default
+// in the environment wins. Railway's DATABASE_URL is URL form: Normalize converts it.
 var rawConn = builder.Configuration.GetConnectionString("Default")
     ?? builder.Configuration["DATABASE_URL"]
     ?? "Host=localhost;Port=5432;Database=streamiq;Username=streamiq;Password=dev";
 var connString = StreamIq.Api.ConnectionString.Normalize(rawConn);
 builder.Services.AddDbContext<StreamIqDbContext>(o => o.UseNpgsql(connString));
 
-// FirebaseAdmin init. Emulator (dev): FIREBASE_AUTH_EMULATOR_HOST is set and
-// VerifyIdTokenAsync skips the signature — same call as prod. A dummy credential
-// satisfies init in emulator mode. Prod needs a real service account: Railway has
-// no ambient ADC, so we read the JSON from FIREBASE_SERVICE_ACCOUNT_JSON and fall
-// back to GetApplicationDefault() only for GCP-hosted runs.
-// No default: a wrong project ID rejects every real login, so refuse to start instead.
+// With FIREBASE_AUTH_EMULATOR_HOST set, VerifyIdTokenAsync skips the signature: same
+// call as prod. No default project ID: a wrong one rejects every real login.
 // demo-* projects only exist in the emulator (Firebase convention).
 var firebaseProjectId = builder.Configuration["FIREBASE_PROJECT_ID"];
 var usingEmulator = !string.IsNullOrEmpty(builder.Configuration["FIREBASE_AUTH_EMULATOR_HOST"]);
@@ -72,8 +60,8 @@ if (FirebaseApp.DefaultInstance is null)
             $"FIREBASE_PROJECT_ID is '{firebaseProjectId}', a demo project, but no emulator host is set. " +
             "Set it to the real Firebase project ID.");
     }
-    // ponytail: read the env var directly, not via Configuration — the source of
-    // truth for a container-injected multi-line/JSON secret.
+    // Railway has no ambient ADC. The env var first: it is the source of truth for a
+    // container-injected multi-line JSON secret.
     var serviceAccountJson = (Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON")
         ?? builder.Configuration["FIREBASE_SERVICE_ACCOUNT_JSON"])?.Trim();
     if (!usingEmulator && string.IsNullOrEmpty(serviceAccountJson))
@@ -98,16 +86,13 @@ builder.Services.AddAuthentication("Firebase")
 builder.Services.AddAuthorization();
 builder.Services.AddHttpClient(); // broker -> Cloudflare TURN
 
-// Signaling rate limit: new sockets + enrollments per client IP per minute. The
-// client IP comes from STREAMIQ_CLIENT_IP_HEADER when set (prod: Railway's
-// X-Real-IP, set in the Dockerfile; a Cloudflare proxy would be CF-Connecting-IP),
-// else RemoteIpAddress. Never the raw X-Forwarded-For header (the client writes
-// its left entries); in the image, RemoteIpAddress is its rightmost entry, which
-// Railway's proxy appends (ASPNETCORE_FORWARDEDHEADERS_ENABLED).
-// A flood shield, loose on purpose: users behind one shared IP (carrier NAT) share
-// this budget. ponytail: no per-user limit; add one keyed on the verified user in
-// BrowserSocket if a single account ever abuses it. In-memory per instance, like
-// the broker registry (issue #40).
+// New sockets + enrollments per client IP per minute. Prod sets
+// STREAMIQ_CLIENT_IP_HEADER to Railway's X-Real-IP (Dockerfile). Never the raw
+// X-Forwarded-For header: the client writes its left entries; RemoteIpAddress is
+// its rightmost one, which Railway's proxy appends (ASPNETCORE_FORWARDEDHEADERS_ENABLED).
+// A flood shield, loose on purpose: users behind one carrier NAT share this budget.
+// ponytail: in-memory per instance, no per-user limit; key one on the verified user
+// in BrowserSocket if a single account ever abuses it.
 var clientIpHeader = builder.Configuration["STREAMIQ_CLIENT_IP_HEADER"];
 var signalingPerMinute = builder.Configuration.GetValue("STREAMIQ_SIGNALING_PER_MINUTE", 120);
 builder.Services.AddRateLimiter(o =>
@@ -119,8 +104,7 @@ builder.Services.AddRateLimiter(o =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = signalingPerMinute, Window = TimeSpan.FromMinutes(1) }));
 });
 
-// Railway (and any container host) inject the port via $PORT. ponytail:
-// one-line bind; no-op locally where launchSettings sets the URL.
+// Container hosts inject $PORT; locally launchSettings sets the URL.
 if (Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } port)
 {
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
@@ -147,16 +131,13 @@ app.Use((ctx, next) =>
     return next(ctx);
 });
 
-// SPA: the prod image copies the Vite build into wwwroot (dev: vite serves it).
-// Client routes fall back to index.html (end of file); the API lives under /api.
+// The prod image copies the Vite build into wwwroot; in dev, vite serves it.
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseCors(); // before auth, so preflights are answered without hitting it
 app.UseAuthentication();
-// A household the signed-in user isn't a member of (FirebaseAuthHandler): 404 with
-// the not-a-member header, the same answer as for a household that doesn't exist. The
-// header tells the app "drop your household choice" apart from an ordinary 404 (#210).
+// Same 404 as for a household that doesn't exist, so membership doesn't leak.
 app.Use((ctx, next) =>
 {
     if (ctx.Items.ContainsKey(Households.Denied))
@@ -174,9 +155,7 @@ app.UseWebSockets();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
-// Vertical slices: one file per use case under Features/<Slice>/, mapped here.
-// Every slice sits under /api (its own route, e.g. "/me", is relative to it), so
-// client routes own the rest of the path space. /healthz stays at the root.
+// Everything but /healthz sits under /api, so SPA client routes own the rest of the path space.
 var api = app.MapGroup("/api");
 GetMe.Map(api);
 ListGateways.Map(api);

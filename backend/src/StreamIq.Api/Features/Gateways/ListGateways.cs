@@ -4,8 +4,6 @@ using StreamIq.Api.Features.Broker;
 
 namespace StreamIq.Api.Features.Gateways;
 
-/// The caller's gateways — auto-scoped by the global tenant filter. No hand-written
-/// tenant Where: the filter enforces it.
 public static class ListGateways
 {
     /// 3 missed 30s gateway heartbeats ⇒ offline.
@@ -16,7 +14,7 @@ public static class ListGateways
         app.MapGet("/gateways", async (StreamIqDbContext db, CancellationToken ct) =>
         {
             var onlineSince = DateTimeOffset.UtcNow - OnlineWindow;
-            // Liveness only (#140): the details come from the gateway API over the tunnel.
+            // Liveness only: the details come from the gateway API over the tunnel.
             return await db.Gateways.Where(d => d.CredentialHash != null).OrderBy(d => d.CreatedAt)   // revoked = hidden
                 .Select(d => new
                 {

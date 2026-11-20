@@ -9,7 +9,7 @@ namespace StreamIq.Api.Features.Broker;
 /// The gateway's control socket, authenticated by its credential (Bearer):
 /// heartbeats (last_seen_at + advertised LAN URL + version + protocol) and the gateway's half of
 /// brokered browser sessions (answer/ice back to the session's browser), and its
-/// report of each tunnel when it ends (#390).
+/// report of each tunnel when it ends.
 public static class GatewaySocket
 {
     /// Oldest gateway protocol (docs/protocol.md) the API still speaks. Raising it is a
@@ -23,7 +23,7 @@ public static class GatewaySocket
             var header = ctx.Request.Headers.Authorization.ToString();
             var credential = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? header[7..].Trim() : "";
             var hash = Secrets.Hash(credential);
-            // Tenant-filter exception 2 of 2: the credential establishes the tenant.
+            // Tenant-filter exception: the credential establishes the tenant.
             var gateway = credential.Length == 0 ? null
                 : await db.Gateways.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.CredentialHash == hash, ctx.RequestAborted);
             if (gateway is null)
@@ -49,7 +49,7 @@ public static class GatewaySocket
             {
                 Broker.Gateways.TryRemove(new(gateway.Id, me));
                 // Its sessions are dead (a restart takes the pcs with it): close their
-                // clients' sockets now instead of letting ICE notice in ~30 s (#172).
+                // clients' sockets now instead of letting ICE notice in ~30 s.
                 await Task.WhenAll(Broker.Sessions.Values.Where(s => s.Via == me).Select(s => s.KillAsync("gateway gone")));
             }
         }).RequireRateLimiting("signaling");
@@ -108,7 +108,7 @@ public static class GatewaySocket
     /// A heartbeat (docs/protocol.md), its strings already cleaned for Postgres and the web app.
     internal sealed record Heartbeat(int Protocol, string? LanUrl, string? Version, string? Update, string? Name)
     {
-        /// Missing or not a number = 0 (a gateway from before #176).
+        /// Missing or not a number = 0 (a gateway too old to send it).
         internal static int ProtocolOf(JsonObject m)
         {
             return Broker.Value<int>(m, "protocol") ?? 0;
@@ -147,7 +147,7 @@ public static class GatewaySocket
         }
     }
 
-    /// A gateway's report of one tunnel when it ends (#390); null when malformed.
+    /// A gateway's report of one tunnel when it ends; null when malformed.
     internal sealed record TunnelReport(Guid Session, long Sent, long Received, bool Relay, bool Ipv6,
         string? LocalCandidateType, string? RemoteCandidateType, string? Protocol, string? Failure)
     {
@@ -213,7 +213,7 @@ public static class GatewaySocket
         return s.Length <= max ? s : s[..(char.IsHighSurrogate(s[max - 1]) ? max - 1 : max)];
     }
 
-    // The gateway owns its name (#310). Missing or blank (an older gateway) or with a
+    // The gateway owns its name. Missing or blank (an older gateway) or with a
     // control character (Postgres text refuses NUL) = null: keep the stored name. Cut to
     // 100 UTF-16 units, never between a surrogate pair (Npgsql refuses a lone one).
     internal static string? SafeName(string? s)

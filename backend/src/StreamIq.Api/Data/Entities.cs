@@ -38,7 +38,7 @@ public class Gateway : ITenantOwned
     public string? Version { get; set; }                // gateway release version, from heartbeat
     public DateTimeOffset? LastSeenAt { get; set; }      // heartbeat → online/offline
     public string? Update { get; set; }                 // newer gateway release, from heartbeat; null = up to date
-    public int? Protocol { get; set; }                  // gateway protocol from its last heartbeat (also a refused one, #176)
+    public int? Protocol { get; set; }                  // gateway protocol from its last heartbeat (also a refused one)
     public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -54,7 +54,7 @@ public class EnrollmentToken : ITenantOwned
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-/// A one-time link that adds its holder to the household as a member (#191).
+/// A one-time link that adds its holder to the household as a member.
 /// Only the SHA-256 hash is stored; the plaintext lives in the link for 7 days.
 public class Invite : ITenantOwned
 {
@@ -67,25 +67,24 @@ public class Invite : ITenantOwned
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-/// One tunnel: the WebRTC connection from a client to a gateway (tunnel telemetry, a
-/// deliverable: checkpoints query direct-vs-relay and IPv4/v6 rates here).
-/// Written by the client: POST on connect, PATCH with totals on close.
+/// One tunnel: the WebRTC connection from a client to a gateway. The broker writes the
+/// row and its end, the gateway reports route + bytes, the client only its throughput.
 public class Tunnel : ITenantOwned
 {
     public Guid Id { get; set; }
     public Guid TenantId { get; set; }
     public Guid GatewayId { get; set; }
-    public Guid? UserId { get; set; }                   // who opened it (users.id); null = a row from before #390, or the user was deleted
-    // Route + bytes + failure: the gateway's report at the tunnel's end (#390); all unset
+    public Guid? UserId { get; set; }                   // who opened it (users.id); null = an older row, or the user was deleted
+    // Route + bytes + failure: the gateway's report at the tunnel's end; all unset
     // until it arrives (an older gateway never sends one). BytesSent null = not reported yet.
     public bool Relay { get; set; }                     // either side's selected candidate is a relay
     public bool Ipv6 { get; set; }
-    public string? LocalCandidateType { get; set; }     // host / srflx / prflx / relay; local = the gateway's side (since #390)
+    public string? LocalCandidateType { get; set; }     // host / srflx / prflx / relay; local = the gateway's side
     public string? RemoteCandidateType { get; set; }    // the browser's side
     public string? Protocol { get; set; }               // udp / tcp
     public long? BytesReceived { get; set; }            // as the gateway counts: received = client → gateway
     public long? BytesSent { get; set; }                // gateway → client
-    public int? ThroughputKbps { get; set; }            // the client's gateway → client measurement (#162); null = none finished
+    public int? ThroughputKbps { get; set; }            // the client's gateway → client measurement; null = none finished
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? EndedAt { get; set; }        // the broker: the browser's signaling socket closed
     public string? Failure { get; set; }                // why it never came up / passed auth (no pair: Relay/types unset); null = it did, but only when reported (BytesSent not null)

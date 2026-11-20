@@ -4,6 +4,7 @@ import { authed } from '../../api'
 import { switchHousehold, useHousehold } from './household'
 import { ADMIN_ONLY, AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
+import { memberNames } from './memberNames'
 
 type Member = {
   userId: string
@@ -64,7 +65,8 @@ export function Members() {
   })
   const act = (m: Member, init: RequestInit, path?: string) =>
     acting.mutate({ m, init, path })
-  const who = (m: Member) => m.name || m.email || 'unknown user'
+  const names = memberNames(members)
+  const who = (m: Member) => names.get(m.userId) ?? ''
   const remove = (m: Member) =>
     confirm(
       m.userId === me?.id

@@ -24,7 +24,7 @@ const members = (p: Page) =>
   p.locator('section.card', {
     has: p.getByRole('heading', { name: 'Members' }),
   })
-const row = (p: Page, name: string) =>
+const row = (p: Page, name: string | RegExp) =>
   members(p).getByRole('listitem').filter({ hasText: name })
 const none = (p: Page) =>
   p.getByRole('heading', { name: "You're not in a household yet" })
@@ -61,11 +61,27 @@ test('members: listed by alias, Make admin / Make member @households', async ({
   await expect(bob.getByText('Member', { exact: true })).toBeVisible()
 })
 
-test('remove: an admin removes a member @households', async ({ browser }) => {
-  const { a } = await adminWithMember(browser)
-  confirmNext(a) // "Remove Bob from this household?"
-  await row(a, 'Bob').getByRole('button', { name: 'Remove' }).click()
-  await expect(row(a, 'Bob')).toHaveCount(0)
+test('remove: an admin removes one of two members named Bob @households', async ({
+  browser,
+}) => {
+  const { A, B, a } = await adminWithMember(browser)
+  const C = await signUp(uniqueEmail('house-c'), { alias: 'bob' })
+  await join(A, C)
+  await a.reload()
+  // Same name: each row gets a tag of the userId's last hex chars (4, more on a clash).
+  const tag = (name: string, u: User) =>
+    new RegExp(`${name} #[0-9a-f]*${u.userId.slice(-4)}`)
+  const bob = row(a, tag('Bob', B))
+  await expect(bob).toBeVisible()
+  await expect(row(a, tag('bob', C))).toBeVisible()
+
+  let asked = ''
+  a.once('dialog', (d) => ((asked = d.message()), d.accept()))
+  await bob.getByRole('button', { name: 'Remove' }).click()
+  expect(asked).toMatch(tag('Remove Bob', B))
+  await expect(bob).toHaveCount(0)
+  await expect(row(a, 'bob')).toHaveCount(1) // C stays
+  await expect(members(a).getByText(/#[0-9a-f]{4}/)).toHaveCount(0) // unique again: no tag
 })
 
 test('leave: a member lands in its own household, no picker @households', async ({

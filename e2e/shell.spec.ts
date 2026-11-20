@@ -1,6 +1,6 @@
 // The app shell and Settings, no gateway or Jellyfin (#406): sign-in, a signed-out
-// deep link, not-found, the nav, Settings Back, PWA installability, each per-device
-// setting persisted, and the D-pad on Settings (#229). What the settings do to
+// deep link, not-found, TV mode on a first visit, the nav, Settings Back, PWA
+// installability, each per-device setting persisted, and the D-pad on Settings (#229). What the settings do to
 // playback is the player's spec (#410).
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
@@ -104,6 +104,55 @@ test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
     installabilityErrors.filter((e) => e.errorId !== 'in-incognito'),
   ).toEqual([])
   expect((await cdp.send('Page.getAppManifest')).errors).toEqual([])
+})
+
+/** A signed-out browser at the sign-in page whose user agent says ua. */
+async function visitAs(browser: Browser, ua: string) {
+  const p = await newPage(browser)
+  await p.addInitScript((ua) => {
+    Object.defineProperty(navigator, 'userAgent', { get: () => ua })
+  }, ua)
+  await p.goto(appUrl())
+  return p
+}
+
+test('first visit on a webOS TV: TV mode from the sign-in page @shell', async ({
+  browser,
+}) => {
+  const p = await visitAs(
+    browser,
+    'Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36',
+  )
+  await expect(p.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(p.locator('html')).toHaveClass(/\btv\b/)
+  await expect(p.getByLabel('TV mode')).toBeChecked()
+
+  // Off by the sign-in toggle: detection never overrides a stored value.
+  await p.getByLabel('TV mode').uncheck()
+  await p.reload()
+  await expect(p.getByLabel('TV mode')).not.toBeChecked()
+  await expect(p.locator('html')).not.toHaveClass(/\btv\b/)
+})
+
+test('first visit on an Android TV: asks once, answered by remote @shell', async ({
+  browser,
+}) => {
+  const p = await visitAs(
+    browser,
+    'Mozilla/5.0 (Linux; Android 12; BRAVIA 4K VH2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  )
+  const yes = p.getByRole('button', { name: 'Yes' })
+  await expect(yes).toBeFocused()
+  await p.keyboard.press('ArrowDown')
+  await expect(p.getByRole('button', { name: 'No' })).toBeFocused()
+  await p.keyboard.press('ArrowUp')
+  await p.keyboard.press('Enter')
+  await expect(p.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(p.locator('html')).toHaveClass(/\btv\b/)
+
+  await p.reload()
+  await expect(p.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(yes).toHaveCount(0)
 })
 
 // Each toggle once, then a reload: per-device settings live in localStorage.

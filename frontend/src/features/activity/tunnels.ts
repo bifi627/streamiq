@@ -56,15 +56,25 @@ function scaled(n: number, units: string[], step: number): string {
   return unit(units[i], i ? 1 : 0).format(n)
 }
 
+/** "6 min 40 sec"; the small part only when it isn't 0. */
+function pair(big: string, n: number, small: string, m: number): string {
+  const head = unit(big).format(n)
+  return m ? `${head} ${unit(small).format(m)}` : head
+}
+
 export function duration(t: TunnelRow): string {
-  let s: number
-  if (t.activeMs !== null) s = t.activeMs / 1000
+  let ms: number
+  if (t.activeMs !== null) ms = t.activeMs
   else if (!t.endedAt) return 'Ongoing'
-  else s = (Date.parse(t.endedAt) - Date.parse(t.createdAt)) / 1000
-  // Switch units where the rounded number would reach 60.
-  if (s < 59.5) return unit('second').format(s)
-  if (s < 3570) return unit('minute').format(s / 60)
-  return unit('hour', 1).format(s / 3600)
+  else ms = Date.parse(t.endedAt) - Date.parse(t.createdAt)
+  // Tenths below 10 s (a 0.4 s tunnel isn't "0 sec"), then whole seconds;
+  // from a minute on two units, the larger one first.
+  if (ms < 9950) return unit('second', 1).format(ms / 1000)
+  const s = Math.round(ms / 1000)
+  if (s < 60) return unit('second').format(s)
+  return s < 3600
+    ? pair('minute', Math.floor(s / 60), 'second', s % 60)
+    : pair('hour', Math.floor(s / 3600), 'minute', Math.floor(s / 60) % 60)
 }
 
 export function data(t: TunnelRow): string {

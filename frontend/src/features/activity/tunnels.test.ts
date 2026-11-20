@@ -97,16 +97,29 @@ test('use: each known word, an unknown one as is, none', () => {
 })
 
 test('duration: the active time when reported, else end − start', () => {
-  const minutes = (n: number) =>
+  const f = (u: string, n: number, max = 0) =>
     new Intl.NumberFormat(undefined, {
       style: 'unit',
-      unit: 'minute',
+      unit: u,
       unitDisplay: 'short',
-      maximumFractionDigits: 0,
+      maximumFractionDigits: max,
     }).format(n)
-  assert.equal(duration(row()), minutes(5))
-  assert.equal(duration(row({ activeMs: 120_000 })), minutes(2))
-  assert.equal(duration(row({ endedAt: null, activeMs: 120_000 })), minutes(2))
+  assert.equal(duration(row()), f('minute', 5))
+  assert.equal(duration(row({ activeMs: 120_000 })), f('minute', 2))
+  assert.equal(
+    duration(row({ endedAt: null, activeMs: 120_000 })),
+    f('minute', 2),
+  )
+  assert.equal(duration(row({ activeMs: 400 })), f('second', 0.4, 1))
+  assert.equal(duration(row({ activeMs: 42_300 })), f('second', 42))
+  assert.equal(
+    duration(row({ activeMs: 400_000 })),
+    `${f('minute', 6)} ${f('second', 40)}`,
+  )
+  assert.equal(
+    duration(row({ activeMs: 3_900_000 })),
+    `${f('hour', 1)} ${f('minute', 5)}`,
+  )
 })
 
 test('management and diagnostics rows hide unless failed or shown', () => {

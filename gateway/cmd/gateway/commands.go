@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -78,9 +77,11 @@ var (
 func newRoot(ctx context.Context, exe string) *cobra.Command {
 	compose := filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile)
 	runGateway := func(*cobra.Command, []string) {
-		// stopGateway finds this copy by it, however it was started (./gateway, gateway run)
-		if err := os.WriteFile(exe+".pid", []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
-			log.Printf("gateway: %v", err)
+		// stopGateway finds this copy by it, however it was started (./gateway, gateway run).
+		// Not over a running copy's pid (this one then dies on the page port), and
+		// best effort: a read-only install dir (the Docker image) has no use for it.
+		if notRunning() == nil {
+			_ = os.WriteFile(exe+".pid", []byte(strconv.Itoa(os.Getpid())), 0o600)
 		}
 		run(ctx, compose)
 	}

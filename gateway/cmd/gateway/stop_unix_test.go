@@ -13,7 +13,7 @@ import (
 
 // startAs runs sleep copied to dir/name, with an argument so install.sh's pkill
 // pattern (full path, no arguments) can't match it.
-func startAs(t *testing.T, dir, name string) *exec.Cmd {
+func startAs(t *testing.T, dir, name string) (*exec.Cmd, <-chan struct{}) {
 	t.Helper()
 	sleep, err := exec.LookPath("sleep")
 	if err != nil {
@@ -32,13 +32,13 @@ func startAs(t *testing.T, dir, name string) *exec.Cmd {
 	if err := c.Start(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = c.Process.Kill(); _ = c.Wait() })
-	return c
+	done := make(chan struct{}) // closed when it exits: Wait only here (it isn't safe twice at once)
+	go func() { _ = c.Wait(); close(done) }()
+	t.Cleanup(func() { _ = c.Process.Kill(); <-done })
+	return c, done
 }
 
-func exited(c *exec.Cmd, within time.Duration) bool {
-	done := make(chan struct{})
-	go func() { _ = c.Wait(); close(done) }()
+func exited(done <-chan struct{}, within time.Duration) bool {
 	select {
 	case <-done:
 		return true
@@ -50,12 +50,12 @@ func exited(c *exec.Cmd, within time.Duration) bool {
 func TestStopGatewayByPidFile(t *testing.T) {
 	dir := t.TempDir()
 	exe := filepath.Join(dir, "gateway")
-	c := startAs(t, dir, "gateway")
+	c, done := startAs(t, dir, "gateway")
 	if err := os.WriteFile(exe+".pid", []byte(strconv.Itoa(c.Process.Pid)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	stopGateway(exe)
-	if !exited(c, 5*time.Second) {
+	if !exited(done, 5*time.Second) {
 		t.Fatal("a gateway started as ./gateway with arguments still runs")
 	}
 }
@@ -63,12 +63,12 @@ func TestStopGatewayByPidFile(t *testing.T) {
 func TestStopGatewayStalePidFile(t *testing.T) {
 	dir := t.TempDir()
 	exe := filepath.Join(dir, "gateway")
-	c := startAs(t, dir, "other") // the pid now belongs to another program
+	c, done := startAs(t, dir, "other") // the pid now belongs to another program
 	if err := os.WriteFile(exe+".pid", []byte(strconv.Itoa(c.Process.Pid)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	stopGateway(exe)
-	if exited(c, time.Second) {
+	if exited(done, time.Second) {
 		t.Fatal("killed a process that isn't a gateway")
 	}
 	if _, ok := gatewayPid(exe); ok {

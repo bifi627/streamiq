@@ -278,8 +278,11 @@ func gatewayPid(exe string) (int, bool) {
 	if err != nil || pid <= 1 || pid == os.Getpid() {
 		return 0, false
 	}
-	// comm: "gateway" on Linux, the started path (./gateway, /…/gateway) on macOS
-	comm, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "comm=").Output()
+	// Linux: /proc (BusyBox ps has no -p); macOS: ps comm is the started path (./gateway, /…/gateway)
+	comm, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/comm")
+	if errors.Is(err, os.ErrNotExist) && runtime.GOOS == "darwin" {
+		comm, err = exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "comm=").Output()
+	}
 	return pid, err == nil && filepath.Base(strings.TrimSpace(string(comm))) == filepath.Base(exe)
 }
 

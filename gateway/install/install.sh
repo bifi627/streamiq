@@ -59,8 +59,10 @@ fi
 # started any way (./gateway, gateway run) while its process is still a gateway;
 # pkill, one older than the pid file (started by its full path).
 stopped=
+# Its name: /proc on Linux (BusyBox ps has no -p), ps on macOS.
 pid=$(cat "$DIR/gateway.pid" 2>/dev/null) &&
-  [ "$(basename "$(ps -p "$pid" -o comm= 2>/dev/null)" 2>/dev/null)" = gateway ] &&
+  comm=$(cat "/proc/$pid/comm" 2>/dev/null || ps -p "$pid" -o comm= 2>/dev/null) &&
+  [ "$(basename "$comm")" = gateway ] &&
   kill "$pid" 2>/dev/null && stopped=1
 pkill -f "^$DIR/gateway$" 2>/dev/null && stopped=1
 [ -n "$stopped" ] && sleep 1

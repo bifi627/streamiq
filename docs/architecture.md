@@ -69,7 +69,8 @@ a privacy indicator: on your network (the gateway sees the browser on one of its
 A member's own tunnels in the household (30 days, ≤ 200) are on the Activity page
 (`/activity`, `GET /api/tunnels`, `Features/Tunnels/ListTunnels.cs`): use, route,
 duration (the active time when reported), data, throughput, a failure in plain words; no
-candidate types. Management and diagnostics rows hide behind a checkbox unless they failed.
+candidate types. Management and diagnostics rows hide behind a checkbox (remembered per browser) unless
+they failed.
 
 ## Gateway (native binary)
 

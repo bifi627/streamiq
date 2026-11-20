@@ -124,7 +124,7 @@ export function request(url: string) {
 }
 
 // Flags. try/catch: storage can throw (private mode, blocked site data).
-function flag(name: string) {
+export function flag(name: string) {
   try {
     return localStorage.getItem(`streamiq.${name}`) === '1'
   } catch {

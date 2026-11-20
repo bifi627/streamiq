@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { authed } from '../../api'
 import { toAppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
+import { flag, setFlag } from '../../diag'
 import { arrowFocus } from '../../focus'
 import {
   byGateway,
@@ -25,7 +26,7 @@ export function Activity() {
     queryFn: () => authed<TunnelRow[]>('/tunnels'),
   })
   const [gateway, setGateway] = useState('')
-  const [all, setAll] = useState(false)
+  const [all, setAll] = useState(() => flag('activityAll'))
   const rows = byUse(byGateway(q.data ?? [], gateway), all)
   const choices = gatewaysIn(q.data ?? [])
 
@@ -58,7 +59,10 @@ export function Activity() {
             <input
               type="checkbox"
               checked={all}
-              onChange={(e) => setAll(e.target.checked)}
+              onChange={(e) => {
+                setAll(e.target.checked)
+                setFlag('activityAll', e.target.checked)
+              }}
             />{' '}
             Show management and diagnostics connections
           </label>

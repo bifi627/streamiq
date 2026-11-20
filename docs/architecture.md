@@ -63,11 +63,14 @@ is not a status log: open work lives in `gh issue list`, history in git.
 ## Tunnel telemetry
 
 One row per tunnel in `tunnels`: the broker writes the row and its end, the gateway
-reports route and bytes, the browser adds only its measured throughput. The web app shows
+reports route, bytes, what the tunnel was used for (playback / browsing / diagnostics /
+management) and its active time, the browser adds only its measured throughput. The web app shows
 a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, or relayed.
 A member's own tunnels in the household (30 days, ≤ 200) are on the Activity page
-(`/activity`, `GET /api/tunnels`, `Features/Tunnels/ListTunnels.cs`): route, duration,
-data, throughput, a failure in plain words; no candidate types.
+(`/activity`, `GET /api/tunnels`, `Features/Tunnels/ListTunnels.cs`): use, route,
+duration (the active time when reported), data, throughput, a failure in plain words; no
+candidate types. Management and diagnostics rows hide behind a checkbox (remembered per browser) unless
+they failed.
 
 ## Gateway (native binary)
 

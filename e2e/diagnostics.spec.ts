@@ -107,6 +107,15 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
   expect(row.BytesReceived).toBeGreaterThan(0)
   expect(posts).toBe(0)
   await expect(report(page)).not.toContainText(user.email)
+  // Activity hides the test's Diagnostics tunnel until the box is ticked, then remembers it.
+  await page.getByRole('link', { name: 'Activity' }).click()
+  const diag = page.getByRole('cell', { name: 'Diagnostics', exact: true })
+  await expect(page.getByRole('table')).toBeVisible()
+  await expect(diag).toHaveCount(0)
+  await page.getByLabel('Show management and diagnostics connections').check()
+  await expect(diag).toHaveCount(1)
+  await page.reload() // remembered in this browser
+  await expect(diag).toHaveCount(1)
 })
 
 test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({

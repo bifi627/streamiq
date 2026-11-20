@@ -11,7 +11,19 @@ export type TunnelRow = {
   bytesReceived: number | null
   throughputKbps: number | null
   failure: string | null
+  use: string | null // the gateway's word; null = not reported
+  activeMs: number | null // time with traffic; null = not reported
 }
+
+const USES: Record<string, string> = {
+  playback: 'Playback',
+  browsing: 'Browsing',
+  diagnostics: 'Diagnostics',
+  management: 'Management',
+}
+
+/** Unknown words (a newer gateway's) show as they are. */
+export const use = (t: TunnelRow) => (t.use ? (USES[t.use] ?? t.use) : '—')
 
 const REASONS: Record<string, string> = {
   'ice failed': "Couldn't connect: the network blocked it",
@@ -44,13 +56,27 @@ function scaled(n: number, units: string[], step: number): string {
   return unit(units[i], i ? 1 : 0).format(n)
 }
 
+/** "6 min 40 sec"; the small part only when it isn't 0. */
+function pair(big: string, n: number, small: string, m: number): string {
+  const head = unit(big).format(n)
+  return m ? `${head} ${unit(small).format(m)}` : head
+}
+
 export function duration(t: TunnelRow): string {
-  if (!t.endedAt) return 'Ongoing'
-  const s = (Date.parse(t.endedAt) - Date.parse(t.createdAt)) / 1000
-  // Switch units where the rounded number would reach 60.
-  if (s < 59.5) return unit('second').format(s)
-  if (s < 3570) return unit('minute').format(s / 60)
-  return unit('hour', 1).format(s / 3600)
+  let ms: number
+  if (t.activeMs !== null) ms = t.activeMs
+  else if (!t.endedAt) return 'Ongoing'
+  else ms = Date.parse(t.endedAt) - Date.parse(t.createdAt)
+  // ms below 1 s, tenths below 10 s, then whole seconds; from a minute on
+  // two units, the larger one first. 999.5 / 9950: where rounding would
+  // reach the next step.
+  if (ms < 999.5) return unit('millisecond').format(ms)
+  if (ms < 9950) return unit('second', 1).format(ms / 1000)
+  const s = Math.round(ms / 1000)
+  if (s < 60) return unit('second').format(s)
+  return s < 3600
+    ? pair('minute', Math.floor(s / 60), 'second', s % 60)
+    : pair('hour', Math.floor(s / 3600), 'minute', Math.floor(s / 60) % 60)
 }
 
 export function data(t: TunnelRow): string {
@@ -87,3 +113,9 @@ export function gatewaysIn(rows: TunnelRow[]): { id: string; name: string }[] {
 /** The rows of one gateway; '' = all. */
 export const byGateway = (rows: TunnelRow[], gatewayId: string) =>
   gatewayId ? rows.filter((t) => t.gatewayId === gatewayId) : rows
+
+const HIDDEN = new Set(['management', 'diagnostics'])
+
+/** Without `all`: no management or diagnostics rows, unless they failed. */
+export const byUse = (rows: TunnelRow[], all: boolean) =>
+  all ? rows : rows.filter((t) => t.failure || !HIDDEN.has(t.use ?? ''))

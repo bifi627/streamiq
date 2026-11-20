@@ -1,8 +1,8 @@
 // The household page and the no-household screen, no gateway or Jellyfin (#407):
 // members and roles, remove and leave (#192), rename (#384), invites (#228, #337),
-// join (#191), invite-first sign-up and life without a household (#387), the
-// alias (#388), the switcher (#193), and a membership lost while the app is open
-// (#210). Permission and edge cases (member refused, last admin, single-use,
+// join (#191), invite-first sign-up and life without a household (#387), a second
+// household of one's own, the alias (#388), the switcher (#193), and a membership
+// lost while the app is open (#210). Permission and edge cases (member refused, last admin, single-use,
 // expired) are the backend's Members / Invites / Provisioning features.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
@@ -225,6 +225,33 @@ test('no household: Create a household, its admin, Gateways opens @households', 
   await c.getByRole('link', { name: 'Household' }).click()
   await expect(c.getByText('You are an admin')).toBeVisible()
   await expect(members(c).getByText(`${C.email} (you)`)).toBeVisible()
+})
+
+test('create another: a member makes its own household, Cancel makes none @households', async ({
+  browser,
+}) => {
+  const A = await signUp(uniqueEmail('another-a'))
+  const B = await signUp(uniqueEmail('another-b'), { household: false })
+  await join(A, B)
+  const b = await signedInPage(browser, B, '/household')
+  await expect(b.getByText('You are a member')).toBeVisible()
+  const create = b.getByRole('button', { name: 'Create another household' })
+  const picker = b.getByLabel('Switch household')
+
+  b.once('dialog', (d) => d.dismiss())
+  await create.click()
+  await b.reload() // /me again: still only A's household
+  await expect(h1(b)).toHaveText(label(A))
+  await expect(picker).toHaveCount(0)
+
+  confirmNext(b)
+  await create.click() // reloads / in the new household
+  await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
+  await expect(picker.locator('option')).toHaveCount(2)
+  await expect(picker).not.toHaveValue(A.tenantId)
+  await b.getByRole('link', { name: 'Household' }).click()
+  await expect(b.getByText('You are an admin')).toBeVisible()
+  await expect(members(b).getByText('(you)')).toHaveCount(1)
 })
 
 test('alias: asked first, others see it not the email, renamed in Settings @households', async ({

@@ -31,7 +31,10 @@ func TestTranscodes(t *testing.T) {
 			t.Fatalf("Transcodes = %d, %v; want 1", n, err)
 		}
 	}
-	count()                                                     // the token from the failed call above
+	count()
+	if f.signIns != signIns {
+		t.Fatal("signed in again: the token from the failed call above wasn't kept")
+	}
 	s.EnsureViewer(ctx, "11111111-1111-1111-1111-111111111111") // the gateway's admin signs in (and out) too
 	f.mu.Lock()
 	viewer := f.signIns - signIns

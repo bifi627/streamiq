@@ -106,8 +106,9 @@ headRefOid.
 - `comments`: EVERY BLOCKER/SPEC becomes one comment, body starting with
   `🤖 <model> · **[blocker]**` or `🤖 <model> · **[spec]**`, then the defect and the one-sentence failure
   scenario (a BLOCKER: then its `lint:` line). On a changed line: `path`, `line`, `side: "RIGHT"`. No single line
-  (deploy/release ordering, missing docs, a cross-cutting gap): a file-level comment
-  `{"path": <the most relevant changed file>, "subject_type": "file", "body": ...}`.
+  (deploy/release ordering, missing docs, a cross-cutting gap): anchor it the same way on
+  the most relevant changed line and name the real location in the body
+  (`docs/architecture.md:63`); the reviews endpoint rejects file-level comments (422).
 - Security-sensitive findings (marked `security`) NEVER go on GitHub: write "1 finding
   sent to owner privately" in the body and give the details only in the thread.
 

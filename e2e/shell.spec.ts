@@ -127,8 +127,12 @@ test('TV mode: /household hands off, the nav drops Household, Settings keeps Sig
     p.getByText(appUrl('/household?x=1'), { exact: true }),
   ).toBeVisible()
   await expect(p.getByRole('button', { name: 'Back' })).toBeFocused()
+  const qr = p.getByRole('img', { name: "QR code of this page's address" })
+  await expect(qr).toBeVisible()
+  await expect(p.getByRole('button', { name: 'Back' })).toBeFocused()
   await p.goto(appUrl('/join#tok'))
   await expect(p.getByText(appUrl('/join#tok'), { exact: true })).toBeVisible()
+  await expect(qr).toBeVisible()
 
   await p.goto(appUrl('/settings'))
   await expect(h1).toHaveText('Settings')

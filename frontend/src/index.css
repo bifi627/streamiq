@@ -1797,3 +1797,8 @@ html.tv .dock {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+.handoff-qr svg {
+  display: block;
+  width: 14rem;
+  height: 14rem;
+}

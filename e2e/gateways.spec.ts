@@ -1,7 +1,7 @@
 // The gateways page (#408), on a paired browser with its own gateway (fixtures.ts
 // `paired`): rename (#310, #329), Status paired and unpaired (#140), the nav chip's
 // dot (#206), paired clients (#311, #365), the member view (#190), Reject on the
-// local gateway page, a refused broker socket (#403) and TV mode (#663).
+// local gateway page, a refused broker socket (#403) and TV mode (#663, #676).
 // Onboarding, Approve, Test connection and the removes that end sessions are
 // the golden path's; the offline dot (90 s), rejection edge cases and a
 // member's own client list are backend / Go / multi-user.
@@ -264,4 +264,36 @@ test('TV mode: the card keeps Open, Use as screen and Status; managing is hidden
   await expect(c.getByRole('link', { name: 'Use as screen' })).toBeVisible()
   await expect(c.getByText('Status', { exact: true })).toBeVisible()
   for (const l of managing) await expect(l).toBeHidden()
+})
+
+test('TV mode: no update notice, the pairing code names the gateway page URL (#676) @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const b = await second(browser, paired.user)
+  await b.route('**/api/gateways', async (r) => {
+    const res = await r.fetch()
+    const gs = (await res.json()) as object[]
+    await r.fulfill({
+      response: res,
+      json: gs.map((g) => ({ ...g, update: '99.0.0' })),
+    })
+  })
+  const box = card(b).locator('.pair-box')
+  const pairCode = async () => {
+    await b.goto(appUrl('/gateways'))
+    await card(b).getByRole('button', { name: 'Pair this browser' }).click()
+    await expect(box.getByLabel('Comparison code')).toBeVisible()
+  }
+  await pairCode()
+  await expect(card(b).getByText('Update available')).toBeVisible()
+  await expect(box.getByRole('link', { name: 'gateway page' })).toBeVisible()
+  await b.goto(appUrl('/settings'))
+  await b.getByLabel('TV mode').check()
+  await pairCode()
+  await expect(card(b).getByText('Update available')).toHaveCount(0) // not mounted: no status call
+  await expect(box).toContainText(
+    /Open the gateway page \(https?:\/\/\S+\) on your home network/,
+  )
+  await expect(box.getByRole('link')).toHaveCount(0)
 })

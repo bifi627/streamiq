@@ -17,6 +17,7 @@ import { copyText } from '../../clipboard'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../focus'
+import { tvOn } from '../../settings'
 import { EditableName, STORED } from './EditableName'
 import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
@@ -246,7 +247,8 @@ function GatewayCard({
           Update required: rerun the install command on the gateway.
         </p>
       ) : (
-        <UpdateNotice g={g} canUpdate={manage} />
+        // Not mounted on a TV: hidden there, and its status call would go unseen.
+        !tvOn() && <UpdateNotice g={g} canUpdate={manage} />
       )}
       {g.online ? (
         // Pair this browser stands where Open is until it's paired.

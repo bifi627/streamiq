@@ -9,6 +9,7 @@ import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
 import { pairInfo } from '../../stats'
 import { arrowFocus } from '../../focus'
+import { tvOn } from '../../settings'
 import { routeLine, showPair as pairShown, type State } from './pairState'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
@@ -152,14 +153,17 @@ export function Pairing({
   )
 }
 
-// Pairing waits for the approval on the local gateway page.
+// Pairing waits for the approval on the local gateway page. A TV names its
+// URL as text: the phone or PC at home opens it, not the TV's browser.
 function PairCode({ code, lanUrl }: { code: string; lanUrl: string | null }) {
-  const gatewayPage = lanUrl ? (
+  const gatewayPage = !lanUrl ? (
+    'gateway page'
+  ) : tvOn() ? (
+    `gateway page (${lanUrl})`
+  ) : (
     <a href={lanUrl} target="_blank" rel="noreferrer">
       gateway page
     </a>
-  ) : (
-    'gateway page'
   )
   return (
     <div className="pair-box" role="status">

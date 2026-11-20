@@ -11,30 +11,40 @@ import (
 	"time"
 )
 
-// startAs runs sleep copied to dir/name, with an argument so install.sh's pkill
-// pattern (full path, no arguments) can't match it.
+// TestHelperSleep is the stand-in process startAs runs, not a test.
+func TestHelperSleep(*testing.T) {
+	if os.Getenv("STREAMIQ_TEST_SLEEP") == "1" {
+		time.Sleep(time.Minute)
+	}
+}
+
+// startAs runs this test binary copied to dir/name, sleeping in TestHelperSleep
+// (not a copied sleep: a multicall coreutils exits under another name), with
+// arguments so install.sh's pkill pattern (full path, no arguments) can't match it.
 func startAs(t *testing.T, dir, name string) (*exec.Cmd, <-chan struct{}) {
 	t.Helper()
-	sleep, err := exec.LookPath("sleep")
-	if err != nil {
-		t.Skip("no sleep")
-	}
-	b, err := os.ReadFile(sleep)
+	self, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
-	bin := filepath.Join(dir, name)
-	if err := os.WriteFile(bin, b, 0o700); err != nil {
+	b, err := os.ReadFile(self)
+	if err != nil {
 		t.Fatal(err)
 	}
-	c := exec.Command("./"+name, "60")
-	c.Dir = dir
+	if err := os.WriteFile(filepath.Join(dir, name), b, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	c := exec.Command("./"+name, "-test.run=^TestHelperSleep$")
+	c.Dir, c.Env = dir, append(os.Environ(), "STREAMIQ_TEST_SLEEP=1")
 	if err := c.Start(); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan struct{}) // closed when it exits: Wait only here (it isn't safe twice at once)
 	go func() { _ = c.Wait(); close(done) }()
 	t.Cleanup(func() { _ = c.Process.Kill(); <-done })
+	if exited(done, 200*time.Millisecond) {
+		t.Fatal("the stand-in exited on its own")
+	}
 	return c, done
 }
 

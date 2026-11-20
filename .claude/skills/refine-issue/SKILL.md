@@ -40,6 +40,9 @@ before the overlay. Plain chat questions only if the tool isn't there.
   `[refine] - #N <issue title>` with the T3 tool `t3_thread_update` (`action: "rename"`;
   a deferred tool: load it with ToolSearch). Skip it in a thread that has other work
   (a group's orchestrator keeps its `[group]` title), or if the tool isn't there.
+  Under the same condition, link N to this thread: the T3 tool `link_issue` (deferred)
+  with `url` = `https://github.com/bifi627/streamiq/issues/N`. Sub-issues a split creates are not
+  linked here (their orchestrator links them). Say so if the link fails; go on either way.
 
 ## 2. Refine
 

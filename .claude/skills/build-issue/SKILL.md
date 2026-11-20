@@ -51,6 +51,10 @@ you run in; a worker started by an orchestrator reports there.
   `t3_thread_update` (`action: "rename"`; a deferred tool: load it with ToolSearch).
   That also replaces a `[refine]` title when the build follows the refinement in the
   same thread. Skip it if the tool isn't there.
+- Link N to this thread: the T3 tool `link_issue` (deferred) with
+  `url` = `https://github.com/bifi627/streamiq/issues/N` (already linked when the refinement ran here:
+  leave it). Issues filed under "Found mid-task" are not linked. Say so if the link
+  fails; the build goes on either way.
 
 ## 2. Build
 

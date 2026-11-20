@@ -24,7 +24,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   (`/join#<token>`, only the hash stored). Accepting adds the signed-in user as `member`;
   the token picks the household.
 - **Members** (`Features/Members/`): anyone lists (aliases from Firebase per call:
-  `displayName` picked after sign-up, else the email; only your own email shown) and
+  `displayName` picked after sign-up, else the email; only your own email shown; members
+  who show the same name get a short userId tag in the web app) and
   leaves; an admin removes and promotes/demotes. A household always keeps an admin
   (`409`; the check runs under a lock on the tenant row). A user left with no household
   stays without one.

@@ -67,7 +67,17 @@ func TestRunControlRevokedCredential(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	err := RunControl(context.Background(), srv.URL, &State{Credential: "old"}, "", "dev", new(atomic.Int64), nil, nil, nil)
+	err := RunControl(
+		context.Background(),
+		srv.URL,
+		&State{Credential: "old"},
+		"",
+		"dev",
+		new(atomic.Int64),
+		nil,
+		nil,
+		nil,
+	)
 	if err == nil || !strings.Contains(err.Error(), "revoked") {
 		t.Fatalf("want a revoked-credential error, got %v", err)
 	}

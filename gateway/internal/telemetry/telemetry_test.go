@@ -59,8 +59,15 @@ func TestSwitch(t *testing.T) {
 	if Read(dir) != Off || beats != 0 {
 		t.Fatalf("a refused call changed the level (%s) or beat (%d)", Read(dir), beats)
 	}
-	if s, _, _, _ := tunnel.Do(rt, tunnel.Session{Role: tunnel.Admin}, "POST", Path, `{"level":"full"}`); s != http.StatusOK ||
-		Read(dir) != Full || beats != 1 {
+	if s, _, _, _ := tunnel.Do(
+		rt,
+		tunnel.Session{Role: tunnel.Admin},
+		"POST",
+		Path,
+		`{"level":"full"}`,
+	); s != http.StatusOK ||
+		Read(dir) != Full ||
+		beats != 1 {
 		t.Fatalf("admin full: %d, level %s, %d beats", s, Read(dir), beats)
 	}
 }

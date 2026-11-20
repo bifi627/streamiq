@@ -118,6 +118,7 @@ Config: gateway.env next to the binary (see docs/install.md).`,
 
 	root.AddCommand(slices.Concat(
 		gatewayCmds(ctx, exe, runGateway),
+		[]*cobra.Command{telemetryCmd()},
 		updateCmds(ctx, exe),
 		jellyfinCmds(ctx, exe, compose),
 		backupCmds(ctx, compose),
@@ -183,34 +184,38 @@ func gatewayCmds(ctx context.Context, exe string, runGateway func(*cobra.Command
 			},
 		),
 		{
-			Use: "telemetry [off|full]", GroupID: "gateway",
-			Args:      args(cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs)),
-			ValidArgs: telemetry.Levels,
-			Short:     "Show or set how much box health the gateway shares with StreamIQ",
-			Long: `Show or set the telemetry level. off (the default): no health data, only
-liveness and the tunnel report. full: Jellyfin reachable + version, OS/arch,
-hardware acceleration, offline jail, active tunnels and transcodes, CPU % and
-memory %; never names, titles or paths. A household admin can switch it in the
-web app too. A running gateway uses the new level from its next heartbeat.`,
-			Example: "  gateway telemetry\n  gateway telemetry full",
-			RunE: func(_ *cobra.Command, a []string) error {
-				if len(a) == 1 {
-					if err := telemetry.Write(stateDir(), a[0]); err != nil {
-						return err
-					}
-				}
-				l := telemetry.Read(stateDir())
-				fmt.Printf("Telemetry: %s. Sends %s.\n", l, telemetry.Sends(l))
-				return nil
-			},
-		},
-		{
 			Use: "reset-identity", GroupID: "gateway", Args: none, ValidArgsFunction: noFiles,
 			Short: "New certificate + empty paired-browser list",
 			Long: `New certificate + empty paired-browser list: every browser pairs again (after a
 leak; docs/install.md). Refuses while the gateway runs.`,
 			Example: "  gateway reset-identity",
 			RunE:    func(*cobra.Command, []string) error { return resetIdentity() },
+		},
+	}
+}
+
+// telemetryCmd is `gateway telemetry [off|full]`.
+func telemetryCmd() *cobra.Command {
+	return &cobra.Command{
+		Use: "telemetry [off|full]", GroupID: "gateway",
+		Args:      args(cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs)),
+		ValidArgs: telemetry.Levels,
+		Short:     "Show or set how much box health the gateway shares with StreamIQ",
+		Long: `Show or set the telemetry level. off (the default): no health data, only
+liveness and the tunnel report. full: Jellyfin reachable + version, OS/arch,
+hardware acceleration, offline jail, active tunnels and transcodes, CPU % and
+memory %; never names, titles or paths. A household admin can switch it in the
+web app too. A running gateway uses the new level from its next heartbeat.`,
+		Example: "  gateway telemetry\n  gateway telemetry full",
+		RunE: func(_ *cobra.Command, a []string) error {
+			if len(a) == 1 {
+				if err := telemetry.Write(stateDir(), a[0]); err != nil {
+					return err
+				}
+			}
+			l := telemetry.Read(stateDir())
+			fmt.Printf("Telemetry: %s. Sends %s.\n", l, telemetry.Sends(l))
+			return nil
 		},
 	}
 }

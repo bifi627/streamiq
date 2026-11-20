@@ -55,11 +55,14 @@ function readCache(id: string): Cached | null {
 }
 
 // Without `host`: stale load misleads.
-function writeCache(id: string, { host: _, ...s }: GatewayStatus) {
+function writeCache(id: string, s: GatewayStatus) {
   try {
     localStorage.setItem(
       cacheKey(id),
-      JSON.stringify({ at: new Date().toISOString(), s }),
+      JSON.stringify({
+        at: new Date().toISOString(),
+        s: { ...s, host: undefined },
+      }),
     )
   } catch {
     // ignore: the live view still works

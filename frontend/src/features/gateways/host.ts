@@ -19,8 +19,7 @@ export function loadLine(h: HostLoad | undefined): string | null {
   if (!h) return null
   const parts = [
     h.cpu !== undefined && `CPU ${pct.format(h.cpu / 100)}`,
-    h.memory &&
-      `memory ${bytes(h.memory.used)} of ${bytes(h.memory.total)}`,
+    h.memory && `memory ${bytes(h.memory.used)} of ${bytes(h.memory.total)}`,
     h.disk && `disk ${bytes(h.disk.free)} free`,
   ].filter((p) => p)
   return parts.length ? `Load: ${parts.join(' · ')}` : null

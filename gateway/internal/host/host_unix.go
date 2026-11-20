@@ -9,6 +9,7 @@ func readDisk(dir string) *Disk {
 	if unix.Statfs(dir, &st) != nil {
 		return nil
 	}
-	bs := uint64(st.Bsize) //nolint:gosec,unconvert // int64 on linux, uint32 on darwin; never negative
-	return &Disk{Free: uint64(st.Bavail) * bs, Total: uint64(st.Blocks) * bs} //nolint:unconvert // int64 on some BSDs
+	// The field types differ per OS (Bsize: int64 on linux, uint32 on darwin).
+	bs := uint64(st.Bsize)
+	return &Disk{Free: uint64(st.Bavail) * bs, Total: uint64(st.Blocks) * bs}
 }

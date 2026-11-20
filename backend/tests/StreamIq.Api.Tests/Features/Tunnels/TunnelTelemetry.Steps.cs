@@ -103,6 +103,8 @@ public class TunnelTelemetrySteps(IntegrationFixture fx, BrokerSteps broker)
             bytesSent = bytes,
             bytesReceived = 10,
             failure = (string?)null,
+            use = "playback",
+            activeMs = 4200,
         });
     }
 
@@ -151,6 +153,22 @@ public class TunnelTelemetrySteps(IntegrationFixture fx, BrokerSteps broker)
         Assert.Equal(0, row.BytesSent);
         Assert.Equal(0, row.BytesReceived);
         Assert.Equal("ice failed", row.Failure);
+    }
+
+    [Then("the tunnel was for \"(.*)\", active for ([0-9]+) ms")]
+    public async Task ThenUse(string use, long ms)
+    {
+        var row = await RowWhen(r => r.BytesSent is not null);
+        Assert.Equal(use, row.Use);
+        Assert.Equal(ms, row.ActiveMs);
+    }
+
+    [Then("the tunnel has no use and no active time")]
+    public async Task ThenNoUse()
+    {
+        var row = await RowWhen(r => r.BytesSent is not null);
+        Assert.Null(row.Use);
+        Assert.Null(row.ActiveMs);
     }
 
     [Then("the tunnel is stored as relayed with ([0-9]+) bytes sent and no failure")]

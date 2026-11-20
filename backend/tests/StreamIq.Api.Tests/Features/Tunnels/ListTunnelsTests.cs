@@ -54,6 +54,8 @@ public class ListTunnelsTests(IntegrationFixture fx)
         mine.BytesReceived = 10;
         mine.ThroughputKbps = 20000;
         mine.Failure = "x";
+        mine.Use = "playback";
+        mine.ActiveMs = 4200;
         mine.EndedAt = mine.CreatedAt.AddMinutes(5);
         await Seed(db =>
         {
@@ -80,6 +82,8 @@ public class ListTunnelsTests(IntegrationFixture fx)
         Assert.Equal(10, row.GetProperty("bytesReceived").GetInt64());
         Assert.Equal(20000, row.GetProperty("throughputKbps").GetInt32());
         Assert.Equal("x", row.GetProperty("failure").GetString());
+        Assert.Equal("playback", row.GetProperty("use").GetString());
+        Assert.Equal(4200, row.GetProperty("activeMs").GetInt64());
         Assert.Equal(JsonValueKind.String, row.GetProperty("endedAt").ValueKind);
         Assert.False(row.TryGetProperty("localCandidateType", out _));
         Assert.False(row.TryGetProperty("userId", out _));

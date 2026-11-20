@@ -149,7 +149,8 @@ public static class GatewaySocket
 
     /// A gateway's report of one tunnel when it ends; null when malformed.
     internal sealed record TunnelReport(Guid Session, long Sent, long Received, bool Relay, bool Ipv6,
-        string? LocalCandidateType, string? RemoteCandidateType, string? Protocol, string? Failure)
+        string? LocalCandidateType, string? RemoteCandidateType, string? Protocol, string? Failure,
+        string? Use, long? ActiveMs)
     {
         internal static TunnelReport? Parse(JsonObject m)
         {
@@ -165,7 +166,9 @@ public static class GatewaySocket
                 Clip(Broker.Str(m, "localCandidateType")),
                 Clip(Broker.Str(m, "remoteCandidateType")),
                 Clip(Broker.Str(m, "protocol")),
-                Clip(Broker.Str(m, "failure"), 64));
+                Clip(Broker.Str(m, "failure"), 64),
+                Clip(Broker.Str(m, "use")) is { Length: > 0 } use ? use : null,
+                Broker.Value<long>(m, "activeMs") is >= 0 and var active ? active : null);
         }
 
         /// Only this gateway's own row (another gateway's session id changes nothing), only
@@ -182,7 +185,9 @@ public static class GatewaySocket
                     .SetProperty(t => t.Protocol, Protocol)
                     .SetProperty(t => t.BytesSent, Sent)
                     .SetProperty(t => t.BytesReceived, Received)
-                    .SetProperty(t => t.Failure, Failure), ct);
+                    .SetProperty(t => t.Failure, Failure)
+                    .SetProperty(t => t.Use, Use)
+                    .SetProperty(t => t.ActiveMs, ActiveMs), ct);
         }
     }
 

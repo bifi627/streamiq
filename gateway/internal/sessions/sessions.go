@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 
@@ -44,7 +45,9 @@ type Report struct {
 	Protocol            string  `json:"protocol,omitempty"`
 	BytesSent           uint64  `json:"bytesSent"`
 	BytesReceived       uint64  `json:"bytesReceived"`
-	Failure             *string `json:"failure"` // nil = the tunnel came up and passed auth
+	Failure             *string `json:"failure"`            // nil = the tunnel came up and passed auth
+	Use                 string  `json:"use,omitempty"`      // what it was for (tunnel.Usage); "" = no request served
+	ActiveMs            *int64  `json:"activeMs,omitempty"` // from the offer to its last request's end; nil = none served
 }
 
 type Sessions struct {
@@ -229,7 +232,8 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	// The selected pair while connected: pion drops it before it reports Failed,
 	// and the tunnel row keeps the route of a tunnel that came up.
 	var pair atomic.Pointer[webrtc.ICECandidatePair]
-	end := s.ender(id, pc, &cands, &pair, &authed, &why)
+	use := tunnel.NewUsage(time.Now())
+	end := s.ender(id, pc, &cands, &pair, &authed, &why, use)
 	s.mu.Lock()
 	s.pcs[id] = pc
 	s.users[id] = user
@@ -269,6 +273,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 					Key:   s.key(id),
 					Name:  func() string { return s.name(id) },
 					Route: func() string { return route(pc, &cands) },
+					Use:   use,
 				},
 				slots,
 			)
@@ -298,6 +303,7 @@ func (s *Sessions) ender(
 	pair *atomic.Pointer[webrtc.ICECandidatePair],
 	authed *atomic.Bool,
 	why *atomic.Value,
+	use *tunnel.Usage,
 ) func(iceFailed bool) {
 	return func(iceFailed bool) {
 		s.mu.Lock()
@@ -312,7 +318,9 @@ func (s *Sessions) ender(
 			return
 		}
 		w, _ := why.Load().(string)
-		s.report(report(id, pc, cands, pair.Load(), failure(iceFailed, authed.Load(), w)))
+		r := report(id, pc, cands, pair.Load(), failure(iceFailed, authed.Load(), w))
+		r.Use, r.ActiveMs = use.Summary()
+		s.report(r)
 		pc.Close()
 	}
 }

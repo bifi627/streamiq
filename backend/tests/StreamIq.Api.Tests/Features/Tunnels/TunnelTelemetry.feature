@@ -2,7 +2,7 @@ Feature: Tunnel telemetry
   The broker and the gateway record each tunnel, not the browser (#390): a routed
   offer inserts the row (id = the broker session), the browser's socket closing
   stamps its end, and the gateway's report at the tunnel's end fills in route,
-  bytes and failure, only for its own rows. The browser adds its measured
+  bytes, failure, use and active time, only for its own rows. The browser adds its measured
   throughput to its own tunnel only. Rows are tenant-owned (the global filter).
 
   Scenario: A routed offer writes the tunnel row for the gateway's household and the user
@@ -40,6 +40,7 @@ Feature: Tunnel telemetry
     And the tunnel gets an end time
     And gateway "nas" reports that tunnel as relayed with 5000 bytes sent
     Then the tunnel is stored as relayed with 5000 bytes sent and no failure
+    And the tunnel was for "playback", active for 4200 ms
 
   Scenario: A second report for the same tunnel is ignored
     Given "alice@home.test" has an online gateway "nas"
@@ -92,3 +93,4 @@ Feature: Tunnel telemetry
     And gateway "nas" receives the offer
     And gateway "nas" reports that tunnel as failed over IPv6 TCP with 0 bytes
     Then the tunnel is stored as failed over IPv6 TCP with 0 bytes
+    And the tunnel has no use and no active time

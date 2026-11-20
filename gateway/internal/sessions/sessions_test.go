@@ -738,7 +738,8 @@ func TestTunnelChannelCap(t *testing.T) {
 
 // The gateway reports each tunnel once when it ends (#390), read before the
 // PeerConnection closes: a paired one with its route and bytes and no failure,
-// an unpaired one with why it never got the tunnel. A second bye sends nothing.
+// an unpaired one with why it never got the tunnel. A served one names its use and
+// active time, one without requests neither. A second bye sends nothing.
 // Reports go on the control socket that is up, not the offer's: one made while
 // none was up is held until the next is announced.
 func TestTunnelReportedOnceOnEnd(t *testing.T) {
@@ -792,7 +793,8 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	gateway.Handle(nil, func(v any) { reps <- v.(Report) }) // a new one is up
 	r := next()
 	if r.Type != "tunnel" || r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
-		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 {
+		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 ||
+		r.Use != "browsing" || r.ActiveMs == nil || *r.ActiveMs <= 0 {
 		t.Fatalf("report of a served tunnel = %+v", r)
 	}
 
@@ -800,7 +802,7 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	u := connect(t, gateway, "s2", other, false)
 	u.say(nil) // unpaired
 	bye("s2")
-	if r := next(); r.Failure == nil || *r.Failure != "unpaired" {
+	if r := next(); r.Failure == nil || *r.Failure != "unpaired" || r.Use != "" || r.ActiveMs != nil {
 		t.Fatalf("report of an unpaired tunnel = %+v", r)
 	}
 	bye("s2")

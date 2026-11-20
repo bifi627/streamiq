@@ -218,6 +218,9 @@ namespace StreamIq.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<long?>("ActiveMs")
+                        .HasColumnType("bigint");
+
                     b.Property<long?>("BytesReceived")
                         .HasColumnType("bigint");
 
@@ -258,6 +261,9 @@ namespace StreamIq.Api.Migrations
 
                     b.Property<int?>("ThroughputKbps")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Use")
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("UserId")
                         .HasColumnType("uuid");

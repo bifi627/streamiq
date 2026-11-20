@@ -88,4 +88,6 @@ public class Tunnel : ITenantOwned
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? EndedAt { get; set; }        // the broker: the browser's signaling socket closed
     public string? Failure { get; set; }                // why it never came up / passed auth (no pair: Relay/types unset); null = it did, but only when reported (BytesSent not null)
+    public string? Use { get; set; }                    // what it was for (playback / browsing / …: an open word, docs/protocol.md); null = no request served, or not reported
+    public long? ActiveMs { get; set; }                 // the gateway's clock: from the offer to its last request's end; null like Use
 }

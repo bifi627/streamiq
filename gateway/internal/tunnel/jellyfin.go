@@ -78,11 +78,12 @@ var allowed = []struct {
 	{"GET", regexp.MustCompile(`^/Items/` + id + `/Images/[A-Za-z]+(/[0-9]+)?$`)},
 	{"POST", regexp.MustCompile(`^/Items/` + id + `/PlaybackInfo$`)},
 	{"POST", regexp.MustCompile(`^/UserItems/` + id + `/UserData$`)}, // resume position / played
-	// Every GET under /Videos/{id}/ is a read: HLS playlists + segments, subtitles.
-	// Case-insensitive like Jellyfin's routing: PlaybackInfo's TranscodingUrl
-	// says /videos/.
-	{"GET", regexp.MustCompile(`(?i)^/Videos/` + id + `/[A-Za-z0-9._/-]+$`)},
+	{"GET", videoRead},
 }
+
+// videoRead: every GET under /Videos/{id}/ is a read: HLS playlists + segments, subtitles.
+// Case-insensitive like Jellyfin's routing: PlaybackInfo's TranscodingUrl says /videos/.
+var videoRead = regexp.MustCompile(`(?i)^/Videos/` + id + `/[A-Za-z0-9._/-]+$`)
 
 // allow reports whether method+path is on the allowlist. path must already be
 // clean: the caller rejects "..", "//" and percent-encoded paths.

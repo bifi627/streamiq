@@ -186,6 +186,7 @@ func serve(w http.ResponseWriter, h http.Handler, raw []byte, st *reqState) {
 	if err != nil {
 		u = new(url.URL) // ponytail: Jellyfin's prepare re-parses RequestURI and refuses it (403)
 	}
+	defer func() { st.who.Use.record(rq.Method, u.Path, time.Now()) }()
 	// r.Context() ends when the channel closes or the handler returns.
 	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), callKey{}, st))
 	defer cancel()

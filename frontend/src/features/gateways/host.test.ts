@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { loadHints, loadLine } from './host.ts'
+import { loadHints, loadLine, nextAsk } from './host.ts'
 
 const busy =
   'The box is busy: playback may stutter. A GPU or a lower quality helps.'
@@ -31,13 +31,19 @@ test('the Load line names what was measured', () => {
 
 test('hints: CPU ≥ 90 %, disk free < 5 GB', () => {
   assert.deepEqual(
-    loadHints({ cpu: 89.9, disk: { free: 5e9, total: 1e12 } }),
+    loadHints({ cpu: 89.4, disk: { free: 5e9, total: 1e12 } }),
     [],
   )
   assert.deepEqual(loadHints({ cpu: 90 }), [busy])
+  assert.deepEqual(loadHints({ cpu: 89.6 }), [busy]) // shown as 90 %
   assert.deepEqual(loadHints({ disk: { free: 4.9e9, total: 1e12 } }), [lowDisk])
   assert.deepEqual(loadHints({ cpu: 100, disk: { free: 0, total: 1 } }), [
     busy,
     lowDisk,
   ])
+})
+
+test('the status is asked again every 10 s, never after a failure', () => {
+  assert.equal(nextAsk(true), 10_000)
+  assert.equal(nextAsk(false), null)
 })

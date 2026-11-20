@@ -14,6 +14,11 @@ const pct = new Intl.NumberFormat(undefined, {
 
 const LOW_DISK = 5e9
 
+// When to ask for the status again (ms; the gateway samples the CPU every
+// 10 s), null = stop: a failed ask is not retried, each retry would open a
+// new tunnel. Reopening Status asks again.
+export const nextAsk = (ok: boolean): number | null => (ok ? 10_000 : null)
+
 // The gateway card's "Load" line; null = no line (older gateway, or nothing measured).
 export function loadLine(h: HostLoad | undefined): string | null {
   if (!h) return null
@@ -27,7 +32,8 @@ export function loadLine(h: HostLoad | undefined): string | null {
 
 export function loadHints(h: HostLoad | undefined): string[] {
   const hints = []
-  if (h?.cpu !== undefined && h.cpu >= 90)
+  // Rounded like the Load line: "CPU 90 %" always comes with the hint.
+  if (h?.cpu !== undefined && Math.round(h.cpu) >= 90)
     hints.push(
       'The box is busy: playback may stutter. A GPU or a lower quality helps.',
     )

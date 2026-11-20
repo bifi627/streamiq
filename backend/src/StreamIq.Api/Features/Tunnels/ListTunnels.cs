@@ -12,7 +12,8 @@ public static class ListTunnels
     public const int Limit = 200;
 
     public record Row(Guid Id, DateTimeOffset CreatedAt, DateTimeOffset? EndedAt, Guid GatewayId, string? GatewayName,
-        bool Relay, bool Ipv6, long? BytesSent, long? BytesReceived, int? ThroughputKbps, string? Failure);
+        bool Relay, bool Ipv6, long? BytesSent, long? BytesReceived, int? ThroughputKbps, string? Failure,
+        string? Use, long? ActiveMs);
 
     public static void Map(IEndpointRouteBuilder app)
     {
@@ -24,7 +25,7 @@ public static class ListTunnels
             return await db.Tunnels.Where(t => t.UserId == me && t.CreatedAt > since)
                 .OrderByDescending(t => t.CreatedAt).Take(Limit)
                 .Join(db.Gateways, t => t.GatewayId, g => g.Id, (t, g) => new Row(t.Id, t.CreatedAt, t.EndedAt, g.Id, g.Name,
-                    t.Relay, t.Ipv6, t.BytesSent, t.BytesReceived, t.ThroughputKbps, t.Failure))
+                    t.Relay, t.Ipv6, t.BytesSent, t.BytesReceived, t.ThroughputKbps, t.Failure, t.Use, t.ActiveMs))
                 .ToListAsync(ct);
         }).RequireAuthorization();
     }

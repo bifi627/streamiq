@@ -60,9 +60,10 @@ public class SocketMessageTests
     {
         var m = Msg($$"""
             {"type":"tunnel","session":"{{Session}}","bytesSent":10,"bytesReceived":20,"relay":true,"ipv6":true,
-             "localCandidateType":"host","remoteCandidateType":"srflx","protocol":"udp","failure":"ice failed"}
+             "localCandidateType":"host","remoteCandidateType":"srflx","protocol":"udp","failure":"ice failed",
+             "use":"a-future-use-name-cut","activeMs":1234}
             """);
-        Assert.Equal(new TunnelReport(Session, 10, 20, true, true, "host", "srflx", "udp", "ice failed"), TunnelReport.Parse(m));
+        Assert.Equal(new TunnelReport(Session, 10, 20, true, true, "host", "srflx", "udp", "ice failed", "a-future-use-nam", 1234), TunnelReport.Parse(m));
     }
 
     [Fact]
@@ -70,9 +71,10 @@ public class SocketMessageTests
     {
         var m = Msg($$"""
             {"session":"{{Session}}","bytesSent":0,"bytesReceived":0,"relay":"yes","ipv6":1,
-             "localCandidateType":5,"remoteCandidateType":[],"protocol":{},"failure":false}
+             "localCandidateType":5,"remoteCandidateType":[],"protocol":{},"failure":false,
+             "use":3,"activeMs":-5}
             """);
-        Assert.Equal(new TunnelReport(Session, 0, 0, false, false, null, null, null, null), TunnelReport.Parse(m));
+        Assert.Equal(new TunnelReport(Session, 0, 0, false, false, null, null, null, null, null, null), TunnelReport.Parse(m));
     }
 
     [Theory]

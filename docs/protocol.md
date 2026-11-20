@@ -210,7 +210,7 @@ offer the broker routes:
   `bye`, a removed client), the gateway sends once, read from pion before `pc.Close()`, on
 the control socket that is up then (not the offer's: held until the next one if none is):
   `{type:"tunnel", session, relay, ipv6, localCandidateType, remoteCandidateType, protocol,
-  bytesSent, bytesReceived, failure}`. From the gateway's side: `local` = the gateway's
+  bytesSent, bytesReceived, failure, use, activeMs}`. From the gateway's side: `local` = the gateway's
   selected candidate, `remote` = the browser's, `bytesSent` = gateway → client (ICE
   transport totals). `relay` = either side of the pair is a relay, or the browser's side is
 `prflx` and every candidate the browser signaled is a relay (forced relay: a NAT in front of
@@ -223,6 +223,17 @@ never connected) = candidate fields absent. `failure`:
   report (`BytesSent` null until then), and also after the browser's socket closed. Strings
   are cut to 16 chars (`failure` 64). A gateway below protocol 2 sends none: its rows keep
   null route and bytes. A gateway crash mid-tunnel loses that tunnel's report.
+- **Use + active time** (#681, additive: older gateways leave both null). `use` = what the
+  tunnel was for, the highest-ranked use among the requests it served (the gateway's table
+  in `tunnel/usage.go`, highest first): `playback` (a GET under `/Videos/{id}/`: playlists,
+  segments, subtitles), `browsing` (any other Jellyfin request), `diagnostics`
+  (`/streamiq/burst`), `management` (any other `/streamiq/*`). An open word: the API stores
+  any value (cut to 16 chars), so a new use is a gateway table row + this list + a web label,
+  no protocol bump. `activeMs` = from the gateway receiving the offer to the end of the
+  tunnel's last request, on the gateway's clock (no skew against the API's `CreatedAt`; the
+  shared tunnel's idle wait before it closes is not in it). Both absent when no request was
+  served. Stored on `tunnels` (`Use`, `ActiveMs`) under the first-report rule; returned by
+  `GET /api/tunnels`.
 - **Browser**: only its measured throughput, `PATCH /api/tunnels/{id}` `{throughputKbps}`
   (the tunnel's last burst measurement, below; `id` from the `answer`), before it closes the
   socket. Only the caller's own tunnel (another user's or tenant's → `404`). A closed tab

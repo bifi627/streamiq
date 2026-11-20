@@ -34,6 +34,7 @@ type Session struct {
 	Name   func() string
 	Route  func() string // relay | lan | direct, decided at call time; nil outside a tunnel
 	Closed <-chan struct{}
+	Use    *Usage // what the tunnel's requests were for; nil records nothing
 }
 
 // ScreenState is the TV's playback state (POST /streamiq/screen/state). Audio /

@@ -161,6 +161,8 @@ export const useGatewayStatus = (id: string, enabled: boolean) =>
     enabled,
     refetchInterval: (q) => nextAsk(q.state.status !== 'error') ?? false,
     gcTime: 0, // reopened: "checking…" again, never an old reading
+    refetchOnWindowFocus: false, // nextAsk: no retry, each would open a tunnel
+    refetchOnReconnect: false,
   })
 
 export const removeClient = (id: string, keyFp: string) =>

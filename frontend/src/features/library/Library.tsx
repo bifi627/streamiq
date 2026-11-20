@@ -16,7 +16,6 @@ import { Pairing } from '../pairing/Pairing'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
 import * as jf from './jellyfin'
-import type { GatewayStatus } from '../gateways/api'
 import { useHousehold } from '../households/household'
 import { guestNotice } from './guest'
 import { Player } from './Player'
@@ -29,6 +28,7 @@ import {
   type Item,
 } from './items'
 import { Privacy } from './Privacy'
+import { useGuestStatus } from './queries'
 import { PlayOn } from './Screen'
 import { arrowFocus } from '../../focus'
 import { tvOn } from '../../settings'
@@ -484,13 +484,14 @@ function Listing({
   )
 }
 
-// Guest-mode banner, on the library and the player. ponytail: cached like a
-// library read (useTunnelQuery, fresh 5 min), though the gateway picks the
-// viewer per request; a viewer made or dropped shows on a later visit.
+// Guest-mode banner, on the library and the player. ponytail: checked
+// once per visit, though the gateway picks the viewer per request; a viewer
+// made or dropped mid-visit shows on the next one.
 // No status (older gateway, error) = no banner.
 function Guest() {
+  const { gatewayId, pc } = useContext(Tunnel)
   const admin = useHousehold().current?.role === 'admin'
-  const s = useTunnelQuery<GatewayStatus>('/streamiq/status').data ?? null
+  const s = useGuestStatus(gatewayId, pc)
   const notice = guestNotice(s, admin)
   return notice && <p role="status">{notice}</p>
 }

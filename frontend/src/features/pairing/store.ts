@@ -54,6 +54,7 @@ export const usePinned = (gatewayId: string) =>
         (p) => !!p,
         () => false,
       ),
+    gcTime: 0, // read again on every mount: setPin/deletePin don't update it
   }).data
 
 export const setPin = (gatewayId: string, gatewayFp: string) =>

@@ -30,9 +30,10 @@ export function Pairing({
   needsPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
-  /** Whether this browser has a stored pin for the gateway, read on mount. A
-   * failed test doesn't call it again: the pin stays stored. Pass a
-   * stable function (a state setter or useCallback): a new one re-reads the pin. */
+  /** Whether this browser has a stored pin for the gateway, read on mount
+   * (usePinned). A failed test doesn't call it again: the pin stays stored.
+   * Pass a stable function (a state setter or useCallback): a new one is
+   * called again with the read. */
   onPin?: (pinned: boolean) => void
   /** Gateway card: Open takes Pair's place once this browser is paired. */
   open?: () => void

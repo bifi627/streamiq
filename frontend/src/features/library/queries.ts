@@ -2,7 +2,7 @@
 // gatewayId: the queryFn always runs on the pc it was last rendered with.
 import { useQuery } from '@tanstack/react-query'
 import { pairInfo } from '../../stats'
-import { routeOn, screensOn } from '../gateways/api'
+import { routeOn, screensOn, statusOn } from '../gateways/api'
 import { useTunnelQuery } from './art'
 import type { Item } from './items'
 import * as jf from './jellyfin'
@@ -31,6 +31,16 @@ export function useOnLan(gatewayId: string, pc: PC) {
   })
   return q.data ?? (q.isError ? false : null) // the last answer survives a hiccup
 }
+
+/** The gateway status for the guest banner, once per mount; null: none.
+ * Not a ['tunnel', …] key: the player cancels those on open (engine.ts). */
+export const useGuestStatus = (gatewayId: string, pc: PC) =>
+  useQuery({
+    queryKey: ['guestStatus', gatewayId],
+    queryFn: () => statusOn(pc),
+    staleTime: Infinity,
+    gcTime: 0,
+  }).data ?? null
 
 /** GET /streamiq/screens every second until screenId is closed. */
 export const useScreens = (gatewayId: string, pc: PC, screenId: string) =>

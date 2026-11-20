@@ -1,4 +1,4 @@
-// The app's one error model (#45). Producers (connect, api, tunnel) throw an
+// The app's one error model. Producers (connect, api, tunnel) throw an
 // AppError with a kind; views render it through describe() / <ErrorView>. The
 // message is the technical detail (what diagnostics log); user text lives in
 // describe(). No imports, so node:test can drive it.
@@ -70,7 +70,7 @@ export const brokerClosed = (
   context: Context = {},
   reason = '',
 ) =>
-  // The broker closes a session whose gateway's socket dropped (#172).
+  // The broker closes a session whose gateway's socket dropped.
   reason === 'gateway gone'
     ? new AppError('gateway-offline', 'gateway disconnected', context)
     : opened
@@ -85,11 +85,11 @@ export const brokerError = (text: string, context: Context = {}) =>
     context,
   )
 
-/** Also the hint where an admin-only action is hidden from a member (#211). */
+/** Also the hint where an admin-only action is hidden from a member. */
 export const ADMIN_ONLY = 'Only a household admin can do this.'
 
-/** The rename form's text for a failed POST /streamiq/name (#310). A 500 is
- * the gateway's own failure, e.g. it can't write its state dir (#327). */
+/** The rename form's text for a failed POST /streamiq/name. A 500 is
+ * the gateway's own failure, e.g. it can't write its state dir. */
 export const renameMessage = (e: AppError) =>
   e.context.status === 400
     ? 'Use 1–100 characters, no control characters.'
@@ -101,7 +101,6 @@ export const renameMessage = (e: AppError) =>
 
 export type Action = 'retry' | 'pair' | 'gateways' | 'sign-in'
 
-// ponytail: placeholder wording; the real text comes with the design pass (#93).
 // Exhaustive: a new Kind doesn't compile until it's mapped here.
 export function describe(e: AppError): {
   message: string

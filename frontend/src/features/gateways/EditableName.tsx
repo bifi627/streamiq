@@ -1,15 +1,15 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { isBack } from '../library/items'
 
-// The hint on inputs whose text leaves the user's hardware: our DB or Firebase
-// (#413). Not on what only the gateway keeps (client names): that's their box.
+// The hint on inputs whose text leaves the user's hardware: our DB or Firebase.
+// Not on what only the gateway keeps (client names): that's their box.
 export const STORED = 'Saved by StreamIQ.'
 
 // The name, plus an inline Rename: a gateway's for an admin while it is online
-// and this browser is paired with it (#310, #329), a paired client's (#365).
+// and this browser is paired with it, a paired client's.
 // Enter saves (form submit), Escape / the remote's Back cancels; arrowFocus
 // reaches the controls. children replaces the shown name (the <h2> by default).
-// hint: a line under the input while editing (#413).
+// hint: a line under the input while editing.
 export function EditableName({
   name,
   label,
@@ -29,7 +29,7 @@ export function EditableName({
   const renameBtn = useRef<HTMLButtonElement>(null)
   const edited = useRef(false)
   // Closing the form unmounts the focused control: focus Rename again, or the
-  // D-pad (arrowFocus on the section) loses its place, as in Pairing (#226).
+  // D-pad (arrowFocus on the section) loses its place, as in Pairing.
   useEffect(() => {
     if (draft === null && edited.current) renameBtn.current?.focus()
     edited.current = draft !== null

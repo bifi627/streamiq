@@ -1,7 +1,6 @@
-// The player's quality picker (#108, #161): which options, their labels and
-// hints. Auto names the measured link and its pick (#162, #291); Source warns
-// when it is faster than the link; compatible mode disables Source and Raw
-// (#113, #164).
+// The player's quality picker: which options, their labels and
+// hints. Auto names the measured link and its pick; Source warns
+// when it is faster than the link; compatible mode disables Source and Raw.
 import {
   QUALITY,
   qualities,

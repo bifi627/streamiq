@@ -1,4 +1,4 @@
-// Guest mode (#242): the gateway couldn't make this user's own Jellyfin viewer,
+// Guest mode: the gateway couldn't make this user's own Jellyfin viewer,
 // so the session plays as the shared one. null = no banner (own viewer, or an
 // older gateway that doesn't say).
 export function guestNotice(

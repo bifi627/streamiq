@@ -30,10 +30,10 @@ export function Pairing({
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
   /** Whether this browser has a stored pin for the gateway, read on mount. A
-   * failed test doesn't call it again: the pin stays stored (#329). Pass a
+   * failed test doesn't call it again: the pin stays stored. Pass a
    * stable function (a state setter or useCallback): a new one re-reads the pin. */
   onPin?: (pinned: boolean) => void
-  /** Gateway card (#226): Open takes Pair's place once this browser is paired. */
+  /** Gateway card: Open takes Pair's place once this browser is paired. */
   open?: () => void
   /** With open: more actions in Open's row (Test connection goes below). */
   children?: ReactNode
@@ -57,7 +57,7 @@ export function Pairing({
   const testBtn = useRef<HTMLButtonElement>(null)
   // A run can unmount the focused control (Pair once refused, the error's
   // Retry): focus then falls to <body>, outside every D-pad container. Put it
-  // on Test connection, which always renders (#226). Only for a run started
+  // on Test connection, which always renders. Only for a run started
   // from inside the block, and only on its state changes: never on the
   // Gateways list's 5 s poll renders.
   const keep = useRef(false)
@@ -141,7 +141,7 @@ export function Pairing({
       {s.step === 'code' && <PairCode code={s.code} lanUrl={lanUrl} />}
       {s.step === 'done' && <TunnelOk s={s} />}
       {s.step === 'done' && s.paired && (
-        // Closing it unmounts the focused control: keep the D-pad's place (#226).
+        // Closing it unmounts the focused control: keep the D-pad's place.
         <NamePrompt
           gatewayId={gatewayId}
           onDone={() => testBtn.current?.focus()}
@@ -198,9 +198,10 @@ function TunnelOk({ s }: { s: Extract<State, { step: 'done' }> }) {
   )
 }
 
-// Once, right after pairing (#365): name this client, prefilled with the name it
-// paired with (shown only while that is still the auto name). Skip keeps that name; renaming later is on the gateway's Paired
-// clients list. The gateway owns the name: POST /streamiq/clients/rename.
+// Once, right after pairing: name this client, prefilled with the name it
+// paired with (shown only while that is still the auto name). Skip keeps that
+// name; a later rename is on the gateway's Paired clients list. The gateway
+// owns the name: POST /streamiq/clients/rename.
 function NamePrompt({
   gatewayId,
   onDone,

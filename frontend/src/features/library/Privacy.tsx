@@ -1,7 +1,8 @@
-// Privacy badge (#205): what StreamIQ can see of this stream, from the live
+// Privacy badge: what StreamIQ can see of this stream, from the live
 // selected candidate pair: relayed or direct, and on your network when the
-// gateway sees this device on one of its own subnets (GET /streamiq/route,
-// #428: the browser's own stats hide its address). Every way the tunnel is DTLS end to end (pinned both ways).
+// gateway sees this device on one of its own subnets (GET /streamiq/route:
+// the browser's own stats hide its address). Every way the tunnel is DTLS end
+// to end (pinned both ways).
 // Focusing or clicking the badge shows the one-line explanation
 // (CSS: .badge:focus / [aria-expanded] + .explain); the relayed MB live there.
 import { useEffect, useState } from 'react'
@@ -18,7 +19,7 @@ export function Privacy({ pc }: { pc: RTCPeerConnection }) {
         (s) => setP(pairInfo(s)),
         () => {},
       )
-    // A gateway older than #428 answers 404: two states, as before.
+    // A gateway without /streamiq/route answers 404: relayed or direct only.
     const ask = () =>
       routeOn(pc).then(
         (r) => setLan(r.route === 'lan'),
@@ -67,7 +68,7 @@ export function Privacy({ pc }: { pc: RTCPeerConnection }) {
         aria-label={label} // the text hides on a portrait phone
         aria-expanded={open}
         onClick={(e) => {
-          // A mouse click focuses it, and :focus would keep it open (#337).
+          // A mouse click focuses it, and :focus would keep it open.
           if (open && e.detail) e.currentTarget.blur()
           setOpen(!open)
         }}

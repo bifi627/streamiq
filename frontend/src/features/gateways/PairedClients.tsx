@@ -15,7 +15,7 @@ import {
   removeOutcome,
 } from './list'
 
-// The gateway's paired clients (#311; a member sees only its own, #341) over the shared tunnel
+// The gateway's paired clients (a member sees only its own) over the shared tunnel
 // session, loaded each time the section opens. Removing one ends its sessions;
 // removing this browser closes the tunnel, and the card offers Pair again.
 export function PairedClients({
@@ -30,7 +30,7 @@ export function PairedClients({
   const [open, setOpen] = useState(false)
   const [list, setList] = useState<Client[] | null>(null)
   const [msg, setMsg] = useState<string | null>(null) // the load's error
-  const [actMsg, setActMsg] = useState<string | null>(null) // a Remove's (#637)
+  const [actMsg, setActMsg] = useState<string | null>(null) // a Remove's
   const summary = useRef<HTMLElement>(null)
   const live = open && g.online && !unpaired
   useEffect(() => {
@@ -58,7 +58,7 @@ export function PairedClients({
   })
   const shown = g.online && !unpaired ? list : null
 
-  // null = renamed (#365); else the error to show in the form.
+  // null = renamed; else the error to show in the form.
   async function rename(c: Client, name: string) {
     try {
       const stored = await renameClient(g.id, c.keyFp, name)
@@ -66,7 +66,7 @@ export function PairedClients({
         (l) =>
           l && l.map((x) => (x.keyFp === c.keyFp ? { ...x, name: stored } : x)),
       )
-      setActMsg(null) // a failed Remove's line is stale now (#637)
+      setActMsg(null) // a failed Remove's line is stale now
       return null
     } catch (x) {
       return clientRenameMessage(toAppError(x))
@@ -94,7 +94,7 @@ export function PairedClients({
     if (o.done === 'self') onRemovedSelf()
     if (o.done === 'row')
       setList((l) => l && l.filter((x) => x.keyFp !== c.keyFp))
-    // The focused Remove is gone: keep the D-pad's place (#226), as Rename does.
+    // The focused Remove is gone: keep the D-pad's place, as Rename does.
     summary.current?.focus()
   }
 

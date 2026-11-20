@@ -1,4 +1,4 @@
-// Resume (#330): report the position every 10 s, on pause, seek and exit,
+// Resume: report the position every 10 s, on pause, seek and exit,
 // straight to the viewer's UserData (/Sessions/Playing* is not on the gateway
 // allowlist), with LastPlayedDate (Continue watching sorts by it) and
 // Played: false (a partial rewatch is in progress again). Only once this
@@ -11,7 +11,7 @@ import { TICKS_PER_SECOND } from './items'
 
 /** Starts reporting `v`'s position for `itemId` while `attached()` (no
  * reports while a reload detaches the media). The returned stop reports
- * once more and returns the last save, for the pages left behind (#360). */
+ * once more and returns the last save, for the pages left behind. */
 export function watchResume(
   pc: RTCPeerConnection,
   v: HTMLVideoElement,

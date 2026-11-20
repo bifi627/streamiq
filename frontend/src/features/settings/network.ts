@@ -1,4 +1,4 @@
-/** What the Data saver row says this browser reports (#291): the Network
+/** What the Data saver row says this browser reports: the Network
  * Information API's connection type and save-data flag, or that it has none. */
 export const netReport = (net?: { saveData?: boolean; type?: string }) =>
   net

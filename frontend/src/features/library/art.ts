@@ -1,4 +1,4 @@
-// Artwork over the tunnel (#203): an image loads only once its box is on
+// Artwork over the tunnel: an image loads only once its box is on
 // screen, and is kept on the device in the Cache API (one cache per gateway),
 // so a revisit doesn't fetch it through the tunnel again. The placeholder box
 // keeps its size (index.css `.art`) until the image arrives.
@@ -27,7 +27,7 @@ const puts = new Map<string, number>()
 const store = () =>
   typeof caches === 'undefined' || artCleared() ? null : caches
 
-/** Playback per gateway (#378): when it started (cached data from before may
+/** Playback per gateway: when it started (cached data from before may
  * predate its progress) and, once the player is left, its exit save, which
  * every read for that gateway waits for. The player (engine.ts) sets it. */
 export const playback = new Map<
@@ -39,7 +39,7 @@ export const playback = new Map<
 export const current = (gatewayId: string, dataUpdatedAt: number) =>
   dataUpdatedAt > (playback.get(gatewayId)?.at ?? 0)
 
-/** A library read over the tunnel (#360), cached per gateway: keyed by
+/** A library read over the tunnel, cached per gateway: keyed by
  * gatewayId, not pc (a reconnect keeps the data), the current pc fetches it.
  * Fresh 5 min, then shown at once and refetched. url null = not yet. */
 export function useTunnelQuery<T>(url: string | null) {

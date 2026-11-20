@@ -4,11 +4,11 @@ import { toAppError } from '../../errors'
 import { startOutcome, updated, updateState, type Started } from './update'
 
 // How long the card waits for the gateway to come back on the new version
-// before it says the update didn't finish (#312).
+// before it says the update didn't finish.
 const UPDATE_WAIT = 2 * 60_000
 
 // The heartbeat's newer release (g.update). An admin whose browser is paired
-// gets Update to v… over the tunnel (#312) when the gateway's status says it
+// gets Update to v… over the tunnel when the gateway's status says it
 // can (Windows with the logon task), else the reason and how to update by hand.
 // After 202: Updating until the list shows it online on another version than
 // before (the updater installs the latest release, maybe newer than the one
@@ -43,7 +43,7 @@ export function UpdateNotice({
     }
   }, [canUpdate, g.id, g.update, active])
 
-  // Per started update, so a retry (#564) waits UPDATE_WAIT again.
+  // Per started update, so a retry waits UPDATE_WAIT again.
   useEffect(() => {
     if (!updating) return
     status.current?.focus() // the focused button is gone: keep the D-pad's place
@@ -53,8 +53,8 @@ export function UpdateNotice({
 
   // An update started here can unmount the focused control (the button on a
   // 409, the Updating line once done): focus then falls to <body>, outside the
-  // D-pad container. Put it on the card's Status, which always renders (#226,
-  // as Pairing does). Only on this notice's own state changes, not the poll.
+  // D-pad container. Put it on the card's Status, which always renders (as
+  // Pairing does). Only on this notice's own state changes, not the poll.
   const keep = useRef(false)
   useEffect(() => {
     const lost =

@@ -1,4 +1,4 @@
-// The gateways page's decisions (#532, #605), kept out of the .tsx so
+// The gateways page's decisions, kept out of the .tsx so
 // node:test can drive them.
 import { describe, isKind, renameMessage, type AppError } from '../../errors.ts'
 
@@ -12,7 +12,7 @@ export const shownError = (
 ): AppError | null => load ?? (act?.at === dataAt ? act.e : null)
 
 // Rename and Update go over the tunnel: an admin, the gateway online, and this
-// browser paired with it (a pin, #329). A stale pin keeps it: the error says so.
+// browser paired with it (a pin). A stale pin keeps it: the error says so.
 export const canManage = (admin: boolean, online: boolean, pinned: boolean) =>
   admin && online && pinned
 
@@ -28,7 +28,7 @@ export function clientsNote(o: {
   return o.msg ?? (o.loaded ? null : 'loading…')
 }
 
-// 404: a gateway older than #365, or the client was removed meanwhile.
+// 404: a gateway without client rename, or the client was removed meanwhile.
 export const clientRenameMessage = (e: AppError) =>
   e.context.status === 404
     ? 'Not renamed: update the gateway, or reopen the list if this client was removed.'
@@ -47,7 +47,7 @@ export const detailsMessage = (e: AppError) =>
       ? 'gateway too old to report them: update it'
       : `unavailable (${e.message})`
 
-// What a client's Remove leaves (#637): done = 'self' (this browser is gone:
+// What a client's Remove leaves: done = 'self' (this browser is gone:
 // the card offers Pair again), 'row' (drop another client's row; 404 = not
 // paired anymore, removed elsewhere, so the same), 'kept' (this browser's own
 // row with a 404: nothing changes), null = failed; msg = the section's line,

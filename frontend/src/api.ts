@@ -9,9 +9,9 @@ export const API =
     (import.meta.env.DEV ? 'http://localhost:5028' : location.origin)) + '/api'
 
 // The household (code: tenant) requests act in, per device and user: set by the
-// switcher (#193) or when the user joins one (#191), else unset and the API uses the
+// switcher or when the user joins one, else unset and the API uses the
 // user's oldest. A household the user isn't in (anymore) answers a 404 marked
-// X-StreamIQ-Not-Member: authed() clears it (#210).
+// X-StreamIQ-Not-Member: authed() clears it.
 const householdKey = () => `streamiq.household.${auth.currentUser?.uid}`
 export function household() {
   try {
@@ -67,7 +67,7 @@ function lostHousehold(id: string): Promise<never> {
   setHousehold(null)
   clearArtThen(() =>
     location.pathname === '/join' ? location.reload() : location.replace('/'),
-  ) // the lost household's artwork goes too (#203)
+  ) // the lost household's artwork goes too
   return new Promise(() => {}) // ponytail: the page is going away; callers never settle
 }
 
@@ -85,7 +85,7 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
     throw new AppError('network', `${path}: ${e.message}`)
   })
   if (res.status === 404 && res.headers.has('X-StreamIQ-Not-Member'))
-    // No household at all (#387): Shell shows the no-household screen once /me
+    // No household at all: Shell shows the no-household screen once /me
     // is in, in place of the page that asked. ponytail: never settles, like lostHousehold.
     return h ? lostHousehold(h) : new Promise<never>(() => {})
   if (!res.ok) throw httpError('api', res.status, path)
@@ -98,16 +98,16 @@ export type Membership = {
   name: string | null
   role: 'admin' | 'member'
 }
-// tenantId null = in no household yet (#387): memberships is empty.
+// tenantId null = in no household yet: memberships is empty.
 export type Me = {
   userId: string
   tenantId: string | null
   memberships: Membership[]
 }
-// Any signed-in user (#387): a new household with them as its admin.
+// Any signed-in user: a new household with them as its admin.
 export const createHousehold = () =>
   authed<{ householdId: string }>('/households', { method: 'POST' })
-// Admin only (#384); the stored (trimmed) name comes back. loaded keeps it too,
+// Admin only; the stored (trimmed) name comes back. loaded keeps it too,
 // for a later "no longer a member of …" notice.
 export const renameHousehold = (name: string) =>
   authed<{ name: string }>('/households/current/name', {

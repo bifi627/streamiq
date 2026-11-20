@@ -1,8 +1,7 @@
 // The player page: the video, its controls and settings menus, and the next
 // episode button. Playback itself (loads, fallbacks, resume, screen mode) is
-// the Engine's (engine.ts); `remote` feeds it a phone's commands (#180) and
-// `onState` gets the playback state about once a second and on every change
-// (#181).
+// the Engine's (engine.ts); `remote` feeds it a phone's commands and
+// `onState` gets the playback state about once a second and on every change.
 import { useContext, useEffect, useRef, useState } from 'react'
 import { ErrorView } from '../../ErrorView'
 import { tunnelJson } from '../../tunnel'
@@ -18,14 +17,14 @@ import { qualityOptions } from './quality'
 import type { Quality } from './profile'
 import { TICKS_PER_SECOND, type Item } from './items'
 
-// Next episode (#205): the series' episode after this one, if any.
+// Next episode: the series' episode after this one, if any.
 function useNext(pc: RTCPeerConnection, itemId: string, series?: string) {
   const [next, setNext] = useState<Item>()
   useEffect(() => {
     setNext(undefined) // never the episode now playing
     if (!series) return
     let gone = false // a late answer for the previous episode
-    // This episode and the one after it, not the whole series (#344).
+    // This episode and the one after it, not the whole series.
     tunnelJson<{ Items: Item[] }>(pc, jf.nextEpisodes(series, itemId)).then(
       (p) => {
         if (gone) return
@@ -58,7 +57,7 @@ export function Player({
   startTicks?: number // unset: Jellyfin's saved position
   /** Subscribes to commands; returns the unsubscribe. Must be stable. */
   remote?: (apply: (c: ScreenCommand) => void) => () => void
-  /** Playback state for the screen (#181). Read through a ref. */
+  /** Playback state for the screen. Read through a ref. */
   onState?: (s: ScreenState) => void
   onExit: (item: Item | null) => void
   /** Plays another item; unset (screen mode) = no "Next episode". */

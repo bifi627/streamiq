@@ -36,13 +36,13 @@ import { Tunnel, backdrop, current, primary, useTunnelQuery } from './art'
 import { Artwork, minutes, Watched } from './Home'
 export { Home as LibraryHome } from './Home'
 
-// Layout route: the gateway's shared tunnel (#152), held while navigating inside
+// Layout route: the gateway's shared tunnel, held while navigating inside
 // it; leaving releases it (closed 30 s later unless reused).
 export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [session, setSession] = useState<Session | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   const [attempt, setAttempt] = useState(0) // bumped after an inline re-pair
-  // The player has its own badge in its overlay (#205).
+  // The player has its own badge in its overlay.
   const playing = useRouterState({
     select: (r) => r.location.pathname.includes('/play/'),
   })
@@ -56,7 +56,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
     session.then(
       (x) => {
         if (gone) return
-        x.speed() // measure on first use, once per session (#162)
+        x.speed() // measure on first use, once per session
         setSession(x)
       },
       (e) => setErr(toAppError(e)),
@@ -68,7 +68,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   }, [gatewayId, attempt])
 
   return (
-    // D-pad (#203): the whole library, the not-paired block included; the
+    // D-pad: the whole library, the not-paired block included; the
     // player moves its own focus (Controls.tsx).
     <section
       onKeyDown={(e) =>
@@ -79,7 +79,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         <Link to="/gateways">← Gateways</Link>
         <span className="lib-actions">
           {session && !playing && !screenMode && <Privacy pc={session.pc} />}
-          {/* Up front only in TV mode (#248); every device keeps the gateway
+          {/* Up front only in TV mode; every device keeps the gateway
               card's entry (Gateways.tsx). */}
           {!screenMode && tvOn() && (
             <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
@@ -92,7 +92,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         <ErrorView
           error={err}
           focus
-          // Evicted client key (#174) or a new gateway cert: pair right here,
+          // Evicted client key or a new gateway cert: pair right here,
           // then reconnect (no reload: it would wipe the diagnostics log).
           pair={
             <Pairing
@@ -121,7 +121,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
 }
 
 // Folder / series / movie by Jellyfin item ID, so a reload or deep link
-// restores it. A season opens its series' page on that season's tab (#204).
+// restores it. A season opens its series' page on that season's tab.
 export function ItemPage({ itemId }: { itemId: string }) {
   const it = useTunnelQuery<Item>(jf.item(itemId))
   const seriesId = it.data?.Type === 'Season' ? it.data.SeriesId : undefined
@@ -166,11 +166,11 @@ function EpisodesPlaceholder() {
 const seasonName = (s: Item) =>
   s.Name || (s.IndexNumber != null ? `Season ${s.IndexNumber}` : 'Season')
 
-// Series / movie page (#204): the left column (poster, title, meta, overview,
+// Series / movie page: the left column (poster, title, meta, overview,
 // the one primary button); a series adds season tabs + its episodes, a movie
 // its backdrop. The primary button takes first focus (one OK press plays);
 // nothing moves focus after that, on re-renders or tab changes. Data from
-// before the last playback doesn't drive it: it waits for the refetch (#378).
+// before the last playback doesn't drive it: it waits for the refetch.
 // oxlint-disable-next-line complexity -- render branching
 function Title({
   item,
@@ -381,7 +381,7 @@ export function PlayerPage({ itemId }: { itemId: string }) {
         : { to: '/g/$gatewayId', params: { gatewayId }, replace: true },
     )
   }
-  // Next episode (#205): replaces this entry, so Back still leaves the player.
+  // Next episode: replaces this entry, so Back still leaves the player.
   const next = (i: Item) =>
     navigate({
       to: '/g/$gatewayId/play/$itemId',
@@ -482,7 +482,7 @@ function Listing({
   )
 }
 
-// Guest-mode banner (#242), on the library and the player. ponytail: checked
+// Guest-mode banner, on the library and the player. ponytail: checked
 // once per tunnel session, though the gateway picks the viewer per request; a
 // viewer made or dropped mid-session shows on the next connection.
 function Guest({ pc }: { pc: RTCPeerConnection }) {

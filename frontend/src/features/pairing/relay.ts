@@ -1,4 +1,4 @@
-// #585: a broker that couldn't issue a TURN credential sends STUN only, and a
+// A broker that couldn't issue a TURN credential sends STUN only, and a
 // forced relay (or a network that needs one) then fails like a network problem.
 
 const NO_TURN = 'no TURN server from the broker'
@@ -11,7 +11,7 @@ export function hasTurn(servers: RTCIceServer[] | undefined): boolean {
   )
 }
 
-/** "Force relay over TLS (443)" (#576): keep only the `turns:…:443` URLs, so a
+/** "Force relay over TLS (443)": keep only the `turns:…:443` URLs, so a
  * test proves the TLS relay a 443-only network needs (Cloudflare also hands out
  * turns: on 5349, which such a network blocks). None → no servers: no fallback. */
 export function tlsOnly(servers: RTCIceServer[]): RTCIceServer[] {

@@ -12,7 +12,7 @@ export type Gateway = {
   version: string | null
   online: boolean
   update: string | null // newer gateway release, null = up to date
-  upgradeRequired: boolean // refused: its protocol is below the API's minimum (#176)
+  upgradeRequired: boolean // refused: its protocol is below the API's minimum
 }
 
 // Gateway API GET /streamiq/status over the tunnel (docs/protocol.md). All
@@ -29,10 +29,10 @@ export type GatewayStatus = {
     version?: string
     untested?: boolean
     token?: 'ok' | 'missing'
-    offline?: 'enforced' | 'allowed' // #321: absent = no compose Jellyfin
+    offline?: 'enforced' | 'allowed' // absent = no compose Jellyfin
   }
-  viewer?: { shared?: boolean; reason?: string } // this session's (#242); reason: see guest.ts
-  remoteUpdate?: true | string // #312: the update button works, or why not
+  viewer?: { shared?: boolean; reason?: string } // this session's; reason: see guest.ts
+  remoteUpdate?: true | string // the update button works, or why not
 }
 
 // Screens: phone as remote (docs/protocol.md, "Screens"). Used by library/Screen.tsx.
@@ -77,7 +77,7 @@ export const useGateways = (refetchInterval?: number) =>
 export const removeGateway = (id: string) =>
   authed(`/gateways/${id}`, { method: 'DELETE' })
 
-// Gateway API POST /streamiq/name (#310) over the shared session (#152): the
+// Gateway API POST /streamiq/name over the shared session: the
 // gateway owns its name and answers the stored one; the API learns it from the
 // heartbeat.
 export async function renameGateway(id: string, name: string) {
@@ -92,7 +92,7 @@ export async function renameGateway(id: string, name: string) {
   }
 }
 
-// Paired clients (#311), gateway API over the shared session: the list and
+// Paired clients, gateway API over the shared session: the list and
 // the allowlist live on the gateway only, the API never sees them.
 export type Client = {
   keyFp: string
@@ -130,7 +130,7 @@ export const renameClient = async (id: string, keyFp: string, name: string) =>
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })
 
-// Gateway API POST /streamiq/update (#312): 202 → the version it installs, then
+// Gateway API POST /streamiq/update: 202 → the version it installs, then
 // the gateway goes down for the swap; 409 → why it won't (the reply's reason).
 export async function updateGateway(
   id: string,
@@ -159,12 +159,12 @@ export const statusOn = (pc: PC) =>
 export const clientsOn = (pc: PC) =>
   tunnelJson<Client[]>(pc, '/streamiq/clients')
 
-// GET /streamiq/route (#428): 'lan' when the gateway sees this device on one of
+// GET /streamiq/route: 'lan' when the gateway sees this device on one of
 // its own subnets. Older gateways answer 404.
 export type Route = { route: string }
 export const routeOn = (pc: PC) => tunnelJson<Route>(pc, '/streamiq/route')
 
-// GET /streamiq/burst (#90): the raw response, so the speed test times it.
+// GET /streamiq/burst: the raw response, so the speed test times it.
 export const burstOn = (pc: PC, size: number) =>
   tunnelFetch(pc, `/streamiq/burst?size=${size}`)
 

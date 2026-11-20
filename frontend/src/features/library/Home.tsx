@@ -1,4 +1,4 @@
-// Library home (#203): the Resume spot (the first in-progress item; its Resume
+// Library home: the Resume spot (the first in-progress item; its Resume
 // button takes first focus, so one OK press resumes), up to 3 more in progress,
 // Recently added, and the libraries (the shell nav has no tunnel, so they live
 // here). Arrow keys: GatewayLibrary's D-pad container (Library.tsx).
@@ -24,7 +24,7 @@ import {
 } from './items'
 import * as jf from './jellyfin'
 
-// Each row loads on its own (#317): one that fails shows its error, the others stay.
+// Each row loads on its own: one that fails shows its error, the others stay.
 type Shelf = Item[] | AppError
 type Lists = { resume: Shelf; recent: Shelf; views: Shelf }
 
@@ -50,7 +50,7 @@ export function Home() {
   const { gatewayId, pc } = useContext(Tunnel)
   const navigate = useNavigate()
   // Resume is never cached (progress changes); Recently added and the
-  // libraries are cached queries (#360).
+  // libraries are cached queries.
   const [resume, setResume] = useState<Shelf | null>(null)
   useEffect(() => {
     items(pc, jf.resume).then(setResume, (e) => setResume(toAppError(e)))
@@ -59,9 +59,9 @@ export function Home() {
     q.data ? q.data.Items : q.error ? toAppError(q.error) : undefined
   const added = shelf(useTunnelQuery(jf.recentlyAdded))
   const views = shelf(useTunnelQuery(jf.userViews))
-  // First visit: all settled before the home shows, so first focus lands as
-  // before (#203). A revisit with both rows cached shows at once (#360); the
-  // Resume spot joins when it answers.
+  // First visit: all settled before the home shows, so first focus lands
+  // once, in its place. A revisit with both rows cached shows at once; the Resume spot
+  // joins when it answers.
   const [warm] = useState(() => !!added && !!views)
   const lists: Lists | null =
     added && views && (resume || warm)
@@ -75,7 +75,7 @@ export function Home() {
         : '/g/$gatewayId/i/$itemId',
       params: { gatewayId, itemId: i.Id },
     })
-  // Recently added + Libraries: a movie opens its page (#204).
+  // Recently added + Libraries: a movie opens its page.
   const pick = (i: Item) =>
     navigate({
       to: playsAtOnce(i)
@@ -180,7 +180,7 @@ export function Home() {
 
 const failed = (l: Lists) => Object.values(l).some((r) => r instanceof AppError)
 
-/** The home's shape while its rows load (#206): the spot and one row of covers. */
+/** The home's shape while its rows load: the spot and one row of covers. */
 function HomePlaceholder() {
   return (
     <div className="home" role="status" aria-label="Loading">
@@ -263,7 +263,7 @@ export function Watched({ item }: { item: Item }) {
 }
 
 /** An image box (size from `className`); loads the image when it scrolls into view.
- *  With `card`, a box with no image to show (none, or it failed) is a title card (#323). */
+ *  With `card`, a box with no image to show (none, or it failed) is a title card. */
 export function Artwork({
   art,
   card,

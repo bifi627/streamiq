@@ -1,5 +1,5 @@
 // A tunnel's lifetime on this browser: the broker keep-alive, the throughput
-// report on close (#390), and the Session handle connect() resolves with.
+// report on close, and the Session handle connect() resolves with.
 import { authed } from '../../api'
 import { measure, type Speed } from '../../speed'
 
@@ -8,7 +8,7 @@ export type Session = {
   close: () => void
   /** close() ran (the pc closes a moment later, after the throughput PATCH). */
   closed: boolean
-  /** gateway → client throughput (#162): starts the measurement on the first
+  /** gateway → client throughput: starts the measurement on the first
    * call, once per session, so sessions that never stream cost no bursts. */
   speed: () => Speed
 }
@@ -18,7 +18,7 @@ export function lifetime(
   ws: WebSocket,
   gatewayId: string,
 ) {
-  // Tunnel telemetry (#390): the broker and the gateway record the tunnel; this
+  // Tunnel telemetry: the broker and the gateway record the tunnel; this
   // browser only adds the throughput it measured, to the tunnel id from the answer.
   // ponytail: a closed tab skips that PATCH (the row keeps no throughput).
   let tunnel: string | undefined
@@ -49,8 +49,8 @@ export function lifetime(
     setTunnel: (id: string | undefined) => {
       tunnel = id
     },
-    // The socket lives as long as the session, often idle (a screen waiting,
-    // #180); a proxy (Railway edge, Cloudflare tunnel) may drop a quiet one,
+    // The socket lives as long as the session, often idle (a screen
+    // waiting); a proxy (Railway edge, Cloudflare tunnel) may drop a quiet one,
     // and that ends the tunnel too. The broker ignores the ping.
     keepAlive: (send: (m: object) => void) => {
       ping = setInterval(() => send({ type: 'ping' }), 25_000)

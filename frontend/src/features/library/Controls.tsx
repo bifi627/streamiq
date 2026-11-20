@@ -1,4 +1,4 @@
-// Own control bar over <video> (#91): one UI for TV remote (D-pad), touch,
+// Own control bar over <video>: one UI for TV remote (D-pad), touch,
 // mouse and keyboard. Key model (decided in keyAction(), keys.ts; onKey(),
 // handlers.ts, only reads the DOM and runs the result):
 // - Focus outside the bar (bar hidden, or shown by a pointer/seek key):
@@ -9,18 +9,18 @@
 // - Back (Escape, webOS 461/GoBack): in the popover goes up one page, then
 //   closes it; else hides the bar if shown, else exits.
 // - With Ctrl, Cmd or Alt held a key is the browser's (Ctrl+F find, …); held
-//   down, a toggle (F, M, K, Enter/Space) fires once, arrows repeat (#549).
+//   down, a toggle (F, M, K, Enter/Space) fires once, arrows repeat.
 // - F fullscreen, M mute, K play-pause, anywhere (the popover too). Any key /
 //   mouse move shows the bar; it hides after HIDE_MS (playing or paused; it
 //   stays only while autoplay is blocked).
 // - Mouse (and Magic Remote pointer) on the picture: click play-pause, double
 //   click fullscreen. Touch: tap toggles the bar.
-// - Settings (#108, #153): the gear opens a popover over the picture: a main
+// - Settings: the gear opens a popover over the picture: a main
 //   page with one row per setting (name + current value), each opening its
 //   options page. ↑/↓ move, Enter opens / picks (and closes), Back goes up one
 //   page, then closes. A click outside closes it. One button for every setting,
 //   so the bar stays one row on a phone and the remote model stays ↑/↓ + Enter.
-// - Overlay (#205): the bar covers the picture (clicks pass through its gaps);
+// - Overlay: the bar covers the picture (clicks pass through its gaps);
 //   its top row (Back, title, `top`: the privacy badge) is one more row for
 //   ↑/↓, after the button row. `onNext` adds "Next episode" before the gear.
 import {
@@ -75,7 +75,7 @@ export const Icon = ({ d }: { d: string }) => (
 const fill = (x: number) =>
   ({ '--p': `${Math.min(1, Math.max(0, x)) * 100}%` }) as CSSProperties
 
-/** One entry of the settings menu (quality, later audio #109, subtitles #136). */
+/** One entry of the settings menu (quality, audio, subtitles). */
 export type Setting = {
   name: string
   value: string
@@ -100,7 +100,7 @@ function useMedia(
     const v = video.current!
     const sync = () => {
       setPaused(v.paused)
-      // No frame yet (a reload, #109): currentTime reads 0 until the new
+      // No frame yet (a reload): currentTime reads 0 until the new
       // stream seeks to the playhead; keep the bar where it was.
       if (v.readyState >= v.HAVE_CURRENT_DATA) setTime(v.currentTime)
       setMuted(v.muted)

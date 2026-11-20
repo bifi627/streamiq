@@ -1,10 +1,10 @@
-// Gateway → client throughput (#162): a 1 MiB warm-up burst (/streamiq/burst,
-// #90; dropped: its read is mostly ramp-up, #259), then 3 bursts sized to last
-// ~2 s each at the last read, in the background; median in Mbps. Runs when a session first
-// asks for it (#152) and again on a navigator.connection `change` (where supported). The last
-// value is kept in localStorage as the next session's starting hint, per
-// gateway + direct/relay + connection type. Data saver (#291): no warm-up and
-// 3 × 1 MiB (~3 MB), not kept as the hint (it reads low: ramp-up).
+// Gateway → client throughput: a 1 MiB warm-up burst (/streamiq/burst;
+// dropped: its read is mostly ramp-up), then 3 bursts sized to last
+// ~2 s each at the last read, in the background; median in Mbps. Runs when a
+// session first asks for it and again on a navigator.connection `change` (where
+// supported). The last value is kept in localStorage as the next session's
+// starting hint, per gateway + direct/relay + connection type. Data
+// saver: no warm-up and 3 × 1 MiB (~3 MB), not kept as the hint (it reads low: ramp-up).
 import { event } from './diag'
 import { pairInfo } from './stats'
 import { burstOn } from './features/gateways/api'

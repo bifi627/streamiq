@@ -13,7 +13,7 @@ import { AliasSetting } from '../../Alias'
 import { DiagnosticsToggle } from '../../Diagnostics'
 import { Playback } from './Playback'
 
-// Per-device settings (#113), in sections (#229). Back goes back in history;
+// Per-device settings, in sections. Back goes back in history;
 // after a deep link (no in-app history) it goes home instead of leaving the app.
 export function Settings() {
   const router = useRouter()

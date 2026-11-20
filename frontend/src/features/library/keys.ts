@@ -14,7 +14,7 @@ export type KeyAt = {
   seek: boolean // focus on the seek bar
   volume: boolean // focus on the volume slider
   lastRow: boolean // focus in the bar's last row
-  dock: boolean // the diagnostics dock is there to go down to (#230)
+  dock: boolean // the diagnostics dock is there to go down to
   ctrl: boolean // modifiers held (e.ctrlKey, e.metaKey, e.altKey)
   meta: boolean
   alt: boolean
@@ -55,7 +55,7 @@ export function keyAction(x: KeyAt): Action | null {
         : x.inBar || x.shown
           ? { do: 'hide' }
           : { do: 'exit' }
-  // The browser's shortcuts (Ctrl+F find, Alt+← back, …) stay the browser's (#549).
+  // The browser's shortcuts (Ctrl+F find, Alt+← back, …) stay the browser's.
   if (x.ctrl || x.meta || x.alt) return null
   // Held down, a toggle fires once (the repeats are swallowed); arrows repeat.
   const once = (a: Action): Action => (x.repeat ? { do: 'stay' } : a)

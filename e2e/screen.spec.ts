@@ -1,4 +1,4 @@
-// Screen mode (#180, #181, #248), on a paired browser with its own gateway
+// Screen mode, on a paired browser with its own gateway
 // (fixtures.ts `paired`): the entry, Play on…, the phone remote's commands, two
 // phones, closing. TV = the fixture's page; phones = more tabs of the same
 // paired browser (each its own tunnel session). Refusals, another user's screen
@@ -13,7 +13,7 @@ const CLIP = 'streamiq e2e clip' // 30 s, English 440 Hz + German 880 Hz, .en.sr
 
 // The diagnostics dock, open, on the TV and the phones (diag.ts; one context,
 // one localStorage): a failure's trace shows their event log, pc state and why
-// a screen ended (#485).
+// a screen ended.
 test.beforeEach(async ({ paired: { page } }) => {
   await page.context().addInitScript(() => {
     localStorage.setItem('streamiq.debug', '1')
@@ -115,7 +115,7 @@ test('remote commands (#181): play / pause, audio, subtitles, position, ±10 s, 
   const { phone } = await cast(tv)
   const button = (name: string) =>
     phone.getByRole('button', { name, exact: true })
-  // A failed command's error shows until a command works (#553): the next
+  // A failed command's error shows until a command works: the next
   // command channel throws once; the poll's (req:/streamiq/screens) doesn't.
   await phone.evaluate(() => {
     const p = RTCPeerConnection.prototype
@@ -243,7 +243,7 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… li
   expect(
     JSON.parse((await viaTunnel(phone, '/streamiq/screens')).body),
   ).toEqual([])
-  await phone.getByRole('alert').getByRole('link', { name: 'Library' }).click() // not the nav's (#201)
+  await phone.getByRole('alert').getByRole('link', { name: 'Library' }).click() // not the nav's
   await phone.getByRole('button', { name: /Movies/ }).click()
   await phone.getByRole('button', { name: 'Play on…' }).first().click()
   await expect(phone.getByText(/No screen open/)).toBeVisible()

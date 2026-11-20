@@ -15,7 +15,8 @@
       }
     ],
     "streamiq/require-suppression-reason": "error",
-    "streamiq/no-hardcoded-locale": "error"
+    "streamiq/no-hardcoded-locale": "error",
+    "streamiq/no-low-value-comments": "error"
   },
   "overrides": [
     {

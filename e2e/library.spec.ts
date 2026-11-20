@@ -1,7 +1,7 @@
-// The library (#409), on a paired browser with its own gateway (fixtures.ts
-// `paired`): `/` → the one gateway's library (#225), the nav's Library link, the
-// shared session (#152), folder deep links + cache (#360), Recently added
-// (#204), Continue watching's order and click-through guard (#330), season tabs
+// The library, on a paired browser with its own gateway (fixtures.ts
+// `paired`): `/` → the one gateway's library, the nav's Library link, the
+// shared session, folder deep links + cache, Recently added,
+// Continue watching's order and click-through guard, season tabs
 // and watched marks. Folder → movie → Play and the Resume spot are the golden
 // path's; `/` with no gateway or several, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
@@ -21,8 +21,8 @@ const recent = (p: Page) =>
     has: p.getByRole('heading', { name: 'Recently added' }),
   })
 /** From a title page: Play (or Resume), plays past `secs`, back to the title
- * page. Leaving the player saves the position (whole seconds, #330's guard
- * off unless the test sets it). */
+ * page. Leaving the player saves the position (whole seconds, the
+ * click-through guard off unless the test sets it). */
 async function play(p: Page, secs = 2) {
   await p.getByRole('button', { name: /^(Play|Resume)$/ }).click()
   await expect
@@ -139,7 +139,7 @@ test('continue watching: newest first; the click-through guard keeps the order (
   await open(a)
   const tile = (name: string) => recent(a).getByRole('button', { name }).click()
   const spot = a.locator('.spot h2')
-  // Arrange over the tunnel, no player exit save to race (#477): both
+  // Arrange over the tunnel, no player exit save to race: both
   // part-played, the mp2 one played last, so it is the spot although the clip
   // sorts first by name.
   const { Items } = JSON.parse(
@@ -178,7 +178,7 @@ test('continue watching: newest first; the click-through guard keeps the order (
   })
   await tile('streamiq e2e clip')
   await play(a, 5)
-  // The movie page's button waits for its refetch after the exit save (#378).
+  // The movie page's button waits for its refetch after the exit save.
   await expect(a.getByRole('button', { name: 'Resume' })).toBeVisible()
   expect(
     await a.evaluate(() => (window as unknown as { saves: string[] }).saves),

@@ -36,10 +36,10 @@ async function signIn(browser: Browser, create = false, path = '/') {
     .getByRole('button', { name: create ? 'Create account' : 'Sign in' })
     .click()
   if (create) {
-    // A new account picks its alias first (#388): keeps the prefilled email.
+    // A new account picks its alias first: keeps the prefilled email.
     await expect(page.getByLabel('Your name')).toHaveValue(email())
     await page.getByRole('button', { name: 'Continue' }).click()
-    // Sign-up makes no household (#387): the user creates one.
+    // Sign-up makes no household: the user creates one.
     await page.getByRole('button', { name: 'Create a household' }).click()
   }
   if (path === '/')
@@ -124,7 +124,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     await test.step('browse → play through the tunnel → resume', async () => {
       await a.getByRole('button', { name: /Movies/ }).click()
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
-      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page (#204)
+      await a.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(3)
@@ -133,7 +133,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await a.goBack() // browser history: folder → library home
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.reload()
-      // The Resume spot (#203): the saved position, then its Resume button.
+      // The Resume spot: the saved position, then its Resume button.
       await expect(
         a.getByRole('progressbar', { name: /streamiq e2e clip/ }),
       ).toHaveAttribute('aria-valuetext', /^0:0[3-9] of/)
@@ -157,9 +157,9 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await a.getByRole('link', { name: 'Gateways', exact: true }).click()
     })
 
-    // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
+    // Buttons, not ?relay / ?debug: a TV can't edit the URL.
     await test.step('diagnostics panel: force relay → tunnel works over TURN', async () => {
-      // Diagnostics panel: on once in Settings, the flag persists (#201).
+      // Diagnostics panel: on once in Settings, the flag persists.
       await a.getByRole('link', { name: 'Settings' }).click()
       await a.getByLabel('Diagnostics panel').check()
       await a.getByRole('link', { name: 'Gateways', exact: true }).click()
@@ -242,7 +242,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       })
       // Firebase's IndexedDB poll sees the sign-in gone and the app reloads
       // (App.tsx onAuthStateChanged). Wait for that reload to land on the
-      // sign-in form, or it aborts / overtakes the goto below (#386).
+      // sign-in form, or it aborts / overtakes the goto below.
       await expect(a.getByLabel('Email')).toBeVisible()
       await a.goto(`${app}/g/${id}`)
       await a.getByLabel('Email').fill(email())
@@ -282,7 +282,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await a.getByRole('button', { name: 'Remove' }).click()
       await expect(a.getByText('No gateways yet.')).toBeVisible()
       // Its socket was closed and the reconnect is refused (401). A miss shows the
-      // gateway's stderr since Remove: the reconnecting / dial control lines (#475).
+      // gateway's stderr since Remove: the reconnecting / dial control lines.
       await expect(() =>
         expect(
           out.includes('credential revoked or unknown'),

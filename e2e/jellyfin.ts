@@ -7,7 +7,7 @@ const AUTH =
 
 export const JELLYFIN_ADMIN = { user: 'streamiq', pw: 'streamiq-e2e' }
 
-/** GET as the e2e admin: per-user state the gateway's viewers left (#195). */
+/** GET as the e2e admin: per-user state the gateway's viewers left. */
 export async function jellyfinAdminGet(base: string, path: string) {
   const login = await fetch(base + '/Users/AuthenticateByName', {
     method: 'POST',
@@ -98,7 +98,7 @@ export async function setupJellyfin(
         EnableHardwareEncoding: true,
         EnableTonemapping: true,
         EncoderPreset: 'fast', // "auto" is NVENC's lowest quality (p1)
-        EnableThrottling: true, // the gateway's configSteps (#82)
+        EnableThrottling: true, // the gateway's configSteps
         EnableSegmentDeletion: true,
       },
       token,

@@ -73,13 +73,11 @@ const icon = (k: Kind): keyof typeof ICON =>
       ? 'lock'
       : 'alert'
 
-/** The one way an error is shown, in the State look. data-kind
- * lets tests assert the kind. Takes anything thrown (a query's `error`, a
- * caught value): non-AppErrors show as `unknown`. Retry defaults to a reload:
- * it reopens the gateway's session too. `pair` replaces the Pair action's link
- * to the Gateways list (pairing right where the error shows; null: the caller
- * already offers it). `focus`: the button (else the link) takes focus, for a
- * state that is the whole page (one OK press on a remote). */
+/** The one way an error is shown, in the State look (data-kind for tests). Takes
+ * anything thrown: non-AppErrors show as `unknown`. Retry defaults to a reload,
+ * which reopens the gateway's session too. `pair` replaces the Pair action's link
+ * to Gateways (null: the caller already offers it). `focus`: the button (else the
+ * link) takes focus, for a state that is the whole page (one OK press on a remote). */
 export function ErrorView({
   error: thrown,
   onRetry = () => location.reload(),

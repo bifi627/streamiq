@@ -7,14 +7,12 @@ import { startOutcome, updated, updateState, type Started } from './update'
 // before it says the update didn't finish.
 const UPDATE_WAIT = 2 * 60_000
 
-// The heartbeat's newer release (g.update). An admin whose browser is paired
-// gets Update to v… over the tunnel when the gateway's status says it
-// can (Windows with the logon task), else the reason and how to update by hand.
-// After 202: Updating until the list shows it online on another version than
-// before (the updater installs the latest release, maybe newer than the one
-// named). Not there within UPDATE_WAIT: still on the old version = the update
-// hasn't happened (failed, or still backing up: update.log); offline = it broke
-// mid-way, and gateway rollback brings back the old version.
+// The heartbeat's newer release (g.update). A paired admin gets Update to v… over
+// the tunnel when the status says it can (Windows with the logon task), else the
+// reason and how to update by hand. After 202: Updating until the list shows it
+// online on another version (the updater installs the latest, maybe newer). Past
+// UPDATE_WAIT: same version = it hasn't happened (failed, or still backing up:
+// update.log); offline = it broke mid-way, and gateway rollback restores it.
 export function UpdateNotice({
   g,
   canUpdate,

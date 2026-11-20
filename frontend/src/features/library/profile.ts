@@ -166,13 +166,11 @@ const TS_AUDIO = ['aac', 'ac3', 'eac3', 'mp3']
 // Auto's ceiling (≈ jellyfin-web's), so sources remux at any realistic bitrate.
 const MAX_BITRATE = 120_000_000
 
-/** Quality picker. Source = no limit: the original file plays
- * unless the device can't take it. Raw (behind a setting) = no limit and
- * no probe: every codec Jellyfin can put in fMP4 is copied, unchecked. Auto =
- * Source, or a rung picked from the measured link (autoQuality). The others
- * cap MaxStreamingBitrate and the size: Jellyfin remuxes a source within them
- * and transcodes a larger one down (it only scales down). Ordered from least
- * to most restrictive. */
+/** Quality picker. Source = no limit: the original plays unless the device can't
+ * take it. Raw (a setting) = no limit, no probe: every codec Jellyfin can put in
+ * fMP4 is copied, unchecked. Auto = Source or a rung from the measured link
+ * (autoQuality). The rungs cap MaxStreamingBitrate and size: Jellyfin remuxes a
+ * source within them, transcodes a larger one down. Least to most restrictive. */
 export const QUALITY = {
   Auto: null,
   Source: null,

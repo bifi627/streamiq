@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # A count above its baseline line (missing line = 0) fails. Cleanups lower their lines by hand.
+# TS issue refs are oxlint's (streamiq/no-low-value-comments); CSS and the other stacks are here.
 # ponytail: line-based, no parser; a string holding " //" or " #" reads as a comment.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -26,7 +27,7 @@ current=$(awk '
   }
   function flush() {
     if (f == "") return
-    if (refs) print f, "refs", refs
+    if (refs && f !~ /\.tsx?$/) print f, "refs", refs
     if (!hash && !sql && nb > 20 && com * 10 > nb * 3) print f, "ratio", com
   }
   FNR == 1 { flush(); f = FILENAME; hash = f ~ /(\.(sh|ps1|yml)|editorconfig)$/; sql = f ~ /\.sql$/; refs = nb = com = blk = 0 }

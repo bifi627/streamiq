@@ -267,8 +267,9 @@ Copy `.env.example` only to override.
   issue that removes it or the reason it stays.
 - **Comments say what the code can't**; try a better name or an extracted function first.
   Keep a non-obvious *why*: external quirk, invariant, security reason, units/protocol facts,
-  `ponytail:` ceiling, lint exemption, short Go doc comments. Cut restating, history ("added in
-  #N", "was X"), commented-out code, copies of `docs/`, banners. Issue numbers only as
-  `TODO(#N)`, on a `nolint` / `oxlint-disable` line, or `quirk(#N): …`. `scripts/check-comments.sh` holds files
-  to `scripts/comment-baseline.txt` (issue refs, > 30 % comments).
+  `ponytail:` ceiling, lint exemption, short Go doc comments. Cut history ("was X") and copies
+  of `docs/`. Issue numbers only as `TODO(#N)`, on a `nolint` / `oxlint-disable` line, or
+  `quirk(#N): …`. TS: oxlint `streamiq/no-low-value-comments` (`frontend/lint/streamiq.js`)
+  enforces it; CSS, Go, C# and scripts: `scripts/check-comments.sh` against
+  `scripts/comment-baseline.txt` (issue refs, > 30 % comments).
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

@@ -11,13 +11,12 @@ export const updated = (
   g: { online: boolean; version: string | null },
 ) => g.online && g.version !== u.from
 
-// Which notice the gateway card shows about an update: the started
-// update (none = null) and whether UPDATE_WAIT has passed (late), the
-// gateway's fields, whether this browser may update it, and the status's
-// answer (remote: null = not known, true = the button works, a string = why
-// not). A started update that's done no longer counts: back to the offer.
-// Not happened + this browser may update = retry: the notice with the button
-// again; the gateway refuses one while its updater still runs.
+// Which notice the gateway card shows: from the started update (null = none) and
+// whether UPDATE_WAIT has passed (late), the gateway's fields, whether this browser
+// may update it, and the status's answer (remote: null = not known, true = the
+// button works, a string = why not). A finished update no longer counts. Not
+// happened + may update = retry: the button again (the gateway refuses one while
+// its updater still runs).
 export type Notice =
   | 'updating'
   | 'notHappened'

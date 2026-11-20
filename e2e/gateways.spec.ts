@@ -1,7 +1,7 @@
-// The gateways page (#408), on a paired browser with its own gateway (fixtures.ts
-// `paired`): rename (#310, #329), Status paired and unpaired (#140), the nav chip's
-// dot (#206), paired clients (#311, #365), the member view (#190), Reject on the
-// local gateway page, a refused broker socket (#403) and TV mode (#663, #676).
+// The gateways page, on a paired browser with its own gateway (fixtures.ts
+// `paired`): rename, Status paired and unpaired, the nav chip's
+// dot, paired clients, the member view, Reject on the
+// local gateway page, a refused broker socket and TV mode.
 // Onboarding, Approve, Test connection and the removes that end sessions are
 // the golden path's; the offline dot (90 s), rejection edge cases and a
 // member's own client list are backend / Go / multi-user.
@@ -30,7 +30,7 @@ test('rename: shown once paired, Escape cancels, Enter saves a trimmed name @gat
   const { user, gateway, gatewayCtx } = paired
   const b = await second(browser, user)
   const renameBtn = card(b).getByRole('button', { name: 'Rename' })
-  // Rename goes over the tunnel: not offered until this browser is paired (#329).
+  // Rename goes over the tunnel: not offered until this browser is paired.
   await expect(
     card(b).getByRole('button', { name: 'Pair this browser' }),
   ).toBeVisible() // the pin check is done
@@ -114,7 +114,7 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   const { page: a, user, gateway, gatewayCtx } = paired
   const b = await second(browser, user)
   await pair(b, gatewayCtx, gateway.pageUrl)
-  // Right after pairing, B names itself (#365): prefilled with the paired name.
+  // Right after pairing, B names itself: prefilled with the paired name.
   const name = b.getByLabel('Name this browser')
   await expect(name).toHaveValue(/ on /) // "Chrome on Linux" etc.
   await name.fill("  B's phone ")
@@ -135,11 +135,11 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   )
   await expect(clients.filter({ hasText: "B's phone" })).toHaveCount(1)
 
-  // Rename the own row (#365). The form replaces the row's text (and its
+  // Rename the own row. The form replaces the row's text (and its
   // "(this browser)"): find it by label.
   await self.getByRole('button', { name: 'Rename' }).click()
   const field = card(a).getByLabel('Client name')
-  await expect(field).toHaveAccessibleDescription('') // only the gateway keeps it (#413)
+  await expect(field).toHaveAccessibleDescription('') // only the gateway keeps it
   await field.fill('Desk')
   await field.press('Enter')
   await expect(field).toBeHidden()
@@ -153,7 +153,7 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
     .getByRole('button', { name: 'Remove' })
     .click()
   await expect(clients).toHaveCount(1)
-  await expect(summary).toBeFocused() // the D-pad keeps its place (#226)
+  await expect(summary).toBeFocused() // the D-pad keeps its place
   await movies.click()
   await expect(b.locator('[role=alert][data-kind="tunnel-lost"]')).toBeVisible()
   await b.getByRole('link', { name: '← Gateways' }).click()

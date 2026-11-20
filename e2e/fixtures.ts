@@ -27,36 +27,31 @@ type Paired = {
 export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
   jellyfin: [
     async ({}, use, { parallelIndex }) => {
-      // CI: global setup started one per worker (#494); a worker restarted
+      // CI: global setup started one per worker; a worker restarted
       // after a failure gets the same one (same parallelIndex).
       const ready = process.env.E2E_JELLYFIN_URLS?.split(',')[parallelIndex]
       if (ready) {
         process.env.E2E_JELLYFIN_URL = ready // startGateway reads it
         return use(ready)
       }
-      // One per worker, not one per run: each gateway's Jellyfin login
-      // resets the shared streamiq-admin / streamiq-viewer passwords, so two
-      // gateways alive on one Jellyfin lock each other out (HTTP 401). The
-      // same holds for library state (offline / extras, scans): tests running
-      // at the same time never share a Jellyfin. A test that changes it puts it
-      // back; the next test in its worker gets the same Jellyfin.
-      // Started here, in the worker: testcontainers shares the runner's Ryuk,
-      // which reaps it with the rest of the stack if this worker is killed.
+      // One per worker: each gateway's Jellyfin login resets the shared
+      // streamiq-admin / streamiq-viewer passwords (two gateways on one Jellyfin
+      // lock each other out, HTTP 401), and library state (offline / extras, scans)
+      // is shared too; a test that changes it puts it back. Started in the worker:
+      // testcontainers' Ryuk reaps it with the stack if this worker is killed.
       const jf = await startJellyfin({}, undefined, `jellyfin ${parallelIndex}`) // sets E2E_JELLYFIN_URL (startGateway reads it)
       await use(jf.url)
       await jf.container.stop()
     },
     // A worker fixture has its own timeout slot (the project's 180 s), so its
-    // startup never eats into the first test's budget (#397).
+    // startup never eats into the first test's budget.
     { scope: 'worker' },
   ],
   // ponytail: per test (4–7 s in CI: a gateway + one pairing). The client key is
   // a non-extractable CryptoKey in IndexedDB, so neither storageState nor the API
-  // can carry a pairing. A per-worker live context for the tests that only read
-  // was measured in #514: still 1.7–3.3 s per test (page load, Jellyfin re-login
-  // after other gateways reset the shared passwords) plus a pairing per worker,
-  // about 5–9 s of CI wall time saved. Dropped; the timing line below shows if
-  // that changes.
+  // can carry a pairing. A per-worker live context measured 1.7–3.3 s per test
+  // (page load, Jellyfin re-login) plus a pairing per worker, ~5–9 s of CI saved:
+  // dropped; the timing line below shows if that changes.
   paired: async ({ browser, jellyfin: _ }, use, testInfo) => {
     const t0 = Date.now()
     const user = await signUp(uniqueEmail('paired'))
@@ -76,7 +71,7 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
       const t4 = Date.now()
       await Promise.all([gatewayCtx.close(), page?.context().close()])
       await gateway.stop()
-      // One line per test (#506): what this fixture costs, summed from the CI log.
+      // One line per test: what this fixture costs, summed from the CI log.
       if (t3) {
         const t5 = Date.now()
         const s = (ms: number) => (ms / 1000).toFixed(1)

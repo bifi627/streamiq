@@ -79,7 +79,7 @@ test('every kind: a message and the buttons it shows', () => {
     'tunnel-lost': ['retry'],
     'invite-invalid': ['gateways'],
     'last-admin': [],
-    'admin-only': [], // retry can't help a 403 (#211)
+    'admin-only': [], // retry can't help a 403
     'media-server-down': ['retry'],
     unauthorized: ['sign-in'],
     http: ['retry'],

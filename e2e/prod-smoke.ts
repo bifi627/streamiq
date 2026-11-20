@@ -1,7 +1,7 @@
-// Prod smoke (#574, spike #570): the last released gateway on this machine, enrolled against the
+// Prod smoke: the last released gateway on this machine, enrolled against the
 // real deployment (SMOKE_URL), played to from a browser signed in with real
-// Firebase: direct, forced relay (real Cloudflare TURN), then relay over TLS
-// (#576). Fixed test account
+// Firebase: direct, forced relay (real Cloudflare TURN), then relay over TLS.
+// Fixed test account
 // (SMOKE_EMAIL / SMOKE_PASSWORD) with one household; its gateway is revoked at
 // the end, and stale ones from a crashed run at the start.
 // Not a *.spec.ts: the normal e2e run never picks it up (prod-smoke.config.ts).
@@ -137,7 +137,7 @@ test('prod smoke: sign in, enroll, play direct, test connection direct + relay +
     await page.reload()
     await page.getByLabel('Force relay (TURN)', { exact: true }).check()
     await page.getByRole('button', { name: 'Test connection' }).click()
-    // A TURN outage (#583) fails here, on the line that names it (#585).
+    // A TURN outage fails here, on the line that names it.
     await expect(report(page)).toContainText(/relay: \w+/, { timeout: 30_000 })
     await expect(report(page)).toContainText('relay: available')
     await expect(report(page)).toContainText(/throughput: [\d.]+ Mbps/, {
@@ -147,7 +147,7 @@ test('prod smoke: sign in, enroll, play direct, test connection direct + relay +
     await expect(report(page)).toContainText(/path: relayed \(TURN\)/)
     lap('relay ok')
 
-    // #576: the `turns:` relay a 443-only (hotel/office) network needs.
+    // The `turns:` relay a 443-only (hotel/office) network needs.
     await page.reload()
     await page.getByLabel('Force relay over TLS (443)', { exact: true }).check()
     await page.getByRole('button', { name: 'Test connection' }).click()

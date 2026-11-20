@@ -110,7 +110,7 @@ export async function startGateway(
         env: gwEnv,
       })
   // A containerized gateway sees the host as a LAN client, not loopback: sign in
-  // with the page token (#42), as a person on another device does.
+  // with the page token, as a person on another device does.
   const headers: Record<string, string> = {}
   let pageCookie: { name: string; value: string; url: string } | undefined
   if (process.env.E2E_GATEWAY_IMAGE) {
@@ -240,7 +240,7 @@ const secs = (ms: number) => (ms / 1000).toFixed(1)
 const T0 = Date.now() // module load ≈ global setup's start
 /**
  * One line when a start-up task ends, so the CI log attributes every second of
- * global setup (#494, #504): its own time and the time since setup began.
+ * global setup: its own time and the time since setup began.
  */
 export function timed<T>(name: string, task: Promise<T>): Promise<T> {
   const t = Date.now()
@@ -266,13 +266,12 @@ function run(cmd: string, args: string[], cwd: string) {
   })
 }
 
-// Fixture media, made by Jellyfin's own ffmpeg (no host ffmpeg in CI) into /out:
-// a 30 s H.264 clip with two AAC tracks (English 440 Hz, German 880 Hz: the audio
-// menu, #109) + sidecar English subtitle, in Jellyfin's one-folder-per-movie
-// layout. Auto audio (#252): a clip whose default track (440 Hz) is MP2, which
-// the browser probe never lists; the second (880 Hz) is AAC in the same
-// language. Its name sorts after the main clip: other steps take the first movie.
-// The series (#344): gen-test-media.sh's own script.
+// Fixture media, made by Jellyfin's own ffmpeg (no host ffmpeg in CI) into /out,
+// one folder per movie: a 30 s H.264 clip with two AAC tracks (English 440 Hz,
+// German 880 Hz: the audio menu) + an English sidecar subtitle. Auto audio: a clip
+// whose default track (440 Hz) is MP2, which the probe never lists, the second
+// (880 Hz) AAC in the same language; it sorts after the main clip, the first movie
+// other steps take. The series: gen-test-media.sh's own script.
 const FFMPEG = '/usr/lib/jellyfin-ffmpeg/ffmpeg'
 const ENCODE =
   'D="/out/media/streamiq e2e clip" && mkdir -p "$D" && ' +
@@ -385,7 +384,7 @@ export async function startJellyfin(
   labeled = (c: GenericContainer) => c,
   name = 'jellyfin',
 ) {
-  // One line per step, so the CI log shows where the time goes (#494).
+  // One line per step, so the CI log shows where the time goes.
   const t0 = Date.now()
   let last = t0
   const step = (s: string) => {
@@ -578,7 +577,7 @@ export async function startStack(o: StackOptions) {
         STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
         STREAMIQ_TURN_SECRET: 'e2e',
         // Every test signals from 127.0.0.1: the per-IP limit (default 120/min)
-        // is shared by all workers, and a 429'd broker socket hangs a test (#397).
+        // is shared by all workers, and a 429'd broker socket hangs a test.
         STREAMIQ_SIGNALING_PER_MINUTE: '100000',
       },
     },
@@ -645,7 +644,7 @@ async function startCoturn(labeled: (c: GenericContainer) => GenericContainer) {
   for (let attempt = 1; ; attempt++) {
     const turnPort = 20000 + Math.floor(Math.random() * 20000) // below Windows' ephemeral range; a clash anywhere is a bind error → retry
     // One relay port per allocation, and every tunnel's browser and gateway allocate:
-    // 5 ran out with 3 golden-path copies in parallel (508 Cannot create socket, #418).
+    // 5 ran out with 3 golden-path copies in parallel (508 Cannot create socket).
     const relayPorts = Array.from({ length: 50 }, (_, i) => turnPort + 1 + i)
     const hex = turnPort.toString(16).toUpperCase().padStart(4, '0')
     const fixed = (port: number, protocol: 'tcp' | 'udp') => ({

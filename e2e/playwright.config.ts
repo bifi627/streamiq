@@ -1,15 +1,11 @@
 import { defineConfig } from '@playwright/test'
 
-// The e2e specs (golden path, multi-user, gateways, households, library, player, screen, diagnostics, shell, chrome87, compat): the whole stack — testcontainers for Postgres,
-// Firebase Auth emulator, coturn, Jellyfin; backend, Vite, and the gateway as real
-// processes — is started by global-setup.ts, not `webServer` (it needs the
-// containers' random ports, which only exist after setup runs). Jellyfin:
-// one per worker: in CI started with the stack, locally once a spec asks for it
-// (fixtures.ts).
-//
-// Tests run in parallel on that one stack, so each is independent: own accounts
-// (uniqueEmail), own gateway. Area tags pick a slice while working on it:
-// `npm test -- --grep @households` (tags: `allowedTags` in .oxlintrc.json). CI runs everything; check.sh too unless E2E_GREP / SKIP_E2E narrow it.
+// The whole stack (testcontainers for Postgres, Firebase Auth emulator, coturn,
+// Jellyfin; backend, Vite and the gateway as processes) starts in global-setup.ts,
+// not `webServer`: it needs the containers' random ports. Jellyfin: one per worker
+// (fixtures.ts). Tests run in parallel on that stack, each with its own accounts
+// (uniqueEmail) and gateway. Area tags: `npm test -- --grep @households`
+// (`allowedTags` in .oxlintrc.json); CI runs everything.
 export default defineConfig({
   testDir: '.',
   globalSetup: './global-setup.ts',
@@ -19,12 +15,10 @@ export default defineConfig({
   forbidOnly: !!process.env.CI, // backstop for a .only that got past lint (playwright/no-focused-test)
   fullyParallel: true, // tests in a file too: they're independent
   // ponytail: no CI sharding: each shard would start its own stack (~1.5 min).
-  // CI: a GitHub runner has 4 vCPUs (16 GB) for Chromes, gateways and up to one
-  // transcoding Jellyfin per worker (fixtures.ts; the fixture media is encoded once
-  // per run, #494). 4 was tried (#469): every test got slower and the job
-  // took 7m06s / 7m34s vs ~5.5 min at 3. Locally: 4, not Playwright's default (half
-  // the cores, 12 on a 24-thread box): each worker can start its own Jellyfin, and
-  // 12 of them peg the CPU so timing tests flake from load alone. `--workers N` overrides.
+  // CI: 4 vCPUs (16 GB) for Chromes, gateways and a transcoding Jellyfin per
+  // worker; 4 workers made every test slower (7m06s / 7m34s vs ~5.5 min at 3).
+  // Locally 4, not Playwright's half the cores: 12 Jellyfins peg a 24-thread box
+  // and timing tests flake from load alone. `--workers N` overrides.
   workers: process.env.CI ? 3 : 4,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {

@@ -1803,7 +1803,7 @@ html.tv .dock {
   height: 14rem;
 }
 
-/* Activity (#393): Settings' layout, the tunnels as a table that scrolls
+/* Activity: Settings' layout, the tunnels as a table that scrolls
    sideways on a phone instead of the page. */
 .activity .table-scroll {
   align-self: stretch;

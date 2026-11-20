@@ -5,6 +5,7 @@ import { toAppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
 import { arrowFocus } from '../../focus'
 import {
+  byGateway,
   data,
   duration,
   gatewayLabel,
@@ -22,7 +23,7 @@ export function Activity() {
     queryFn: () => authed<TunnelRow[]>('/tunnels'),
   })
   const [gateway, setGateway] = useState('')
-  const rows = (q.data ?? []).filter((t) => !gateway || t.gatewayId === gateway)
+  const rows = byGateway(q.data ?? [], gateway)
   const choices = gatewaysIn(q.data ?? [])
 
   return (

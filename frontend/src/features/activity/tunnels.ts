@@ -34,9 +34,10 @@ const unit = (u: string, max = 0) =>
   })
 
 // The largest unit that keeps the number ≥ 1 (1000-based, like network speeds).
+// 0.9995: a value that would round up to `step` moves to the next unit already.
 function scaled(n: number, units: string[], step: number): string {
   let i = 0
-  while (n >= step && i < units.length - 1) {
+  while (n >= step * 0.9995 && i < units.length - 1) {
     n /= step
     i++
   }
@@ -46,8 +47,9 @@ function scaled(n: number, units: string[], step: number): string {
 export function duration(t: TunnelRow): string {
   if (!t.endedAt) return 'Ongoing'
   const s = (Date.parse(t.endedAt) - Date.parse(t.createdAt)) / 1000
-  if (s < 60) return unit('second').format(s)
-  if (s < 3600) return unit('minute').format(s / 60)
+  // Switch units where the rounded number would reach 60.
+  if (s < 59.5) return unit('second').format(s)
+  if (s < 3570) return unit('minute').format(s / 60)
   return unit('hour', 1).format(s / 3600)
 }
 
@@ -81,3 +83,7 @@ export function gatewaysIn(rows: TunnelRow[]): { id: string; name: string }[] {
     if (!seen.has(t.gatewayId)) seen.set(t.gatewayId, gatewayLabel(t))
   return [...seen].map(([id, name]) => ({ id, name }))
 }
+
+/** The rows of one gateway; '' = all. */
+export const byGateway = (rows: TunnelRow[], gatewayId: string) =>
+  gatewayId ? rows.filter((t) => t.gatewayId === gatewayId) : rows

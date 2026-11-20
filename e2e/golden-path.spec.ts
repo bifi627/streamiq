@@ -143,7 +143,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     })
 
     await test.step('Activity lists the tunnels so far as Direct', async () => {
-      // Earlier tunnels ended (gateway restarts, restore): their reports are in.
+      // Tunnels ended so far: those the gateway reported show their route.
       await a.getByRole('link', { name: 'Activity' }).click()
       await expect(
         a.getByRole('cell', { name: /^Direct( · IPv6)?$/ }).first(),

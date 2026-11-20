@@ -1,6 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { data, duration, gatewaysIn, route, type TunnelRow } from './tunnels.ts'
+import {
+  byGateway,
+  data,
+  duration,
+  gatewaysIn,
+  route,
+  type TunnelRow,
+} from './tunnels.ts'
 
 const row = (o: Partial<TunnelRow> = {}): TunnelRow => ({
   id: 'x',
@@ -50,4 +57,28 @@ test('the filter lists each gateway once, a nameless one too', () => {
     { id: 'g1', name: 'nas' },
     { id: 'g2', name: 'Unnamed gateway' },
   ])
+})
+
+test('the filter: one gateway, or all', () => {
+  const rows = [row(), row({ id: 'y', gatewayId: 'g2' })]
+  assert.deepEqual(
+    byGateway(rows, 'g2').map((t) => t.id),
+    ['y'],
+  )
+  assert.equal(byGateway(rows, ''), rows)
+})
+
+test('a value that rounds up to the next unit is shown in it', () => {
+  const at = (s: number) =>
+    row({
+      endedAt: new Date(
+        Date.parse('2026-11-20T10:00:00Z') + s * 1000,
+      ).toISOString(),
+    })
+  assert.doesNotMatch(duration(at(59.7)), /60/)
+  assert.doesNotMatch(duration(at(3599)), /60/)
+  assert.doesNotMatch(
+    data(row({ bytesSent: 999_960, bytesReceived: 0 })),
+    /1[,.]?000/,
+  )
 })

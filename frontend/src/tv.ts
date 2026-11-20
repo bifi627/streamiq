@@ -1,6 +1,6 @@
 // First-visit TV guess from the user agent. It only picks the TV-mode default
-// while nothing is stored; nothing else may read it (owner decision on #93's
-// "no user-agent sniffing").
+// while nothing is stored; nothing else may read it (owner decision: no other
+// user-agent sniffing in the UI).
 export type TvGuess = 'tv' | 'unsure' | 'other'
 
 const TV_MARKERS = /webOS|Web0S|Tizen|SmartTV|SMART-TV/i

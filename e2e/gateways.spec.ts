@@ -1,13 +1,15 @@
 // The gateways page (#408), on a paired browser with its own gateway (fixtures.ts
 // `paired`): rename (#310, #329), Status paired and unpaired (#140), the nav chip's
 // dot (#206), paired clients (#311, #365), the member view (#190), Reject on the
-// local gateway page, and a refused broker socket (#403). Onboarding, Approve,
+// local gateway page, a refused broker socket (#403) and TV mode (#663).
+// Onboarding, Approve,
 // Test connection and the removes that end sessions are the golden path's; the
 // offline dot (90 s), rejection edge cases and a member's own client list are
 // backend / Go / multi-user.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
+  appUrl,
   gatewayTab,
   join,
   pair,
@@ -242,4 +244,25 @@ test('a refused broker socket shows an error, not "loading…" (#403) @gateways'
   await expect(page.locator('[data-kind="broker-unreachable"]')).toContainText(
     refused,
   )
+})
+
+test('TV mode: the card keeps Open, Use as screen and Status; managing is hidden (#663) @gateways', async ({
+  paired,
+}) => {
+  const { page } = paired
+  const c = card(page)
+  const managing = [
+    c.getByRole('button', { name: 'Rename' }),
+    c.getByRole('button', { name: 'Remove' }),
+    c.getByRole('link', { name: 'Gateway page' }),
+    c.getByText('Paired clients', { exact: true }),
+  ]
+  for (const l of managing) await expect(l).toBeVisible() // an admin, paired
+  await page.goto(appUrl('/settings'))
+  await page.getByLabel('TV mode').check()
+  await page.goto(appUrl('/gateways'))
+  await expect(c.getByRole('button', { name: 'Open' })).toBeVisible()
+  await expect(c.getByRole('link', { name: 'Use as screen' })).toBeVisible()
+  await expect(c.getByText('Status', { exact: true })).toBeVisible()
+  for (const l of managing) await expect(l).toBeHidden()
 })

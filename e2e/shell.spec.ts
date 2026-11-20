@@ -106,13 +106,18 @@ test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
   expect((await cdp.send('Page.getAppManifest')).errors).toEqual([])
 })
 
-test('TV mode: /household hands off, the nav drops Household, /settings opens @shell', async ({
+test('TV mode: /household hands off, the nav drops Household, Settings keeps Sign out, no alias @shell', async ({
   browser,
 }) => {
   const p = await signedIn(browser, '/settings')
   const nav = p.getByRole('navigation', { name: 'Main' })
   const h1 = p.getByRole('heading', { level: 1 })
+  const alias = p.getByText('What members of your households see')
+  await expect(alias).toBeVisible()
   await p.getByLabel('TV mode').check() // applies at once, no reload
+  // Account keeps Sign out; the alias is a phone/PC's to change (#663).
+  await expect(alias).toBeHidden()
+  await expect(p.getByRole('button', { name: 'Sign out' })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Household' })).toHaveCount(0)
   await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible()
 

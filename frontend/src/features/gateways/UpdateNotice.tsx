@@ -107,7 +107,7 @@ export function UpdateNotice({
     notice === 'notFinished'
   )
     return (
-      <p className="notice" role="status" tabIndex={-1} ref={status}>
+      <p className="notice no-tv" role="status" tabIndex={-1} ref={status}>
         {notice === 'updating' ? (
           `Updating to v${updating!.to}… The gateway is offline for a moment.`
         ) : notice !== 'notFinished' ? (
@@ -138,7 +138,7 @@ export function UpdateNotice({
       </p>
     )
   return (
-    <p className="notice">
+    <p className="notice no-tv">
       Update available: {g.update}.{' '}
       {notice === 'button' ? (
         <button type="button" onClick={() => start(g.update!)}>

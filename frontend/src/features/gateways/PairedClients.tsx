@@ -99,7 +99,7 @@ export function PairedClients({
   }
 
   return (
-    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+    <details className="no-tv" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary ref={summary}>Paired clients</summary>
       {note && <p role="status">{note}</p>}
       {shown?.length === 0 && <p>No paired clients.</p>}

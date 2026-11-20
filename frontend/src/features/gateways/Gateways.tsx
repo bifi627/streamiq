@@ -238,9 +238,11 @@ function GatewayCard({
           {g.online ? 'Online' : 'Offline'}
         </span>
       </div>
-      {g.version && <span className="meta muted">Version {g.version}</span>}
+      {g.version && (
+        <span className="meta muted no-tv">Version {g.version}</span>
+      )}
       {g.upgradeRequired ? (
-        <p className="notice">
+        <p className="notice no-tv">
           Update required: rerun the install command on the gateway.
         </p>
       ) : (
@@ -268,7 +270,12 @@ function GatewayCard({
             </Link>
           )}
           {g.lanUrl && (
-            <a href={g.lanUrl} target="_blank" rel="noreferrer">
+            <a
+              className="no-tv"
+              href={g.lanUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
               Gateway page
             </a>
           )}
@@ -276,7 +283,7 @@ function GatewayCard({
         </Pairing>
       ) : (
         admin && (
-          <div className="actions">
+          <div className="actions no-tv">
             <RemoveButton onClick={remove} />
           </div>
         )
@@ -289,7 +296,7 @@ function GatewayCard({
 }
 
 const RemoveButton = ({ onClick }: { onClick: () => void }) => (
-  <button type="button" className="end" onClick={onClick}>
+  <button type="button" className="end no-tv" onClick={onClick}>
     Remove
   </button>
 )

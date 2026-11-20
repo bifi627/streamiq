@@ -447,7 +447,7 @@ button.link {
 .card > p {
   margin: 0;
 }
-/* Adding a gateway means a command on a NAS/PC: not a TV's job. */
+/* Managing (add, rename, remove, update, the alias) is a phone/PC's job, not a TV's. */
 html.tv .no-tv {
   display: none;
 }

@@ -259,7 +259,7 @@ file names or paths.
 
     gateway telemetry          # the current level and what it sends
     gateway telemetry full     # share the box's health
-    gateway telemetry off      # stop; StreamIQ deletes the health history it kept
+    gateway telemetry off      # stop sending; the history StreamIQ already has is kept
 
 A household admin can switch it in the web app too, while the gateway is online.
 The level lives in `state/telemetry` (so `gateway backup` and rollback carry it);

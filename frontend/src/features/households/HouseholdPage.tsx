@@ -64,20 +64,15 @@ export function Household() {
       </div>
       <Members />
       {current?.role === 'admin' && <Invites />}
+      <CreateAnother />
     </section>
   )
 }
 
-// Signed in, in no household: sign-up makes none. Shell shows this in place
-// of every page but Settings and /join. Create one (as its admin), or open an
-// invite link someone sent. Both reload into the household they lead to.
-export function NoHousehold() {
-  const [link, setLink] = useState('')
+// Makes a household with the user as its admin and reloads into it.
+function useCreate() {
   const [err, setErr] = useState<AppError | null>(null)
   const [busy, setBusy] = useState(false)
-  // A whole link (…/join#<token>) or the bare token.
-  const token = link.trim().split('#').pop() ?? ''
-
   async function create() {
     setBusy(true)
     setErr(null)
@@ -88,6 +83,41 @@ export function NoHousehold() {
       setBusy(false)
     }
   }
+  return { err, busy, create }
+}
+
+// A member of someone else's household makes one of their own, e.g. for their
+// own gateway. Asked first: one stray OK on a TV would make a household.
+function CreateAnother() {
+  const { err, busy, create } = useCreate()
+  return (
+    <div>
+      {err && <ErrorView error={err} />}
+      <div className="actions">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() =>
+            confirm(
+              'Create a new household? You become its admin and switch to it.',
+            ) && create()
+          }
+        >
+          Create another household
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Signed in, in no household: sign-up makes none. Shell shows this in place
+// of every page but Settings and /join. Create one (as its admin), or open an
+// invite link someone sent. Both reload into the household they lead to.
+export function NoHousehold() {
+  const [link, setLink] = useState('')
+  const { err, busy, create } = useCreate()
+  // A whole link (…/join#<token>) or the bare token.
+  const token = link.trim().split('#').pop() ?? ''
 
   return (
     <section className="card join" onKeyDown={arrowFocus}>

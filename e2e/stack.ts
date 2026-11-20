@@ -412,6 +412,9 @@ export async function startJellyfin(
   // Not in the preview: a long 4K stream keeps GBs of segments in /cache. Its
   // anonymous volumes go with `preview down` (docker rm -v) instead.
   if (!o.label) jellyfinContainer.withTmpFs(NO_VOLUMES['jellyfin/jellyfin'])
+  // A transcode's ffmpeg takes every core; with a Jellyfin per worker the spikes
+  // stack and timing specs flake. The preview's 4K device tests need the CPU.
+  if (!o.label) jellyfinContainer.withResourcesQuota({ cpu: 2 })
   if (o.nvenc) {
     // ponytail: testcontainers has no GPU option, so set Docker's DeviceRequests
     // on its protected hostConfig. If testcontainers renames it, this is a silent

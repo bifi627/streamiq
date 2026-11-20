@@ -270,6 +270,6 @@ Copy `.env.example` only to override.
   Keep a non-obvious *why*: external quirk, invariant, security reason, units/protocol facts,
   `ponytail:` ceiling, lint exemption, short Go doc comments. Cut restating, history ("added in
   #N", "was X"), commented-out code, copies of `docs/`, banners. Issue numbers only as
-  `TODO(#N)`, in a lint exemption, or `quirk(#N): …`. `scripts/check-comments.sh` holds files
+  `TODO(#N)`, on a `nolint` / `oxlint-disable` line, or `quirk(#N): …`. `scripts/check-comments.sh` holds files
   to `scripts/comment-baseline.txt` (issue refs, > 30 % comments).
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

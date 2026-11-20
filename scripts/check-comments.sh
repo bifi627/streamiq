@@ -34,7 +34,7 @@ current=$(awk '
   l == "" { next }
   { nb++ }
   hash {
-    if (match(l, /(^|[ \t])#([^0-9]|$)/)) refs += ref(substr(l, RSTART))
+    if (match(l, /(^|[ \t])#/)) refs += ref(substr(l, RSTART))
     next
   }
   sql {

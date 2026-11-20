@@ -13,7 +13,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"streamiq/gateway/internal/jellyfin"
@@ -249,14 +252,35 @@ func restartGateway(exe string) error {
 }
 
 // stopGateway ends a gateway running from exe (not this process): the logon
-// task on Windows, else what install.sh started (its pkill pattern).
+// task on Windows, else the pid in exe.pid, and what install.sh started (its
+// pkill pattern) for a gateway older than the pid file. install.sh does the same.
 func stopGateway(exe string) {
 	if runtime.GOOS == "windows" {
 		service.Stop(exe)
 		return
 	}
+	if pid, ok := gatewayPid(exe); ok {
+		p, _ := os.FindProcess(pid) // never fails on Unix
+		_ = p.Signal(syscall.SIGTERM)
+	}
 	// best effort: pkill fails when nothing matches, and nothing running is fine
 	_ = exec.Command("pkill", "-f", "^"+regexp.QuoteMeta(exe)+"$").Run()
+}
+
+// gatewayPid is the pid in exe.pid while a process named gateway has it: a
+// stale file whose pid now belongs to another program names nothing.
+func gatewayPid(exe string) (int, bool) {
+	b, err := os.ReadFile(exe + ".pid")
+	if err != nil {
+		return 0, false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil || pid <= 1 || pid == os.Getpid() {
+		return 0, false
+	}
+	// comm: "gateway" on Linux, the started path (./gateway, /…/gateway) on macOS
+	comm, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "comm=").Output()
+	return pid, err == nil && filepath.Base(strings.TrimSpace(string(comm))) == filepath.Base(exe)
 }
 
 // checkUpdates asks GitHub for the latest release at start, then daily, and

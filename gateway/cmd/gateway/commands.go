@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,7 +77,13 @@ var (
 // gateway.env and jellyfin-compose.yml).
 func newRoot(ctx context.Context, exe string) *cobra.Command {
 	compose := filepath.Join(filepath.Dir(exe), jellyfin.ComposeFile)
-	runGateway := func(*cobra.Command, []string) { run(ctx, compose) }
+	runGateway := func(*cobra.Command, []string) {
+		// stopGateway finds this copy by it, however it was started (./gateway, gateway run)
+		if err := os.WriteFile(exe+".pid", []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
+			log.Printf("gateway: %v", err)
+		}
+		run(ctx, compose)
+	}
 
 	root := &cobra.Command{
 		Use:   "gateway",

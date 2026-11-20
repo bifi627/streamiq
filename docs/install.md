@@ -369,6 +369,7 @@ gateway) has its own backups: **Dashboard → Backups**.
 | Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates; [`gateway backup`](#back-up-and-restore-the-gateway) copies it) | `state/` |
 | Log | the gateway's console window (closing it stops the gateway) | `gateway.log` |
 | Autostart | scheduled task `streamiq-gateway` (`gateway service install`) | your crontab line |
+| Running gateway's process id (an update, `rollback` and `jellyfin gpu` stop the copy it names) | — | `gateway.pid` |
 | Previous binaries + their state, for [`gateway rollback`](#roll-back-an-update) | `backups\` (the last 3 updates) | `backups/` |
 
 `STREAMIQ_DIR` overrides the install dir. Set `STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` on

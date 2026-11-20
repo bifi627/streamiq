@@ -97,6 +97,17 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 			t.Errorf("offline %q, body:\n%s", offline, body)
 		}
 	}
+	// The telemetry level, with the command that changes it.
+	for level, cmd := range map[string]string{"off": "gateway telemetry full", "full": "gateway telemetry off"} {
+		c := Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store,
+			Jellyfin: func() any { return jf }, Telemetry: func() (string, string) { return level, "what it sends" }}
+		w := httptest.NewRecorder()
+		Handler(c).ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+		if body := w.Body.String(); !strings.Contains(body, "Telemetry: <b>"+level+"</b> · sends what it sends") ||
+			!strings.Contains(body, "<code>"+cmd+"</code>") {
+			t.Errorf("telemetry %s, body:\n%s", level, body)
+		}
+	}
 	// Its admin refused (#240): the form says to sign in as it.
 	jf.NeedsLogin = true
 	w = httptest.NewRecorder()

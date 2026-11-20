@@ -175,6 +175,18 @@ func roundTrip(t *testing.T, compose []byte) {
 	}
 	s.logout(ctx, admin)
 
+	// Telemetry's transcode count: real /Sessions, and its kept token outlives
+	// the gateway's other admin sign-in and sign-out above.
+	if n, err := s.Transcodes(ctx); err != nil || n != 0 {
+		t.Fatalf("Transcodes = %d, %v", n, err)
+	}
+	tele := s.tele
+	admin = signIn(t, s)
+	s.logout(ctx, admin)
+	if n, err := s.Transcodes(ctx); err != nil || n != 0 || s.tele != tele {
+		t.Fatalf("Transcodes after another admin sign-in = %d, %v (token kept: %v)", n, err, s.tele == tele)
+	}
+
 	// The pin bump: `gateway jellyfin upgrade` (prints "Already on" on the current file).
 	var out bytes.Buffer
 	if err := Upgrade(ctx, file, &out); err != nil {

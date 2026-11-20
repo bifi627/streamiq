@@ -248,6 +248,24 @@ app always asks for H.264):
 - Windows: **Task Manager → Performance → GPU**; the **Video Encode** graph
   moves while it plays.
 
+## Telemetry (optional)
+
+Off by default: the gateway then tells StreamIQ only that it is alive and, per
+tunnel, its route, bytes and duration. At `full` its heartbeat (every 30 s) also
+carries the box's health, so StreamIQ can keep a history: Jellyfin reachable and
+its version, OS and architecture, hardware acceleration, the offline jail, active
+tunnels and transcodes, CPU % and memory %. Never names, users, media titles,
+file names or paths.
+
+    gateway telemetry          # the current level and what it sends
+    gateway telemetry full     # share the box's health
+    gateway telemetry off      # stop sending; the history StreamIQ already has is kept
+
+A household admin can switch it in the web app too, while the gateway is online.
+The level lives in `state/telemetry` (so `gateway backup` and rollback carry it);
+a running gateway uses a new level from its next heartbeat, no restart. The local
+gateway page shows it.
+
 ## Removing a gateway
 
 **Gateways → Remove** in the web app revokes the gateway's credential at once:
@@ -409,7 +427,7 @@ Installer-only variables are set on the install command, not in `gateway.env`.
 Run `gateway` from the install dir (Linux / macOS: `./gateway`). `gateway -h` lists the commands, and
 `gateway <command> -h` (or `gateway help <command>`) explains one, with examples.
 
-Tab completion for your shell (commands, `on|off`, `nvidia|off`, backup files):
+Tab completion for your shell (commands, `on|off`, `nvidia|off`, `off|full`, backup files):
 
 - PowerShell: add `& "$env:LOCALAPPDATA\streamiq\gateway.exe" completion powershell | Out-String | Invoke-Expression`
   to your profile (`notepad $PROFILE`).

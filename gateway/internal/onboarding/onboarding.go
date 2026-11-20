@@ -48,9 +48,18 @@ type State struct {
 	Credential string `json:"credential"`
 	Name       string `json:"name"`
 
-	path    string
-	mu      sync.Mutex
-	renamed chan struct{} // one pending signal: send a heartbeat now
+	path string
+	mu   sync.Mutex
+	beat chan struct{} // one pending signal: send a heartbeat now
+}
+
+// Beat asks RunControl for an early heartbeat (a rename, a new telemetry level),
+// so the API sees the change now, not at the next tick.
+func (s *State) Beat() {
+	select {
+	case s.beat <- struct{}{}:
+	default: // a beat is already pending
+	}
 }
 
 // ErrBadName: pairing.ErrBadName's rule (no control characters: Postgres text
@@ -78,10 +87,7 @@ func (s *State) SetName(name string) (string, error) {
 	}
 	s.Name = name
 	log.Printf("gateway: renamed to %q", name)
-	select {
-	case s.renamed <- struct{}{}:
-	default: // a beat is already pending
-	}
+	s.Beat()
 	return name, nil
 }
 
@@ -101,7 +107,7 @@ func writeAtomic(path, id, credential, name string) error {
 func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, error) {
 	path := filepath.Join(dir, "gateway.json")
 	if b, err := os.ReadFile(path); err == nil {
-		st := State{path: path, renamed: make(chan struct{}, 1)}
+		st := State{path: path, beat: make(chan struct{}, 1)}
 		return &st, json.Unmarshal(b, &st)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
@@ -125,7 +131,7 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("enroll: %s (token expired or already used? create a new one)", res.Status)
 	}
-	st := State{Name: name, path: path, renamed: make(chan struct{}, 1)}
+	st := State{Name: name, path: path, beat: make(chan struct{}, 1)}
 	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
 		return nil, fmt.Errorf("enroll: %w", err)
 	}
@@ -143,6 +149,9 @@ type heartbeat struct {
 	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
 	Protocol int    `json:"protocol"`
 	Name     string `json:"name"` // the API mirrors it
+	// Telemetry is the level; Health what it allows (none at off). Older APIs ignore both.
+	Telemetry string `json:"telemetry"`
+	Health    any    `json:"health,omitempty"`
 }
 
 // RunControl holds the authenticated control socket until it drops: heartbeats
@@ -152,8 +161,9 @@ type heartbeat struct {
 // takes messages only after that), handle(nil, nil) that it dropped: messages not
 // tied to a broker message (tunnel reports) go out on the socket that is up.
 // lastBeat holds the last heartbeat's unix time, 0 while disconnected (status page).
+// health is the telemetry level and the health it allows, read before each heartbeat.
 func RunControl(ctx context.Context, api string, st *State, lanURL, version string, lastBeat *atomic.Int64,
-	update func() string, handle func(raw []byte, send func(any))) error {
+	update func() string, health func() (level string, health any), handle func(raw []byte, send func(any))) error {
 	// Dial's context bounds only the handshake: cancelling it once Dial returned
 	// leaves the socket open (coder/websocket does the same for HTTPClient.Timeout).
 	dialCtx, cancelDial := context.WithTimeout(ctx, dialTimeout)
@@ -187,16 +197,11 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 		t := time.NewTicker(heartbeatEvery)
 		defer t.Stop()
 		for first := true; ; first = false {
-			send(
-				heartbeat{
-					Type:     "heartbeat",
-					LanURL:   lanURL,
-					Version:  version,
-					Update:   update(),
-					Protocol: Protocol,
-					Name:     st.CurrentName(),
-				},
-			)
+			level, h := health()
+			send(heartbeat{
+				Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol,
+				Name: st.CurrentName(), Telemetry: level, Health: h,
+			})
 			lastBeat.Store(time.Now().Unix())
 			if first {
 				handle(nil, send)
@@ -205,7 +210,7 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 			case <-ctx.Done():
 				return
 			case <-t.C:
-			case <-st.renamed: // a rename: tell the API now, not at the next tick
+			case <-st.beat:
 			}
 		}
 	}()

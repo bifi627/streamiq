@@ -32,10 +32,24 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 2, "name": "Living room NAS" }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 2, "name": "Living room NAS",
+  "telemetry": "full",
+  "health": { "jellyfin": { "reachable": true, "version": "10.11.2" }, "os": "windows", "arch": "amd64",
+              "transcoding": "nvenc", "offline": "enforced", "tunnels": 1, "transcodes": 0, "cpu": 12.5, "memory": 47.3 } }
 ```
 Liveness plus what the gateway owns and the API mirrors (#140, #310); a gateway sends one
-early, right after its name changes, not just every 30 s. The API sets `last_seen_at = now`, `lan_url` (http/https only,
+early, right after its name or telemetry level changes over the gateway API, not just every 30 s
+(a `gateway telemetry` change shows at the next tick).
+**Telemetry (#422).** `telemetry` is the gateway's level, `off` (the default) or `full`,
+from `state/telemetry`, read before each heartbeat (`gateway telemetry off|full`, or
+`POST /streamiq/telemetry` below). `health` is there only at `full`, built from the values
+`GET /streamiq/status` uses: `jellyfin` (`reachable`, `version`), `os`, `arch`,
+`transcoding`, `offline` (absent without a compose Jellyfin), `tunnels` (active tunnels),
+`transcodes` (Jellyfin sessions with `TranscodingInfo`, read from `/Sessions` as the
+gateway's own admin; absent when that fails or there is none), `cpu` / `memory` (busy %
+and memory used %, 0–100; absent where the platform can't measure them). Never names,
+users, client keys, media titles, file names or paths. Both fields are new and optional:
+an API that doesn't know them ignores them (no protocol bump). The API sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null) and
 `protocol` (below), and `name` (#310: trimmed, cut to 100 UTF-16 units, never inside a
@@ -368,7 +382,7 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
+`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/update` and `/streamiq/telemetry`) matches an endpoint; an unknown, unclean or
 percent-encoded path under the prefix is `404`; a known path with another method
 is `405` with an `Allow` header listing its methods, no body (#436; `HEAD` is never
 served, so a `GET` path answers it `405` with `Allow: GET`), checked before the
@@ -378,8 +392,8 @@ that means Jellyfin is unreachable (#327). Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (the route option
-`tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name`
-and `/streamiq/update` so far; #89 decides per endpoint. `/streamiq/clients*` is
+`tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name`,
+`/streamiq/update` and `/streamiq/telemetry` so far; #89 decides per endpoint. `/streamiq/clients*` is
 open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
 its feature, registered in `gateway/cmd/gateway/main.go`).
@@ -393,7 +407,8 @@ Fields are added over time; a client ignores ones it doesn't know.
   "viewer": { "shared": true, "reason": "admin-refused" },
   "remoteUpdate": "no logon task, so nothing would start the gateway again after the update",
   "host": { "cpu": 12.5, "memory": { "used": 8123456789, "total": 17179869184 },
-            "disk": { "free": 120000000000, "total": 1000000000000 } } }
+            "disk": { "free": 120000000000, "total": 1000000000000 } },
+  "telemetry": "off" }
 ```
 
 | Field | Values |
@@ -405,6 +420,7 @@ Fields are added over time; a client ignores ones it doesn't know.
 | `pairedClients`, `activeSessions` | counts only, no client names (#65) |
 | `viewer` | the calling session's Jellyfin viewer (#242): `shared: false` = the user's own; `shared: true` = the shared `streamiq-viewer` (#195 fallback), with a `reason` code: `admin-refused` (Jellyfin refused the gateway's admin sign-in), `no-admin` (the gateway has no Jellyfin admin of its own), `failed` (anything else; retried on the user's next session). The web app words it; an unknown code shows no reason. No credentials, no Jellyfin ids. The web app shows a guest-mode banner on the library and player while `shared` is true; no field (older gateway) = no banner |
 | `host` | the box's live load (#671), never stored: `cpu` busy % (0–100, averaged over the last ~10 s by a background sampler; absent until its first sample), `memory` `used`/`total` bytes (physical), `disk` `free`/`total` bytes of the drive holding `jellyfin-compose.yml` (and so `jellyfin-config/`; absent without a compose file). A field the platform can't measure is left out: macOS sends only `disk`. The web gateway page asks again every 10 s while Status is open and leaves `host` out of its offline cache |
+| `telemetry` | the heartbeat's telemetry level (#422): `off` / `full`. No field (older gateway) = no telemetry |
 | `remoteUpdate` | `true` = `POST /streamiq/update` would start an update now (#312); else a sentence saying why not, shown as it is: not Windows, dev build, an update already running, already up to date, no logon task. No field (older gateway) = update by hand |
 
 The web gateway page caches the last response per gateway in `localStorage` and
@@ -423,6 +439,11 @@ else `400`. The gateway writes it to `state/gateway.json` (atomically) and uses 
 once (local page, backup file names, logs), then sends an early heartbeat so
 `GET /api/gateways` shows it within a second. A gateway older than this endpoint
 answers `404`; the web app then says to update it.
+
+**`POST /streamiq/telemetry`** (#422, admin-only) `{ "level": "off" | "full" }` → `200`
+`{ "level": "<stored>" }`; any other level or body `400`. The gateway writes
+`state/telemetry` (atomically, like `gateway telemetry`) and sends an early heartbeat, so
+the API sees the new level within a second. A gateway older than this endpoint answers `404`.
 
 **`GET /streamiq/clients`** (#311) → `200`
 `[{ "keyFp": "…", "name": "Pixel 8 · Chrome", "addedAt": "2026-11-01T10:00:00Z", "self": true }]`:

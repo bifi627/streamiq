@@ -104,6 +104,7 @@ type Setup struct {
 	// a page login as that admin, or an edit of the file): Jellyfin locks users out after failed sign-ins.
 	refused bool
 	logged  bool      // transcoding state logged (once per start; poll's goroutine only)
+	tele    string    // the admin token Transcodes keeps (held under vmu)
 	mtime   time.Time // jellyfin.json as last read or written: an edit shows as a change
 }
 
@@ -430,6 +431,13 @@ func (s *Setup) call(ctx context.Context, method, path, token, body string, out 
 }
 
 func (s *Setup) callT(ctx context.Context, timeout time.Duration, method, path, token, body string, out any) error {
+	return s.callAs(ctx, timeout, clientHdr, method, path, token, body, out)
+}
+
+// callAs is callT as another client (hdr: its own DeviceId, so its token outlives the gateway's other sign-ins).
+func (s *Setup) callAs(ctx context.Context, timeout time.Duration, hdr, method, path, token, body string,
+	out any,
+) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, method, s.URL+path, strings.NewReader(body))
@@ -437,7 +445,7 @@ func (s *Setup) callT(ctx context.Context, timeout time.Duration, method, path, 
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	h := clientHdr
+	h := hdr
 	if token != "" {
 		h += `, Token="` + token + `"`
 	}

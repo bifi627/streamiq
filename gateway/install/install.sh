@@ -55,7 +55,17 @@ elif [ -x "$DIR/gateway" ] && "$DIR/gateway" -h 2>/dev/null | grep -q '^  backup
 elif [ -f "$DIR/gateway" ]; then
   echo "StreamIQ: the installed gateway can't back itself up; updating without a rollback point" >&2
 fi
-pkill -f "^$DIR/gateway$" 2>/dev/null && sleep 1 || true # running copy (update)
+# Running copy (update), as the gateway's own stop does: gateway.pid names one
+# started any way (./gateway, gateway run) while its process is still a gateway;
+# pkill, one older than the pid file (started by its full path).
+stopped=
+# Its name: /proc on Linux (BusyBox ps has no -p), ps on macOS.
+pid=$(cat "$DIR/gateway.pid" 2>/dev/null) &&
+  comm=$(cat "/proc/$pid/comm" 2>/dev/null || ps -p "$pid" -o comm= 2>/dev/null) &&
+  [ "$(basename "$comm")" = gateway ] &&
+  kill "$pid" 2>/dev/null && stopped=1
+pkill -f "^$DIR/gateway$" 2>/dev/null && stopped=1
+[ -n "$stopped" ] && sleep 1
 [ -n "$keep" ] && mv "$DIR/gateway" "$keep/gateway"
 mv "$tmp/$bin" "$DIR/gateway" || {
   [ -n "$keep" ] && mv "$keep/gateway" "$DIR/gateway"
@@ -77,7 +87,6 @@ if [ ! -f "$DIR/gateway.env" ]; then
 fi
 
 # The enrollment token only matters on the first start; it is never stored.
-# Full path on purpose: pkill above matches it on the next update.
 rm -f "$DIR/state/page-link" # the installer waits for this start's fresh link
 # A backup onto this machine (#52): restored before the first start, so it doesn't enroll a new gateway.
 if [ -n "${STREAMIQ_RESTORE:-}" ]; then
@@ -94,4 +103,4 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$DIR/state/page-link" ] && break; sleep 
 [ -f "$DIR/state/page-link" ] && echo "  from another device: $(cat "$DIR/state/page-link")"
 echo "  log:        $DIR/gateway.log"
 echo "  autostart (not set up for you): crontab -e, add"
-echo "    @reboot cd $DIR && $DIR/gateway >> $DIR/gateway.log 2>&1"
+echo "    @reboot cd $DIR && ./gateway >> gateway.log 2>&1"

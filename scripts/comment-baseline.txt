@@ -1,5 +1,4 @@
-# Comment-rule hits allowed today (scripts/check-comments.sh). One line per path and check:
-# <path> <refs|ratio> <count>. Cleanups lower or drop lines; never raise one.
+# <path> <refs|ratio> <count>: lower or drop a line, never raise one.
 .github/workflows/ci.yml refs 16
 .github/workflows/db-restore.yml refs 1
 .github/workflows/prod-smoke.yml refs 1

@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# Holds the comment rule (CLAUDE.md "Comments") to its baseline, per file and check:
-#   refs  = comment lines citing an issue number outside the allowed forms:
-#           a nolint / oxlint-disable line, TODO(#N), quirk(#N)
-#   ratio = comment lines of a source file over 20 non-blank lines that is more than 30 % comments
-# Counts must equal scripts/comment-baseline.txt (a missing line = 0): above it fails (new
-# comments), below it fails too, so a cleanup lowers its line. --write-baseline rewrites the file.
+# Counts must equal the baseline (missing line = 0), so a cleanup has to lower its line too.
 # ponytail: line-based, no parser; a string holding " //" or " #" reads as a comment.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -22,7 +17,6 @@ files=$( {
   ls scripts/*.sh scripts/*.ps1 .github/workflows/*.yml gateway/.golangci.yml
 } | sort)
 
-# "<path> <check> <count>" per hit
 # shellcheck disable=SC2086 # one path per line, none with spaces
 current=$(awk '
   function ref(c) {
@@ -57,8 +51,7 @@ current=$(awk '
   END { flush() }' $files | LC_ALL=C sort)
 
 if [ "${1-}" = --write-baseline ]; then
-  { echo "# Comment-rule hits allowed today (scripts/check-comments.sh). One line per path and check:"
-    echo "# <path> <refs|ratio> <count>. Cleanups lower or drop lines; never raise one."
+  { echo "# <path> <refs|ratio> <count>: lower or drop a line, never raise one."
     printf '%s\n' "$current"
   } > "$baseline"
   echo "wrote $baseline"
@@ -76,7 +69,7 @@ bad=$(printf '%s\n' "$current" | awk -v list="$baseline" '
 
 if [ -n "$bad" ]; then
   echo "$bad" | LC_ALL=C sort >&2
-  echo "Comment rule: CLAUDE.md \"Comments\". refs = an issue number outside nolint/oxlint-disable/TODO(#N)/quirk(#N);" >&2
+  echo "Comment rule: CLAUDE.md \"Comments say what the code can't\". refs = an issue number outside nolint/oxlint-disable/TODO(#N)/quirk(#N);" >&2
   echo "ratio = a file over 30 % comment lines. Below baseline: run bash $0 --write-baseline." >&2
   exit 1
 fi

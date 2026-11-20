@@ -95,7 +95,7 @@ jobs:
       - run: bash scripts/next-gateway-version.sh --test # #274: release-gateway's version bump
       - run: bash scripts/check-docs-drift.sh # #488: STREAMIQ_* env vars + gateway routes documented
       - run: bash scripts/check-file-size.sh # #600: no source file over 500 code lines (all three stacks) outside the allowlist
-      - run: bash scripts/check-comments.sh # comment rule (CLAUDE.md): no file above scripts/comment-baseline.txt
+      - run: bash scripts/check-comments.sh
       # #581: actionlint (+ shellcheck on run: blocks) and shellcheck scripts/*.sh + the installer, pinned like scripts/check.sh
       - run: |
           docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -no-color

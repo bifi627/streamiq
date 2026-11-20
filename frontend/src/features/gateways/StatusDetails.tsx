@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getStatus, type Gateway, type GatewayStatus } from './api'
 import { toAppError } from '../../errors'
 import { detailsMessage } from './list'
+import { loadHints, loadLine } from './host'
 
 const tokenText = {
   ok: 'token set',
@@ -38,6 +39,8 @@ const transcodingText: Record<string, string> = {
   unmanaged: 'not managed by StreamIQ',
 }
 
+const LOAD_REFRESH = 10_000 // the gateway's CPU sampling interval
+
 type Cached = { at: string; s: GatewayStatus }
 const cacheKey = (id: string) => `streamiq.gatewayStatus.${id}`
 
@@ -51,7 +54,8 @@ function readCache(id: string): Cached | null {
   }
 }
 
-function writeCache(id: string, s: GatewayStatus) {
+// Without `host`: stale load misleads.
+function writeCache(id: string, { host: _, ...s }: GatewayStatus) {
   try {
     localStorage.setItem(
       cacheKey(id),
@@ -63,23 +67,28 @@ function writeCache(id: string, s: GatewayStatus) {
 }
 
 // The gateway's shared tunnel session while online, released once the
-// status is in; offline, the cached last response, dated.
+// status is in, asked again every LOAD_REFRESH for the live load; offline,
+// the cached last response, dated.
 function Details({ g }: { g: Gateway }) {
   const [s, setS] = useState<GatewayStatus | null>(null)
   const [msg, setMsg] = useState('checking…')
   useEffect(() => {
     if (!g.online) return
     let live = true
-    getStatus(g.id)
-      .then((r) => {
-        writeCache(g.id, r)
-        if (live) setS(r)
-      })
-      .catch((x) => {
-        if (live) setMsg(detailsMessage(toAppError(x)))
-      })
+    const ask = () =>
+      getStatus(g.id)
+        .then((r) => {
+          writeCache(g.id, r)
+          if (live) setS(r)
+        })
+        .catch((x) => {
+          if (live) setMsg(detailsMessage(toAppError(x)))
+        })
+    void ask()
+    const t = setInterval(ask, LOAD_REFRESH)
     return () => {
       live = false
+      clearInterval(t)
     }
   }, [g.id, g.online])
 
@@ -133,6 +142,20 @@ function StatusLines({ s }: { s: GatewayStatus }) {
       {s.transcoding && (
         <li>Transcoding: {transcodingText[s.transcoding] ?? s.transcoding}</li>
       )}
+      <Load s={s} />
     </>
+  )
+}
+
+function Load({ s }: { s: GatewayStatus }) {
+  const line = loadLine(s.host)
+  if (!line) return null
+  return (
+    <li>
+      {line}
+      {loadHints(s.host).map((h) => (
+        <b key={h}> · {h}</b>
+      ))}
+    </li>
   )
 }

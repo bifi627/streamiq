@@ -78,6 +78,8 @@ test('status, paired: details from the gateway API (#140) @gateways', async ({
   await expect(
     page.getByText(/Paired browsers: 1 · open sessions/),
   ).toBeVisible()
+  // CPU needs the gateway's first 10 s sample; memory is there at once.
+  await expect(page.getByText(/^Load: .*memory .* of /)).toBeVisible()
 })
 
 test('status, unpaired: liveness only, details need pairing (#140) @gateways', async ({

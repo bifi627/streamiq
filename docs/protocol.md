@@ -391,7 +391,9 @@ Fields are added over time; a client ignores ones it doesn't know.
   "jellyfin": { "reachable": true, "version": "10.11.2", "untested": false, "token": "ok", "offline": "enforced" },
   "pairedClients": 2, "activeSessions": 1,
   "viewer": { "shared": true, "reason": "admin-refused" },
-  "remoteUpdate": "no logon task, so nothing would start the gateway again after the update" }
+  "remoteUpdate": "no logon task, so nothing would start the gateway again after the update",
+  "host": { "cpu": 12.5, "memory": { "used": 8123456789, "total": 17179869184 },
+            "disk": { "free": 120000000000, "total": 1000000000000 } } }
 ```
 
 | Field | Values |
@@ -402,6 +404,7 @@ Fields are added over time; a client ignores ones it doesn't know.
 | `jellyfin` | `reachable`, `untested` (version outside the tested line), `version`, `token`: `ok` / `missing`, `offline` (#321, from `jellyfin-compose.yml` on each request): `enforced` (the jail is on: Jellyfin has no internet access) / `allowed` (online lookups possible); absent when the gateway has no compose file (a Jellyfin the user brought, or native) |
 | `pairedClients`, `activeSessions` | counts only, no client names (#65) |
 | `viewer` | the calling session's Jellyfin viewer (#242): `shared: false` = the user's own; `shared: true` = the shared `streamiq-viewer` (#195 fallback), with a `reason` code: `admin-refused` (Jellyfin refused the gateway's admin sign-in), `no-admin` (the gateway has no Jellyfin admin of its own), `failed` (anything else; retried on the user's next session). The web app words it; an unknown code shows no reason. No credentials, no Jellyfin ids. The web app shows a guest-mode banner on the library and player while `shared` is true; no field (older gateway) = no banner |
+| `host` | the box's live load (#671), never stored: `cpu` busy % (0–100, averaged over the last ~10 s by a background sampler; absent until its first sample), `memory` `used`/`total` bytes (physical), `disk` `free`/`total` bytes of the drive holding `jellyfin-compose.yml` (and so `jellyfin-config/`; absent without a compose file). A field the platform can't measure is left out: macOS sends only `disk`. The web gateway page asks again every 10 s while Status is open and leaves `host` out of its offline cache |
 | `remoteUpdate` | `true` = `POST /streamiq/update` would start an update now (#312); else a sentence saying why not, shown as it is: not Windows, dev build, an update already running, already up to date, no logon task. No field (older gateway) = update by hand |
 
 The web gateway page caches the last response per gateway in `localStorage` and

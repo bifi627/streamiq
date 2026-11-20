@@ -57,7 +57,7 @@ export function Settings() {
         <h2>Account</h2>
         <ul className="rows">
           {auth.currentUser && (
-            <li>
+            <li className="no-tv">
               <AliasSetting user={auth.currentUser} />
               <p className="muted">
                 What members of your households see instead of your email.

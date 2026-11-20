@@ -43,7 +43,7 @@ export function EditableName({
           <button
             ref={renameBtn}
             type="button"
-            className="link"
+            className="link no-tv"
             onClick={() => {
               setDraft(name)
               setError(null)

@@ -166,6 +166,7 @@ GatewaySocket.Map(api);
 BrowserSocket.Map(api);
 EndTunnel.Map(api);
 ListTunnels.Map(api);
+TunnelSummary.Map(api);
 CreateInvite.Map(api);
 ListInvites.Map(api);
 RevokeInvite.Map(api);

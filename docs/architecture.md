@@ -71,6 +71,10 @@ A member's own tunnels in the household (30 days, ≤ 200) are on the Activity p
 duration (the active time when reported), data, throughput, a failure in plain words; no
 candidate types. Management and diagnostics rows hide behind a checkbox (remembered per browser) unless
 they failed.
+An admin's Activity opens on the whole household (`?scope=household`, admin only, rows carry
+`userId`): a per-member summary over every row of the 30 days (`GET /api/tunnels/summary`,
+`TunnelSummary.cs`: tunnels, failures, relayed bytes), a member filter and a Member column,
+names from the members endpoint ("Former member" / "Deleted account" otherwise).
 
 ## Gateway (native binary)
 

@@ -17,10 +17,7 @@ import { startGateway } from './stack.ts'
 
 export const password = 'e2e-password'
 
-/** One `tunnels` row (#390) as JSON (EF column names: Relay, BytesSent, EndedAt, …),
- * read from the stack's Postgres with its own psql: e2e has no DB client. null = no row. */
-export function tunnelRow(id: string): Record<string, any> | null {
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error(`not a tunnel id: ${id}`)
+function psql(sql: string): string {
   const r = spawnSync(
     'docker',
     [
@@ -33,12 +30,41 @@ export function tunnelRow(id: string): Record<string, any> | null {
       'streamiq',
       '-At',
       '-c',
-      `select row_to_json(t) from tunnels t where "Id" = '${id}'`,
+      sql,
     ],
     { encoding: 'utf8' },
   )
   if (r.status !== 0) throw new Error(`psql: ${r.stderr}`)
-  return r.stdout.trim() ? JSON.parse(r.stdout) : null
+  return r.stdout.trim()
+}
+
+/** One `tunnels` row (#390) as JSON (EF column names: Relay, BytesSent, EndedAt, …),
+ * read from the stack's Postgres with its own psql: e2e has no DB client. null = no row. */
+export function tunnelRow(id: string): Record<string, any> | null {
+  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error(`not a tunnel id: ${id}`)
+  const out = psql(`select row_to_json(t) from tunnels t where "Id" = '${id}'`)
+  return out ? JSON.parse(out) : null
+}
+
+/** A finished playback tunnel of user in their household tenantId, on a new
+ * gateway named gatewayName, written straight to Postgres: Activity reads the
+ * table, and a real tunnel needs Jellyfin. */
+export function seedTunnel(
+  tenantId: string,
+  userId: string,
+  gatewayName: string,
+) {
+  const ids = [tenantId, userId]
+  if (!ids.every((id) => /^[0-9a-f-]{36}$/.test(id)))
+    throw new Error(`not ids: ${ids}`)
+  if (!/^[\w -]+$/.test(gatewayName))
+    throw new Error(`not a name: ${gatewayName}`)
+  const [gateway, tunnel] = [randomUUID(), randomUUID()]
+  psql(
+    `insert into gateways ("Id", "TenantId", "Name", "CreatedAt") values ('${gateway}', '${tenantId}', '${gatewayName}', now());` +
+      `insert into tunnels ("Id", "TenantId", "GatewayId", "UserId", "Relay", "Ipv6", "CreatedAt", "EndedAt", "BytesSent", "BytesReceived", "Use")` +
+      ` values ('${tunnel}', '${tenantId}', '${gateway}', '${userId}', true, false, now() - interval '5 minutes', now(), 2000000, 1000, 'playback')`,
+  )
 }
 
 /** A fresh address per call: the Auth emulator lives for the whole run, and

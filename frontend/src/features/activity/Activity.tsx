@@ -5,6 +5,10 @@ import { toAppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
 import { flag, setFlag } from '../../diag'
 import { arrowFocus } from '../../focus'
+import { useHousehold } from '../households/household'
+import { byMember, memberLabel, tunnelsPath } from './household'
+import { HouseholdSummary, MemberSelect } from './HouseholdSummary'
+import { useMembers } from './useMembers'
 import {
   byGateway,
   byUse,
@@ -19,42 +23,54 @@ import {
   type TunnelRow,
 } from './tunnels'
 
-// The signed-in user's own tunnels in this household: the last 30 days, ≤ 200.
+// Tunnels in this household, the last 30 days, ≤ 200: a member's own; an
+// admin's opens on everyone's, with a per-member summary and a member filter.
 export function Activity() {
+  const { me, current } = useHousehold()
+  const admin = current?.role === 'admin'
   const q = useQuery({
-    queryKey: ['tunnels'],
-    queryFn: () => authed<TunnelRow[]>('/tunnels'),
+    queryKey: ['tunnels', admin],
+    queryFn: () => authed<TunnelRow[]>(tunnelsPath(admin)),
   })
+  const { names, others } = useMembers(admin, me?.userId)
   const [gateway, setGateway] = useState('')
+  const [member, setMember] = useState('')
   const [all, setAll] = useState(() => flag('activityAll'))
-  const rows = byUse(byGateway(q.data ?? [], gateway), all)
-  const choices = gatewaysIn(q.data ?? [])
+  const rows = byUse(byMember(byGateway(q.data ?? [], gateway), member), all)
 
   return (
     <section className="settings activity" onKeyDown={arrowFocus}>
       <div className="head">
         <h1>Activity</h1>
-        <p className="muted">Your connections to this household's gateways.</p>
+        <p className="muted">
+          {admin ? "Everyone's" : 'Your'} connections to this household's
+          gateways.
+        </p>
       </div>
       {q.error && <ErrorView error={toAppError(q.error)} />}
+      {admin && <HouseholdSummary names={names} all={all} />}
       {q.isPending && <p role="status">Loading…</p>}
       {q.data?.length === 0 && (
         <State icon="empty" title="No tunnels in the last 30 days." />
       )}
       {!!q.data?.length && (
         <>
-          <select
-            aria-label="Gateway"
-            value={gateway}
-            onChange={(e) => setGateway(e.target.value)}
-          >
-            <option value="">All gateways</option>
-            {choices.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
+          <div className="filters">
+            <GatewaySelect
+              rows={q.data}
+              value={gateway}
+              onChange={setGateway}
+            />
+            {admin && (
+              <MemberSelect
+                value={member}
+                onChange={setMember}
+                me={me?.userId}
+                others={others}
+                names={names}
+              />
+            )}
+          </div>
           <label>
             <input
               type="checkbox"
@@ -66,34 +82,7 @@ export function Activity() {
             />{' '}
             Show management and diagnostics connections
           </label>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>Gateway</th>
-                  <th>Use</th>
-                  <th>Route</th>
-                  <th>Duration</th>
-                  <th>Data</th>
-                  <th>Throughput</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((t) => (
-                  <tr key={t.id}>
-                    <td>{when(t)}</td>
-                    <td>{gatewayLabel(t)}</td>
-                    <td>{use(t)}</td>
-                    <td>{route(t)}</td>
-                    <td>{duration(t)}</td>
-                    <td>{data(t)}</td>
-                    <td>{throughput(t)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TunnelTable rows={rows} admin={admin} names={names} />
           {rows.length === 0 && (
             <p className="muted">No connections to show.</p>
           )}
@@ -103,5 +92,69 @@ export function Activity() {
         </>
       )}
     </section>
+  )
+}
+
+function TunnelTable({
+  rows,
+  admin,
+  names,
+}: {
+  rows: TunnelRow[]
+  admin: boolean
+  names: Map<string, string> | undefined
+}) {
+  return (
+    <div className="table-scroll">
+      <table aria-label="Tunnels">
+        <thead>
+          <tr>
+            <th>When</th>
+            {admin && <th>Member</th>}
+            <th>Gateway</th>
+            <th>Use</th>
+            <th>Route</th>
+            <th>Duration</th>
+            <th>Data</th>
+            <th>Throughput</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t) => (
+            <tr key={t.id}>
+              <td>{when(t)}</td>
+              {admin && <td>{memberLabel(t.userId, names)}</td>}
+              <td>{gatewayLabel(t)}</td>
+              <td>{use(t)}</td>
+              <td>{route(t)}</td>
+              <td>{duration(t)}</td>
+              <td>{data(t)}</td>
+              <td>{throughput(t)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function GatewaySelect(p: {
+  rows: TunnelRow[]
+  value: string
+  onChange: (gatewayId: string) => void
+}) {
+  return (
+    <select
+      aria-label="Gateway"
+      value={p.value}
+      onChange={(e) => p.onChange(e.target.value)}
+    >
+      <option value="">All gateways</option>
+      {gatewaysIn(p.rows).map((g) => (
+        <option key={g.id} value={g.id}>
+          {g.name}
+        </option>
+      ))}
+    </select>
   )
 }

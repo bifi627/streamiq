@@ -110,7 +110,7 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
   // Activity hides the test's Diagnostics tunnel until the box is ticked, then remembers it.
   await page.getByRole('link', { name: 'Activity' }).click()
   const diag = page.getByRole('cell', { name: 'Diagnostics', exact: true })
-  await expect(page.getByRole('table')).toBeVisible()
+  await expect(page.getByRole('table', { name: 'Tunnels' })).toBeVisible()
   await expect(diag).toHaveCount(0)
   await page.getByLabel('Show management and diagnostics connections').check()
   await expect(diag).toHaveCount(1)

@@ -110,7 +110,9 @@ test('duration: the active time when reported, else end − start', () => {
     duration(row({ endedAt: null, activeMs: 120_000 })),
     f('minute', 2),
   )
-  assert.equal(duration(row({ activeMs: 400 })), f('second', 0.4, 1))
+  assert.equal(duration(row({ activeMs: 400 })), f('millisecond', 400))
+  assert.equal(duration(row({ activeMs: 999.7 })), f('second', 1))
+  assert.equal(duration(row({ activeMs: 2_340 })), f('second', 2.3, 1))
   assert.equal(duration(row({ activeMs: 42_300 })), f('second', 42))
   assert.equal(
     duration(row({ activeMs: 400_000 })),

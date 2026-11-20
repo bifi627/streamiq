@@ -67,8 +67,10 @@ export function duration(t: TunnelRow): string {
   if (t.activeMs !== null) ms = t.activeMs
   else if (!t.endedAt) return 'Ongoing'
   else ms = Date.parse(t.endedAt) - Date.parse(t.createdAt)
-  // Tenths below 10 s (a 0.4 s tunnel isn't "0 sec"), then whole seconds;
-  // from a minute on two units, the larger one first.
+  // ms below 1 s, tenths below 10 s, then whole seconds; from a minute on
+  // two units, the larger one first. 999.5 / 9950: where rounding would
+  // reach the next step.
+  if (ms < 999.5) return unit('millisecond').format(ms)
   if (ms < 9950) return unit('second', 1).format(ms / 1000)
   const s = Math.round(ms / 1000)
   if (s < 60) return unit('second').format(s)

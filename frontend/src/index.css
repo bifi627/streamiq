@@ -1802,3 +1802,28 @@ html.tv .dock {
   width: 14rem;
   height: 14rem;
 }
+
+/* Activity: Settings' layout, the tunnels as a table that scrolls
+   sideways on a phone instead of the page. */
+.activity .table-scroll {
+  align-self: stretch;
+  overflow-x: auto;
+}
+.activity table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-meta);
+}
+.activity th,
+.activity td {
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.activity th {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.activity tbody tr + tr td {
+  border-top: 1px solid var(--surface-2);
+}

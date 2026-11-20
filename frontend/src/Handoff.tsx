@@ -2,7 +2,7 @@ import { useCanGoBack, useNavigate, useRouter } from '@tanstack/react-router'
 import { arrowFocus } from './focus'
 
 /** TV mode's stand-in for a route a TV can't use (tvRoute.ts). */
-export function Handoff({ url }: { url: string }) {
+export function Handoff({ url, home }: { url: string; home: string }) {
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const navigate = useNavigate()
@@ -19,7 +19,7 @@ export function Handoff({ url }: { url: string }) {
           onClick={() =>
             canGoBack
               ? router.history.back()
-              : navigate({ to: '/', replace: true })
+              : navigate({ to: home, replace: true })
           }
         >
           Back

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { shellPage, tvRoute } from './tvRoute.ts'
+import { handoffHome, shellPage, tvRoute } from './tvRoute.ts'
 
 test('allowed routes', () => {
   for (const p of [
@@ -36,4 +36,9 @@ test('shell page: TV on', () => {
   assert.equal(shellPage('/gateways', true, true), 'handoffHousehold')
   assert.equal(shellPage('/join', true, true), 'handoff') // its invite URL
   assert.equal(shellPage('/settings', true, true), 'outlet')
+})
+
+test('handoff Back with no history: /, or /settings when / hands off too', () => {
+  assert.equal(handoffHome(true, false), '/')
+  assert.equal(handoffHome(true, true), '/settings')
 })

@@ -26,3 +26,8 @@ export function shellPage(
     return tv ? 'handoffHousehold' : 'noHousehold'
   return tv && tvRoute(pathname) === 'handoff' ? 'handoff' : 'outlet'
 }
+
+/** The handoff page's Back with no history: `/`, unless `/` would be the
+ * handoff page itself (TV mode, no household). */
+export const handoffHome = (tv: boolean, homeless: boolean) =>
+  shellPage('/', tv, homeless) === 'outlet' ? '/' : '/settings'

@@ -24,7 +24,7 @@ import {
 import { RemotePage, ScreenPage } from './features/library/Screen'
 import { Diagnostics } from './Diagnostics'
 import { lastGateway, setLastGateway, TV_EVENT, tvOn } from './settings'
-import { shellPage, tvRoute } from './tvRoute'
+import { handoffHome, shellPage, tvRoute } from './tvRoute'
 import { Handoff } from './Handoff'
 import { arrowFocus } from './focus'
 import { needsAlias, PickAlias, signingIn } from './Alias'
@@ -93,11 +93,14 @@ function Shell() {
   const { pathname } = useLocation()
   const tv = useSyncExternalStore(onTvChange, tvOn)
   const navOk = (path: string) => !tv || tvRoute(path) === 'allow'
+  const home = handoffHome(tv, homeless)
   const page = {
     outlet: <Outlet />,
     noHousehold: <NoHousehold />,
-    handoff: <Handoff url={location.href} />, // with /join's #<token>
-    handoffHousehold: <Handoff url={location.origin + '/household'} />,
+    handoff: <Handoff url={location.href} home={home} />, // with /join's #<token>
+    handoffHousehold: (
+      <Handoff url={location.origin + '/household'} home={home} />
+    ),
   }[shellPage(pathname, tv, homeless)]
 
   return (

@@ -1,4 +1,4 @@
-/* Player control bar (#91) in the tokens (#205). Plain CSS that Chrome 87
+/* Player control bar. Plain CSS that Chrome 87
    (webOS TV) understands: no nesting, :is/:where/:has, container queries,
    accent-color or inset. Sizes in rem: TV mode scales them. */
 .player {
@@ -221,7 +221,7 @@
   background: var(--text);
 }
 
-/* Settings popover (#108, #153): floats above the gear, over the picture. */
+/* Settings popover: floats above the gear, over the picture. */
 .player .popover {
   position: absolute;
   right: 3.75rem;

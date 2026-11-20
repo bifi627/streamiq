@@ -1805,6 +1805,11 @@ html.tv .dock {
 
 /* Activity: Settings' layout, the tunnels as a table that scrolls
    sideways on a phone instead of the page. */
+.activity .filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
 .activity .table-scroll {
   align-self: stretch;
   overflow-x: auto;

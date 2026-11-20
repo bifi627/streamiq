@@ -1,4 +1,5 @@
-// GET /api/tunnels: the signed-in user's own tunnels in this household.
+// GET /api/tunnels: the signed-in user's own tunnels in this household
+// (`?scope=household`: every member's, with userId).
 export type TunnelRow = {
   id: string
   createdAt: string
@@ -13,6 +14,7 @@ export type TunnelRow = {
   failure: string | null
   use: string | null // the gateway's word; null = not reported
   activeMs: number | null // time with traffic; null = not reported
+  userId?: string // household scope only; absent there = a deleted account
 }
 
 const USES: Record<string, string> = {
@@ -81,9 +83,11 @@ export function duration(t: TunnelRow): string {
 
 export function data(t: TunnelRow): string {
   if (t.bytesSent === null) return '—'
-  const bytes = t.bytesSent + (t.bytesReceived ?? 0)
-  return scaled(bytes, ['byte', 'kilobyte', 'megabyte', 'gigabyte'], 1000)
+  return bytes(t.bytesSent + (t.bytesReceived ?? 0))
 }
+
+export const bytes = (n: number) =>
+  scaled(n, ['byte', 'kilobyte', 'megabyte', 'gigabyte'], 1000)
 
 export function throughput(t: TunnelRow): string {
   if (t.throughputKbps === null) return '—'

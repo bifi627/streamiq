@@ -38,7 +38,8 @@ frame on connect and every 30 s:
               "transcoding": "nvenc", "offline": "enforced", "tunnels": 1, "transcodes": 0, "cpu": 12.5, "memory": 47.3 } }
 ```
 Liveness plus what the gateway owns and the API mirrors (#140, #310); a gateway sends one
-early, right after its name or telemetry level changes, not just every 30 s.
+early, right after its name or telemetry level changes over the gateway API, not just every 30 s
+(a `gateway telemetry` change shows at the next tick).
 **Telemetry (#422).** `telemetry` is the gateway's level, `off` (the default) or `full`,
 from `state/telemetry`, read before each heartbeat (`gateway telemetry off|full`, or
 `POST /streamiq/telemetry` below). `health` is there only at `full`, built from the values

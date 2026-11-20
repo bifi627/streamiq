@@ -46,7 +46,10 @@ func (b *box) health(ctx context.Context) telemetry.Health {
 		pct := 100 * float64(m.Used) / float64(m.Total)
 		h.Memory = &pct
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second) // the heartbeat waits on it
+	if !v.Reachable { // the heartbeat waits on it: no sign-in into a Jellyfin that's down
+		return h
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if n, err := b.setup.Transcodes(ctx); err == nil {
 		h.Transcodes = &n

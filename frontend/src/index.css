@@ -1789,3 +1789,10 @@ html.tv .dock {
     bottom: calc(4.25rem + 1px);
   }
 }
+
+/* TV handoff page: the URL to type on a phone or PC, readable from the couch. */
+.handoff-url {
+  font-size: 1.5rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

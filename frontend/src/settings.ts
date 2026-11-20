@@ -109,7 +109,10 @@ export function setTv(on: boolean) {
     /* not saved: this page view only */
   }
   document.documentElement.classList.toggle('tv', on)
+  dispatchEvent(new Event(TV_EVENT))
 }
+/** Fired on window when setTv changes TV mode (the shell re-reads tvOn). */
+export const TV_EVENT = 'streamiq:tv'
 const guess = () => guessTv(navigator.userAgent, navigator.maxTouchPoints)
 /** First visit on an Android box that may be a TV: ask once. */
 export const askTv = () => tvStored() === null && guess() === 'unsure'

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { onAuthStateChanged, type User } from '@firebase/auth'
 import {
   createRootRoute,
@@ -23,8 +23,10 @@ import {
 } from './features/library/Library'
 import { RemotePage, ScreenPage } from './features/library/Screen'
 import { Diagnostics } from './Diagnostics'
-import { askTv, lastGateway, setLastGateway } from './settings'
+import { askTv, lastGateway, setLastGateway, TV_EVENT, tvOn } from './settings'
 import { TvAsk } from './TvMode'
+import { handoffHome, shellPage, tvRoute } from './tvRoute'
+import { Handoff } from './Handoff'
 import { arrowFocus } from './focus'
 import { needsAlias, PickAlias, signingIn } from './Alias'
 import { clearArtThen } from './leave'
@@ -88,16 +90,19 @@ function Shell() {
   const last = gateways.find((g) => g.id === lastGateway()) // gone = removed, or another household
   const libraryId =
     gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)
-  // In no household: only Settings and /join (the way in) still open;
-  // every other page is household-scoped, the no-household screen stands in.
   const homeless = me !== null && me.tenantId === null
   const { pathname } = useLocation()
-  const page =
-    homeless && pathname !== '/settings' && pathname !== '/join' ? (
-      <NoHousehold />
-    ) : (
-      <Outlet />
-    )
+  const tv = useSyncExternalStore(onTvChange, tvOn)
+  const navOk = (path: string) => !tv || tvRoute(path) === 'allow'
+  const home = handoffHome(tv, homeless)
+  const page = {
+    outlet: <Outlet />,
+    noHousehold: <NoHousehold />,
+    handoff: <Handoff url={location.href} home={home} />, // with /join's #<token>
+    handoffHousehold: (
+      <Handoff url={location.origin + '/household'} home={home} />
+    ),
+  }[shellPage(pathname, tv, homeless)]
 
   return (
     // D-pad: an arrow no page container used (its edge, or a page
@@ -120,8 +125,8 @@ function Shell() {
               Library
             </Link>
           )}
-          <Link to="/household">Household</Link>
-          <Link to="/settings">Settings</Link>
+          {navOk('/household') && <Link to="/household">Household</Link>}
+          {navOk('/settings') && <Link to="/settings">Settings</Link>}
         </nav>
         <span className="grow" />
         {me && me.memberships.length > 1 && (
@@ -174,6 +179,11 @@ function Shell() {
       <Diagnostics />
     </div>
   )
+}
+
+const onTvChange = (cb: () => void) => {
+  addEventListener(TV_EVENT, cb)
+  return () => removeEventListener(TV_EVENT, cb)
 }
 
 // Code-based route tree. Client routes never start with /api or /healthz (the

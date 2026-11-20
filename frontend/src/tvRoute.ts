@@ -1,0 +1,33 @@
+// TV mode decides per route, not per element: a route not listed here is
+// TV-off until it's added (a new manage page can't leak onto the TV).
+export type TvRoute = 'allow' | 'handoff'
+
+const ALLOWED = ['/settings', '/diagnostics', '/gateways']
+
+export function tvRoute(pathname: string): TvRoute {
+  const p = pathname.replace(/\/+$/, '') || '/'
+  return p === '/' || p === '/g' || p.startsWith('/g/') || ALLOWED.includes(p)
+    ? 'allow'
+    : 'handoff'
+}
+
+/** What the shell shows in place of the route. `handoff`: the current URL;
+ * `handoffHousehold`: /household's URL (TV mode, no household). */
+export type ShellPage =
+  'outlet' | 'noHousehold' | 'handoff' | 'handoffHousehold'
+
+export function shellPage(
+  pathname: string,
+  tv: boolean,
+  homeless: boolean,
+): ShellPage {
+  // In no household only Settings and /join (the way in) still open.
+  if (homeless && pathname !== '/settings' && pathname !== '/join')
+    return tv ? 'handoffHousehold' : 'noHousehold'
+  return tv && tvRoute(pathname) === 'handoff' ? 'handoff' : 'outlet'
+}
+
+/** The handoff page's Back with no history: `/`, unless `/` would be the
+ * handoff page itself (TV mode, no household). */
+export const handoffHome = (tv: boolean, homeless: boolean) =>
+  shellPage('/', tv, homeless) === 'outlet' ? '/' : '/settings'

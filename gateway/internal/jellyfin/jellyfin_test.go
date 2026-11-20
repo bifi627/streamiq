@@ -44,6 +44,7 @@ type fake struct {
 	cfgPosts  int
 	libs      []map[string]any // /Library/VirtualFolders
 	libPosts  int
+	sessions  []map[string]any // GET /Sessions (admin only); nil = 500
 }
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
@@ -302,6 +303,16 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.restored = b.ArchiveFileName
+	case "GET /Sessions":
+		if !admin {
+			deny(401)
+			return
+		}
+		if f.sessions == nil {
+			deny(500)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(f.sessions)
 	case "POST /Sessions/Logout":
 		f.loggedOut = append(f.loggedOut, f.tokens[tok])
 		delete(f.tokens, tok)

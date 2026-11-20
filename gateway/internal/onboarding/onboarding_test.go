@@ -67,7 +67,7 @@ func TestRunControlRevokedCredential(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	err := RunControl(context.Background(), srv.URL, &State{Credential: "old"}, "", "dev", new(atomic.Int64), nil, nil)
+	err := RunControl(context.Background(), srv.URL, &State{Credential: "old"}, "", "dev", new(atomic.Int64), nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "revoked") {
 		t.Fatalf("want a revoked-credential error, got %v", err)
 	}
@@ -99,7 +99,7 @@ func TestRunControlDialTimeout(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- RunControl(context.Background(), srv.URL, &State{Credential: "hang"}, "", "dev", new(atomic.Int64), nil, nil)
+		done <- RunControl(context.Background(), srv.URL, &State{Credential: "hang"}, "", "dev", new(atomic.Int64), nil, nil, nil)
 	}()
 	select {
 	case err := <-done:
@@ -115,11 +115,12 @@ func TestRunControlDialTimeout(t *testing.T) {
 	err := RunControl(
 		context.Background(),
 		srv.URL,
-		&State{Credential: "ok", renamed: make(chan struct{}, 1)},
+		&State{Credential: "ok", beat: make(chan struct{}, 1)},
 		"",
 		"dev",
 		new(atomic.Int64),
 		func() string { return "" },
+		func() (string, any) { return "off", nil },
 		func(raw []byte, _ func(any)) {
 			if raw != nil {
 				got <- raw
@@ -166,6 +167,7 @@ func TestRunControlHeartbeats(t *testing.T) {
 			"1.4.0",
 			&lastBeat,
 			func() string { return "" },
+			func() (string, any) { return "off", nil },
 			func([]byte, func(any)) {},
 		)
 	}()
@@ -173,10 +175,10 @@ func TestRunControlHeartbeats(t *testing.T) {
 	case hb := <-got:
 		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" ||
 			hb["protocol"] != float64(Protocol) ||
-			hb["name"] != "nas" {
+			hb["name"] != "nas" || hb["telemetry"] != "off" {
 			t.Fatalf("heartbeat = %v", hb)
 		}
-		if len(hb) != 5 { // liveness + name only (#140): details are GET /streamiq/status
+		if len(hb) != 6 { // liveness, name and the level; health only at full
 			t.Fatalf("heartbeat has extra fields: %v", hb)
 		}
 		if _, ok := hb["update"]; ok {
@@ -231,7 +233,7 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	defer srv.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	<-st.renamed // drop the signal from the setup rename above
+	<-st.beat // drop the signal from the setup rename above
 	// what it returns doesn't matter: the test checks what the fake server sees
 	go func() {
 		_ = RunControl(
@@ -242,6 +244,7 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 			"dev",
 			new(atomic.Int64),
 			func() string { return "" },
+			func() (string, any) { return "off", nil },
 			func([]byte, func(any)) {},
 		)
 	}()
@@ -289,7 +292,7 @@ func TestRunControlUpgradeRequired(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err := RunControl(ctx, srv.URL, &State{Credential: "c"}, "", "1.0.0", new(atomic.Int64),
-		func() string { return "" }, func([]byte, func(any)) {})
+		func() string { return "" }, func() (string, any) { return "off", nil }, func([]byte, func(any)) {})
 	if !errors.Is(err, ErrUpgradeRequired) {
 		t.Fatalf("want ErrUpgradeRequired, got %v", err)
 	}

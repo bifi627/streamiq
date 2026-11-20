@@ -20,7 +20,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -38,6 +37,7 @@ import (
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/service"
 	"streamiq/gateway/internal/sessions"
+	"streamiq/gateway/internal/telemetry"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
 )
@@ -256,11 +256,14 @@ func jellyfinUp(ctx context.Context, file string) error {
 
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
 // screens are tunnel's own. status is GET /streamiq/status.
-func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler) *tunnel.Router {
+func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler,
+	tel *telemetry.Switch,
+) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	rt.Handle("GET "+tunnel.StatusPath, status)
 	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
 	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
+	rt.Handle("POST "+telemetry.Path, tel, tunnel.AdminOnly)
 	rt.Handle("GET "+pairing.ClientsPath, http.HandlerFunc(store.ServeClients))
 	rt.Handle("POST "+pairing.ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
 	rt.Handle("POST "+pairing.ClientsRenamePath, http.HandlerFunc(store.ServeRename))
@@ -359,7 +362,9 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	started := time.Now().UTC()
 	load := &host.Sampler{}
 	go load.Run(ctx)
-	root.API = gatewayAPI(st, remote, store, statusHandler(setup, compose, started, store, sess, remote, load))
+	b := &box{dir: stateDir, setup: setup, compose: compose, sess: sess, load: load}
+	tel := &telemetry.Switch{Dir: stateDir, Changed: st.Beat}
+	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), tel)
 	token, err := localpage.Token(stateDir, lan)
 	if err != nil {
 		log.Fatalf("gateway: page token: %v", err)
@@ -370,8 +375,12 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			Name: st.CurrentName, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
 			LastBeat: &lastBeat, Update: &notice, Store: store,
 			Jellyfin: func() any { return setup.View() }, Login: setup.Login,
-			Offline:     func() string { return jellyfin.Offline(compose) },
-			Libraries:   func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
+			Offline:   func() string { return jellyfin.Offline(compose) },
+			Libraries: func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
+			Telemetry: func() (string, string) {
+				l := telemetry.Read(stateDir)
+				return l, telemetry.Sends(l)
+			},
 			MakeOffline: setup.MakeOffline, SetExtras: setup.SetExtras,
 		})
 		// ponytail: no WriteTimeout, handlers wait on Jellyfin; header + idle limits are free
@@ -388,36 +397,9 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			version,
 			&lastBeat,
 			func() string { return *newer.Load() },
+			func() (string, any) { return b.beat(ctx) },
 			sess.Handle,
 		)
-	})
-}
-
-// statusHandler is GET /streamiq/status.
-func statusHandler(setup *jellyfin.Setup, compose string, started time.Time, store *pairing.Store,
-	sess *sessions.Sessions, remote *update.Remote, load *host.Sampler,
-) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		v := setup.View()
-		jfs := map[string]any{
-			"reachable": v.Reachable,
-			"version":   v.Version,
-			"untested":  v.Untested,
-			"token":     v.Token(),
-		}
-		if o := jellyfin.Offline(compose); o != "" { // no compose Jellyfin: no field
-			jfs["offline"] = o
-		}
-		tunnel.JSON(w, http.StatusOK, map[string]any{
-			"transcoding": v.Transcoding(),
-			"os":          runtime.GOOS, "arch": runtime.GOARCH, "startedAt": started,
-			"jellyfin": jfs,
-			// Counts only: no client names (no PII).
-			"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
-			"viewer":       setup.ViewerState(tunnel.SessionOf(r).User),
-			"remoteUpdate": remoteUpdate(remote),
-			"host":         load.Load(compose),
-		})
 	})
 }
 

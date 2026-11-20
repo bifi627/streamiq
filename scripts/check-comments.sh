@@ -10,7 +10,7 @@ for p in frontend/src gateway backend/src scripts .github/workflows gateway/.gol
 done
 
 files=$( {
-  find frontend/src -name '*.ts' -o -name '*.tsx' | grep -vE '\.test\.tsx?$'
+  find frontend/src -name '*.ts' -o -name '*.tsx' -o -name '*.css' | grep -vE '\.test\.tsx?$'
   find gateway -name '*.go' -not -name '*_test.go'
   find backend/src -name '*.cs' -not -path '*/obj/*' -not -path '*/bin/*' -not -path '*/Migrations/*' \
     -not -name '*.Designer.cs' -not -name '*.g.cs'

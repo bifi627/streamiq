@@ -34,6 +34,6 @@ test('shell page: TV on', () => {
   assert.equal(shellPage('/household', true, false), 'handoff')
   assert.equal(shellPage('/settings', true, false), 'outlet')
   assert.equal(shellPage('/gateways', true, true), 'handoffHousehold')
-  assert.equal(shellPage('/join', true, true), 'handoffHousehold')
+  assert.equal(shellPage('/join', true, true), 'handoff') // its invite URL
   assert.equal(shellPage('/settings', true, true), 'outlet')
 })

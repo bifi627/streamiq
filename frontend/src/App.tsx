@@ -90,13 +90,13 @@ function Shell() {
   const libraryId =
     gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)
   const homeless = me !== null && me.tenantId === null
-  const { pathname, searchStr } = useLocation()
+  const { pathname } = useLocation()
   const tv = useSyncExternalStore(onTvChange, tvOn)
   const navOk = (path: string) => !tv || tvRoute(path) === 'allow'
   const page = {
     outlet: <Outlet />,
     noHousehold: <NoHousehold />,
-    handoff: <Handoff url={location.origin + pathname + searchStr} />,
+    handoff: <Handoff url={location.href} />, // with /join's #<token>
     handoffHousehold: <Handoff url={location.origin + '/household'} />,
   }[shellPage(pathname, tv, homeless)]
 

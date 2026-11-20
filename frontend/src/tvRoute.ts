@@ -21,10 +21,8 @@ export function shellPage(
   tv: boolean,
   homeless: boolean,
 ): ShellPage {
-  if (tv && tvRoute(pathname) === 'handoff')
-    return homeless ? 'handoffHousehold' : 'handoff'
   // In no household only Settings and /join (the way in) still open.
   if (homeless && pathname !== '/settings' && pathname !== '/join')
     return tv ? 'handoffHousehold' : 'noHousehold'
-  return 'outlet'
+  return tv && tvRoute(pathname) === 'handoff' ? 'handoff' : 'outlet'
 }

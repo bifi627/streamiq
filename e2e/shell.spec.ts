@@ -106,7 +106,6 @@ test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
   expect((await cdp.send('Page.getAppManifest')).errors).toEqual([])
 })
 
-// Each toggle once, then a reload: per-device settings live in localStorage.
 test('TV mode: /household hands off, the nav drops Household, /settings opens @shell', async ({
   browser,
 }) => {
@@ -123,6 +122,8 @@ test('TV mode: /household hands off, the nav drops Household, /settings opens @s
     p.getByText(appUrl('/household?x=1'), { exact: true }),
   ).toBeVisible()
   await expect(p.getByRole('button', { name: 'Back' })).toBeFocused()
+  await p.goto(appUrl('/join#tok'))
+  await expect(p.getByText(appUrl('/join#tok'), { exact: true })).toBeVisible()
 
   await p.goto(appUrl('/settings'))
   await expect(h1).toHaveText('Settings')
@@ -132,6 +133,7 @@ test('TV mode: /household hands off, the nav drops Household, /settings opens @s
   await expect(nav.getByRole('link', { name: 'Household' })).toBeVisible()
 })
 
+// Each toggle once, then a reload: per-device settings live in localStorage.
 test('Settings toggles persist across a reload @shell', async ({ browser }) => {
   const p = await signedIn(browser, '/settings')
   const saver = p.getByRole('group', { name: 'Data saver' })

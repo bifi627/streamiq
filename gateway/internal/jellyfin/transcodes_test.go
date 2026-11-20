@@ -5,8 +5,10 @@ import (
 	"testing"
 )
 
-// Transcodes counts sessions with TranscodingInfo, as the gateway's admin
-// (signed out after); no admin or a failed /Sessions is an error, never a count.
+// Transcodes counts sessions with TranscodingInfo as the gateway's admin. It
+// keeps that token between calls (the gateway's other admin sign-ins don't
+// replace it) and signs in again only after a rejection; no admin or a failed
+// /Sessions is an error, never a count.
 func TestTranscodes(t *testing.T) {
 	f, srv := newFake(t, false)
 	var got [2]string
@@ -21,16 +23,41 @@ func TestTranscodes(t *testing.T) {
 	}
 	f.mu.Lock()
 	f.sessions = []map[string]any{{"TranscodingInfo": map[string]any{"Bitrate": 1}}, {"TranscodingInfo": nil}, {}}
+	signIns := f.signIns
 	f.mu.Unlock()
-	if n, err := s.Transcodes(ctx); err != nil || n != 1 {
-		t.Fatalf("Transcodes = %d, %v; want 1", n, err)
+	count := func() {
+		t.Helper()
+		if n, err := s.Transcodes(ctx); err != nil || n != 1 {
+			t.Fatalf("Transcodes = %d, %v; want 1", n, err)
+		}
 	}
-	connected(t, f, s, got) // the admin's session was logged out
+	count()                                                     // the token from the failed call above
+	s.EnsureViewer(ctx, "11111111-1111-1111-1111-111111111111") // the gateway's admin signs in (and out) too
+	f.mu.Lock()
+	viewer := f.signIns - signIns
+	f.mu.Unlock()
+	if viewer == 0 {
+		t.Fatal("the viewer setup signed nobody in: the check below proves nothing")
+	}
+	count()
+	if f.signIns != signIns+viewer { // the kept token survived the viewer setup's sign-ins
+		t.Fatalf("%d sign-ins by Transcodes, want 0", f.signIns-signIns-viewer)
+	}
 
 	f.mu.Lock()
-	f.users["streamiq"].pw = "changed in Jellyfin"
+	f.revoke("streamiq") // e.g. the password changed in Jellyfin's Dashboard: sign in again, once
+	signIns = f.signIns
 	f.mu.Unlock()
-	signIns := f.signIns
+	count()
+	if f.signIns != signIns+1 {
+		t.Fatalf("%d sign-ins after a revoked token, want 1", f.signIns-signIns)
+	}
+
+	f.mu.Lock()
+	f.revoke("streamiq")
+	f.users["streamiq"].pw = "changed in Jellyfin"
+	signIns = f.signIns
+	f.mu.Unlock()
 	for range 2 {
 		if _, err := s.Transcodes(ctx); err == nil {
 			t.Fatal("refused admin: want an error")

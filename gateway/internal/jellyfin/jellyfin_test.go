@@ -29,6 +29,7 @@ type fake struct {
 	wizard    bool
 	users     map[string]*fakeUser
 	tokens    map[string]string // token → user name
+	devices   map[string]string // token → the DeviceId it was signed in with
 	n         int
 	loggedOut []string       // users whose session was logged out
 	enc       map[string]any // /System/Configuration/encoding
@@ -49,9 +50,10 @@ type fake struct {
 
 func newFake(t *testing.T, wizardDone bool) (*fake, *httptest.Server) {
 	f := &fake{
-		wizard: wizardDone,
-		users:  map[string]*fakeUser{},
-		tokens: map[string]string{},
+		wizard:  wizardDone,
+		users:   map[string]*fakeUser{},
+		tokens:  map[string]string{},
+		devices: map[string]string{},
 		enc: map[string]any{
 			"HardwareAccelerationType": "none",
 			"EnableThrottling":         false,
@@ -144,10 +146,15 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			deny(401)
 			return
 		}
-		f.revoke(b.Username) // same DeviceId: the new token replaces the old
+		dev := regexp.MustCompile(`DeviceId="([^"]*)"`).FindStringSubmatch(r.Header.Get("Authorization"))[1]
+		for t, u := range f.tokens { // same user + DeviceId: the new token replaces the old
+			if u == b.Username && f.devices[t] == dev {
+				delete(f.tokens, t)
+			}
+		}
 		f.n++
 		t := fmt.Sprintf("tok-%d", f.n)
-		f.tokens[t] = b.Username
+		f.tokens[t], f.devices[t] = b.Username, dev
 		_ = json.NewEncoder(w).Encode(map[string]any{"AccessToken": t, "User": map[string]string{"Id": u.id}})
 	case "GET /Users/Me":
 		if f.booting {

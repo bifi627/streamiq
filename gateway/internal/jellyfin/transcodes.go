@@ -3,15 +3,21 @@ package jellyfin
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 )
 
+// teleHdr is Transcodes' client: its own DeviceId, so the gateway's other admin
+// sign-ins (same user, clientHdr's DeviceId) don't replace its token, and a
+// restart's sign-in replaces the last run's instead of piling up.
+const teleHdr = `MediaBrowser Client="streamiq-gateway", Device="gateway telemetry", DeviceId="streamiq-gateway-telemetry", Version="1"`
+
 // Transcodes counts Jellyfin's sessions that transcode now (telemetry), read
-// with the gateway's own admin. An error when there's no admin, it was refused,
-// another sign-in as it is running, or Jellyfin fails.
-// ponytail: signs in and out per call (every 30 s at full); keep the token if that shows in Jellyfin's log.
+// with the gateway's own admin. It keeps the admin's token between calls and
+// signs in again only when Jellyfin rejects it. An error when there's no admin,
+// it was refused, another admin task is running, or Jellyfin fails.
 func (s *Setup) Transcodes(ctx context.Context) (int, error) {
-	// Not Lock: a heartbeat must not wait on a long viewer setup. Signing in
-	// as the same DeviceId replaces the admin's other token, hence vmu.
+	// Not Lock: a heartbeat must not wait on a long viewer setup.
 	if !s.vmu.TryLock() {
 		return 0, errors.New("the gateway's admin is busy")
 	}
@@ -22,18 +28,40 @@ func (s *Setup) Transcodes(ctx context.Context) (int, error) {
 	if c.Password == "" || refused {
 		return 0, errors.New("no admin")
 	}
-	admin, err := s.signIn(ctx, c.User, c.Password)
+	for kept := s.tele != ""; ; kept = false {
+		if s.tele == "" {
+			tok, err := s.teleSignIn(ctx, c)
+			if err != nil {
+				return 0, err
+			}
+			s.tele = tok
+		}
+		n, err := s.transcodes(ctx, s.tele)
+		if !unauthorized(err) || !kept {
+			return n, err
+		}
+		s.tele = "" // revoked (a password change, a reset Jellyfin): sign in once more
+	}
+}
+
+func (s *Setup) teleSignIn(ctx context.Context, c Creds) (string, error) {
+	var auth struct{ AccessToken string }
+	body := fmt.Sprintf(`{"Username":%q,"Pw":%q}`, c.User, c.Password)
+	err := s.callAs(ctx, 30*time.Second, teleHdr, "POST", "/Users/AuthenticateByName", "", body, &auth)
 	if unauthorized(err) { // stop trying: Jellyfin locks users out after failed sign-ins
 		s.mu.Lock()
 		s.refused = s.creds.Password == c.Password
 		s.mu.Unlock()
 	}
 	if err != nil {
-		return 0, err
+		return "", fmt.Errorf("sign in as %s: %w", c.User, err)
 	}
-	defer s.logout(ctx, admin)
+	return auth.AccessToken, nil
+}
+
+func (s *Setup) transcodes(ctx context.Context, admin string) (int, error) {
 	var ss []struct{ TranscodingInfo *struct{} }
-	if err := s.call(ctx, "GET", "/Sessions", admin, "", &ss); err != nil {
+	if err := s.callAs(ctx, 30*time.Second, teleHdr, "GET", "/Sessions", admin, "", &ss); err != nil {
 		return 0, err
 	}
 	n := 0

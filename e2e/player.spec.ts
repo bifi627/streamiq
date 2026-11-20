@@ -194,15 +194,27 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
   const video = page.locator('video')
   const vol = () =>
     video.evaluate((v: HTMLVideoElement) => [v.volume, v.muted] as const)
+  // The player stores the level on volumechange, after the element has it:
+  // reloading before that brings the old level back.
+  const reload = async () => {
+    const saved = () =>
+      video.evaluate(
+        (v: HTMLVideoElement) =>
+          localStorage.getItem('streamiq.volume') === String(v.volume) &&
+          localStorage.getItem('streamiq.muted') === (v.muted ? '1' : '0'),
+      )
+    await expect.poll(saved).toBe(true)
+    await page.reload()
+  }
   await expect.poll(vol).toEqual([0.5, false])
   await page.getByRole('slider', { name: 'Volume' }).fill('0.3')
   await page.getByRole('slider', { name: 'Volume' }).press('ArrowDown') // −10 %
   await expect.poll(async () => (await vol())[0]).toBeCloseTo(0.2, 2)
-  await page.reload() // the deep link plays it again
+  await reload() // the deep link plays it again
   await expect.poll(async () => (await vol())[0]).toBeCloseTo(0.2, 2)
   await page.keyboard.press('m')
   await expect.poll(async () => (await vol())[1]).toBe(true)
-  await page.reload()
+  await reload()
   await expect.poll(async () => (await vol())[1]).toBe(true)
   expect((await vol())[0]).toBeCloseTo(0.2, 2) // mute keeps the level
   // 100 % is the element's own default (no volumechange on restore): the
@@ -210,13 +222,13 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
   const slider = page.getByRole('slider', { name: 'Volume' })
   await slider.fill('1') // unmutes too
   await expect.poll(vol).toEqual([1, false])
-  await page.reload()
+  await reload()
   await expect.poll(vol).toEqual([1, false])
   await expect(slider).toHaveValue('1')
   // Dragged to 0 = muted; it comes back muted at 50 %, so unmuting is audible.
   await slider.fill('0')
   await expect.poll(vol).toEqual([0, true])
-  await page.reload()
+  await reload()
   await expect.poll(vol).toEqual([0.5, true])
 })
 

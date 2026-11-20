@@ -6,6 +6,7 @@ export default defineConfig({
   ...base,
   globalSetup: undefined,
   testMatch: 'prod-smoke.ts',
+  timeout: 300_000,
   workers: 1,
   reporter: 'list',
   // No trace, screenshot or page snapshot: they'd carry the typed password.

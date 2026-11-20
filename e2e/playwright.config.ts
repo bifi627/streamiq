@@ -9,14 +9,14 @@ import { defineConfig } from '@playwright/test'
 //
 // Tests run in parallel on that one stack, so each is independent: own accounts
 // (uniqueEmail), own gateway. Area tags pick a slice while working on it:
-// `npm test -- --grep @households` (tags: @golden @gateways @library @player @diagnostics @shell
-// @households @compat). CI runs everything; check.sh too unless E2E_GREP / SKIP_E2E narrow it.
+// `npm test -- --grep @households` (tags: `allowedTags` in .oxlintrc.json). CI runs everything; check.sh too unless E2E_GREP / SKIP_E2E narrow it.
 export default defineConfig({
   testDir: '.',
   globalSetup: './global-setup.ts',
   timeout: 180_000,
   expect: { timeout: 20_000 },
   retries: 0, // a flake is a bug to fix, not to retry away
+  forbidOnly: !!process.env.CI, // backstop for a .only that got past lint (playwright/no-focused-test)
   fullyParallel: true, // tests in a file too: they're independent
   // ponytail: no CI sharding: each shard would start its own stack (~1.5 min).
   // CI: a GitHub runner has 4 vCPUs (16 GB) for Chromes, gateways and up to one

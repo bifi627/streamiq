@@ -7,6 +7,7 @@ import { auth } from '../../firebase'
 import { arrowFocus } from '../../focus'
 import { signInWithGoogle } from '../../Alias'
 import { authMessage } from '../../authErrors'
+import { TvToggle } from '../../Tv'
 
 // The signed-out page: Google or email + password, sign in or sign up.
 export function SignIn() {
@@ -138,6 +139,9 @@ export function SignIn() {
           {signUp ? 'Sign in instead' : 'Create an account'}
         </button>
       </p>
+      <div className="tv-toggle muted">
+        <TvToggle />
+      </div>
     </main>
   )
 }

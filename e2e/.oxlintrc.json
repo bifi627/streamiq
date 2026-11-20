@@ -15,6 +15,7 @@
     ],
     "streamiq/require-suppression-reason": "error",
     "streamiq/no-test-timeout": "error",
+    "streamiq/no-low-value-comments": "error",
     "playwright/no-focused-test": "error",
     "playwright/no-skipped-test": [
       "error",

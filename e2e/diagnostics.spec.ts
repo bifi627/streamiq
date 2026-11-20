@@ -1,4 +1,4 @@
-// Diagnostics (#71, #90, #230), on a paired browser with its own gateway
+// Diagnostics, on a paired browser with its own gateway
 // (fixtures.ts `paired`): the dock on the library, the /diagnostics report with
 // its connection test (direct, forced relay), Copy report, a never-paired
 // browser's report. The panel flag is arranged in localStorage (its Settings
@@ -18,9 +18,9 @@ const report = (p: Page) =>
   p.locator('pre', { hasText: 'StreamIQ diagnostics' })
 
 /** /diagnostics' Test connection: waits for its throughput line, its PATCH and
- * its ended `tunnels` row (#390); the PATCH body and the row. */
+ * its ended `tunnels` row; the PATCH body and the row. */
 async function testConnection(page: Page) {
-  // This test's tunnel id arrives in its broker `answer` (#390); other
+  // This test's tunnel id arrives in its broker `answer`; other
   // sessions (the pairing's) PATCH theirs too.
   const tunnel = new Promise<string>((resolve) => {
     const onWs = (ws: WebSocket) => {
@@ -33,7 +33,7 @@ async function testConnection(page: Page) {
     }
     page.on('websocket', onWs)
   })
-  // Closing the test's session sends its measurement to telemetry (#162).
+  // Closing the test's session sends its measurement to telemetry.
   const end = page.waitForRequest(
     async (r) =>
       r.method() === 'PATCH' && r.url().endsWith(`/tunnels/${await tunnel}`),
@@ -45,7 +45,7 @@ async function testConnection(page: Page) {
   )
   const patch = (await end).postDataJSON()
   // The row: written by the broker, ended when the browser's socket closed,
-  // route + bytes from the gateway's report (#390).
+  // route + bytes from the gateway's report.
   const id = await tunnel
   await expect
     .poll(() => tunnelRow(id), { timeout: 15_000 })
@@ -87,13 +87,13 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
   paired,
 }) => {
   const { page, user } = paired
-  // The broker and the gateway record tunnels; the browser never creates one (#390).
+  // The broker and the gateway record tunnels; the browser never creates one.
   let posts = 0
   page.on('request', (r) => {
     if (r.method() === 'POST' && r.url().includes('/tunnels')) posts++
   })
   await page.goto(appUrl('/diagnostics'))
-  await expect(report(page)).toContainText(/codecs: h264 .* L\d/) // the #115 probe
+  await expect(report(page)).toContainText(/codecs: h264 .* L\d/) // the capability probe
   const { patch, row } = await testConnection(page)
   expect(patch.throughputKbps).toBeGreaterThan(0)
   await expect(report(page)).toContainText('paired: yes')
@@ -126,7 +126,7 @@ test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({
   await page.getByLabel('Force relay (TURN)', { exact: true }).check()
   const { row } = await testConnection(page)
   await expect(report(page)).toContainText(
-    // over udp: the e2e coturn is UDP-only; the prod smoke checks `over tls` (#576)
+    // over udp: the e2e coturn is UDP-only; the prod smoke checks `over tls`
     /relay forced: yes[\s\S]*relay: available[\s\S]*path: relayed \(TURN\) over udp/,
   )
   expect(row, JSON.stringify(row)).toMatchObject({ Relay: true, Failure: null })

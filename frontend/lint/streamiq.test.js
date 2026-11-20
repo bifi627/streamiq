@@ -51,3 +51,30 @@ run('no-hardcoded-locale', {
     { code: "Intl.NumberFormat(['en-US'])", errors: 1 },
   ],
 })
+
+run('no-low-value-comments', {
+  valid: [
+    '// the buffer outlives a seek\nconst playerState = 1',
+    '// range 1 -- 3, not a divider\nf()',
+    '// TODO(#12): split it\n// quirk(#34): webOS drops it\nf()',
+    '// oxlint-disable-next-line complexity -- see #12\nf()',
+    '// uses `#12` as the example\nf()',
+    '// act on the reply\nf()',
+    '// observe() warns on an unknown type (unsupported: none)\nf()',
+    '// null = none, late = past the wait\nf()',
+    'f()\n// 1\n// 2\n// 3\n// 4\n// 5\n// 6\nf()',
+    '// a\n// b\n// c\n// d\n// e\n// f\n// g\nimport x from "y"',
+  ],
+  invalid: [
+    { code: '// player state\nconst playerState = 1', errors: 1 },
+    { code: '// ------------\nf()', errors: 1 },
+    { code: '// ===== Helpers =====\nf()', errors: 1 },
+    { code: '// const x = load(y);\nf()', errors: 1 },
+    { code: '// const x = load(y)\nf()', errors: 1 },
+    { code: '// await page.reload()\nf()', errors: 1 },
+    { code: 'f()\n// arrange\nf()', errors: 1 },
+    { code: '// Given:\nf()', errors: 1 },
+    { code: '// keeps the order (#330)\nf()', errors: 1 },
+    { code: 'f()\n// 1\n// 2\n// 3\n// 4\n// 5\n// 6\n// 7\nf()', errors: 1 },
+  ],
+})

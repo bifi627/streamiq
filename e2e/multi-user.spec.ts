@@ -1,6 +1,6 @@
-// Two users of one household over the real tunnel (#243): B joins over the API
-// (the invite UI is households.spec.ts), each plays as their own Jellyfin viewer
-// (#195), and switching accounts in one tab reloads, so no open tunnel carries
+// Two users of one household over the real tunnel: B joins over the API
+// (the invite UI is households.spec.ts), each plays as their own Jellyfin viewer,
+// and switching accounts in one tab reloads, so no open tunnel carries
 // the old user into the new one (App.tsx).
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
@@ -22,7 +22,7 @@ import { jellyfinAdminGet } from './jellyfin.ts'
 async function playTo(p: Page, sec: number) {
   await p.getByRole('button', { name: /Movies/ }).click()
   await p.getByRole('button', { name: /streamiq e2e clip/ }).click()
-  await p.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page (#204)
+  await p.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page
   await expect.poll(() => videoTime(p), { timeout: 30_000 }).toBeGreaterThan(0)
   await p.evaluate(
     (s) => (document.querySelector('video')!.currentTime = s),
@@ -99,26 +99,26 @@ test(
       await expect.poll(() => position(A)).toBeGreaterThanOrEqual(5)
       await expect.poll(() => position(B)).toBeGreaterThanOrEqual(15)
       expect(await position(A)).toBeLessThan(15)
-      // Own viewers: no guest-mode banner (#242; /streamiq/status "viewer").
+      // Own viewers: no guest-mode banner (/streamiq/status "viewer").
       await expect(a.getByText(/guest mode/)).toHaveCount(0)
       await expect(b.getByText(/guest mode/)).toHaveCount(0)
     })
 
     await test.step("A signs out, B signs in on A's tab: reload, B's resume", async () => {
-      // The Resume spot's progress (#203): the saved position.
+      // The Resume spot's progress: the saved position.
       const resume = (re: RegExp) =>
         expect(
           a.getByRole('progressbar', { name: /streamiq e2e clip/ }),
         ).toHaveAttribute('aria-valuetext', new RegExp(`^${re.source} of`))
       await resume(/0:0[5-9]/) // A's, over A's open tunnel
       await a.evaluate(() => ((window as { mark?: 1 }).mark = 1))
-      await a.getByRole('link', { name: 'Settings' }).click() // sign out lives there (#201)
+      await a.getByRole('link', { name: 'Settings' }).click() // sign out lives there
       await a.getByRole('button', { name: 'Sign out' }).click()
       await expect(a.getByLabel('Email')).toBeVisible()
       expect(
         await a.evaluate(() => (window as { mark?: 1 }).mark),
       ).toBeUndefined() // reloaded
-      await signIn(a, B, A.tenantId) // same URL: Settings (#201)
+      await signIn(a, B, A.tenantId) // same URL: Settings
       await a.goBack() // the gateway's library home, freshly loaded
       await resume(/0:1[5-9]/)
     })

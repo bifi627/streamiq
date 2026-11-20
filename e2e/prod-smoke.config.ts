@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 import base from './playwright.config.ts'
 
-// Prod smoke (#574, .github/workflows/prod-smoke.yml): prod-smoke.ts only, no global setup (no local stack).
+// Prod smoke (.github/workflows/prod-smoke.yml): prod-smoke.ts only, no global setup (no local stack).
 export default defineConfig({
   ...base,
   globalSetup: undefined,

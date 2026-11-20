@@ -1,8 +1,8 @@
-// The household page and the no-household screen, no gateway or Jellyfin (#407):
-// members and roles, remove and leave (#192), rename (#384), invites (#228, #337),
-// join (#191), invite-first sign-up and life without a household (#387), a second
-// household of one's own, the alias (#388), the switcher (#193), and a membership
-// lost while the app is open (#210), an admin's household Activity (#392; tunnel
+// The household page and the no-household screen, no gateway or Jellyfin:
+// members and roles, remove and leave, rename, invites,
+// join, invite-first sign-up and life without a household, a second
+// household of one's own, the alias, the switcher, and a membership
+// lost while the app is open, an admin's household Activity (tunnel
 // rows seeded in Postgres). Permission and edge cases (member refused, last admin, single-use,
 // expired) are the backend's Members / Invites / Provisioning features.
 import type { Browser, Page } from '@playwright/test'
@@ -19,7 +19,7 @@ import {
   type User,
 } from './helpers.ts'
 
-// householdLabel() in api.ts: an unnamed household (none renamed yet, #384).
+// householdLabel() in api.ts: an unnamed household (none renamed yet).
 const label = (u: User) => `Household …${u.tenantId.slice(-6)}`
 const h1 = (p: Page) => p.getByRole('heading', { level: 1 })
 const members = (p: Page) =>
@@ -111,7 +111,7 @@ test('rename: an admin renames, a member sees no Rename @households', async ({
 }) => {
   const { A, B, a } = await adminWithMember(browser)
   await a.getByRole('button', { name: 'Rename' }).click()
-  // Stored by us: the field says so (#413).
+  // Stored by us: the field says so.
   await expect(a.getByLabel('Household name')).toHaveAccessibleDescription(
     'Saved by StreamIQ.',
   )
@@ -214,7 +214,7 @@ test('invite-first sign-up: only that household, no picker @households', async (
   await c.getByLabel('Email').fill(email)
   await c.getByLabel('Password', { exact: true }).fill(password)
   await c.getByRole('button', { name: 'Create account' }).click()
-  await expect(c.getByLabel('Your name')).toHaveValue(email) // alias first (#388)
+  await expect(c.getByLabel('Your name')).toHaveValue(email) // alias first
   await c.getByLabel('Your name').fill('Dana')
   await c.getByRole('button', { name: 'Continue' }).click()
   await c.getByRole('button', { name: 'Join' }).click()

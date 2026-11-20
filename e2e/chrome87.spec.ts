@@ -1,4 +1,4 @@
-// The production build on Chromium 87, the webOS TV's engine (#465): a sign-in
+// The production build on Chromium 87, the webOS TV's engine: a sign-in
 // through the form to Gateways, failing on any uncaught error or console.error. It
 // catches syntax `build.target` let through and runtime APIs 87 lacks. Not a second
 // Playwright project: Playwright launches 87 but its actions and visibility checks

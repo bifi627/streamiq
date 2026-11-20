@@ -1,5 +1,5 @@
 // Shared by the specs: accounts + households over the API (emulator sign-up as in
-// preview.ts, the #191 invite flow), gateways, and browser steps (sign in, pair, play).
+// preview.ts, the invite flow), gateways, and browser steps (sign in, pair, play).
 // Arrange state here, not through the UI: only the feature under test uses the browser.
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -38,7 +38,7 @@ function psql(sql: string): string {
   return r.stdout.trim()
 }
 
-/** One `tunnels` row (#390) as JSON (EF column names: Relay, BytesSent, EndedAt, …),
+/** One `tunnels` row as JSON (EF column names: Relay, BytesSent, EndedAt, …),
  * read from the stack's Postgres with its own psql: e2e has no DB client. null = no row. */
 export function tunnelRow(id: string): Record<string, any> | null {
   if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error(`not a tunnel id: ${id}`)
@@ -81,8 +81,8 @@ export type User = {
 }
 
 /** A new emulator account, provisioned by the API (first /me), with a household
- * of its own as its admin (Create a household, #387) unless household is false.
- * Its alias (displayName, #388) is its email unless given: null = none yet, so
+ * of its own as its admin (Create a household) unless household is false.
+ * Its alias (displayName) is its email unless given: null = none yet, so
  * the app asks for one first. */
 export async function signUp(
   email: string,
@@ -130,7 +130,7 @@ export async function signUp(
   }
 }
 
-/** user joins host's household over the API (#191): host's invite, user accepts. */
+/** user joins host's household over the API: host's invite, user accepts. */
 export async function join(host: User, user: User) {
   const { token } = await host.api('/invites', { method: 'POST' })
   await user.api('/invites/accept', {
@@ -202,7 +202,7 @@ export async function signedInPage(
 }
 
 /** A new browser (own client key) whose playbacks save from the first second:
- * the player's 60 s click-through guard (#330) off unless a step sets it. */
+ * the player's 60 s click-through guard off unless a step sets it. */
 export async function newPage(browser: Browser) {
   const ctx = await newContext(browser)
   await ctx.addInitScript(() => {
@@ -216,13 +216,13 @@ export async function newPage(browser: Browser) {
  * Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
  * interfaces change, e.g. Docker adding a container for another worker on CI:
  * a failed module never renders the app, a failed meta refresh leaves the
- * gateway page on Chrome's error page (#419). Reload once per tab, for that
+ * gateway page on Chrome's error page. Reload once per tab, for that
  * error on a page or its scripts only: anything else still fails the test. */
 export async function newContext(browser: Browser) {
   const ctx = await browser.newContext()
   // Google's gapi, which Firebase's popup sign-in loads even against the
   // emulator: fetched by Playwright outside Chrome, so the error below can't
-  // drop it and a reload can't lose a pending sign-in (#483).
+  // drop it and a reload can't lose a pending sign-in.
   await ctx.route('https://apis.google.com/**', (r) =>
     r.fetch().then(
       (response) => r.fulfill({ response }),
@@ -260,9 +260,9 @@ export async function tunnelOk(p: Page) {
 
 /**
  * Opens the local gateway page in a new tab. Navigating the old tab races its
- * 3s meta refresh: whichever navigation starts second cancels the first (#149).
+ * 3s meta refresh: whichever navigation starts second cancels the first.
  * Old tabs stay open (closed with the context): on a busy runner closing one
- * blocked for minutes (#397), and their refreshes are harmless GETs.
+ * blocked for minutes, and their refreshes are harmless GETs.
  */
 export async function gatewayTab(ctx: BrowserContext, url: string) {
   const page = await ctx.newPage()
@@ -341,13 +341,13 @@ export async function openLibrary(p: Page) {
   return p.url().match(/\/g\/([^/]+)$/)![1]
 }
 
-/** The diagnostics dock (#230) starts collapsed; its button opens the sheet with
+/** The diagnostics dock starts collapsed; its button opens the sheet with
  * the log, the request table and Force relay, and it stays open (per device). */
 export const openDock = (p: Page) =>
   p.getByRole('button', { name: /^Diagnostics peer:/, expanded: false }).click()
 
 /** Dominant frequency (Hz) of the <video>'s audio: tells the fixture's 440 Hz
- * English track from its 880 Hz German one (#109). */
+ * English track from its 880 Hz German one. */
 export const pitch = (p: Page) =>
   p.locator('video').evaluate((v: HTMLVideoElement & { an?: AnalyserNode }) => {
     if (!v.an) {

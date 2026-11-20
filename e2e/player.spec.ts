@@ -1,4 +1,4 @@
-// The player (#410), on a paired browser with its own gateway (fixtures.ts
+// The player, on a paired browser with its own gateway (fixtures.ts
 // `paired`): the privacy badge, the profile line, the deep link + Back key,
 // the bar's controls, volume, quality, compatible mode, Auto on a slow link, data
 // saver, audio, auto audio, subtitles and next episode. Per-device settings
@@ -41,7 +41,7 @@ async function play(p: Page, name = CLIP, secs = 1) {
 
 /** Pins the gateway → client link at mbps before p's next load: the bursts
  * fail, so Auto uses the stored hint (speed.ts's key) instead of a measurement
- * that load can slow down (#486). */
+ * that load can slow down. */
 async function pinLink(p: Page, user: User, mbps: number) {
   const [g] = await user.api<{ id: string }[]>('/gateways')
   await p.addInitScript(
@@ -77,7 +77,7 @@ test('privacy badge (#205, #428): On your network, never leaves the house @playe
   await page.getByRole('button', { name: 'On your network' }).click()
   await expect(
     page.getByText(/end-to-end encrypted · never leaves the house/),
-  ).toBeVisible() // same host: the gateway sees the browser on its own subnet (#428)
+  ).toBeVisible() // same host: the gateway sees the browser on its own subnet
 })
 
 test("profile line (#115): the probe and Jellyfin's decision in the dock @player", async ({
@@ -103,7 +103,7 @@ test('deep link: /play/<id> reloads at the saved position; Back key in a new tab
   // `req:/UserItems/<id>/UserData` channel; the seek's second is always new, so
   // at least one saves): wait for one, or the reload could cut it off. Either
   // one saved 3 s or later. Answered = the response's EOF message arrived; not
-  // the channel's `close`, which sometimes never fired (#566; cause unproven).
+  // the channel's `close`, which sometimes never fired (cause unproven).
   await page.evaluate(() => {
     const w = window as unknown as { saved: number }
     w.saved = 0
@@ -164,7 +164,7 @@ test('controls: ±10 s and Play / Pause, by button and by key @player', async ({
   await expect.poll(at).toBeCloseTo(t, 0)
   await page.keyboard.press('Space')
   await expect.poll(paused).toBe(false)
-  // #549: Ctrl+K is the browser's (no toggle), so the plain K after it pauses;
+  // Ctrl+K is the browser's (no toggle), so the plain K after it pauses;
   // a held K (keydown repeats) toggles once, so it plays again.
   await page.keyboard.press('Control+k')
   await page.keyboard.press('k')
@@ -236,12 +236,12 @@ test('quality (#108, #161): Auto and Source only; Source reloads at the playhead
   paired,
 }) => {
   const { page, user } = paired
-  await pinLink(page, user, 100) // Auto's pick must not depend on load (#486)
+  await pinLink(page, user, 100) // Auto's pick must not depend on load
   await arrange(page, DIAG)
   await play(page, CLIP, 3) // the switch below logs @3 or later
   await openDock(page)
   // Rungs that would not scale the 360p clip down are hidden (480p too).
-  // Auto (#162): the pinned 100 Mbps link fits the clip.
+  // Auto: the pinned 100 Mbps link fits the clip.
   await menu(page)
   await page
     .getByRole('menuitem', {
@@ -418,7 +418,7 @@ test('subtitles (#136, #269): off at first; the SRT cue at its own time; Off cle
   const { page } = paired
   await play(page, CLIP, 3)
   const [en, de] = [await language(page, 'eng'), await language(page, 'deu')]
-  // Mid-clip first (#269: cues landed seconds off after a start past 0): an
+  // Mid-clip first (cues landed seconds off after a start past 0): an
   // audio switch restarts the stream at the playhead.
   await menu(page)
   await page
@@ -443,7 +443,7 @@ test('subtitles (#136, #269): off at first; the SRT cue at its own time; Off cle
     .getByRole('menuitemradio', { name: new RegExp(`^${en}.*SRT`) })
     .click()
   await expect.poll(cue, { timeout: 15_000 }).toBe('streamiq e2e subtitle')
-  // At its own time (0–30 s), not shifted by the mid-clip start (#269).
+  // At its own time (0–30 s), not shifted by the mid-clip start.
   expect(
     await page.evaluate(() =>
       [...document.querySelector('video')!.textTracks]
@@ -482,7 +482,7 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
     v.currentTime = v.duration - 0.5
   })
   await a.waitForFunction(() => document.querySelector('video')!.ended)
-  // Finished episode → back (#378): the first primary button shown already
+  // Finished episode → back: the first primary button shown already
   // names the next one (no stale "S1 · E1").
   await a.goBack()
   await expect(primary).toBeFocused()

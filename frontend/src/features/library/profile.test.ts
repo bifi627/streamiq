@@ -546,7 +546,7 @@ test('data saver (#291): Automatic follows the browser, On/Off override it, Auto
   assert.equal(effective('Auto', 20, 40e6, false), '1080p')
 })
 
-// The fallback chain (#81, #115, #238, #164): onFailure.
+// The fallback chain: onFailure.
 const fresh: Playing = {
   raw: false,
   copy: { video: true, audio: true },
@@ -658,7 +658,7 @@ test('onFailure: Raw never reloads: stuck, fatal and audio media errors are the 
     media({ audio: true }),
   ] as const)
     assert.deepEqual(onFailure(f, raw), { raw: true })
-  // even after an earlier fallback turned copy off (Raw copies anyway, #164)
+  // even after an earlier fallback turned copy off (Raw copies anyway)
   const after = { ...raw, copy: { video: false, audio: false } }
   assert.deepEqual(onFailure(media({ audio: true }), after), { raw: true })
   assert.deepEqual(onFailure('stuck', after), { raw: true })

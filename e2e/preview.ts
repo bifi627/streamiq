@@ -1,4 +1,4 @@
-// Preview env per worktree (#135): this checkout's stack (startStack), detached
+// Preview env per worktree: this checkout's stack (startStack), detached
 // from the shell that started it, seeded, served on the LAN over HTTPS so a phone
 // or TV can try it. Not a Playwright spec: `npm test` never runs it.
 //
@@ -11,11 +11,11 @@
 // that process tree, removes the containers (label streamiq.preview=<id>) and
 // waits until its ports are closed.
 //
-// --tunnel (#141): also a Cloudflare quick tunnel (https://….trycloudflare.com,
+// --tunnel: also a Cloudflare quick tunnel (https://….trycloudflare.com,
 // a trusted cert) for browsers that keep a self-signed exception for navigation
 // only (webOS TV). Public while it runs; open <LAN>/tv on the TV to get there.
 //
-// Pairing (#155): serve approves every pending request on the local gateway
+// Pairing: serve approves every pending request on the local gateway
 // page itself, so devices pair without anyone at this PC. The whole pairing
 // flow still runs; only the human code comparison is skipped. With --tunnel,
 // anyone with the URL + preview login gets paired (owner accepted).
@@ -343,7 +343,7 @@ async function serve() {
       nvenc, // NVIDIA GPU on this machine → Jellyfin transcodes on it
     })
 
-    // Seed: account with its own household (sign-up makes none, #387), then a
+    // Seed: account with its own household (sign-up makes none), then a
     // gateway onboarded the way "Add gateway" does, until it is online.
     const signUp = await fetch(
       `${stack.emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
@@ -352,7 +352,7 @@ async function serve() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...login,
-          displayName: 'Preview', // no alias prompt (#388)
+          displayName: 'Preview', // no alias prompt
           returnSecureToken: true,
         }),
       },

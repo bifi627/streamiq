@@ -1,7 +1,7 @@
-// The app shell and Settings, no gateway or Jellyfin (#406): sign-in, a signed-out
+// The app shell and Settings, no gateway or Jellyfin: sign-in, a signed-out
 // deep link, not-found, TV mode on a first visit, the nav, Settings Back, PWA
-// installability, each per-device setting persisted, and the D-pad on Settings (#229). What the settings do to
-// playback is the player's spec (#410).
+// installability, each per-device setting persisted, and the D-pad on Settings. What the settings do to
+// playback is the player's spec.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -230,7 +230,7 @@ test('Settings toggles persist across a reload @shell', async ({ browser }) => {
   await expect(p.getByText(/^Off now:/)).toBeVisible()
 })
 
-// The D-pad leaves a checkbox (#229), Left/Right too (no caret to keep
+// The D-pad leaves a checkbox, Left/Right too (no caret to keep
 // them), and Down goes on past Data saver. Right isn't driven: every Settings
 // checkbox ends its row, so Right has no target.
 test('Settings D-pad: off a checkbox, Down past Data saver to Raw @shell', async ({
@@ -254,7 +254,7 @@ test('Settings D-pad: off a checkbox, Down past Data saver to Raw @shell', async
 async function google(p: Page, email: string, name: string) {
   // The first popup sign-in loads apis.google.com/js/api.js (even against the
   // emulator); once that failed on CI and newContext's reload dropped the
-  // pending sign-in (#483). Click again until a popup opens.
+  // pending sign-in. Click again until a popup opens.
   let g!: Page
   await expect(async () => {
     const popup = p.waitForEvent('popup', { timeout: 5_000 })
@@ -278,7 +278,7 @@ test('Google sign-up: picks its alias, prefilled with the Google name @shell', a
   const p = await newPage(browser)
   await p.goto(appUrl())
   await google(p, email, 'Gina Google')
-  // Asked like an email sign-up (#404), not handed Google's name silently.
+  // Asked like an email sign-up, not handed Google's name silently.
   const alias = p.getByLabel('Your name')
   await expect(alias).toHaveValue('Gina Google')
   // Not chosen yet: a second Google sign-in still asks.

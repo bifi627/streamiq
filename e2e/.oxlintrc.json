@@ -1,0 +1,20 @@
+{
+  "$schema": "../frontend/node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "oxc"],
+  "jsPlugins": ["../frontend/lint/streamiq.js"],
+  "rules": {
+    "no-empty-pattern": "off",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "streamiq/require-disable-reason": "error"
+  },
+  "overrides": [
+    {
+      "files": ["*.spec.ts"],
+      "rules": {
+        "streamiq/e2e-area-tag": "error",
+        "streamiq/no-wait-for-timeout": "error",
+        "streamiq/no-literal-email": "error"
+      }
+    }
+  ]
+}

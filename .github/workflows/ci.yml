@@ -78,6 +78,8 @@ jobs:
         working-directory: e2e
       - run: npm run lint
         working-directory: frontend
+      - run: ../frontend/node_modules/.bin/oxlint --report-unused-disable-directives-severity=error # borrowed oxlint, e2e/.oxlintrc.json
+        working-directory: e2e
       - run: npm test
         working-directory: frontend
       - run: npm run build

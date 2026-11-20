@@ -34,6 +34,7 @@ npm run format:check --prefix frontend
 (cd e2e && ../frontend/node_modules/.bin/prettier --check .)  # e2e has no own prettier; borrow frontend's
 frontend/node_modules/.bin/tsc -p e2e  # #581: Playwright strips types; also covers files no spec imports. Borrowed tsc too
 npm run lint --prefix frontend
+(cd e2e && ../frontend/node_modules/.bin/oxlint --report-unused-disable-directives-severity=error)  # borrowed oxlint, e2e/.oxlintrc.json
 npm test --prefix frontend
 npm run build --prefix frontend
 

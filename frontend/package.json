@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint --report-unused-disable-directives-severity=error",
-    "test": "node --test \"src/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"lint/*.test.js\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview"

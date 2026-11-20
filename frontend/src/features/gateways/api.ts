@@ -3,6 +3,7 @@ import { authed } from '../../api'
 import { share } from '../pairing/connect'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { httpError } from '../../errors'
+import type { HostLoad } from './host'
 
 export type Gateway = {
   id: string
@@ -33,6 +34,7 @@ export type GatewayStatus = {
   }
   viewer?: { shared?: boolean; reason?: string } // this session's; reason: see guest.ts
   remoteUpdate?: true | string // the update button works, or why not
+  host?: HostLoad // live only, never cached
 }
 
 // Screens: phone as remote (docs/protocol.md, "Screens"). Used by library/Screen.tsx.

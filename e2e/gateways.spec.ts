@@ -78,6 +78,8 @@ test('status, paired: details from the gateway API (#140) @gateways', async ({
   await expect(
     page.getByText(/Paired browsers: 1 · open sessions/),
   ).toBeVisible()
+  // CPU needs the gateway's first 10 s sample; memory is there at once.
+  await expect(page.getByText(/^Load: .*memory .* of /)).toBeVisible()
 })
 
 test('status, unpaired: liveness only, details need pairing (#140) @gateways', async ({
@@ -271,6 +273,10 @@ test('TV mode: no update notice, the pairing code names the gateway page URL (#6
   paired,
 }) => {
   const b = await second(browser, paired.user)
+  // signed in for good: a reload sooner lands on the sign-in page
+  await expect(
+    card(b).getByRole('button', { name: 'Pair this browser' }),
+  ).toBeVisible()
   await b.route('**/api/gateways', async (r) => {
     const res = await r.fetch()
     const gs = (await res.json()) as object[]

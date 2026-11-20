@@ -30,6 +30,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"streamiq/gateway/internal/backup"
+	"streamiq/gateway/internal/host"
 	"streamiq/gateway/internal/identity"
 	"streamiq/gateway/internal/jellyfin"
 	"streamiq/gateway/internal/localpage"
@@ -356,7 +357,9 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	remote := &update.Remote{Version: version, Supported: service.Supported(), Task: service.Installed,
 		Newer: func() string { return *newer.Load() }, Start: startUpdater}
 	started := time.Now().UTC()
-	root.API = gatewayAPI(st, remote, store, statusHandler(setup, compose, started, store, sess, remote))
+	load := &host.Sampler{}
+	go load.Run(ctx)
+	root.API = gatewayAPI(st, remote, store, statusHandler(setup, compose, started, store, sess, remote, load))
 	token, err := localpage.Token(stateDir, lan)
 	if err != nil {
 		log.Fatalf("gateway: page token: %v", err)
@@ -392,7 +395,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 
 // statusHandler is GET /streamiq/status.
 func statusHandler(setup *jellyfin.Setup, compose string, started time.Time, store *pairing.Store,
-	sess *sessions.Sessions, remote *update.Remote,
+	sess *sessions.Sessions, remote *update.Remote, load *host.Sampler,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		v := setup.View()
@@ -413,6 +416,7 @@ func statusHandler(setup *jellyfin.Setup, compose string, started time.Time, sto
 			"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
 			"viewer":       setup.ViewerState(tunnel.SessionOf(r).User),
 			"remoteUpdate": remoteUpdate(remote),
+			"host":         load.Load(compose),
 		})
 	})
 }

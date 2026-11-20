@@ -107,7 +107,7 @@ or LOW (a SPEC); a posted finding blocks the merge and costs a fix round.
   files (#490), not a judgement: don't verify a LOW to categorize it.
 - **Comments** (CLAUDE.md "Comments say what the code can't"), for comments the diff
   adds: history ("added in #N", "was X", an issue cited as a changelog entry) or
-  commented-out code is a **BLOCKER** (`lint: no (needs reading)`); a comment that restates
+  commented-out code is a **BLOCKER** (`lint: no (needs reading; check-comments.sh catches only issue refs)`); a comment that restates
   the code, copies `docs/` or is a banner is **LOW** (`style`).
 
 Cap: at most 5 BLOCKER + SPEC in total; if more qualify, keep the most severe and

@@ -142,6 +142,18 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       await a.getByRole('link', { name: '← Gateways' }).click()
     })
 
+    await test.step('Activity lists the tunnels so far as Direct', async () => {
+      // Earlier tunnels ended (gateway restarts, restore): their reports are in.
+      await a.getByRole('link', { name: 'Activity' }).click()
+      await expect(
+        a.getByRole('cell', { name: /^Direct( · IPv6)?$/ }).first(),
+      ).toBeVisible()
+      await expect(
+        a.getByText('Showing the last 30 days (up to 200 tunnels).'),
+      ).toBeVisible()
+      await a.getByRole('link', { name: 'Gateways', exact: true }).click()
+    })
+
     // Buttons, not ?relay / ?debug: a TV can't edit the URL (#71).
     await test.step('diagnostics panel: force relay → tunnel works over TURN', async () => {
       // Diagnostics panel: on once in Settings, the flag persists (#201).

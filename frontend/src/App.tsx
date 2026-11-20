@@ -43,6 +43,7 @@ import {
 } from './features/households/household'
 import { SignIn } from './features/signin/SignIn'
 import { Settings } from './features/settings/Settings'
+import { Activity } from './features/activity/Activity'
 
 // Root layout; only mounted while signed in (App gates the whole router). Loads
 // /me once per page load and hands it to every view (HouseholdContext).
@@ -120,6 +121,9 @@ function Shell() {
         </span>
         <nav className="nav" aria-label="Main" onKeyDown={arrowFocus}>
           {!homeless && <Link to="/gateways">Gateways</Link>}
+          {!homeless && navOk('/activity') && (
+            <Link to="/activity">Activity</Link>
+          )}
           {libraryId && !homeless && (
             <Link to="/g/$gatewayId" params={{ gatewayId: libraryId }}>
               Library
@@ -238,6 +242,11 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: 'gateways',
     component: Gateways,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'activity',
+    component: Activity,
   }),
   createRoute({
     getParentRoute: () => rootRoute,

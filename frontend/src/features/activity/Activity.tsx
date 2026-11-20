@@ -90,6 +90,9 @@ export function Activity() {
               </tbody>
             </table>
           </div>
+          {rows.length === 0 && (
+            <p className="muted">No connections to show.</p>
+          )}
           <p className="muted meta">
             Showing the last 30 days (up to 200 tunnels).
           </p>

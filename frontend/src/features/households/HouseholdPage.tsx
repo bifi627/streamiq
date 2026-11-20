@@ -64,7 +64,7 @@ export function Household() {
       </div>
       <Members />
       {current?.role === 'admin' && <Invites />}
-      <CreateAnother />
+      {current && <CreateAnother />}
     </section>
   )
 }

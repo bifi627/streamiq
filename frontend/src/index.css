@@ -1,4 +1,4 @@
-/* Design tokens + base styles (#93, #201): direction E, "calm", dark only.
+/* Design tokens + base styles: direction E, "calm", dark only.
    Chrome 87 (webOS TV): the build (Lightning CSS, cssTarget in vite.config.ts)
    lowers syntax like nesting, but can't polyfill :has, :where, container
    queries or aspect-ratio; :not() with a list is 88+, so chain them. Sizes in rem: TV mode raises the
@@ -258,7 +258,7 @@ input[type='radio'] {
   }
 }
 
-/* Sign-in (#202): full-height column on a phone, a centered card above. */
+/* Sign-in: full-height column on a phone, a centered card above. */
 .signin {
   display: flex;
   flex-direction: column;
@@ -420,7 +420,7 @@ button.link {
   }
 }
 
-/* Gateways list (#225): one card per gateway. */
+/* Gateways list: one card per gateway. */
 .head {
   display: flex;
   flex-wrap: wrap;
@@ -469,7 +469,7 @@ html.tv .no-tv {
 .card-head h2 {
   overflow-wrap: anywhere;
 }
-/* name + Rename, or the inline rename form (#310, #365, #384) */
+/* name + Rename, or the inline rename form */
 .card-head .name,
 .card .clients .name,
 .household .head .name {
@@ -527,9 +527,9 @@ html.tv .no-tv {
   margin: 0;
   padding-left: var(--sp-5);
 }
-/* paired clients (#311): name · date, Remove at the end of the line */
+/* paired clients: name · date, Remove at the end of the line */
 .card .clients li {
-  overflow-wrap: anywhere; /* a long name without spaces (#365) */
+  overflow-wrap: anywhere; /* a long name without spaces */
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -568,7 +568,7 @@ html.tv .no-tv {
   font-size: 0.8125rem;
 }
 
-/* Pairing (#226): actions, then one state box: waiting (code) or OK; failed = ErrorView. */
+/* Pairing: actions, then one state box: waiting (code) or OK; failed = ErrorView. */
 .pairing {
   display: flex;
   flex-direction: column;
@@ -585,7 +585,7 @@ html.tv .no-tv {
 .dot.waiting {
   background: var(--relayed);
 }
-/* name this browser, right after pairing (#365) */
+/* name this browser, right after pairing */
 .name-prompt {
   display: flex;
   flex-direction: column;
@@ -638,7 +638,7 @@ html.tv .no-tv {
   overflow-wrap: anywhere;
 }
 
-/* Household (#228): Members and Invites cards; rows = person or invite. */
+/* Household: Members and Invites cards; rows = person or invite. */
 .household {
   display: flex;
   flex-direction: column;
@@ -740,7 +740,7 @@ html.tv .rows li.no-tv:first-child + li {
   min-width: 8rem;
 }
 
-/* Empty / offline / error states (#206, ErrorView + State): one calm
+/* Empty / offline / error states (ErrorView + State): one calm
    centered block; .loud (pin mismatch) keeps the alarm. */
 .state {
   display: flex;
@@ -809,7 +809,7 @@ html.tv .rows li.no-tv:first-child + li {
   max-width: none;
 }
 
-/* Loading placeholders (#206): the page's shape in muted blocks, a slow
+/* Loading placeholders: the page's shape in muted blocks, a slow
    pulse (none with reduced motion). */
 .ph {
   border-radius: 10px;
@@ -877,7 +877,7 @@ html.tv .rows li.no-tv:first-child + li {
   gap: 8px;
 }
 
-/* Library: moved out of inline styles (#225), same look until its redesign. */
+/* Library */
 .lib-top {
   display: flex;
   justify-content: space-between;
@@ -890,7 +890,7 @@ html.tv .rows li.no-tv:first-child + li {
   gap: var(--sp-4);
 }
 
-/* Privacy badge (#205): on your network / direct / relayed; focus or click shows the line. */
+/* Privacy badge: on your network / direct / relayed; focus or click shows the line. */
 .privacy {
   --c: var(--direct);
   position: relative;
@@ -943,7 +943,7 @@ html.tv .rows li.no-tv:first-child + li {
   width: 100%;
 }
 
-/* A secondary action (#227): outlined, quieter than a filled pill. */
+/* A secondary action: outlined, quieter than a filled pill. */
 button.secondary {
   display: inline-flex;
   align-items: center;
@@ -966,7 +966,7 @@ button.secondary:hover {
   flex: none;
 }
 
-/* Play on… (#180, #227): the screens drop down as a list. The gap only
+/* Play on…: the screens drop down as a list. The gap only
    under a tile; episode rows and the title side space it themselves. */
 .tiles .play-on {
   margin-top: var(--sp-2);
@@ -1006,7 +1006,7 @@ button.secondary:hover {
   margin: var(--sp-2) 0 0;
 }
 
-/* Phone remote (#181, #227): phone-first, one column; the keys sit low. It
+/* Phone remote: phone-first, one column; the keys sit low. It
    is no TV view, so aspect-ratio and accent-color are fine here. */
 .remote {
   display: flex;
@@ -1077,7 +1077,7 @@ button.secondary:hover {
   font-size: var(--fs-meta);
 }
 
-/* Screen mode, waiting (#180, #227): read from the couch, so big and
+/* Screen mode, waiting: read from the couch, so big and
    centered; TV mode scales it up with the root size. */
 .screen-wait {
   display: flex;
@@ -1154,7 +1154,7 @@ button.secondary:hover {
   object-fit: cover;
 }
 
-/* Library home (#203). Fixed rem boxes, not aspect-ratio (Chrome 87): an
+/* Library home. Fixed rem boxes, not aspect-ratio (Chrome 87): an
    artwork's placeholder keeps its size until the image arrives. */
 .art {
   overflow: hidden;
@@ -1166,7 +1166,7 @@ button.secondary:hover {
   height: 100%;
   object-fit: cover;
 }
-/* No image to show (#323): the title on a tint (.tint-N, Home.tsx tint()).
+/* No image to show: the title on a tint (.tint-N, Home.tsx tint()).
    min-height: Chrome 87 ignores .poster's aspect-ratio. */
 .title-card {
   display: flex;
@@ -1415,7 +1415,7 @@ progress::-moz-progress-bar {
   }
 }
 
-/* Series / movie page (#204): left column + season tabs and episodes; a
+/* Series / movie page: left column + season tabs and episodes; a
    movie shows its backdrop on the right. Phone: the column stacks on top. */
 .title {
   display: flex;
@@ -1580,7 +1580,7 @@ progress::-moz-progress-bar {
   }
 }
 
-/* Settings (#229): a card per section, a row per setting: its name with the
+/* Settings: a card per section, a row per setting: its name with the
    control at the row's right end (one column, so the D-pad's Up/Down go
    straight), its one-line explanation under it. */
 .settings {
@@ -1653,7 +1653,7 @@ progress::-moz-progress-bar {
   padding-bottom: 0;
 }
 
-/* Diagnostics page (#230): Settings' layout (.settings), the report as a
+/* Diagnostics page: Settings' layout (.settings), the report as a
    selectable monospace box. */
 .diagnostics .card > button {
   align-self: flex-start;
@@ -1671,7 +1671,7 @@ progress::-moz-progress-bar {
   user-select: all;
 }
 
-/* Diagnostics dock (#71, #230): fixed to the bottom edge, one line collapsed;
+/* Diagnostics dock: fixed to the bottom edge, one line collapsed;
    open, a sheet of 45 % of the screen whose parts scroll in their own boxes.
    .dock-space holds its height in the page so nothing hides behind it. */
 .dock {

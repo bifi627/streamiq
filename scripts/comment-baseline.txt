@@ -4,8 +4,6 @@
 .github/workflows/db-restore.yml refs 1
 .github/workflows/prod-smoke.yml refs 1
 .github/workflows/release-gateway.yml refs 2
-frontend/src/features/library/Player.css refs 2
-frontend/src/index.css refs 23
 scripts/check-docs-drift.sh refs 1
 scripts/check-file-size.sh refs 1
 scripts/check-jellyfin-paths.sh refs 1

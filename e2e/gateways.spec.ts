@@ -2,10 +2,9 @@
 // `paired`): rename (#310, #329), Status paired and unpaired (#140), the nav chip's
 // dot (#206), paired clients (#311, #365), the member view (#190), Reject on the
 // local gateway page, a refused broker socket (#403) and TV mode (#663).
-// Onboarding, Approve,
-// Test connection and the removes that end sessions are the golden path's; the
-// offline dot (90 s), rejection edge cases and a member's own client list are
-// backend / Go / multi-user.
+// Onboarding, Approve, Test connection and the removes that end sessions are
+// the golden path's; the offline dot (90 s), rejection edge cases and a
+// member's own client list are backend / Go / multi-user.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {

@@ -666,7 +666,8 @@ html.tv .no-tv {
   padding: var(--sp-3) 0;
   border-top: 1px solid var(--border);
 }
-.rows li:first-child {
+.rows li:first-child,
+html.tv .rows li.no-tv:first-child + li {
   border-top: 0;
   padding-top: 0;
 }

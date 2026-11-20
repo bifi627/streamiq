@@ -16,6 +16,7 @@ export default defineConfig({
   timeout: 180_000,
   expect: { timeout: 20_000 },
   retries: 0, // a flake is a bug to fix, not to retry away
+  forbidOnly: !!process.env.CI, // backstop for a .only that got past lint (playwright/no-focused-test)
   fullyParallel: true, // tests in a file too: they're independent
   // ponytail: no CI sharding: each shard would start its own stack (~1.5 min).
   // CI: a GitHub runner has 4 vCPUs (16 GB) for Chromes, gateways and up to one

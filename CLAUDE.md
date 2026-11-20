@@ -266,4 +266,12 @@ Copy `.env.example` only to override.
   real seam, never `Part1`/`Part2`. An exemption (`max-lines-per-function` in the disable
   comment, `//nolint:funlen // #N`, a line in `scripts/file-size-allowlist.txt`) names the
   issue that removes it or the reason it stays.
+- **Comments say what the code can't** (#652). Try a better name, an extracted function or a
+  named constant first. Keep a non-obvious *why*: an external quirk, an invariant or ordering
+  constraint, a security reason, units or protocol facts, a `ponytail:` ceiling, a lint
+  exemption, short doc comments on exported Go identifiers. Cut restating the code, history
+  ("added in #N", "was X"), commented-out code, copies of `docs/`, banners. An issue number only
+  in `TODO(#N)` (open issue that removes the code), a lint exemption, or `quirk(#N): …` (the
+  issue documents an external quirk). `scripts/check-comments.sh` holds each file to
+  `scripts/comment-baseline.txt` (issue refs; files over 30 % comments); cleanups lower it.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

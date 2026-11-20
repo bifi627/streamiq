@@ -1,6 +1,5 @@
-// Package onboarding is flow 1 of the pairing design: spend a one-time
-// enrollment token for a long-lived credential, then hold the authenticated
-// control socket and heartbeat (design: specs/2026-11-01-streamiq-agent-pairing-design.md).
+// Package onboarding spends a one-time enrollment token for a long-lived
+// credential, then holds the authenticated control socket and heartbeat.
 package onboarding
 
 import (
@@ -27,23 +26,23 @@ import (
 
 const heartbeatEvery = 30 * time.Second
 
-// dialTimeout bounds the control socket's handshake (#475): an API (or network)
+// dialTimeout bounds the control socket's handshake: an API (or network)
 // that never answers the upgrade must fail the dial so forever retries, not hang
 // the gateway offline until restarted. A var so tests can shorten it.
 var dialTimeout = 20 * time.Second
 
 // Protocol is the gateway ↔ API protocol version (docs/protocol.md). Bump it on a
 // breaking change; the API refuses a gateway below its minimum ("upgrade required").
-const Protocol = 2 // 2: tunnel reports (#390)
+const Protocol = 2
 
 // ErrUpgradeRequired: the API no longer speaks this gateway's protocol.
 var ErrUpgradeRequired = errors.New("the StreamIQ service no longer supports this gateway version: " +
 	"update it by rerunning the install command (docs/install.md)")
 
 // State is gateway.json in the state dir. Delete the dir = brand-new gateway.
-// Name is shared mutable state (#310): read it with CurrentName, change it with SetName.
+// Name is shared mutable state: read it with CurrentName, change it with SetName.
 // Its JSON format changed? Update oldState in cmd/gateway/update_windows_test.go
-// to the new format, in the same PR (the update test starts from it, #452).
+// in the same PR: the update test starts from it.
 type State struct {
 	GatewayID  string `json:"gatewayId"`
 	Credential string `json:"credential"`
@@ -143,15 +142,15 @@ type heartbeat struct {
 	Version  string `json:"version"`
 	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
 	Protocol int    `json:"protocol"`
-	Name     string `json:"name"` // the API mirrors it (#310)
+	Name     string `json:"name"` // the API mirrors it
 }
 
 // RunControl holds the authenticated control socket until it drops: heartbeats
-// (liveness + update(), #140) out, broker messages (signaling for browser sessions) in,
+// (liveness + update()) out, broker messages (signaling for browser sessions) in,
 // handed to handle with a send func that writes JSON back on this socket.
 // handle(nil, send) announces this socket once the API has its first heartbeat (it
 // takes messages only after that), handle(nil, nil) that it dropped: messages not
-// tied to a broker message (tunnel reports, #390) go out on the socket that is up.
+// tied to a broker message (tunnel reports) go out on the socket that is up.
 // lastBeat holds the last heartbeat's unix time, 0 while disconnected (status page).
 func RunControl(ctx context.Context, api string, st *State, lanURL, version string, lastBeat *atomic.Int64,
 	update func() string, handle func(raw []byte, send func(any))) error {
@@ -238,7 +237,7 @@ func LANURL(port string) string {
 	return "http://" + net.JoinHostPort("localhost", port)
 }
 
-// NamePath renames the gateway (#310, gateway API, admin-only): POST
+// NamePath renames the gateway (gateway API, admin-only): POST
 // {"name": "…"} → 200 {"name": stored}, a bad name (or body) 400. The gateway
 // owns its name; the heartbeat tells the API.
 const NamePath = "/streamiq/name"

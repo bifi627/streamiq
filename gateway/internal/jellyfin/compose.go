@@ -33,7 +33,7 @@ func Pin(b []byte) (out []byte, changed bool, err error) {
 	return imageLine.ReplaceAll(b, []byte("${1}"+Image)), true, nil
 }
 
-// Upgrade pins file to Image, moves a file from before #321 into the jail
+// Upgrade pins file to Image, moves a file from an older release into the jail
 // (Jail; a file it can't read is only pinned, with the manual steps printed),
 // marks the NVIDIA block (MarkGPU) and restarts Jellyfin if anything changed.
 func Upgrade(ctx context.Context, file string, out io.Writer) error {

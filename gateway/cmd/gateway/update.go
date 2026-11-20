@@ -1,4 +1,4 @@
-// gateway update / rollback (#296), the update notice and the web app's remote update.
+// gateway update / rollback, the update notice and the web app's remote update.
 
 package main
 
@@ -44,7 +44,7 @@ func selfUpdate(ctx context.Context, exe string) error {
 	if err != nil {
 		return err
 	}
-	os.Remove(exe + ".old") // left by a rollback, or an update before #296
+	os.Remove(exe + ".old") // left by a rollback, or an older release's update
 	task := service.Installed()
 	if err := swap(exe, keep, task, service.Stop, service.Start); err != nil {
 		return err
@@ -71,7 +71,7 @@ func checkUpdate(ctx context.Context, current, url string) (latest string, ok bo
 }
 
 // backupBefore backs up the state with this (old) binary, before anything is
-// replaced (#296), into the dir it returns.
+// replaced, into the dir it returns.
 func backupBefore(ctx context.Context, exe string) (keep string, err error) {
 	keep, err = update.BackupDir(filepath.Dir(exe), version, time.Now())
 	if err == nil {
@@ -110,7 +110,7 @@ func swap(exe, keep string, task bool, stop func(exe string), start func() error
 		}
 	} else if _, serr := os.Stat(kept); errors.Is(serr, os.ErrNotExist) {
 		// exe is back in place: nothing changed, and a backup without its binary
-		// is no rollback point that Prune should count (#635)
+		// is no rollback point that Prune should count
 		os.Remove(exe + ".new")
 		os.RemoveAll(keep)
 	}
@@ -131,7 +131,7 @@ func updated(old, latest, keep string, task bool) string {
 	return s + fmt.Sprintf("v%s and its state are kept in %s: gateway rollback goes back to it.\n", old, keep)
 }
 
-// startUpdater runs `gateway update` for a remote update (#312), detached so it
+// startUpdater runs `gateway update` for a remote update, detached so it
 // outlives the logon task it stops; its output goes to update.log next to the binary.
 func startUpdater() (wait func(), err error) {
 	exe, err := os.Executable()
@@ -167,7 +167,7 @@ func remoteUpdate(r *update.Remote) any {
 	return true
 }
 
-// rollback puts back the binary and state the last update replaced (#296):
+// rollback puts back the binary and state the last update replaced:
 // stop, restore the state with the kept binary (it knows its own format), swap
 // the binaries, start.
 func rollback(ctx context.Context, exe string) error {

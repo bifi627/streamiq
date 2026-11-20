@@ -8,7 +8,7 @@ import (
 	"slices"
 )
 
-// Libraries on a managed Jellyfin (#322): the local page shows each one's
+// Libraries on a managed Jellyfin: the local page shows each one's
 // Offline and Extras state, read from Jellyfin every time, and changes a
 // library only when its button is pressed. Nothing about libraries is stored.
 
@@ -144,7 +144,7 @@ func (s *Setup) asAdmin(ctx context.Context, fn func(admin string) error) error 
 }
 
 // offline: every type has a TypeOptions entry with no fetcher enabled. A
-// missing entry means every fetcher on (#314).
+// missing entry means every fetcher on.
 func offline(opts map[string]any, types []string) bool {
 	tos, _ := opts["TypeOptions"].([]any)
 	for _, t := range types {

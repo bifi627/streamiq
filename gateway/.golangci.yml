@@ -4,12 +4,12 @@ run:
   # 5 s, so check.sh keeps running concurrently across worktrees
   allow-serial-runners: true
 linters:
-  # the default set: errcheck, govet, ineffassign, staticcheck, unused; plus gocyclo (#542), funlen (#600),
-  # gosec, limited to the HTTP-server checks below (#634), and nolintlint (#626: a //nolint
+  # the default set: errcheck, govet, ineffassign, staticcheck, unused; plus gocyclo, funlen,
+  # gosec, limited to the HTTP-server checks below, and nolintlint (a //nolint
   # that suppresses nothing fails, like oxlint's unused-directive check in the frontend)
   enable: [gocyclo, funlen, gosec, nolintlint]
   exclusions:
-    # errcheck skips Close, fmt.Fprint*, os.Remove*, os.Setenv and the like (#560); test
+    # errcheck skips Close, fmt.Fprint*, os.Remove*, os.Setenv and the like; test
     # files are checked too
     presets: [std-error-handling]
     rules:
@@ -22,15 +22,15 @@ linters:
       # (no timeouts at all). Only these two: the rest of gosec is a separate decision.
       includes: [G112, G114]
     nolintlint:
-      # #579: every //nolint names its linter and says why (an issue or the reason it stays)
+      # every //nolint names its linter and says why (an issue or the reason it stays)
       require-explanation: true
       require-specific: true
     gocyclo:
-      # reports a function over 15, like oxlint's complexity (#533) and CA1502 (#540);
+      # reports a function over 15, like oxlint's complexity and CA1502;
       # split into pieces that take and return values. A //nolint:gocyclo needs a reason.
       min-complexity: 15
     funlen:
-      # a function over 80 lines (about one screen), comments not counted (#600); the frontend's
+      # a function over 80 lines (about one screen), comments not counted; the frontend's
       # limit is 150. A //nolint:funlen names the issue that splits it or the reason it stays.
       lines: 80
       statements: -1
@@ -42,7 +42,7 @@ linters:
         # user reads as is ("Jellyfin …", "Docker …"), not strings wrapped inside other errors
         "-ST1005"]
 formatters:
-  # #601: gofmt never wraps; golines wraps at 120 columns (long string literals stay whole).
+  # gofmt never wraps; golines wraps at 120 columns (long string literals stay whole).
   # `golangci-lint run` (check.sh, CI) reports unformatted files; `golangci-lint fmt ./...` (from gateway/) fixes
   # them; rerun it until git shows no change: a long condition can take two or three passes.
   enable: [golines]

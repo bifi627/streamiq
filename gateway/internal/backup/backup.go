@@ -1,6 +1,6 @@
 // Package backup packs the gateway's state dir into one zip and unpacks it
-// again (`gateway backup` / `gateway restore`, #52), plus the install dir's
-// jellyfin-compose.yml (#297) and Jellyfin's own backup archive (#298). The zip is not encrypted:
+// again (`gateway backup` / `gateway restore`), plus the install dir's
+// jellyfin-compose.yml and Jellyfin's own backup archive. The zip is not encrypted:
 // whoever has it can pose as the gateway (docs/install.md).
 package backup
 
@@ -29,7 +29,7 @@ var required = []string{"cert.pem", "gateway.json"}
 // so the prefix keeps it from ever being taken for (or written as) a state file.
 const ComposeEntry = "install/jellyfin-compose.yml"
 
-// JellyfinEntry is the managed Jellyfin's backup archive (#298), prefixed like
+// JellyfinEntry is the managed Jellyfin's backup archive, prefixed like
 // ComposeEntry. Restore never unpacks it: `gateway jellyfin restore` does (ExtractJellyfin).
 const JellyfinEntry = "install/jellyfin-backup.zip"
 
@@ -185,7 +185,7 @@ func Restore(path, dir, compose string, force bool) (string, error) {
 		return ComposeNone, err
 	}
 	// The compose file first: it is the step that fails on a bad install dir, and
-	// failing it must leave the state dir untouched (#592).
+	// failing it must leave the state dir untouched.
 	did := ComposeNone
 	if c, ok := files[ComposeEntry]; ok {
 		delete(files, ComposeEntry)

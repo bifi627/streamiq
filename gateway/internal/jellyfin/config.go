@@ -1,4 +1,4 @@
-// Transcoding settings (#82): the encoding and server config the gateway owns on a Jellyfin it set up.
+// Transcoding settings: the encoding and server config the gateway owns on a Jellyfin it set up.
 
 package jellyfin
 
@@ -14,7 +14,7 @@ import (
 // count applied is stored. Each step sets only its own fields, so a field
 // the user changed in the Dashboard later stays changed.
 var configSteps = []func(enc map[string]any){
-	func(enc map[string]any) { // #82: stop encoding far ahead of the player, delete old segments
+	func(enc map[string]any) { // stop encoding far ahead of the player, delete old segments
 		enc["EnableThrottling"], enc["EnableSegmentDeletion"] = true, true
 	},
 }
@@ -22,7 +22,7 @@ var configSteps = []func(enc map[string]any){
 // serverSteps are like configSteps, against the main server config
 // (/System/Configuration), with their own count.
 var serverSteps = []func(cfg map[string]any){
-	func(cfg map[string]any) { // #322: Refresh People looks people up on TMDb even with every library offline (#314)
+	func(cfg map[string]any) { // Refresh People looks people up on TMDb even with every library offline
 		opts, _ := cfg["MetadataOptions"].([]any)
 		var person map[string]any
 		for _, o := range opts {

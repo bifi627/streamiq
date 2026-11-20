@@ -1,6 +1,5 @@
-// Package sessions serves browsers brokered over the control socket (design:
-// specs/2026-11-01-streamiq-agent-pairing-design.md, "Concurrent sessions" and
-// "Connection gating"): one PeerConnection per broker session, an `auth` data
+// Package sessions serves browsers brokered over the control socket: one
+// PeerConnection per broker session, an `auth` data
 // channel that proves the browser's client key bound to this DTLS session, and
 // tunnel channels only once that key is on the allowlist — or gets approved.
 package sessions
@@ -53,7 +52,7 @@ type Sessions struct {
 	Fp    string // our DTLS fingerprint
 	Store *pairing.Store
 	Root  *tunnel.Root // the tunnel's root handler: gateway API + Jellyfin
-	// Viewers makes sure a user has their own Jellyfin viewer (#195), once the
+	// Viewers makes sure a user has their own Jellyfin viewer, once the
 	// session's device is paired: an offer alone (the API) makes nothing. nil = none.
 	Viewers func(user string)
 
@@ -205,8 +204,7 @@ func (s *Sessions) end(id string) {
 }
 
 // User is the session's user id (from the broker's offer) for gateway API
-// handlers; "" for an unknown session. (The offer's user also picks the Jellyfin viewer, #195;
-// the role gates admin-only endpoints: tunnel.Session.Role, the route option tunnel.AdminOnly.)
+// handlers; "" for an unknown session.
 func (s *Sessions) User(session string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -229,7 +227,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	var cands signaled
 	var why atomic.Value // last auth outcome short of success ("unpaired", a refusal); the report's failure
 	// The selected pair while connected: pion drops it before it reports Failed,
-	// and the tunnel row keeps the route of a tunnel that came up (#485).
+	// and the tunnel row keeps the route of a tunnel that came up.
 	var pair atomic.Pointer[webrtc.ICECandidatePair]
 	end := s.ender(id, pc, &cands, &pair, &authed, &why)
 	s.mu.Lock()
@@ -281,10 +279,10 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	return pc, nil
 }
 
-// endsSession: the states that end a session (#485). Not Disconnected: pion reports it
+// endsSession: the states that end a session. Not Disconnected: pion reports it
 // after 5 s without inbound ICE traffic, and it recovers; under load that was
 // enough to drop a live session. A lasting loss turns Failed 25 s later, a
-// closed tab is a bye from the broker, like the browser's own #632.
+// closed tab is a bye from the broker.
 func endsSession(st webrtc.PeerConnectionState) bool {
 	return st == webrtc.PeerConnectionStateFailed || st == webrtc.PeerConnectionStateClosed
 }
@@ -457,7 +455,7 @@ func classify(p *webrtc.ICECandidatePair, cands *signaled) (relay, ipv6 bool) {
 	return relay, ipv6
 }
 
-// route is the privacy badge's state (#428, GET /streamiq/route): relay, lan
+// route is the privacy badge's state (GET /streamiq/route): relay, lan
 // (the browser's address is on one of this gateway's own subnets), or direct.
 // The browser can't tell lan from its own stats (mDNS names, hidden host
 // candidates, stale ones); the gateway sees the real address.

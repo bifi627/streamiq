@@ -23,7 +23,7 @@ import (
 //   - the token belongs to a non-admin viewer user (internal/jellyfin), and an
 //     allowlist of consumption endpoints still applies (defense in depth);
 //   - every request is pinned to the token's Jellyfin user (userId);
-//   - the token is the session user's own viewer's (#195), else the shared one.
+//   - the token is the session user's own viewer's, else the shared one.
 type Jellyfin struct {
 	Client *http.Client
 	URL    string // e.g. http://localhost:8096
@@ -126,7 +126,7 @@ func (j *Jellyfin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(resp.StatusCode)
-	// ChunkSize reads: one frame each, as before (#258).
+	// ChunkSize reads: one frame each.
 	if _, err := io.CopyBuffer(w, body, make([]byte, ChunkSize)); err != nil && !errors.Is(err, errClosed) {
 		log.Printf("gateway: tunnel: %v", err)
 		panic(http.ErrAbortHandler) // handleReq: the body was cut off

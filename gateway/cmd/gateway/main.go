@@ -1,20 +1,5 @@
-// StreamIQ gateway. Wiring only — each feature lives in its own package under
-// internal/ (vertical slices):
-//
-//	identity    persistent DTLS certificate + fingerprint (browsers pin it)
-//	onboarding  enrollment token → credential, control socket + heartbeat
-//	pairing     client-key auth, comparison code, allowlist + pending approvals
-//	sessions    brokered browser sessions: auth channel, gated tunnel
-//	localpage   the gateway's status page on the home LAN (approve / remove browsers)
-//	jellyfin    non-admin Jellyfin viewer token without manual steps; transcoding settings; version check;
-//	            `gateway jellyfin up|upgrade|offline|gpu` (Docker compose); `gateway jellyfin login` (repair, #241);
-//	            `gateway jellyfin restore` (Jellyfin's backup API, #298)
-//	tunnel      HTTP over data channels to Jellyfin (allowlist, token injection)
-//	update      "newer release available" notice; `gateway update` swaps the binary,
-//	            keeping the old one + a state backup in backups/ for `gateway rollback` (#296)
-//	service     Windows logon task (`gateway service install|uninstall`)
-//	backup      `gateway backup` / `gateway restore`: the state dir + jellyfin-compose.yml + Jellyfin's
-//	            database as one zip (#52, #297, #298)
+// StreamIQ gateway. Wiring only: each feature is a package under internal/
+// (docs/architecture.md).
 //
 // Commands: cobra, in commands.go (gateway -h lists them).
 //
@@ -70,7 +55,7 @@ func main() {
 	}
 	loadEnvFile("gateway.env") // dev: gateway/gateway.env from scripts/setup-jellyfin.sh
 
-	cobra.MousetrapHelpText = "" // started from Explorer (double-click): run the gateway, as before
+	cobra.MousetrapHelpText = "" // started from Explorer (double-click): run the gateway, not a "use a terminal" notice
 	cmd, err := newRoot(ctx, exe).ExecuteC()
 	if err == nil {
 		return
@@ -317,7 +302,7 @@ func run(ctx context.Context, compose string) {
 		log.Fatalf("gateway: %v", err)
 	}
 	go setup.Run(ctx)
-	if o := jellyfin.Offline(compose); o != "" { // #321; read again on each status request
+	if o := jellyfin.Offline(compose); o != "" {
 		log.Printf("gateway: Jellyfin offline jail: %s (%s)", o, compose)
 	}
 
@@ -424,9 +409,9 @@ func statusHandler(setup *jellyfin.Setup, compose string, started time.Time, sto
 			"transcoding": v.Transcoding(),
 			"os":          runtime.GOOS, "arch": runtime.GOARCH, "startedAt": started,
 			"jellyfin": jfs,
-			// Counts only: no client names (#65).
+			// Counts only: no client names (no PII).
 			"pairedClients": len(store.Paired()), "activeSessions": sess.Active(),
-			"viewer":       setup.ViewerState(tunnel.SessionOf(r).User), // this session's own (#242)
+			"viewer":       setup.ViewerState(tunnel.SessionOf(r).User),
 			"remoteUpdate": remoteUpdate(remote),
 		})
 	})
@@ -436,7 +421,7 @@ func statusHandler(setup *jellyfin.Setup, compose string, started time.Time, sto
 // mostly idle, and Railway's edge reaps idle sockets — so they WILL drop. A
 // home gateway must survive that unattended, so reconnect with backoff instead
 // of exiting. A session that stayed up a while resets the backoff; a
-// fast-failing dial keeps backing off up to 30s. A refused protocol (#176) only
+// fast-failing dial keeps backing off up to 30s. A refused protocol only
 // changes with an update, so that retries every 10 minutes.
 func forever(ctx context.Context, fn func(context.Context) error) {
 	backoff := time.Second
@@ -447,7 +432,7 @@ func forever(ctx context.Context, fn func(context.Context) error) {
 			log.Printf("gateway: %v", err)
 		}
 		if ctx.Err() != nil {
-			return // Ctrl+C
+			return
 		}
 		if time.Since(start) > 30*time.Second {
 			backoff = time.Second // the connection was healthy; treat this as a fresh drop

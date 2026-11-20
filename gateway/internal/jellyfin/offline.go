@@ -12,7 +12,7 @@ import (
 )
 
 // Forwarder is the socat image that publishes Jellyfin's port while Jellyfin
-// sits on the jail network (#321; TestPinsMatchTested).
+// sits on the jail network (TestPinsMatchTested).
 const Forwarder = "alpine/socat:1.8.0.3"
 
 // Offline states, as GET /streamiq/status and the local page report them.
@@ -28,7 +28,7 @@ func lines(b []byte) []string { return strings.SplitAfter(string(b), "\n") }
 
 func indent(l string) int { return len(l) - len(strings.TrimLeft(l, " \t")) }
 
-// Marked blocks: compose features the CLI toggles (#320). A block is the lines
+// Marked blocks: compose features the CLI toggles. A block is the lines
 // between `# streamiq:<name>` and `# streamiq:<name> end`; on = none of its
 // lines is a comment, off = each is commented with "# " after its indent. A
 // block holds no comments of its own, so the two states never mix.
@@ -190,7 +190,7 @@ var (
 	serviceKeyRe = regexp.MustCompile(`^\s*([A-Za-z_]+):`)
 )
 
-// Jail migrates a compose file without markers (before #321) to the jail by a
+// Jail migrates a compose file without markers (older releases) to the jail by a
 // partial edit, like Pin: the jellyfin service's ports: becomes a commented
 // online block plus networks: [jail], the forwarder service (publishing those
 // same ports) and the networks: block are added, every other byte stays. A file
@@ -242,7 +242,7 @@ func findJellyfin(ls []string) (jellyfinSpan, error) {
 // comments right above it (they stay with it, above volumes:). A #-line at
 // column 0 doesn't end the block: it may be a commented-out mount. Only a
 // jellyfin: at the indent of the service names counts, not one nested in
-// another service (its depends_on:, #584).
+// another service (its depends_on:).
 func jellyfinService(ls []string) (svc, end int) {
 	svc, end = -1, len(ls)
 	i := slices.IndexFunc(ls, servicesKey.MatchString)

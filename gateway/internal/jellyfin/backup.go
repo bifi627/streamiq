@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-// Jellyfin's backup API (#298) on the Jellyfin the gateway set up with
+// Jellyfin's backup API on the Jellyfin the gateway set up with
 // jellyfin-compose.yml. Jellyfin has no download or upload endpoint: archives
 // live in its BackupPath, which the compose file's ./jellyfin-config bind
 // mount puts next to the binary. The container writes them as root (Linux),

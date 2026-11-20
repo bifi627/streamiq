@@ -1,4 +1,4 @@
-// The hidden viewer users: the gateway's own and one per StreamIQ user (#50, #195), and their token repair.
+// The hidden viewer users: the gateway's own and one per StreamIQ user, and their token repair.
 
 package jellyfin
 
@@ -98,7 +98,7 @@ func (s *Setup) ensureUser(ctx context.Context, admin, name string, isAdmin bool
 // viewer passwords. If Jellyfin refuses the shared viewer's too, its token is
 // dropped and the page asks for an admin login; a refused user's viewer is
 // dropped and made again on their next session. Its error stays on the page
-// until a check goes through (#635).
+// until a check goes through.
 func (s *Setup) check(ctx context.Context) {
 	s.vmu.Lock()
 	defer s.vmu.Unlock()
@@ -109,7 +109,7 @@ func (s *Setup) check(ctx context.Context) {
 	}
 	defer func() {
 		if !failed && strings.HasPrefix(s.View().Err, checkErr) {
-			s.setErr("") // fixed
+			s.setErr("")
 		}
 	}()
 	s.mu.Lock()
@@ -169,8 +169,8 @@ func (s *Setup) renew(ctx context.Context, tok, name, pw string) (string, error)
 
 var userID = regexp.MustCompile(`^[0-9a-fA-F-]{32,36}$`)
 
-// EnsureViewer gives a StreamIQ user their own viewer on their first session
-// (#195); later sessions find it. If that fails, the session plays as the
+// EnsureViewer gives a StreamIQ user their own viewer on their first session;
+// later sessions find it. If that fails, the session plays as the
 // shared viewer, the log and the page say why, and the next session tries again.
 func (s *Setup) EnsureViewer(ctx context.Context, user string) {
 	user = strings.ToLower(user)
@@ -249,7 +249,7 @@ func (s *Setup) ViewerFor(user string) (token, id string) {
 	return v.Token, v.ID
 }
 
-// ViewerState is GET /streamiq/status's "viewer" for a session of user (#242):
+// ViewerState is GET /streamiq/status's "viewer" for a session of user:
 // whether it plays as the shared viewer and, if so, why, as a code the web app
 // words. No credentials, no Jellyfin ids.
 func (s *Setup) ViewerState(user string) map[string]any {

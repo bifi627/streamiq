@@ -1,6 +1,7 @@
 // Package service runs the gateway at logon on Windows: a scheduled task that
 // starts it in a visible console window (cmd /k keeps the window open after a
-// fatal error so it stays readable; no hidden start, #88/#69). Linux/macOS: #119.
+// fatal error so it stays readable; a hidden start trips antivirus heuristics).
+// TODO(#119), TODO(#277): Linux and macOS.
 package service
 
 import (
@@ -35,7 +36,7 @@ func Install(exe string) error {
 	if err != nil {
 		return err
 	}
-	// Written next to the exe, not %TEMP% (AV heuristics, #69); removed right after.
+	// Written next to the exe, not %TEMP%: quirk(#69) antivirus heuristics. Removed right after.
 	path := filepath.Join(filepath.Dir(exe), "task.xml")
 	if err := os.WriteFile(path, TaskXML(u.Username, exe, filepath.Dir(exe)), 0o600); err != nil {
 		return err

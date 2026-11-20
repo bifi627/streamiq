@@ -1,5 +1,4 @@
-// Package pairing is the gateway side of flow 2 (design: specs/2026-11-01-streamiq-
-// agent-pairing-design.md): verify a browser's session-bound client-key
+// Package pairing is the gateway side of pairing: verify a browser's session-bound client-key
 // signature, compute the commit/reveal comparison code, and keep the allowlist
 // of paired browsers plus the pending requests the local page approves.
 // Shared primitive: used by the sessions slice and the local page.
@@ -75,7 +74,7 @@ func Nonce() string {
 
 // Paired is one allowlist entry (allowlist.json in the state dir).
 // Its JSON format changed? Update oldState in cmd/gateway/update_windows_test.go
-// to the new format, in the same PR (the update test starts from it, #452).
+// in the same PR: the update test starts from it.
 type Paired struct {
 	KeyFp   string    `json:"keyFp"`
 	Name    string    `json:"name"`
@@ -151,7 +150,7 @@ func (s *Store) Remove(keyFp string) error {
 
 // ErrBadName: a name must be 1–100 characters after trimming, counted in UTF-16
 // units like the API (an emoji counts 2), with no control characters. Gateway
-// (#310) and client (#365) names share the rule.
+// and client names share the rule.
 var ErrBadName = errors.New("name must be 1-100 characters, no control characters")
 
 // ErrNotPaired: Rename of a key that isn't on the allowlist.
@@ -166,7 +165,7 @@ func CleanName(name string) (string, error) {
 	return name, nil
 }
 
-// Rename gives a paired client a new name (#365) and saves the allowlist; a
+// Rename gives a paired client a new name and saves the allowlist; a
 // failed save keeps the old name. An open screen keeps the name it opened with.
 func (s *Store) Rename(keyFp, name string) (string, error) {
 	name, err := CleanName(name)

@@ -124,14 +124,14 @@ test('first visit on a webOS TV: TV mode from the sign-in page @shell', async ({
     'Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36',
   )
   await expect(p.getByRole('button', { name: 'Sign in' })).toBeVisible()
-  await expect(p.locator('html')).toHaveClass(/tv/)
+  await expect(p.locator('html')).toHaveClass(/\btv\b/)
   await expect(p.getByLabel('TV mode')).toBeChecked()
 
   // Off by the sign-in toggle: detection never overrides a stored value.
   await p.getByLabel('TV mode').uncheck()
   await p.reload()
   await expect(p.getByLabel('TV mode')).not.toBeChecked()
-  await expect(p.locator('html')).not.toHaveClass(/tv/)
+  await expect(p.locator('html')).not.toHaveClass(/\btv\b/)
 })
 
 test('first visit on an Android TV: asks once, answered by remote @shell', async ({
@@ -148,7 +148,7 @@ test('first visit on an Android TV: asks once, answered by remote @shell', async
   await p.keyboard.press('ArrowUp')
   await p.keyboard.press('Enter')
   await expect(p.getByRole('button', { name: 'Sign in' })).toBeVisible()
-  await expect(p.locator('html')).toHaveClass(/tv/)
+  await expect(p.locator('html')).toHaveClass(/\btv\b/)
 
   await p.reload()
   await expect(p.getByRole('button', { name: 'Sign in' })).toBeVisible()

@@ -24,7 +24,7 @@ import {
 import { RemotePage, ScreenPage } from './features/library/Screen'
 import { Diagnostics } from './Diagnostics'
 import { askTv, lastGateway, setLastGateway } from './settings'
-import { TvAsk } from './Tv'
+import { TvAsk } from './TvMode'
 import { arrowFocus } from './focus'
 import { needsAlias, PickAlias, signingIn } from './Alias'
 import { clearArtThen } from './leave'

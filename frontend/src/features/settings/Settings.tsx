@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { signOut } from '@firebase/auth'
 import { auth } from '../../firebase'
-import { TvToggle } from '../../Tv'
+import { TvToggle } from '../../TvMode'
 import { arrowFocus } from '../../focus'
 import { AliasSetting } from '../../Alias'
 import { DiagnosticsToggle } from '../../Diagnostics'

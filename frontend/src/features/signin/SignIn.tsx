@@ -7,7 +7,7 @@ import { auth } from '../../firebase'
 import { arrowFocus } from '../../focus'
 import { signInWithGoogle } from '../../Alias'
 import { authMessage } from '../../authErrors'
-import { TvToggle } from '../../Tv'
+import { TvToggle } from '../../TvMode'
 
 // The signed-out page: Google or email + password, sign in or sign up.
 export function SignIn() {

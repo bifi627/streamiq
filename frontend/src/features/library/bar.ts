@@ -1,13 +1,12 @@
-// The control bar's decisions (#603); Controls.tsx only reads the DOM and runs them.
+// The control bar's decisions; Controls.tsx only reads the DOM and runs them.
 
-/** Volume + mute per device (#479) from storage: 50 % when unset; a stored 0
+/** Volume + mute per device from storage: 50 % when unset; a stored 0
  *  (slider dragged down = muted) comes back as muted at 50 %, so unmuting is audible. */
 export function storedVolume(vol: string | null, muted: string | null) {
   const x = Number(vol ?? NaN)
   return { volume: x > 0 && x <= 1 ? x : 0.5, muted: muted === '1' }
 }
 
-/** The seek target `by` seconds from `now`, inside [0, duration]. */
 export const seekTarget = (now: number, by: number, duration: number) =>
   Math.max(0, Math.min(duration, now + by))
 

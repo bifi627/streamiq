@@ -1,4 +1,4 @@
-// Controls' handlers (#603): media actions, the volume store, the stable
+// Controls' handlers: media actions, the volume store, the stable
 // click/key handlers and the key listener. No React: Controls.tsx owns the
 // state and passes refs and setters in.
 import type { RefObject } from 'react'
@@ -25,7 +25,7 @@ export const setVol = (v: HTMLVideoElement, x: number) => {
   v.muted = v.volume === 0
 }
 
-// Volume + mute per device (#479), restored when the player opens.
+// Volume + mute per device, restored when the player opens.
 const VOL = 'streamiq.volume'
 const MUTED = 'streamiq.muted'
 export const loadVol = (v: HTMLVideoElement) => {
@@ -79,7 +79,7 @@ export function makeUi(
       clearTimeout(r.timer.current)
       setShown(false)
       setPage(null)
-      // the privacy explanation shuts with the bar (#337)
+      // the privacy explanation shuts with the bar
       r.bar.current
         ?.querySelector<HTMLElement>('.badge[aria-expanded="true"]')
         ?.click()
@@ -137,7 +137,7 @@ export function onKey(
   const pop = r.menuRow.current
   const rows = Array.from(bar?.querySelectorAll('[data-row]') ?? [])
   const row = rows.findIndex((x) => x.contains(a))
-  // Down from the last row: the diagnostics dock, if it's on (#230); not
+  // Down from the last row: the diagnostics dock, if it's on; not
   // in fullscreen, where it isn't shown.
   const dock = document.querySelector<HTMLElement>('.dock-bar')
   const goBack = isBack(e)

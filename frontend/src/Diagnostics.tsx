@@ -27,7 +27,7 @@ export function DiagnosticsToggle() {
   )
 }
 
-/** The live panel (#71), a dock on the bottom edge (#230): one line collapsed
+/** The live panel, a dock on the bottom edge: one line collapsed
  * (peer · channels in flight · last event), its button opens a sheet. The D-pad
  * reaches the button with Down (arrowFocus on the shell; the player's bar,
  * Controls.tsx). The spacer keeps the page scrollable past it. */

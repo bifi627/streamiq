@@ -1,4 +1,4 @@
-// Leaving the account or household (#203, #317): the artwork caches go
+// Leaving the account or household: the artwork caches go
 // (features/library/art.ts keeps them), then the page reloads.
 export const ART_PREFIX = 'streamiq-art-'
 

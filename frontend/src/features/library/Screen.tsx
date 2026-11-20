@@ -1,4 +1,4 @@
-// The screen feature (#180, #181): a TV in screen mode, the phone's "Play on…"
+// The screen feature: a TV in screen mode, the phone's "Play on…"
 // and its remote. Routes in App.tsx; the remote's decisions live in remote.ts.
 import {
   useCallback,
@@ -44,7 +44,7 @@ import { ICON, Icon } from './Controls'
 import { Tunnel, backdrop, primary } from './art'
 import { Artwork } from './Home'
 
-// Screen mode (#180, docs/protocol.md "Screens"): this device holds GET
+// Screen mode (docs/protocol.md "Screens"): this device holds GET
 // /streamiq/screen and plays what a phone on the same gateway sends. The screen
 // lives as long as this view: leaving it (Back, tab closed) closes the channel,
 // which removes the screen on the gateway; leaving the gateway frees the
@@ -71,7 +71,7 @@ export function ScreenPage() {
     })
     return () => void players.current.delete(apply)
   }, [])
-  // State to the gateway (#181): one POST at a time, in order; while one is
+  // State to the gateway: one POST at a time, in order; while one is
   // out, only the newest waits.
   const post = useMemo(
     () =>
@@ -151,7 +151,7 @@ export function ScreenPage() {
     return () => window.removeEventListener('keydown', key)
   }, [play, leave])
 
-  // The name the gateway stores, so a rename (#365) shows here too: it's what
+  // The name the gateway stores, so a rename shows here too: it's what
   // the phone's Play on list offers. The auto name until it answers (older gateway).
   const [name, setName] = useState(browserName)
   useEffect(() => {
@@ -189,7 +189,7 @@ export function ScreenPage() {
         </>
       ) : (
         !ended && (
-          // Read from the couch (#227): big, centered, one action.
+          // Read from the couch: big, centered, one action.
           <div className="screen-wait">
             <Icon d={ICON.tv} />
             <h2>Screen: {name}</h2>
@@ -210,7 +210,7 @@ export function ScreenPage() {
   )
 }
 
-// "Play on…" (#180): the gateway's open screens. Only a device in screen mode
+// "Play on…": the gateway's open screens. Only a device in screen mode
 // is one, so nothing else can be picked.
 export function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
   const { gatewayId } = useContext(Tunnel)
@@ -241,7 +241,7 @@ export function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
     )
   }
   return (
-    // A secondary action under the tile (#227): outlined, not filled.
+    // A secondary action under the tile: outlined, not filled.
     <div className="play-on">
       <button
         type="button"
@@ -298,7 +298,7 @@ const IDLE: ScreenState = {
   subtitle: null,
 }
 
-// Phone remote view (#181): follows the screen's state (GET /streamiq/screens
+// Phone remote view: follows the screen's state (GET /streamiq/screens
 // every second) and sends commands one at a time, in order (each POST is its
 // own channel). Two phones see the same state; the last command wins.
 export function RemotePage({ screenId }: { screenId: string }) {
@@ -337,7 +337,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
       serial(
         (c: ScreenCommand) =>
           commandScreen(pc, screenId, c).then(
-            () => setMsg(''), // a command that works clears the last one's error (#553)
+            () => setMsg(''), // a command that works clears the last one's error
             (e) => setMsg(toAppError(e).message),
           ),
         (queued, c) => queued.type === 'seek' && c.type === 'seek',
@@ -359,7 +359,7 @@ export function RemotePage({ screenId }: { screenId: string }) {
       </div>
     )
   const st = screen.state
-  // Phone first (#227): one column, the keys low enough for a thumb.
+  // Phone first: one column, the keys low enough for a thumb.
   return (
     <div className="remote">
       <h2>
@@ -413,7 +413,7 @@ function Playing({
       <Artwork
         art={art}
         width={780}
-        // no backdrop: the poster whole, not a band of it (#337)
+        // no backdrop: the poster whole, not a band of it
         className={`art remote-art${item && !backdrop(item) ? ' whole' : ''}`}
       />
       <h3>{item?.Name}</h3>

@@ -15,7 +15,7 @@ type Preview = { householdId: string; name: string | null; member: boolean }
 // as a URL, so it can't land in access logs. The API gets it in a POST body.
 const linkFor = (token: string) => `${location.origin}/join#${token}`
 
-// Invites of the current household (admin-only, #191): create a single-use link
+// Invites of the current household (admin-only): create a single-use link
 // (7 days), list the pending ones, revoke one. The link is shown once: Copy, or
 // Share through the phone's apps (Web Share; absent on TVs and plain http).
 export function Invites() {
@@ -57,7 +57,7 @@ export function Invites() {
     onSuccess: (_, id) => {
       if (id === link?.id) setLink(null) // its link box goes with it
       // Revoke goes with its row: focus a control that stays, or the D-pad
-      // (arrowFocus on the page) loses its place, as in Pairing (#226).
+      // (arrowFocus on the page) loses its place, as in Pairing.
       inviteBtn.current?.focus()
       return reload()
     },

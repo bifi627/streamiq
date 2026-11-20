@@ -23,7 +23,7 @@ import { StatusDetails } from './StatusDetails'
 import { PairedClients } from './PairedClients'
 import { canManage, shownError, type ActErr } from './list'
 
-// `/` (#225): straight into the library when the household has exactly one
+// `/`: straight into the library when the household has exactly one
 // gateway, else the list. History replace both ways, so Back doesn't bounce.
 export function Home() {
   const navigate = useNavigate()
@@ -43,9 +43,9 @@ export function Home() {
 
 // Gateways list + "Add gateway" (onboarding flow 1). Polls so a freshly installed
 // gateway shows up, and online/offline stays current. ponytail: 5s poll, push
-// updates over a socket if the list ever gets big. Add/Remove are admin-only
-// (#190): hidden for a member (the API answers 403 anyway) and until /me is in;
-// a member gets told an admin does them instead (#211).
+// updates over a socket if the list ever gets big. Add/Remove are admin-only:
+// hidden for a member (the API answers 403 anyway) and until /me is in;
+// a member gets told an admin does them instead.
 // oxlint-disable-next-line complexity -- render branching
 export function Gateways() {
   const q = useGateways(5000)
@@ -205,10 +205,10 @@ function GatewayCard({
 }) {
   const navigate = useNavigate()
   // This browser holds a pin for it: Rename and Update go over the tunnel, so
-  // they show only then (#329). Pairing reports it (onPin, onPaired).
+  // they show only then. Pairing reports it (onPin, onPaired).
   const [pinned, setPinned] = useState(false)
   const manage = canManage(admin, g.online, pinned)
-  // This browser removed itself from it (#311): Pair shows again.
+  // This browser removed itself from it: Pair shows again.
   const [unpaired, setUnpaired] = useState(false)
   async function removedSelf() {
     await deletePin(g.id).catch(() => {}) // a stale pin would only fail later
@@ -247,7 +247,7 @@ function GatewayCard({
         <UpdateNotice g={g} canUpdate={manage} />
       )}
       {g.online ? (
-        // Pair this browser stands where Open is until it's paired (#226).
+        // Pair this browser stands where Open is until it's paired.
         <Pairing
           gatewayId={g.id}
           lanUrl={g.lanUrl}
@@ -261,7 +261,7 @@ function GatewayCard({
             navigate({ to: '/g/$gatewayId', params: { gatewayId: g.id } })
           }
         >
-          {/* Every device (#248); the library shows it only in TV mode. */}
+          {/* Every device; the library shows it only in TV mode. */}
           {!unpaired && (
             <Link to="/g/$gatewayId/screen" params={{ gatewayId: g.id }}>
               Use as screen
@@ -282,7 +282,7 @@ function GatewayCard({
         )
       )}
       <StatusDetails g={g} />
-      {/* A member's list is just this browser (#341). */}
+      {/* A member's list is just this browser. */}
       <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
     </li>
   )

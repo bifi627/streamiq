@@ -1,16 +1,13 @@
-// The phone remote's decisions (RemotePage in Screen.tsx): plain data in,
-// plain data out; RemotePage, Playing and Tracks do the polling, the state and the render.
+// The phone remote's decisions (RemotePage in Screen.tsx): plain data in and out.
 import type { Screen } from '../gateways/api'
 
-/** A seek target in seconds, kept in 0 … dur; no upper bound while the
- * duration is unknown (0). */
+/** Seconds, kept in 0 … dur; unbounded while dur is unknown (0). */
 export const clampSeek = (t: number, dur: number) =>
   Math.max(0, dur ? Math.min(dur, t) : t)
 
-/** What one poll of /streamiq/screens means: the screen to show (null: closed;
- * absent: keep the last one), the error line, whether to poll again, and
- * whether the gateway is back after the last poll's error (wasDown): then a
- * command error from the outage is stale too (#553). */
+/** One poll of /streamiq/screens: the screen to show (null: closed; absent:
+ * keep the last), the error line, poll again?, and recovered (back after
+ * wasDown's error: a command error from the outage is stale too). */
 export function polled(
   screenId: string,
   r: { screens: Screen[] } | { error: string },

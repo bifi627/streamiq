@@ -39,9 +39,10 @@ export type Item = {
   }[]
 }
 
-/** The series page's primary button (#204): the in-progress episode, else
- * the first unwatched one, else the first one (specials last both times). Jellyfin's NextUp is
- * not on the gateway allowlist, so this reads the episodes' user data. */
+/** The series page's primary button: the in-progress episode, else
+ * the first unwatched one, else the first one (specials last both times).
+ * Jellyfin's NextUp is not on the gateway allowlist, so this reads the
+ * episodes' user data. */
 export function upNext(episodes: Item[]) {
   const started = episodes.find(
     (e) => !e.UserData?.Played && (e.UserData?.PlaybackPositionTicks ?? 0) > 0,
@@ -56,7 +57,7 @@ export function upNext(episodes: Item[]) {
   )
 }
 
-/** A tile opens the player, not a page: a movie has its page (#204) with
+/** A tile opens the player, not a page: a movie has its page with
  * Play / Resume. The Resume spot plays at once regardless. */
 export const playsAtOnce = (i: Item) => playable(i) && i.Type !== 'Movie'
 
@@ -75,7 +76,7 @@ const lang = (code?: string) => {
   }
 }
 
-/** The audio menu's options (#109): language (browser locale) + title, the
+/** The audio menu's options: language (browser locale) + title, the
  * codec and channels as the hint. */
 export function audioTracks(streams: Stream[] = []) {
   const layout = (n?: number) =>
@@ -93,7 +94,7 @@ export function audioTracks(streams: Stream[] = []) {
     }))
 }
 
-/** The subtitle menu's options (#136): Off, then each text subtitle (image
+/** The subtitle menu's options: Off, then each text subtitle (image
  * subtitles need burn-in: out of scope), labelled like the audio menu. */
 export function subtitleTracks(streams: Stream[] = []) {
   return [
@@ -123,7 +124,7 @@ export function rangeHeader(start?: number, end?: number) {
 export const TICKS_PER_SECOND = 10_000_000
 
 /** Video appends in a row that may leave the playhead without video before
- * the player gives up on stream copy (#81: webOS drops stream-copied open-GOP
+ * the player gives up on stream copy (webOS drops stream-copied open-GOP
  * h264 after a seek/resume; the appends "succeed" but buffer nothing). */
 export const STUCK_APPENDS = 4
 

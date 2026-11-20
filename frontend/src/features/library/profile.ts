@@ -1,13 +1,12 @@
 /// <reference lib="dom" /> -- probe() is DOM; node --test imports the rest
-// Client capability probe → Jellyfin DeviceProfile (#115). Jellyfin decides
+// Client capability probe → Jellyfin DeviceProfile. Jellyfin decides
 // per playback, from this profile, whether video is remuxed or transcoded and
 // whether audio is copied; it says why in TranscodeReasons. Re-probed at each
-// playback start (milliseconds, no storage). TVs over-report (#81), so the
+// playback start (milliseconds, no storage). TVs over-report, so the
 // player keeps its runtime fallbacks. mediaCapabilities.decodingInfo then
-// trims each video codec to what decodes smoothly (#236). Pure except probe() (node --test imports
-// this file).
+// trims each video codec to what decodes smoothly. Pure except probe().
 
-/** hd = at most 1080p: 2160p is not smooth (decodingInfo, #236) */
+/** hd = at most 1080p: 2160p is not smooth (decodingInfo) */
 type Hd = { hd?: boolean }
 export type Probe = {
   /** H.264 profiles (Jellyfin names) + highest level, e.g. 51 = 5.1 */
@@ -34,7 +33,7 @@ const AUDIO: Record<string, string> = {
 
 type Info = { supported: boolean; smooth: boolean }
 
-/** A codec's entry from decodingInfo at 1080p and 2160p (#236): dropped when
+/** A codec's entry from decodingInfo at 1080p and 2160p: dropped when
  * 1080p is not supported, capped at 1080p when 2160p is not smooth. No answer
  * (no mediaCapabilities, or it threw) = unchanged. keep = never drop (H.264:
  * the transcode target, without it nothing plays). */
@@ -79,7 +78,7 @@ export async function probe(): Promise<Probe> {
         },
       })
     } catch {
-      return undefined // no mediaCapabilities: isTypeSupported alone, as before
+      return undefined // no mediaCapabilities: isTypeSupported alone
     }
   }
   // 30 fps at 10 / 40 Mbps: a typical 1080p / 4K source. One codec string per
@@ -167,12 +166,13 @@ const TS_AUDIO = ['aac', 'ac3', 'eac3', 'mp3']
 // Auto's ceiling (≈ jellyfin-web's), so sources remux at any realistic bitrate.
 const MAX_BITRATE = 120_000_000
 
-/** Quality picker (#108, #161). Source = no limit: the original file plays
- * unless the device can't take it. Raw (#164, behind a setting) = no limit and
- * no probe: every codec Jellyfin can put in fMP4 is copied, unchecked. Auto = Source, or a rung picked from the
- * measured link (autoQuality, #162). The others cap MaxStreamingBitrate and the size:
- * Jellyfin remuxes a source within them and transcodes a larger one down (it
- * only scales down). Ordered from least to most restrictive. */
+/** Quality picker. Source = no limit: the original file plays
+ * unless the device can't take it. Raw (behind a setting) = no limit and
+ * no probe: every codec Jellyfin can put in fMP4 is copied, unchecked. Auto =
+ * Source, or a rung picked from the measured link (autoQuality). The others
+ * cap MaxStreamingBitrate and the size: Jellyfin remuxes a source within them
+ * and transcodes a larger one down (it only scales down). Ordered from least
+ * to most restrictive. */
 export const QUALITY = {
   Auto: null,
   Source: null,
@@ -188,12 +188,12 @@ export const QUALITIES = Object.keys(QUALITY) as Quality[]
 export const median = (xs: number[]) =>
   [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
 
-/** Bytes for a throughput burst lasting ~2 s at `mbps` (#259): long enough
+/** Bytes for a throughput burst lasting ~2 s at `mbps`: long enough
  * to read past the ramp-up, within 1 MiB and the gateway's 16 MiB cap. */
 export const burstSize = (mbps: number) =>
   Math.round(Math.min(16 << 20, Math.max(1 << 20, mbps * 2.5e5)))
 
-/** Auto's MaxStreamingBitrate cap (#162): 70 % of the measured gateway →
+/** Auto's MaxStreamingBitrate cap: 70 % of the measured gateway →
  * client Mbps, in bps. No measurement = no cap. */
 export const autoCap = (mbps?: number) =>
   mbps ? Math.round(mbps * 7e5) : undefined
@@ -201,8 +201,8 @@ export const autoCap = (mbps?: number) =>
 /** Auto's pick from the measurement: no limit without one, or for a source
  * (bps) under the cap (it remuxes unchanged); else the highest rung under the
  * cap, at least 480p (deviceProfile still caps that at autoCap). An unknown
- * source bitrate gets the rung (Jellyfin knows it, we may not). Data saver
- * (#291): always 480p, the lowest rung. */
+ * source bitrate gets the rung (Jellyfin knows it, we may not). Data
+ * saver: always 480p, the lowest rung. */
 export function autoQuality(
   mbps?: number,
   bitrate?: number,
@@ -218,7 +218,7 @@ export function autoQuality(
 }
 
 /** The quality a load plays: Auto's pick (autoQuality), else the one picked
- * by hand, which data saver (#291) doesn't touch. */
+ * by hand, which data saver doesn't touch. */
 export const effective = (
   q: Quality,
   mbps?: number,
@@ -226,7 +226,7 @@ export const effective = (
   saver = false,
 ): Quality => (q === 'Auto' ? autoQuality(mbps, bitrate, saver) : q)
 
-/** Data saver (#291): the stored choice, or for 'auto' the browser's hint
+/** Data saver: the stored choice, or for 'auto' the browser's hint
  * (Network Information API, Chromium only: missing = off). */
 export type SaverMode = 'auto' | 'on' | 'off'
 export const saverOn = (
@@ -241,7 +241,7 @@ export const saverOn = (
 export const toQuality = (v: unknown): Quality =>
   QUALITIES.includes(v as Quality) ? (v as Quality) : 'Auto'
 
-/** Whether a failure escalates to the compatible profile (#238): only after
+/** Whether a failure escalates to the compatible profile: only after
  * a fallback already turned some stream copy off, and not when compatible
  * mode is on. The caller excludes Raw (no fallbacks). */
 export const escalates = (copy: Copy, compatible: boolean) =>
@@ -252,20 +252,20 @@ export type Copy = { video: boolean; audio: boolean }
 
 /** A playback failure: an hls.js error (media = MEDIA_ERROR; audio = it names
  * the audio buffer or codec) or 'stuck' (video appends stopped covering the
- * playhead, #81). */
+ * playhead). */
 export type Failure =
   { media: boolean; fatal: boolean; audio: boolean; details: string } | 'stuck'
 
 /** The load's state a failure is judged in. */
 export type Playing = {
-  raw: boolean // Raw this load: no fallbacks (#164)
+  raw: boolean // Raw this load: no fallbacks
   copy: Copy
   compatible: boolean
-  escalated: boolean // compatible since a fallback failed (#238)
+  escalated: boolean // compatible since a fallback failed
 }
 
 /** What a failure does: reload with less stream copy (`escalate`: in the
- * compatible profile, #238), an error, the Raw error (the Player names the
+ * compatible profile), an error, the Raw error (the Player names the
  * source codecs), or nothing (null: not fatal). */
 export type Next =
   | { reload: string; less: Partial<Copy>; escalate?: true }
@@ -273,7 +273,7 @@ export type Next =
   | { raw: true }
   | null
 
-/** The fallback chain (#81, #115, #238, #164): stuck video → video transcode,
+/** The fallback chain: stuck video → video transcode,
  * an audio error → stereo AAC, a failure after one of those → the compatible
  * profile once, a failure after that → the error. Raw never falls back. */
 export function onFailure(f: Failure, s: Playing): Next {
@@ -304,8 +304,8 @@ function fallback(why: string, s: Playing, less?: Partial<Copy>): Next {
   }
 }
 
-/** The limit in effect: the quality's, but at most 1080p in compatible mode
- * (#113). null = no limit. */
+/** The limit in effect: the quality's, but at most 1080p in compatible
+ * mode. null = no limit. */
 export const limit = (quality: Quality, compatible = false) =>
   QUALITY[compatible && !QUALITY[quality] ? '1080p' : quality]
 
@@ -314,7 +314,7 @@ export type Size = { width: number; height: number }
 
 /** The picker's options for a source: a rung that would not scale it down is
  * hidden (Jellyfin never upscales), unless it is the current choice. Unknown
- * size = all. Raw only with its setting on (#164). */
+ * size = all. Raw only with its setting on. */
 export const qualities = (src: Size, current: Quality, raw = false) =>
   QUALITIES.filter((o) => {
     const r = QUALITY[o]
@@ -338,7 +338,7 @@ const NAMES: [number, number, string][] = [
 /** A video size by its usual name: 3840x1600 (scope) is 4K, 640x360 is 360p.
  * 5 % slack for crops (1916x1076); portrait by its short side. */
 export function sizeName({ width, height }: Size) {
-  const [long, short] = [Math.max(width, height), Math.min(width, height)] // portrait too
+  const [long, short] = [Math.max(width, height), Math.min(width, height)]
   return (
     NAMES.find(([w, h]) => long >= w * 0.95 || short >= h * 0.95)?.[2] ??
     `${short}p`
@@ -375,8 +375,8 @@ export function nowPlaying(
     : 'Transcoded'
 }
 
-// Raw (#164): every codec Jellyfin copies into fMP4 HLS (spike on #164: it
-// drops vp8/mpeg2/vc1 itself). AudioCodec ends up in the master.m3u8 URL, which
+// Raw: every codec Jellyfin copies into fMP4 HLS (it drops
+// vp8/mpeg2/vc1 itself). AudioCodec ends up in the master.m3u8 URL, which
 // Jellyfin rejects above 40 chars, so this is not "everything". Int32 max:
 // anything larger is a 400.
 const RAW_VIDEO = 'h264,hevc,av1,vp9'
@@ -390,10 +390,10 @@ export const rawStatus = (codecs: string) => `Original · ${codecs} (unchecked)`
 export const audioCodecs = (p: Probe) =>
   p.audio.filter((c) => p.hevc || p.av1 || TS_AUDIO.includes(c))
 
-/** The audio track to ask for when the user picked none (#252): undefined =
+/** The audio track to ask for when the user picked none: undefined =
  * Jellyfin's default (def = its stream index) plays, because this device
  * decodes it (codecs = audioCodecs) or no other track is eligible (Jellyfin
- * transcodes it, as before). Eligible: the default's language, at least the
+ * transcodes it). Eligible: the default's language, at least the
  * channels the device outputs of it (min(default's, 6 or 2)), not commentary
  * or audio description (title only: Jellyfin has no flag). The first wins. */
 export function autoAudio(
@@ -418,11 +418,10 @@ export function autoAudio(
 }
 
 /** The DeviceProfile for PlaybackInfo. stereo = the audio fallback: AAC 2.0
- * only. compatible = the most restrictive profile (#113): H.264 only, stereo
- * AAC, .ts, at most 1080p / 8 Mbps. quality = the picker's limit (#108); Raw
- * ignores the probe and every other argument (#164). cap = Auto's bitrate cap
- * (bps, #162). Throws when there is no H.264 (the one
- * transcode target). */
+ * only. compatible = the most restrictive profile: H.264 only, stereo
+ * AAC, .ts, at most 1080p / 8 Mbps. quality = the picker's limit; Raw
+ * ignores the probe and every other argument. cap = Auto's bitrate cap
+ * (bps). Throws when there is no H.264 (the one transcode target). */
 export function deviceProfile(
   probed: Probe,
   stereo = false,
@@ -473,7 +472,7 @@ export function deviceProfile(
   const depth = (main10?: boolean) =>
     cond('VideoBitDepth', 'LessThanEqual', main10 ? 10 : 8)
   // On every codec: the limit holds for a remux too (above it, transcode). A
-  // codec not smooth at 2160p (#236) is capped at 1080p (every rung is ≤ that).
+  // codec not smooth at 2160p is capped at 1080p (every rung is ≤ that).
   const size = (c: Hd) => {
     const m = max ?? (c.hd ? QUALITY['1080p'] : null)
     return m
@@ -534,7 +533,7 @@ export function deviceProfile(
           ]
         : []),
     ],
-    SubtitleProfiles: [{ Format: 'vtt', Method: 'External' }], // text subs: the player fetches Stream.vtt (#269)
+    SubtitleProfiles: [{ Format: 'vtt', Method: 'External' }], // text subs: the player fetches Stream.vtt
   }
 }
 
@@ -552,7 +551,7 @@ type Stream = {
 
 /** What Jellyfin will do with a TranscodingUrl, from its params (mirrors
  * EncodingHelper.CanStreamCopy*): video remux/transcode, audio copy/transcode,
- * and the TranscodeReasons. A quality limit (#108) puts MaxWidth/MaxHeight/
+ * and the TranscodeReasons. A quality limit puts MaxWidth/MaxHeight/
  * VideoBitrate in the URL but no reason, so `over` says which one it is. */
 export function decision(url: string, streams: Stream[]) {
   const q = new URLSearchParams(url.split('?')[1])

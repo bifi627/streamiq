@@ -1,6 +1,6 @@
 // The hls.js instance of one load: fetches over the tunnel, logs what the
 // device is asked to decode, shows the buffer state in the diagnostics, and
-// reports failures (errors, and stuck video appends: #81) to the fallback
+// reports failures (errors and stuck video appends) to the fallback
 // chain (onFailure, profile.ts).
 import Hls from 'hls.js'
 import { changed, diag, event, ranges } from '../../diag'
@@ -13,7 +13,7 @@ export function newHls(
   v: HTMLVideoElement,
   o: {
     startPosition: number
-    watch: boolean // count stuck appends: stream copy or a fallback (#238)
+    watch: boolean // count stuck appends: stream copy or a fallback
     forced: boolean // debug: ?fail=<n> makes this load look stuck
     failed: (f: Failure) => void
   },
@@ -24,7 +24,7 @@ export function newHls(
     // hls.js grows the forward buffer up to 600 s for low bitrates; a TV's
     // MSE quota fills long before that (bufferFullError on webOS).
     maxMaxBufferLength: 60,
-    // Byte budget (#262): forward = max(maxBufferSize (60 MB) in seconds
+    // Byte budget: forward = max(maxBufferSize (60 MB) in seconds
     // at the level bitrate, maxBufferLength). The default 30 s floor is
     // ~230 MB at 4K/60 Mbps, past Chrome's ~150 MB MSE quota
     // (bufferFullError, segments re-fetched). A 4 s floor lets the 60 MB

@@ -1,11 +1,11 @@
-// Arrow-key focus moves (#201): a TV remote's D-pad sends arrow keys. Put
+// Arrow-key focus moves: a TV remote's D-pad sends arrow keys. Put
 // onKeyDown={arrowFocus} on a container (nav, list, grid): an arrow moves focus
 // to the nearest focusable element inside it in that direction. Enter is the
 // browser's own on links and buttons (Enter in a form's field submits it).
 // Selects, textareas, number fields and radios keep their arrows; other one-line
 // fields and sliders: up/down leave them, left/right only past a text caret's end
-// (#202; a slider has no caret, so it keeps left/right: the remote's seek, #227).
-// Checkboxes use no arrows: every arrow leaves them (#229).
+// (a slider has no caret, so it keeps left/right: the remote's seek).
+// Checkboxes use no arrows: every arrow leaves them.
 import type { KeyboardEvent } from 'react'
 
 type Box = { left: number; top: number; right: number; bottom: number }

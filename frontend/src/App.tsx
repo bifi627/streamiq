@@ -75,7 +75,7 @@ function Shell() {
     // cancelRefetch false: joins the mount's fetch instead of a second one.
     void qc.refetchQueries({ queryKey: ['gateways'] }, { cancelRefetch: false })
   }, [gatewayId, qc])
-  // The chip's dot (#206): loading / failed are not "offline". The Gateways
+  // The chip's dot: loading / failed are not "offline". The Gateways
   // list / library show their own errors.
   const dot = q.isPending
     ? 'loading'
@@ -87,7 +87,7 @@ function Shell() {
   const last = gateways.find((g) => g.id === lastGateway()) // gone = removed, or another household
   const libraryId =
     gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)
-  // In no household (#387): only Settings and /join (the way in) still open;
+  // In no household: only Settings and /join (the way in) still open;
   // every other page is household-scoped, the no-household screen stands in.
   const homeless = me !== null && me.tenantId === null
   const { pathname } = useLocation()
@@ -99,7 +99,7 @@ function Shell() {
     )
 
   return (
-    // D-pad (#230): an arrow no page container used (its edge, or a page
+    // D-pad: an arrow no page container used (its edge, or a page
     // without one) moves across the whole shell, e.g. Down to the diagnostics
     // dock. The player moves its own focus (Controls.tsx).
     <div
@@ -265,7 +265,7 @@ const routeTree = rootRoute.addChildren([
   ]),
 ])
 // Render errors in any route: the router's error boundary, shown like every
-// other error (#45). reset re-renders the route.
+// other error. reset re-renders the route.
 const router = createRouter({
   routeTree,
   defaultErrorComponent: ({ error, reset }) => (
@@ -287,12 +287,12 @@ export default function App() {
     let was: User | null = null
     return onAuthStateChanged(auth, (u) => {
       // Signed out or another account: reload, so no open tunnel outlives the
-      // account (the gateway plays it as that user's Jellyfin viewer, #195);
-      // the artwork caches go with it (#203).
+      // account (the gateway plays it as that user's Jellyfin viewer);
+      // the artwork caches go with it.
       if (was && was.uid !== u?.uid)
         return clearArtThen(() => location.reload())
       was = u
-      // A Google sign-up clears its Google name first (#404).
+      // A Google sign-up clears its Google name first.
       void signingIn
         .catch(() => {})
         .then(() => {

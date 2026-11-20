@@ -11,7 +11,7 @@ import {
 } from '../../settings'
 import { netReport } from './network'
 
-// Settings' Playback card: compatible mode (#113), data saver (#291), Raw (#164).
+// Settings' Playback card: compatible mode, data saver, Raw.
 export function Playback() {
   const [compatible, setOn] = useState(compatibleOn)
   const [raw, setRawOn] = useState(rawOn)
@@ -40,7 +40,7 @@ export function Playback() {
         </li>
         <li>
           {/* Buttons, not a select: a select keeps the D-pad's arrows
-            (focus.ts), so focus could never leave it (#229). */}
+            (focus.ts), so focus could never leave it. */}
           <div className="setting">
             <span id="saver">Data saver</span>
             <div role="group" aria-labelledby="saver" className="choice">

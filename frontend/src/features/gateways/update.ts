@@ -1,6 +1,6 @@
 import { AppError, describe } from '../../errors.ts'
 
-// A remote update the gateway card started (#312): the target it named and
+// A remote update the gateway card started: the target it named and
 // the version the gateway ran before.
 export type Started = { to: string; from: string | null }
 
@@ -11,13 +11,13 @@ export const updated = (
   g: { online: boolean; version: string | null },
 ) => g.online && g.version !== u.from
 
-// Which notice the gateway card shows about an update (#537): the started
+// Which notice the gateway card shows about an update: the started
 // update (none = null) and whether UPDATE_WAIT has passed (late), the
 // gateway's fields, whether this browser may update it, and the status's
 // answer (remote: null = not known, true = the button works, a string = why
 // not). A started update that's done no longer counts: back to the offer.
 // Not happened + this browser may update = retry: the notice with the button
-// again (#564); the gateway refuses one while its updater still runs.
+// again; the gateway refuses one while its updater still runs.
 export type Notice =
   | 'updating'
   | 'notHappened'
@@ -48,7 +48,7 @@ export function updateState(x: {
   return 'byHand'
 }
 
-// What Update / Try again leads to (#312, #564, #637): the gateway's answer
+// What Update / Try again leads to: the gateway's answer
 // (202: the version it installs; 409: why not) or the error. A refusal while
 // an update is tracked (a retry) is a line next to Try again, so the card
 // keeps that update and its rollback advice; else it's the notice's reason.

@@ -18,10 +18,10 @@ export const diag = {
   media: '', // <video> state while the player is open
   sb: '', // hls.js per-SourceBuffer ranges + fragment counters
   frames: '', // dropped/total video frames while the player is open
-  cpu: '', // sampler (#293), only while diagnostics is on
+  cpu: '', // sampler, only while diagnostics is on
   memory: '', // Chromium only
   lastRun: '', // "last run ended without closing the page: …"
-  relay: '', // "relay: available|unavailable (…)" from the last broker `ready` (#585)
+  relay: '', // "relay: available|unavailable (…)" from the last broker `ready`
   inFlight: 0,
   peak: 0,
 }
@@ -146,7 +146,7 @@ export function setFlag(name: string, on: boolean) {
 }
 const q = () => new URLSearchParams(location.search)
 export const debugOn = () => q().has('debug') || flag('debug')
-/** Relay over TLS only (#576): `?relay=tls` or the diagnostics checkbox. */
+/** Relay over TLS only: `?relay=tls` or the diagnostics checkbox. */
 export const relayTlsOn = () => q().get('relay') === 'tls' || flag('relayTls')
 /** Relay forced; TLS-only implies it. */
 export const relayOn = () => q().has('relay') || flag('relay') || relayTlsOn()
@@ -158,11 +158,11 @@ export function setRelay(on: boolean) {
   if (!on) setFlag('relayTls', false)
   setFlag('relay', on)
 }
-/** The diagnostics dock's sheet is open (#230); collapsed until opened once. */
+/** The diagnostics dock's sheet is open; collapsed until opened once. */
 export const dockOpen = () => flag('dock')
-/** ?fail=<n>: the first n player loads look stuck (forces the #238 escalation). */
+/** ?fail=<n>: the first n player loads look stuck (forces the compatible escalation). */
 export const failLoads = () => Number(q().get('fail')) || 0
-/** Seconds a playback must really play before it saves anything (#330);
+/** Seconds a playback must really play before it saves anything;
  * localStorage `streamiq.watchMin` overrides it (e2e: 0). */
 export function watchMin() {
   try {
@@ -182,7 +182,7 @@ addEventListener('unhandledrejection', (e) =>
   ),
 )
 
-// CPU + memory sampler (#293), only while diagnostics is on. A web page can't see
+// CPU + memory sampler, only while diagnostics is on. A web page can't see
 // a TV's temperature or power-off, but it can see main-thread load and, at the next
 // start, that the last run never closed the page (power-off, tab killed for memory).
 const TICK = 2000

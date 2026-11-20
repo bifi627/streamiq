@@ -49,7 +49,7 @@ export async function connect(
   // credential, revoked when the session ends.
   const pc = new RTCPeerConnection({
     // Diagnostic: `?relay` or the diagnostics panel's toggle forces the TURN path;
-    // `?relay=tls` or its TLS toggle keeps only the `turns:` servers (#576).
+    // `?relay=tls` or its TLS toggle keeps only the `turns:` servers.
     iceTransportPolicy: relayOn() ? 'relay' : 'all',
   })
   // addEventListener: the handlers below own the on* properties.
@@ -94,7 +94,7 @@ export async function connect(
         )
         noTurn = why
         diag.relay = relayLine(noTurn)
-        // A forced relay without a TURN server can't connect: say why now (#585).
+        // A forced relay without a TURN server can't connect: say why now.
         if (noTurn && relayOn())
           return fail(
             err('ice-failed', `relay forced, but relay unavailable: ${noTurn}`),
@@ -196,7 +196,7 @@ export async function connect(
   })
 }
 
-/** The library and the gateway details share one session per gateway (#152);
+/** The library and the gateway details share one session per gateway;
  * Diagnostics and Pairing call connect() for a fresh one. */
 const shared = sharer(
   (id) => connect(id),
@@ -205,7 +205,7 @@ const shared = sharer(
 export const share = shared.share
 export const dropShared = shared.drop
 
-/** The pairing name this browser sends (also its screen name, #180). */
+/** The pairing name this browser sends (also its screen name). */
 export function browserName() {
   const ua = navigator.userAgent
   const b = /Edg\//.test(ua)

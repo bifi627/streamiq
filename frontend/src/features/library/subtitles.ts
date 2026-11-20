@@ -1,8 +1,8 @@
-// Subtitles (#136): the picked text subtitle as WebVTT (Jellyfin's Stream.vtt,
+// Subtitles: the picked text subtitle as WebVTT (Jellyfin's Stream.vtt,
 // over the tunnel) in our own <track>; a pick never reloads. Not Jellyfin's
 // HLS rendition: hls.js maps its X-TIMESTAMP-MAP (MPEGTS:900000) against
 // segment timestamps that shift with where the transcode job started, so its
-// cues landed seconds off (#269). Stream.vtt is in content time, which is the
+// cues landed seconds off. Stream.vtt is in content time, which is the
 // playlist's and so the <video>'s.
 import { event } from '../../diag'
 import { tunnelFetch } from '../../tunnel'

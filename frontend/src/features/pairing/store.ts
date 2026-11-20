@@ -50,7 +50,7 @@ export const setPin = (gatewayId: string, gatewayFp: string) =>
 export const deletePin = (gatewayId: string) =>
   kv('readwrite', (s) => s.delete(`pin:${gatewayId}`))
 
-/** Asks the browser not to evict our storage (#174): best-effort storage can go
+/** Asks the browser not to evict our storage: best-effort storage can go
  * under disk pressure, and Safari drops it after 7 days without a visit; either
  * way the client key is gone and the browser must pair again. Called after a
  * pairing, not at key creation: Firefox prompts, and pairing is a deliberate act. */

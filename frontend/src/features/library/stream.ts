@@ -1,8 +1,8 @@
 // One load's TranscodingUrl params and its log lines (Engine.start/attach, engine.ts).
 import { QUALITY, type Quality } from './profile.ts'
 
-// Auto's video transcode output ceilings (e.g. the #81 fallback), set on the
-// TranscodingUrl only when Jellyfin transcodes video; with a quality limit
+// Auto's video transcode output ceilings (e.g. the stuck-video fallback), set
+// on the TranscodingUrl only when Jellyfin transcodes video; with a quality limit
 // Jellyfin puts that limit there itself. Jellyfin only scales down and clamps
 // the bitrate to the source's, so smaller sources keep their size. Never with
 // stream copy: a bitrate there makes Jellyfin transcode anything above it.

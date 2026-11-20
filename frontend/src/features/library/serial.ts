@@ -1,4 +1,4 @@
-// One tunnel POST at a time, in order: the screen's state POSTs (#181) and the
+// One tunnel POST at a time, in order: the screen's state POSTs and the
 // phone remote's commands (Screen.tsx).
 
 /** Runs one at a time, in order (each tunnel POST is its own channel, so only

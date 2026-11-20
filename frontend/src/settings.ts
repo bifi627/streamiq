@@ -1,5 +1,5 @@
-// Per-device user settings (#113), in localStorage: per device by design (no
-// account sync until #92, nothing goes to the API). try/catch: storage can
+// Per-device user settings, in localStorage: per device by design (no
+// account sync, nothing goes to the API). try/catch: storage can
 // throw (private mode, blocked site data); missing/invalid = the default.
 // Read at playback start, so a change applies from the next playback.
 import {
@@ -34,13 +34,13 @@ function setFlag(key: string, on: boolean) {
 export const compatibleOn = () => flag(KEY)
 export const setCompatible = (on: boolean) => setFlag(KEY, on)
 
-/** The Raw quality option (#164): original streams, no capability probe. */
+/** The Raw quality option: original streams, no capability probe. */
 export const rawOn = () => flag(RAW_KEY)
 export const setRaw = (on: boolean) => setFlag(RAW_KEY, on)
 
-/** The player's quality picker (#108); applies at once (the player reloads).
+/** The player's quality picker; applies at once (the player reloads).
  * A stored Raw without its setting, or Source/Raw in compatible mode, plays
- * as Auto (#164); the stored choice is kept for when that changes. */
+ * as Auto; the stored choice is kept for when that changes. */
 export function quality(): Quality {
   let q: Quality = 'Auto'
   try {
@@ -61,7 +61,7 @@ export function setQuality(q: Quality) {
   }
 }
 
-/** Data saver (#291): Automatic (unset) / On / Off. Read on every
+/** Data saver: Automatic (unset) / On / Off. Read on every
  * measurement and playback start. */
 const SAVER_KEY = 'streamiq.settings.dataSaver'
 export function dataSaver(): SaverMode {
@@ -89,7 +89,7 @@ export const netInfo = () =>
   ).connection
 export const dataSaverOn = () => saverOn(dataSaver(), netInfo())
 
-/** TV mode (#201): larger root size + 5 % safe-area padding (index.css
+/** TV mode: larger root size + 5 % safe-area padding (index.css
  * `html.tv`). Manual only, no TV detection. */
 const TV_KEY = 'streamiq.settings.tv'
 export const tvOn = () => flag(TV_KEY)
@@ -100,7 +100,7 @@ export function setTv(on: boolean) {
 export const applyTv = () =>
   document.documentElement.classList.toggle('tv', tvOn())
 
-/** The last opened gateway (#201): the nav's Library link outside its routes. */
+/** The last opened gateway: the nav's Library link outside its routes. */
 const LAST_GATEWAY_KEY = 'streamiq.lastGateway'
 export function lastGateway() {
   try {

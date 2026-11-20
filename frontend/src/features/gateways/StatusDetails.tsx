@@ -9,7 +9,7 @@ const tokenText = {
 }
 
 // Liveness from the heartbeat (works unpaired); the details from the gateway API
-// over the tunnel (#140), which needs this browser paired.
+// over the tunnel, which needs this browser paired.
 export function StatusDetails({ g }: { g: Gateway }) {
   const [open, setOpen] = useState(false)
   return (
@@ -62,7 +62,7 @@ function writeCache(id: string, s: GatewayStatus) {
   }
 }
 
-// The gateway's shared tunnel session (#152) while online, released once the
+// The gateway's shared tunnel session while online, released once the
 // status is in; offline, the cached last response, dated.
 function Details({ g }: { g: Gateway }) {
   const [s, setS] = useState<GatewayStatus | null>(null)

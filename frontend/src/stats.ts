@@ -8,7 +8,7 @@ export type PairInfo = {
   local?: string
   remote?: string
   protocol?: string
-  /** browser ↔ TURN transport of a relayed path: udp / tcp / tls (#576) */
+  /** browser ↔ TURN transport of a relayed path: udp / tcp / tls */
   relayProtocol?: string
   bytesReceived: number
   bytesSent: number

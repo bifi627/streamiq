@@ -1,4 +1,4 @@
-// One tunnel session per gateway, shared by the routes that need it (#152): the
+// One tunnel session per gateway, shared by the routes that need it: the
 // library and the web gateway page's details. Counted users; the session closes
 // IDLE_MS after the last release, and a new user in that window keeps it. A
 // failed connect, a dropped or closed session, or a changed ICE policy (relay toggle) is
@@ -49,7 +49,7 @@ export function sharer<S extends Closable>(
     let e = map.get(gatewayId)
     // disconnected too: its current users keep it (it may recover), new ones
     // don't. closed: the session closed itself, e.g. when the broker closed it
-    // because the gateway's socket dropped (#172), before its pc says so.
+    // because the gateway's socket dropped, before its pc says so.
     const dead =
       !!e?.s?.closed ||
       ['disconnected', 'failed', 'closed'].includes(

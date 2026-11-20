@@ -7,7 +7,7 @@ import { ErrorView } from '../../ErrorView'
 
 type Member = {
   userId: string
-  name: string | null // the alias (#388), else the email; null: Firebase unreachable
+  name: string | null // the alias, else the email; null: Firebase unreachable
   email?: string // your own row only
   role: 'admin' | 'member'
   joinedAt: string
@@ -19,7 +19,7 @@ const asMember = (e: unknown) => {
   return x.context.status === 409 ? new AppError('last-admin', x.message) : x
 }
 
-// Members of the current household (#192): anyone sees them and can leave; an
+// Members of the current household: anyone sees them and can leave; an
 // admin removes, promotes and demotes. A change to your own membership reloads
 // the app, so every view picks up the new role (or another household after leaving).
 export function Members() {
@@ -34,7 +34,7 @@ export function Members() {
   const err = actErr ?? (q.error && toAppError(q.error))
   const qc = useQueryClient()
   // Remove goes with its row: then focus the row now at its place (or the
-  // last), or the D-pad (arrowFocus on the page) loses its place (#226).
+  // last), or the D-pad (arrowFocus on the page) loses its place.
   const list = useRef<HTMLUListElement>(null)
   const refocus = useRef<number | null>(null)
 

@@ -1,36 +1,11 @@
-// HLS playback through the tunnel, for one Player effect run. Jellyfin decides
-// remux vs transcode from a DeviceProfile built from a capability probe
-// (profile.ts, #115); hls.js plays the TranscodingUrl it returns via the
-// tunnel loader.
-// Resume: start at Jellyfin's saved position; reporting is resume.ts.
-// Fallback (#81): some devices (webOS TV, Chrome 87) drop stream-copied video
-// after a seek/resume. When video appends stop covering the playhead, reload
-// there with a video transcode for the rest of this playback.
-// Audio fallback (#115): on an audio decode/append error, reload there with
-// stereo AAC (no audio copy) for the rest of this playback.
-// Compatible escalation (#238): a failure after one of those fallbacks reloads
-// once more with the compatible profile and no stream copy (H.264 + stereo AAC
-// in .ts, ≤1080p) for the rest of this playback; a failure after that is the
-// error. Not in Raw or compatible mode. Debug: ?fail=<n> makes the first n
-// loads look stuck. The chain is decided by onFailure() (profile.ts).
-// Quality (#108): the picker's limit goes into the profile; a switch reloads at
-// the playhead the same way (Jellyfin serves one HLS level per load).
-// Audio (#109): the same reload with AudioStreamIndex (no switchable audio
-// renditions in Jellyfin's HLS) + MediaSourceId (without it Jellyfin ignores
-// the index); the first load plays Jellyfin's default track, or a track of
-// its language this device decodes when it can't (autoAudio, #252; not in Raw
-// or compatible mode). Remux keeps stream copy of the chosen track.
-// Auto (#162): the session's measured throughput (speed.ts) picks the rung
-// (autoQuality); a load waits at most ~3 s for a running measurement. Source
-// and the rungs ignore it, apart from Source's "may stutter" hint.
-// Raw (#164, behind a setting): a profile with every codec, no probe; no
-// fallbacks, a decode failure is an error naming the source codecs. Compatible
-// mode disables Source and Raw (settings.quality() plays them as Auto).
-// Subtitles (#136): subtitles.ts; a pick never reloads. Starts Off.
-// Screen mode (#180): `remote` feeds it a phone's pause/resume/seek/tracks
-// commands, applied like the TV's own controls; play/stop are the screen's.
-// The state goes to `onState` about once a second and on every change (#181);
-// a phone's pause holds through startup and reloads.
+// HLS playback through the tunnel, for one Player effect run: probe →
+// DeviceProfile (profile.ts) → PlaybackInfo → hls.js on the TranscodingUrl.
+// A quality, audio track or fallback (onFailure) is a reload at the playhead:
+// Jellyfin serves one HLS level per load and no switchable audio renditions.
+// Some devices (webOS TV, Chrome 87) drop stream-copied video after a seek or
+// resume, which is what the stuck-video fallback catches.
+// Screen mode: `remote` feeds it a phone's pause/resume/seek/tracks commands;
+// play/stop are the screen's. A phone's pause holds through startup and reloads.
 import Hls from 'hls.js'
 import { queryClient } from '../../query'
 import { AppError, toAppError } from '../../errors'
@@ -126,7 +101,7 @@ export class Engine {
   // The playback's choices and what the current load plays.
   private caps?: Probe
   private compatible = compatibleOn() // read once: applies from the next playback
-  private escalated = false // compatible since a fallback failed (#238)
+  private escalated = false // compatible since a fallback failed
   private q = quality()
   private sub = -1 // the subtitle stream shown, -1 off
   private track?: number // audio stream; unset = Jellyfin's default
@@ -146,7 +121,7 @@ export class Engine {
   private readonly speed?: Speed
   private readonly set: (p: Partial<View>) => void // nothing after the teardown
   private readonly close: () => void
-  /** The screen's state callback (#181), read on each emit. */
+  /** The screen's state callback, read on each emit. */
   private readonly onState: () => ((s: ScreenState) => void) | undefined
   private readonly subs: ReturnType<typeof subtitleTrack>
 
@@ -177,7 +152,7 @@ export class Engine {
     const v = this.v
     const at = Date.now()
     playback.set(gatewayId, { at })
-    // A read still in flight predates this playback: drop its result (#378).
+    // A read still in flight predates this playback: drop its result.
     void queryClient.cancelQueries({ queryKey: ['tunnel', gatewayId] })
     const unremote = remote?.(this.command)
     this.init(startTicks).catch((e) => this.set({ err: toAppError(e) }))
@@ -197,7 +172,7 @@ export class Engine {
       unremote?.()
       unwatch()
       clearInterval(state)
-      // The pages left behind refetch, after the exit save (#360, #378).
+      // The pages left behind refetch, after the exit save.
       playback.set(gatewayId, { at, saved: unresume() })
       void queryClient.invalidateQueries({ queryKey: ['tunnel', gatewayId] })
       on.forEach(([e, f]) => v.removeEventListener(e, f))
@@ -271,7 +246,7 @@ export class Engine {
     const q = this.q
     const mbps = await this.speed?.get(q === 'Auto' ? 3000 : 0)
     if (this.gone || load !== this.loads) return
-    const saver = dataSaverOn() // #291: caps Auto only (effective)
+    const saver = dataSaverOn() // caps Auto only (effective)
     const bitrate = this.bitrate
     const eff = effective(q, mbps, bitrate, saver)
     const cap = q === 'Auto' ? autoCap(mbps) : undefined
@@ -290,7 +265,7 @@ export class Engine {
       )
     const max = limit(eff, this.compatible)
     event(qualityLine(q, max, cap))
-    // Raw: always full copy, even after an earlier fallback (#164).
+    // Raw: always full copy, even after an earlier fallback.
     const raw = eff === 'Raw' && !this.compatible // the picker after an escalation
     const allow: Copy = raw ? { video: true, audio: true } : this.copy
     // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
@@ -339,7 +314,7 @@ export class Engine {
     const [path, query] = src.TranscodingUrl!.split('?')
     const params = new URLSearchParams(query)
     // Raw: no bitrate cap at all. Jellyfin transcodes a source of unknown
-    // bitrate whenever VideoBitrate is set (spike on #164).
+    // bitrate whenever VideoBitrate is set.
     if (o.raw) params.delete('VideoBitrate')
     const d = decision(`?${params}`, src.MediaStreams)
     event(`jellyfin: ${d.text}`)
@@ -368,7 +343,7 @@ export class Engine {
     const forced = load <= failLoads() // debug: ?fail=<n>
     this.h = newHls(this.pc, this.v, {
       startPosition: this.seekTo ?? at,
-      // Stream copy, or a transcode after a fallback (may escalate or fail, #238).
+      // Stream copy, or a transcode after a fallback (may escalate or fail).
       watch:
         d.videoCopy ||
         this.escalated ||
@@ -388,7 +363,7 @@ export class Engine {
   // One load's failure handler: the fallback chain decides (onFailure), this
   // carries it out.
   private failure(raw: boolean, codecs: string) {
-    let over = false // the chain ended in an error: this load is done (#552)
+    let over = false // the chain ended in an error: this load is done
     return (f: Failure) => {
       if (over) return
       const { copy, compatible, escalated } = this
@@ -449,7 +424,7 @@ export class Engine {
     this.subs.show(index, this.source)
   }
 
-  // A phone's command (screen mode, #180), applied like the TV's own controls.
+  // A phone's command (screen mode), applied like the TV's own controls.
   private command = (c: ScreenCommand) => {
     const v = this.v
     if (c.type === 'pause') {

@@ -29,7 +29,7 @@ const ICON = {
   gateway: 'M4 4h16v6H4zM4 14h16v6H4zM8 7h.01M8 17h.01',
 }
 
-/** The one empty / offline / error look (#206): icon, one-line headline, a
+/** The one empty / offline / error look: icon, one-line headline, a
  * plain line, then the actions (children: one button, at most one link). */
 export function State({
   icon,
@@ -73,7 +73,7 @@ const icon = (k: Kind): keyof typeof ICON =>
       ? 'lock'
       : 'alert'
 
-/** The one way an error is shown (#45), in the State look (#206). data-kind
+/** The one way an error is shown, in the State look. data-kind
  * lets tests assert the kind. Takes anything thrown (a query's `error`, a
  * caught value): non-AppErrors show as `unknown`. Retry defaults to a reload:
  * it reopens the gateway's session too. `pair` replaces the Pair action's link

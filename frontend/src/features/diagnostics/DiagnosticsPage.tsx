@@ -1,4 +1,4 @@
-// /diagnostics (#90): what this client can play, and how good its path to a
+// /diagnostics: what this client can play, and how good its path to a
 // gateway is, as a report to paste into a support request. No email, no IPs.
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import {
@@ -57,7 +57,7 @@ export function DiagnosticsPage() {
     let step = 'connect (broker → ICE → gateway auth)'
     let close = () => {}
     diag.relay = ''
-    // The broker's `ready` sets diag.relay, also when connect fails after it (#585).
+    // The broker's `ready` sets diag.relay, also when connect fails after it.
     const relay = () => diag.relay && lines.push(diag.relay)
     try {
       const s = await connect(gatewayId).catch((e) => {
@@ -109,7 +109,7 @@ export function DiagnosticsPage() {
         : 'Copy blocked: select the text below instead.', // insecure origin / old TV
     )
 
-  // The tokens' page layout (#230): Settings' column of cards (.settings).
+  // The tokens' page layout: Settings' column of cards (.settings).
   return (
     <section className="settings diagnostics">
       <div className="head">

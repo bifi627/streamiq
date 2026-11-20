@@ -2,7 +2,7 @@
 // is one text frame, the response head one text frame, the body binary frames,
 // then an `{"eof":true}` text frame, after which the browser closes the channel.
 // A body that broke off ends in `{"error":"…"}` instead: the request fails.
-// Not the gateway: old Chromium (webOS TVs) loses frames on a remote close (#72).
+// Not the gateway: old Chromium (webOS TVs) loses frames on a remote close.
 import { request } from './diag.ts'
 import { AppError, httpError } from './errors.ts'
 

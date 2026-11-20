@@ -15,13 +15,13 @@ import {
 import { Invites } from './Invites'
 import { Members } from './Members'
 
-// /household (#228): who's in the current household, and (admin) invites.
+// /household: who's in the current household, and (admin) invites.
 // Its own page, not under the Gateways list: those are what you open daily,
 // this is what you manage now and then.
 export function Household() {
   const { me, current } = useHousehold()
   const setMe = useContext(SetMeContext)
-  // An admin names the household (#384): shown at once, here and in the switcher.
+  // An admin names the household: shown at once, here and in the switcher.
   // null = renamed; else the error to show in the form.
   async function rename(name: string) {
     try {
@@ -68,7 +68,7 @@ export function Household() {
   )
 }
 
-// Signed in, in no household (#387): sign-up makes none. Shell shows this in place
+// Signed in, in no household: sign-up makes none. Shell shows this in place
 // of every page but Settings and /join. Create one (as its admin), or open an
 // invite link someone sent. Both reload into the household they lead to.
 export function NoHousehold() {

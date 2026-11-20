@@ -1,19 +1,49 @@
 {
   "$schema": "../frontend/node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "oxc"],
-  "jsPlugins": ["../frontend/lint/streamiq.js"],
+  "jsPlugins": ["../frontend/lint/streamiq.js", "eslint-plugin-playwright"],
   "rules": {
     "no-empty-pattern": "off",
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-expect-error": "allow-with-description",
+        "ts-ignore": "allow-with-description",
+        "ts-nocheck": "allow-with-description"
+      }
+    ],
     "streamiq/require-suppression-reason": "error",
-    "streamiq/no-test-timeout-or-unreasoned-skip": "error"
+    "streamiq/no-test-timeout": "error",
+    "playwright/no-focused-test": "error",
+    "playwright/no-skipped-test": [
+      "error",
+      { "allowConditional": true, "disallowFixme": true }
+    ],
+    "playwright/require-annotation-reason": "error",
+    "playwright/no-slowed-test": "error"
   },
   "overrides": [
     {
       "files": ["*.spec.ts"],
       "rules": {
-        "streamiq/e2e-area-tag": "error",
-        "streamiq/no-wait-for-timeout": "error",
+        "playwright/require-tags": "error",
+        "playwright/valid-test-tags": [
+          "error",
+          {
+            "allowedTags": [
+              "@golden",
+              "@gateways",
+              "@library",
+              "@player",
+              "@diagnostics",
+              "@shell",
+              "@households",
+              "@compat"
+            ]
+          }
+        ],
+        "playwright/no-wait-for-timeout": "error",
         "streamiq/no-literal-email": "error"
       }
     }

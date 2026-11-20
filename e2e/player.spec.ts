@@ -296,7 +296,7 @@ test('a final playback error (#552): the load stops once, the stuck check stays 
   await openDock(page)
   const log = page.locator('pre.dock-log')
   await expect(log).toContainText('load stopped: playback error')
-  // oxlint-disable-next-line streamiq/no-wait-for-timeout -- proves nothing more happens: no state to wait on
+  // oxlint-disable-next-line playwright/no-wait-for-timeout -- proves nothing more happens: no state to wait on
   await page.waitForTimeout(3_000) // unstopped, hls loads the whole clip by now
   const text = (await log.textContent()) ?? ''
   expect(text.split('load stopped: playback error').length - 1).toBe(1)

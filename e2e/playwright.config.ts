@@ -9,8 +9,7 @@ import { defineConfig } from '@playwright/test'
 //
 // Tests run in parallel on that one stack, so each is independent: own accounts
 // (uniqueEmail), own gateway. Area tags pick a slice while working on it:
-// `npm test -- --grep @households` (tags: @golden @gateways @library @player @diagnostics @shell
-// @households @compat). CI runs everything; check.sh too unless E2E_GREP / SKIP_E2E narrow it.
+// `npm test -- --grep @households` (tags: `allowedTags` in .oxlintrc.json). CI runs everything; check.sh too unless E2E_GREP / SKIP_E2E narrow it.
 export default defineConfig({
   testDir: '.',
   globalSetup: './global-setup.ts',

@@ -16,7 +16,7 @@ import { Pairing } from '../pairing/Pairing'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
 import * as jf from './jellyfin'
-import { statusOn, type GatewayStatus } from '../gateways/api'
+import type { GatewayStatus } from '../gateways/api'
 import { useHousehold } from '../households/household'
 import { guestNotice } from './guest'
 import { Player } from './Player'
@@ -78,7 +78,9 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
       <p className="lib-top">
         <Link to="/gateways">← Gateways</Link>
         <span className="lib-actions">
-          {session && !playing && !screenMode && <Privacy pc={session.pc} />}
+          {session && !playing && !screenMode && (
+            <Privacy gatewayId={gatewayId} pc={session.pc} />
+          )}
           {/* Up front only in TV mode; every device keeps the gateway
               card's entry (Gateways.tsx). */}
           {!screenMode && tvOn() && (
@@ -112,7 +114,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         <Tunnel.Provider
           value={{ gatewayId, pc: session.pc, speed: session.speed() }}
         >
-          <Guest pc={session.pc} />
+          <Guest />
           <Outlet />
         </Tunnel.Provider>
       )}
@@ -482,22 +484,13 @@ function Listing({
   )
 }
 
-// Guest-mode banner, on the library and the player. ponytail: checked
-// once per tunnel session, though the gateway picks the viewer per request; a
-// viewer made or dropped mid-session shows on the next connection.
-function Guest({ pc }: { pc: RTCPeerConnection }) {
+// Guest-mode banner, on the library and the player. ponytail: cached like a
+// library read (useTunnelQuery, fresh 5 min), though the gateway picks the
+// viewer per request; a viewer made or dropped shows on a later visit.
+// No status (older gateway, error) = no banner.
+function Guest() {
   const admin = useHousehold().current?.role === 'admin'
-  const [s, setS] = useState<GatewayStatus | null>(null)
-  useEffect(() => {
-    let live = true
-    statusOn(pc).then(
-      (r) => live && setS(r),
-      () => {}, // ponytail: no status (older gateway, error) = no banner
-    )
-    return () => {
-      live = false
-    }
-  }, [pc])
+  const s = useTunnelQuery<GatewayStatus>('/streamiq/status').data ?? null
   const notice = guestNotice(s, admin)
   return notice && <p role="status">{notice}</p>
 }

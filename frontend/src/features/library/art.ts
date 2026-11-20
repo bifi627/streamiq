@@ -8,6 +8,7 @@ import type { Item } from './items'
 import { image } from './jellyfin'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { ART_PREFIX, artCleared } from '../../leave'
+import { queryClient } from '../../query'
 import type { Speed } from '../../speed'
 
 // The gateway's shared tunnel session (Library.tsx GatewayLibrary).
@@ -110,6 +111,31 @@ export async function load(
   }
   return blob
 }
+
+/** An image's object URL (null: none), loaded once enabled. Immutable per
+ * tag, so never refetched; dropped with its last view (the Cache API keeps it). */
+export function useArt(a: Art | null, width: number, enabled: boolean) {
+  const { gatewayId, pc } = useContext(Tunnel)
+  return useQuery({
+    queryKey: ['art', gatewayId, a?.id, a?.type, a?.tag, width],
+    queryFn: async () => {
+      const b = await load(pc, gatewayId, a!, width)
+      return b && URL.createObjectURL(b)
+    },
+    enabled: enabled && !!a,
+    staleTime: Infinity,
+    gcTime: 0,
+  })
+}
+
+queryClient.getQueryCache().subscribe((e) => {
+  if (
+    e.type === 'removed' &&
+    e.query.queryKey[0] === 'art' &&
+    e.query.state.data
+  )
+    URL.revokeObjectURL(e.query.state.data as string)
+})
 
 export const primary = (i: Item): Art | null =>
   i.ImageTags?.Primary

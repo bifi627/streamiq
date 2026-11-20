@@ -16,7 +16,6 @@ import {
 } from '@tanstack/react-router'
 import { browserName } from '../pairing/connect'
 import { toAppError } from '../../errors'
-import { tunnelJson } from '../../tunnel'
 import * as jf from './jellyfin'
 import { event } from '../../diag'
 import {
@@ -41,7 +40,8 @@ import {
   type Item,
 } from './items'
 import { ICON, Icon } from './Controls'
-import { Tunnel, backdrop, primary } from './art'
+import { Tunnel, backdrop, primary, useTunnelQuery } from './art'
+import { useScreens } from './queries'
 import { Artwork } from './Home'
 
 // Screen mode (docs/protocol.md "Screens"): this device holds GET
@@ -303,34 +303,15 @@ const IDLE: ScreenState = {
 // own channel). Two phones see the same state; the last command wins.
 export function RemotePage({ screenId }: { screenId: string }) {
   const { gatewayId, pc } = useContext(Tunnel)
-  const [screen, setScreen] = useState<Screen | null>() // null: closed
   const [msg, setMsg] = useState('') // the last command's error
-  const [down, setDown] = useState('') // the last poll's error
-  useEffect(() => {
-    let gone = false
-    let t = 0
-    let wasDown = ''
-    const poll = () =>
-      screensOn(pc)
-        .then(
-          (screens) => ({ screens }),
-          (e) => ({ error: toAppError(e).message }),
-        )
-        .then((r) => {
-          if (gone) return
-          const p = polled(screenId, r, wasDown)
-          wasDown = p.down
-          if (p.screen !== undefined) setScreen(p.screen)
-          if (p.recovered) setMsg('') // a command error from the outage is stale
-          setDown(p.down)
-          if (p.again) t = window.setTimeout(poll, 1000)
-        })
-    poll()
-    return () => {
-      gone = true
-      clearTimeout(t)
-    }
-  }, [pc, screenId])
+  const q = useScreens(gatewayId, pc, screenId)
+  const down = q.error ? toAppError(q.error).message : '' // the last poll's
+  const [wasDown, setWasDown] = useState('')
+  const { screen, recovered } = polled(screenId, q.data, down, wasDown)
+  if (down !== wasDown) {
+    setWasDown(down)
+    if (recovered) setMsg('') // a command error from the outage is stale
+  }
   // A drag sends many seeks: a queued seek is replaced by the newer one.
   const send = useMemo(
     () =>
@@ -388,15 +369,10 @@ function Playing({
   st: ScreenState
   send: (c: ScreenCommand) => void
 }) {
-  const { pc } = useContext(Tunnel)
-  const [fetched, setFetched] = useState<Item | null>(null)
   const [drag, setDrag] = useState<number | null>(null) // seek bar, seconds
   const dragging = useRef(0)
-  const itemId = st.itemId
-  useEffect(() => {
-    tunnelJson<Item>(pc, jf.item(itemId)).then(setFetched, () => {})
-  }, [pc, itemId])
-  const item = fetched?.Id === itemId ? fetched : null // not a late answer for another item
+  useEffect(() => () => clearTimeout(dragging.current), [])
+  const item = useTunnelQuery<Item>(jf.item(st.itemId)).data ?? null
   const pos = st.positionTicks / TICKS_PER_SECOND
   const dur = st.durationTicks / TICKS_PER_SECOND
   const seek = (t: number) => {

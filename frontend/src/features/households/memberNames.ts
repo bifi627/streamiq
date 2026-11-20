@@ -1,6 +1,6 @@
 type Named = { userId: string; name: string | null; email?: string }
 
-const base = (m: Named) => (m.name || m.email || 'unknown user').trim()
+const base = (m: Named) => m.name?.trim() || m.email || 'unknown user'
 
 // Aliases are free text and can't be made unique (they live in Firebase), so
 // members who show the same name get the shortest userId suffix (≥ 4 hex chars;

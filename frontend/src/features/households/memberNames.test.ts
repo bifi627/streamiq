@@ -42,3 +42,9 @@ test('no name falls back to the email, then "unknown user"', () => {
   assert.equal(names.get('1aaaa'), 'me@x')
   assert.equal(names.get('1bbbb'), 'unknown user')
 })
+
+test('a blank alias (set outside the app) falls back, never an empty name', () => {
+  const names = memberNames([m('1aaaa', '   ', 'me@x'), m('1bbbb', '  ')])
+  assert.equal(names.get('1aaaa'), 'me@x')
+  assert.equal(names.get('1bbbb'), 'unknown user')
+})

@@ -167,7 +167,7 @@ public static class GatewaySocket
                 Clip(Broker.Str(m, "remoteCandidateType")),
                 Clip(Broker.Str(m, "protocol")),
                 Clip(Broker.Str(m, "failure"), 64),
-                Clip(Broker.Str(m, "use")),
+                Clip(Broker.Str(m, "use")) is { Length: > 0 } use ? use : null,
                 Broker.Value<long>(m, "activeMs") is >= 0 and var active ? active : null);
         }
 

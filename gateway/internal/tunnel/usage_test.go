@@ -55,7 +55,7 @@ func TestUsageActiveIsTheLatestEnd(t *testing.T) {
 	u := NewUsage(t0)
 	u.record("GET", "/Items", t0.Add(5*time.Second))
 	u.record("GET", "/Items", t0.Add(2*time.Second))
-	if _, ms := u.Summary(); *ms != 5000 {
+	if _, ms := u.Summary(); ms == nil || *ms != 5000 {
 		t.Fatalf("activeMs %d, want 5000", *ms)
 	}
 }

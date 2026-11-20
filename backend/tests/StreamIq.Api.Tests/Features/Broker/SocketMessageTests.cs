@@ -77,6 +77,13 @@ public class SocketMessageTests
         Assert.Equal(new TunnelReport(Session, 0, 0, false, false, null, null, null, null, null, null), TunnelReport.Parse(m));
     }
 
+    [Fact]
+    public void TunnelReportEmptyUseReadsAsMissing()
+    {
+        var m = Msg($$"""{"session":"{{Session}}","bytesSent":0,"bytesReceived":0,"use":""}""");
+        Assert.Null(TunnelReport.Parse(m)?.Use);
+    }
+
     [Theory]
     [InlineData("""{"bytesSent":1,"bytesReceived":1}""")]                                  // no session
     [InlineData("""{"session":"nope","bytesSent":1,"bytesReceived":1}""")]                 // not a Guid

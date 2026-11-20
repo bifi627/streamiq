@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace StreamIq.Api.Migrations;
 
-/// <summary>tunnels.Use + ActiveMs (#681): what the tunnel was for and how long it was active, from the gateway's report; null for older gateways and unreported rows.</summary>
+/// <summary>tunnels.Use + ActiveMs: what the tunnel was for and how long it was active, from the gateway's report; null for older gateways and unreported rows.</summary>
 public partial class TunnelUse : Migration
 {
     /// <inheritdoc />

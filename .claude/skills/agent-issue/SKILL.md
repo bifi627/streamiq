@@ -59,6 +59,10 @@ It writes no code itself.
   `[group] - #N <issue title>` with the T3 tool `t3_thread_update` (`action: "rename"`;
   a deferred tool: load it with ToolSearch). Skip it in a thread that has other work,
   or if the tool isn't there.
+- Under the same condition, link N and each of its sub-issues to this thread: the T3
+  tool `link_issue` (deferred), one call per issue, `url` =
+  `https://github.com/bifi627/streamiq/issues/<n>`. A sub-issue added to the group later is linked
+  when it is first seen. Say so if a link fails; the group goes on either way.
 - Order: the parent's `Order:` line, else its numbered list. None stated, or an open
   sub-issue is missing from it → ask the owner (AskUserQuestion, the proposed order as
   the first option).

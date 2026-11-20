@@ -43,7 +43,6 @@ const report = (p: Page) =>
 test('prod smoke: sign in, enroll, play direct, test connection direct + relay + TLS relay', async ({
   browser,
 }) => {
-  test.setTimeout(300_000)
   const t0 = Date.now()
   const lap = (s: string) =>
     console.log(`smoke: ${s} at ${((Date.now() - t0) / 1000).toFixed(1)}s`)

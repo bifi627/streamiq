@@ -5,7 +5,8 @@
   "rules": {
     "no-empty-pattern": "off",
     "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
-    "streamiq/require-disable-reason": "error"
+    "streamiq/require-suppression-reason": "error",
+    "streamiq/no-test-timeout-or-unreasoned-skip": "error"
   },
   "overrides": [
     {

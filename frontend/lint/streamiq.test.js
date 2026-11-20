@@ -7,11 +7,17 @@ RuleTester.it = it
 const tester = new RuleTester()
 const run = (name, tests) => tester.run(name, plugin.rules[name], tests)
 
-run('require-disable-reason', {
-  valid: ['// oxlint-disable-next-line complexity -- render branching\nf()'],
+run('require-suppression-reason', {
+  valid: [
+    '// oxlint-disable-next-line complexity -- render branching\nf()',
+    '// @ts-expect-error: the types lag the DOM\nf()',
+    '// the types lag the DOM\n// @ts-ignore\nf()',
+  ],
   invalid: [
     { code: '// oxlint-disable-next-line complexity\nf()', errors: 1 },
     { code: '/* eslint-disable */\nf()', errors: 1 },
+    { code: '// @ts-expect-error\nf()', errors: 1 },
+    { code: 'g()\n// @ts-nocheck\nf()', errors: 1 },
   ],
 })
 
@@ -30,6 +36,21 @@ run('e2e-area-tag', {
 run('no-wait-for-timeout', {
   valid: ['await page.waitForURL(url)'],
   invalid: [{ code: 'await page.waitForTimeout(1000)', errors: 1 }],
+})
+
+run('no-test-timeout-or-unreasoned-skip', {
+  valid: [
+    "test.skip(!bin, 'no release to test against')",
+    'test.skip(!bin, `no ${asset}`)',
+    "// flakes on webOS, see the issue\ntest.fixme('plays @player', f)",
+  ],
+  invalid: [
+    { code: 'test.setTimeout(300_000)', errors: 1 },
+    { code: 'test.slow()', errors: 1 },
+    { code: 'test.describe.configure({ retries: 2 })', errors: 1 },
+    { code: "test.only('plays @player', f)", errors: 1 },
+    { code: 'test.skip(!bin)', errors: 1 },
+  ],
 })
 
 run('no-literal-email', {

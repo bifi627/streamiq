@@ -6,7 +6,7 @@
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }],
     "typescript/no-import-type-side-effects": "error",
-    "streamiq/require-disable-reason": "error",
+    "streamiq/require-suppression-reason": "error",
     "streamiq/no-hardcoded-locale": "error"
   },
   "overrides": [

@@ -92,19 +92,19 @@ func roundTrip(t *testing.T, compose []byte) {
 		return string(out), err
 	}
 	t.Cleanup(func() { // also on failure; before t.TempDir's removal (LIFO)
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
 		if t.Failed() {
-			out, _ := docker(ctx, "logs", "--no-color", "--tail", "100", service)
+			out, _ := docker(cleanupCtx, "logs", "--no-color", "--tail", "100", service)
 			t.Log("Jellyfin's log:\n" + out)
 		}
 		// nothing writes while it's emptied; t.Error: the cleanup below still runs
-		if _, err := docker(ctx, "stop", service); err != nil {
+		if _, err := docker(cleanupCtx, "stop", service); err != nil {
 			t.Error(err)
 		}
 		// Jellyfin writes jellyfin-config as root (Linux): emptied from inside, or the temp dir stays
 		if out, err := docker(
-			ctx,
+			cleanupCtx,
 			"run",
 			"--rm",
 			"--no-deps",
@@ -119,7 +119,7 @@ func roundTrip(t *testing.T, compose []byte) {
 		); err != nil {
 			t.Logf("emptying jellyfin-config: %v: %s", err, out)
 		}
-		if out, err := docker(ctx, "down", "-v", "--remove-orphans"); err != nil {
+		if out, err := docker(cleanupCtx, "down", "-v", "--remove-orphans"); err != nil {
 			t.Errorf("compose down: %v: %s", err, out)
 		}
 	})
@@ -198,9 +198,9 @@ func roundTrip(t *testing.T, compose []byte) {
 		s.mu.Lock()
 		pw := s.creds.Password
 		s.mu.Unlock()
-		admin, err := s.signIn(ctx, adminName, pw)
+		token, err := s.signIn(ctx, adminName, pw)
 		if err == nil {
-			s.logout(ctx, admin)
+			s.logout(ctx, token)
 			break
 		}
 		if unauthorized(err) || time.Now().After(deadline) || ctx.Err() != nil {

@@ -114,7 +114,7 @@ dropped (BLOCKER) or LOW (SPEC): a posted finding blocks the merge and costs a r
   decision on rule files (#490), not a judgement; don't verify a LOW to categorize it.
 - **Comments** the diff adds (CLAUDE.md "Comments say what the code can't"): history
   ("added in #N", "was X", an issue cited as a changelog entry) or commented-out code is
-  a **BLOCKER** (`lint: no (needs reading; check-comments.sh and, in TS, oxlint's streamiq/no-low-value-comments catch issue refs; the oxlint rule also the usual commented-out shapes)`);
+  a **BLOCKER** (`lint: no (needs reading; check-comments.sh and, in TS, oxlint's streamiq/no-low-value-comments catch issue refs; the oxlint rule also the usual commented-out shapes; in Go, golangci-lint gocritic commentedOutCode catches commented-out code)`);
   one that restates the code, copies `docs/` or is a banner is **LOW** (`style`).
 - **Security-sensitive** (exploitable now): mark it `security`; CLAUDE.md's security
   rule applies (owner only, in the thread).

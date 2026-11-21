@@ -5,9 +5,10 @@ run:
   allow-serial-runners: true
 linters:
   # the default set: errcheck, govet, ineffassign, staticcheck, unused; plus gocyclo, funlen,
-  # gosec, limited to the HTTP-server checks below, and nolintlint (a //nolint
-  # that suppresses nothing fails, like oxlint's unused-directive check in the frontend)
-  enable: [gocyclo, funlen, gosec, nolintlint]
+  # gosec, limited to the HTTP-server checks below, nolintlint (a //nolint
+  # that suppresses nothing fails, like oxlint's unused-directive check in the frontend),
+  # gocritic (only commentedOutCode) and predeclared (a local named min, len, new ...)
+  enable: [gocyclo, funlen, gosec, nolintlint, gocritic, predeclared]
   exclusions:
     # errcheck skips Close, fmt.Fprint*, os.Remove*, os.Setenv and the like; test
     # files are checked too
@@ -21,6 +22,13 @@ linters:
       # G112: an http.Server without ReadHeaderTimeout; G114: a bare http.ListenAndServe/Serve
       # (no timeouts at all). Only these two: the rest of gosec is a separate decision.
       includes: [G112, G114]
+    gocritic:
+      # CLAUDE.md bans commented-out code; the other checkers are a separate decision
+      disable-all: true
+      enabled-checks: [commentedOutCode]
+    govet:
+      # a local hiding an outer variable that is used after it (default, non-strict mode)
+      enable: [shadow]
     nolintlint:
       # every //nolint names its linter and says why (an issue or the reason it stays)
       require-explanation: true

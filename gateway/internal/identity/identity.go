@@ -31,34 +31,9 @@ func LoadOrCreate(dir string) (*webrtc.Certificate, string, error) {
 	path := filepath.Join(dir, "cert.pem")
 	pems, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			return nil, "", err
-		}
-		serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 127))
-		cert, err := webrtc.NewCertificate(key, x509.Certificate{
-			SerialNumber: serial,
-			// Sent in cleartext in the DTLS 1.2 handshake: the name browsers and
-			// Pion use, so it doesn't tag the flow as StreamIQ to an observer.
-			Subject:   pkix.Name{CommonName: "WebRTC"}, // self-signed: Issuer = Subject
-			NotBefore: time.Now().Add(-time.Hour),
-			NotAfter:  time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC),
-		})
-		if err != nil {
-			return nil, "", err
-		}
-		s, err := cert.PEM()
-		if err != nil {
-			return nil, "", err
-		}
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return nil, "", err
-		}
-		if err := os.WriteFile(path, []byte(s), 0o600); err != nil {
-			return nil, "", err
-		}
-		pems = []byte(s)
-	} else if err != nil {
+		pems, err = create(dir, path)
+	}
+	if err != nil {
 		return nil, "", err
 	}
 	cert, err := webrtc.CertificateFromPEM(string(pems))
@@ -67,6 +42,37 @@ func LoadOrCreate(dir string) (*webrtc.Certificate, string, error) {
 	}
 	block, _ := pem.Decode(pems) // Pion writes the CERTIFICATE block first
 	return cert, Fingerprint(block.Bytes), nil
+}
+
+// create writes a new cert to path and returns its PEM.
+func create(dir, path string) ([]byte, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 127))
+	cert, err := webrtc.NewCertificate(key, x509.Certificate{
+		SerialNumber: serial,
+		// Sent in cleartext in the DTLS 1.2 handshake: the name browsers and
+		// Pion use, so it doesn't tag the flow as StreamIQ to an observer.
+		Subject:   pkix.Name{CommonName: "WebRTC"}, // self-signed: Issuer = Subject
+		NotBefore: time.Now().Add(-time.Hour),
+		NotAfter:  time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC),
+	})
+	if err != nil {
+		return nil, err
+	}
+	s, err := cert.PEM()
+	if err != nil {
+		return nil, err
+	}
+	if err = os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	if err = os.WriteFile(path, []byte(s), 0o600); err != nil {
+		return nil, err
+	}
+	return []byte(s), nil
 }
 
 // Reset replaces the gateway identity (state dir or a backup of it may have

@@ -53,7 +53,7 @@ func TestResetNewIdentityEmptyAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 	allow := filepath.Join(dir, "allowlist.json")
-	if err := os.WriteFile(allow, []byte(`[{"keyFp":"x"}]`), 0o600); err != nil {
+	if err = os.WriteFile(allow, []byte(`[{"keyFp":"x"}]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	fp2, err := Reset(dir)

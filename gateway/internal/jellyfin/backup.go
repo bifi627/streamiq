@@ -40,7 +40,7 @@ var archiveName = regexp.MustCompile(`^[A-Za-z0-9._-]+\.zip$`)
 // with compose, whose archive turns up under that install dir's jellyfin-config.
 // One sign-in, no retry: Jellyfin locks users out after failed sign-ins.
 func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive string, remove func(), err error) {
-	if err := s.Load(); err != nil {
+	if err = s.Load(); err != nil {
 		return "", nil, err
 	}
 	c := s.View()
@@ -50,13 +50,13 @@ func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive strin
 		)
 	}
 	config := filepath.Join(filepath.Dir(compose), "jellyfin-config")
-	if _, err := os.Stat(compose); err != nil {
+	if _, err = os.Stat(compose); err != nil {
 		return "", nil, fmt.Errorf(
 			"no %s next to the gateway (back Jellyfin up in Jellyfin: Dashboard → Backups)",
 			ComposeFile,
 		)
 	}
-	if _, err := os.Stat(config); err != nil {
+	if _, err = os.Stat(config); err != nil {
 		return "", nil, fmt.Errorf("no %s: Jellyfin doesn't keep its data next to %s", config, ComposeFile)
 	}
 	s.mu.Lock()
@@ -92,9 +92,9 @@ func (s *Setup) CreateBackup(ctx context.Context, compose string) (archive strin
 		)
 	}
 	return archive, func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+		rmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
 		defer cancel()
-		if err := composeQuiet(ctx, compose, "exec", "-T", service, "rm", "-f", backupDir+"/"+base); err != nil {
+		if err := composeQuiet(rmCtx, compose, "exec", "-T", service, "rm", "-f", backupDir+"/"+base); err != nil {
 			fmt.Fprintf(os.Stderr, "Could not remove Jellyfin's copy %s: %v\n", archive, err)
 		}
 	}, nil
@@ -109,7 +109,7 @@ func RestoreCLI(ctx context.Context, s *Setup, compose, archive string, creds []
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(compose); err != nil {
+	if _, err = os.Stat(compose); err != nil {
 		return fmt.Errorf("no %s: run `gateway jellyfin up` first", compose)
 	}
 	fmt.Fprintln(out, "This replaces Jellyfin's users, libraries and watch state with the backup's.")
@@ -219,9 +219,9 @@ func (s *Setup) restore(
 		return err
 	}
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+		rmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
 		defer cancel()
-		_ = composeQuiet(ctx, compose, "exec", "-T", service, "rm", "-f", backupDir+"/"+restoreName)
+		_ = composeQuiet(rmCtx, compose, "exec", "-T", service, "rm", "-f", backupDir+"/"+restoreName)
 	}()
 	logs := fmt.Sprintf("see Jellyfin's log: docker compose -f %q logs %s", compose, service)
 	fmt.Fprintln(out, "Restoring; Jellyfin restarts…")

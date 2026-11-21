@@ -35,7 +35,7 @@ func selfUpdate(ctx context.Context, exe string) error {
 		return err
 	}
 	fmt.Printf("Downloading v%s…\n", latest)
-	if err := update.Download(
+	if err = update.Download(
 		ctx,
 		env("STREAMIQ_DOWNLOAD", update.DownloadURL),
 		update.Asset(),
@@ -182,15 +182,15 @@ func rollback(ctx context.Context, exe string) error {
 	kept := filepath.Join(dir, filepath.Base(exe))
 	task := service.Installed()
 	stopGateway(exe)
-	if err := waitStopped(); err != nil {
+	if err = waitStopped(); err != nil {
 		return err
 	}
 	c := exec.CommandContext(ctx, kept, "restore", "--force", filepath.Join(dir, update.StateZip))
 	c.Dir, c.Stdout, c.Stderr = install, io.Discard, os.Stderr
-	if err := c.Run(); err != nil {
+	if err = c.Run(); err != nil {
 		return fmt.Errorf("restoring the state with %s: %w (nothing changed; start the gateway again)", kept, err)
 	}
-	if err := update.Swap(exe, kept, exe+".old"); err != nil {
+	if err = update.Swap(exe, kept, exe+".old"); err != nil {
 		return fmt.Errorf(
 			"the state of %s is restored, but its binary could not be put back: %w (copy %s over %s by hand)",
 			prev,

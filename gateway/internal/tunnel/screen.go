@@ -84,8 +84,8 @@ func (c ScreenCommand) valid() bool {
 // bare: no field but Type is set. valid clears the fields a type takes, then asks.
 func (c ScreenCommand) bare() bool { return c == ScreenCommand{Type: c.Type} }
 
-// atLeast: unset, or set to min or more.
-func atLeast[T int | int64](p *T, min T) bool { return p == nil || *p >= min }
+// atLeast: unset, or set to least or more.
+func atLeast[T int | int64](p *T, least T) bool { return p == nil || *p >= least }
 
 // screen is one open screen, held by its GET /streamiq/screen.
 type screen struct {

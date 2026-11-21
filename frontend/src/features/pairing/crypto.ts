@@ -16,10 +16,11 @@ export const sha256 = (s: string | ArrayBuffer) =>
 export async function fingerprint(bytes: ArrayBuffer) {
   return (
     'sha-256 ' +
-    hex(await sha256(bytes))
-      .toUpperCase()
-      .match(/../g)!
-      .join(':')
+    (
+      hex(await sha256(bytes))
+        .toUpperCase()
+        .match(/../g) ?? []
+    ).join(':')
   )
 }
 

@@ -15,7 +15,13 @@ import {
   sha256,
 } from './crypto'
 import { lifetime, type Session } from './session'
-import { clientKey, getPin, persistStorage, setPin } from './store'
+import {
+  clientKey,
+  getPin,
+  persistStorage,
+  setPin,
+  type ClientKey,
+} from './store'
 import { sharer } from './shared'
 import { relayLine, relayServers } from './relay'
 import { lastingFailure } from './iceFailed'
@@ -30,6 +36,29 @@ import {
 export type { Session }
 
 type Msg = Record<string, string | undefined> & { type: string }
+
+// The gateway's challenge and nonce messages carry one: without it, it's refused.
+function theirNonce(m: Msg) {
+  if (!m.n)
+    throw new AppError('gateway-refused', `gateway's ${m.type} has no nonce`)
+  return m.n
+}
+
+// The key signs both certificate fingerprints and the gateway's nonce. No local
+// description = an SDP without a fingerprint, which throws.
+async function challengeAnswer(
+  m: Msg,
+  key: ClientKey,
+  gatewayFp: string,
+  sdp = '',
+) {
+  const sig = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key.privateKey,
+    authMessage(gatewayFp, sdpFingerprint(sdp), theirNonce(m)),
+  )
+  return { spki: b64(key.spki), sig: b64(sig) }
+}
 
 /**
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
@@ -138,19 +167,13 @@ export async function connect(
     const onGateway = async (m: Msg) => {
       switch (m.type) {
         case 'challenge': {
-          const browserFp = sdpFingerprint(pc.localDescription!.sdp)
-          const sig = await crypto.subtle.sign(
-            { name: 'ECDSA', hash: 'SHA-256' },
-            key.privateKey,
-            authMessage(gatewayFp, browserFp, m.n!),
-          )
+          const sdp = pc.localDescription?.sdp
           // No matching pin (new browser, or the gateway's cert changed): ask for
           // the code comparison even if the gateway knows our key — "ok" alone
           // can't vouch for a certificate we haven't verified.
           return say({
             type: 'auth',
-            spki: b64(key.spki),
-            sig: b64(sig),
+            ...(await challengeAnswer(m, key, gatewayFp, sdp)),
             pair: verdict !== 'pinned',
           })
         }
@@ -177,7 +200,9 @@ export async function connect(
           })
         case 'nonce':
           say({ type: 'reveal', n: nB })
-          return onCode?.(await comparisonCode(gatewayFp, key.fp, m.n!, nB))
+          return onCode?.(
+            await comparisonCode(gatewayFp, key.fp, theirNonce(m), nB),
+          )
         case 'approved':
           await setPin(gatewayId, gatewayFp)
           void persistStorage().catch((e) =>

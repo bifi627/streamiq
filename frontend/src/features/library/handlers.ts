@@ -106,9 +106,10 @@ export function makeUi(
       setPage(null)
       r.qBtn.current?.focus({ preventScroll: true })
     },
-    toggle: () => toggle(r.video.current!),
-    mute: () => mute(r.video.current!),
-    seek: (d: number) => setTime(seekBy(r.video.current!, d, r.dur.current)),
+    toggle: () => r.video.current && toggle(r.video.current),
+    mute: () => r.video.current && mute(r.video.current),
+    seek: (d: number) =>
+      r.video.current && setTime(seekBy(r.video.current, d, r.dur.current)),
     fullscreen() {
       if (document.fullscreenElement) return document.exitFullscreen()
       r.root.current

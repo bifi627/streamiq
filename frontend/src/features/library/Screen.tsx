@@ -1,13 +1,6 @@
 // The screen feature: a TV in screen mode, the phone's "Play on…"
 // and its remote. Routes in App.tsx; the remote's decisions live in remote.ts.
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Link,
   useCanGoBack,
@@ -41,7 +34,7 @@ import {
 } from './items'
 import { Icon } from './Controls'
 import { ICON } from './icons'
-import { Tunnel, backdrop, primary, useTunnelQuery } from './art'
+import { backdrop, primary, useTunnel, useTunnelQuery } from './art'
 import { useScreens } from './queries'
 import { Artwork } from './Home'
 
@@ -51,7 +44,7 @@ import { Artwork } from './Home'
 // which removes the screen on the gateway; leaving the gateway frees the
 // shared session. No devtools on a TV: everything goes to the diagnostics log.
 export function ScreenPage() {
-  const { gatewayId, pc, speed } = useContext(Tunnel)
+  const { gatewayId, pc, speed } = useTunnel()
   const navigate = useNavigate()
   const [play, setPlay] = useState<{
     itemId: string
@@ -214,7 +207,7 @@ export function ScreenPage() {
 // "Play on…": the gateway's open screens. Only a device in screen mode
 // is one, so nothing else can be picked.
 export function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
-  const { gatewayId } = useContext(Tunnel)
+  const { gatewayId } = useTunnel()
   const navigate = useNavigate()
   const [screens, setScreens] = useState<Screen[] | null>(null)
   const [open, setOpen] = useState(false)
@@ -303,7 +296,7 @@ const IDLE: ScreenState = {
 // every second) and sends commands one at a time, in order (each POST is its
 // own channel). Two phones see the same state; the last command wins.
 export function RemotePage({ screenId }: { screenId: string }) {
-  const { gatewayId, pc } = useContext(Tunnel)
+  const { gatewayId, pc } = useTunnel()
   const [msg, setMsg] = useState('') // the last command's error
   const q = useScreens(gatewayId, pc, screenId)
   const down = q.error ? toAppError(q.error).message : '' // the last poll's

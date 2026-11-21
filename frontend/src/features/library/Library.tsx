@@ -2,7 +2,7 @@
 // page (title, seasons, folders) and the player page; home lives in Home.tsx.
 // Routes (App.tsx): /g/$gatewayId owns the tunnel; its children (home, /i, /play,
 // /screen, /remote) render through <Outlet /> and share it.
-import { useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Link,
   Outlet,
@@ -36,7 +36,14 @@ import { useGuestStatus } from './queries'
 import { PlayOn } from './Screen'
 import { arrowFocus } from '../../focus'
 import { tvOn } from '../../settings'
-import { Tunnel, backdrop, current, primary, useTunnelQuery } from './art'
+import {
+  Tunnel,
+  backdrop,
+  current,
+  primary,
+  useTunnel,
+  useTunnelQuery,
+} from './art'
 import { Artwork, Watched } from './Home'
 export { Home as LibraryHome } from './Home'
 
@@ -183,7 +190,7 @@ function Title({
   season?: string
   updatedAt: number
 }) {
-  const { gatewayId, pc } = useContext(Tunnel)
+  const { gatewayId, pc } = useTunnel()
   const navigate = useNavigate()
   const router = useRouter()
   const canGoBack = useCanGoBack()
@@ -354,7 +361,7 @@ function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
 // position. Back goes back in history; after a deep link (no in-app history)
 // it goes to the item's listing instead of leaving the app.
 export function PlayerPage({ itemId }: { itemId: string }) {
-  const { gatewayId, pc, speed } = useContext(Tunnel)
+  const { gatewayId, pc, speed } = useTunnel()
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const navigate = useNavigate()
@@ -385,7 +392,7 @@ export function PlayerPage({ itemId }: { itemId: string }) {
 
 // A folder: breadcrumbs from the item itself + the listing.
 function Browse({ item }: { item: Item }) {
-  const { gatewayId, pc } = useContext(Tunnel)
+  const { gatewayId, pc } = useTunnel()
   const navigate = useNavigate()
   const crumb = (itemId: string, name: string) => (
     <>
@@ -477,7 +484,7 @@ function Listing({
 // made or dropped mid-visit shows on the next one.
 // No status (older gateway, error) = no banner.
 function Guest() {
-  const { gatewayId, pc } = useContext(Tunnel)
+  const { gatewayId, pc } = useTunnel()
   const admin = useHousehold().current?.role === 'admin'
   const s = useGuestStatus(gatewayId, pc)
   const notice = guestNotice(s, admin)

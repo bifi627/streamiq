@@ -160,7 +160,7 @@ export function tunnelLines(
     }
     buf += text.decode(e.data, { stream: true })
     const lines = buf.split('\n')
-    buf = lines.pop()!
+    buf = lines.pop() ?? ''
     for (const l of lines) if (l) onLine(l)
   }
   dc.onclose = () => end('connection closed')

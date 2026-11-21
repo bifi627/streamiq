@@ -5,16 +5,17 @@
  * waiting keeps them ordered). A new x replaces the queued last one if
  * replaces(last, x). A rejected run is dropped here: the caller's run reports
  * its own error. */
-export function serial<T>(
+export function serial<T extends string | object>(
   run: (x: T) => Promise<unknown>,
   replaces: (queued: T, x: T) => boolean,
 ) {
   const q: T[] = []
   let busy = false
   const next = () => {
-    busy = q.length > 0
-    if (busy)
-      run(q.shift()!)
+    const x = q.shift() // T excludes undefined: undefined = queue empty
+    busy = x !== undefined
+    if (x !== undefined)
+      run(x)
         .catch(() => {
           // reported on the caller's path: the tunnel request log or its own handler
         })

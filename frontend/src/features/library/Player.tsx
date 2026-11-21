@@ -2,12 +2,12 @@
 // episode button. Playback itself (loads, fallbacks, resume, screen mode) is
 // the Engine's (engine.ts); `remote` feeds it a phone's commands and
 // `onState` gets the playback state about once a second and on every change.
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ErrorView } from '../../ErrorView'
 import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
 import type { Speed } from '../../speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
-import { Tunnel } from './art'
+import { useTunnel } from './art'
 import { Controls } from './Controls'
 import { Privacy } from './Privacy'
 import { useNext } from './queries'
@@ -39,7 +39,7 @@ export function Player({
   /** Plays another item; unset (screen mode) = no "Next episode". */
   onNext?: (item: Item) => void
 }) {
-  const { gatewayId } = useContext(Tunnel)
+  const { gatewayId } = useTunnel()
   const video = useRef<HTMLVideoElement>(null)
   const [view, setView] = useState<View>(START_VIEW)
   const patch = (p: Partial<View>) => setView((v) => ({ ...v, ...p }))
@@ -55,9 +55,11 @@ export function Player({
   })
 
   useEffect(() => {
+    const v = video.current
+    if (!v) return
     const e = new Engine({
       pc,
-      v: video.current!,
+      v,
       itemId,
       speed,
       set: patch,

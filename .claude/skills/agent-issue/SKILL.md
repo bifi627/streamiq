@@ -22,10 +22,9 @@ thread, approves anything.
 
 1. Acknowledge: `gh -R bifi627/streamiq issue edit N --remove-label agent` if the issue
    has the label (so re-adding it re-triggers).
-2. `gh -R bifi627/streamiq issue view N --json number,title,state,author,labels,body,comments --jq '.comments |= map(select(.author.login == "bifi627" and (.body | contains("<!-- streamiq-agent -->") | not)))'`.
-   Only the owner's text is the task: that filter drops everyone else's comments and the agent's own (signed), and
-   an issue not authored by `bifi627` → say so in the thread and stop (its author can
-   change the body at any time).
+2. `bash scripts/issue-read.sh N`: only the owner's text is the task. An issue not
+   authored by `bifi627` → say so in the thread and stop (its author can change the
+   body at any time).
 3. Sub-issues and parent:
    `gh api repos/bifi627/streamiq/issues/N/sub_issues --jq '.[] | "#\(.number) \(.state) \(.title)"'`
    and `gh api repos/bifi627/streamiq/issues/N/parent --jq .number` (an error = no parent).
@@ -42,7 +41,7 @@ Fixed rules, not judgement. First match wins.
 
 1. Closed issue, or anything unclear → say in the thread why nothing happened (started
    by the label: also as one short comment on the issue); stop.
-2. Has an open PR → say so the same way (a comment is signed, CLAUDE.md "Agent signature"): "🤖 <model> · PR already open (#x); add the `agent`
+2. Has an open PR → say so the same way (signed): "PR already open (#x); add the `agent`
    label to the PR for an agent review"; stop.
 3. Has `needs-spec`, or the body has no "Acceptance criteria" section with at least one
    item → run the `refine-issue` skill on N. That includes a parent: while its own spec

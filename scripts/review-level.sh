@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Suggested /code-review level and risk label of a change for the agent review (#612).
 # A suggestion, not a floor: the reviewer reads the diff and may go either way, with a
-# reason (agent-review sections 2 and 5). This script only finds the facts.
+# reason (agent-pr sections 2 and 5). This script only finds the facts.
 #
 #   bash scripts/review-level.sh [PR number]    # no number = this branch vs origin/main
 #

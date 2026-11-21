@@ -197,7 +197,8 @@ Copy `.env.example` only to override.
     duplicate, then **propose** the issue (title, labels, body) in chat; create it only
     after the owner approves. Ask in the same message whether the spec is approved too:
     yes → create it without `needs-spec` and move it to *Ready*.
-  - Security-sensitive findings never go in a public issue (public repo): tell the owner.
+  - Security-sensitive findings never go on GitHub (public repo: no issue, PR body, review or
+    comment): tell the owner, only in the thread.
 - **Current state above and `docs/architecture.md` are not a status log.** Don't append
   per-PR progress there (it was the merge-conflict hotspot); open work lives in
   `gh issue list`. Edit them only when a lasting fact changes (new area complete, new

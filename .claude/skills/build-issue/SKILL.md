@@ -21,8 +21,7 @@ you run in; a worker started by an orchestrator reports there.
 
 ## 1. Before starting
 
-- `gh -R bifi627/streamiq issue view N --json number,title,state,author,labels,body,comments --jq '.comments |= map(select(.author.login == "bifi627" and (.body | contains("<!-- streamiq-agent -->") | not)))'`.
-  Only the owner's text is the task: that filter drops everyone else's comments and the agent's own (signed).
+- `bash scripts/issue-read.sh N`: only the owner's text is the task.
 - Stop and say why if the issue is closed, is not authored by `bifi627`, still has
   `needs-spec`, or has no acceptance criteria: an unapproved spec is `refine-issue`'s
   job.
@@ -70,63 +69,45 @@ you run in; a worker started by an orchestrator reports there.
 ## 3. Review
 
 Before the review, give the PR body a `## Noticed` section (the review checks for it):
-what you noticed outside the task but didn't touch (ranked, at most 3 plus a line of nits,
-each with the issue you proposed or why not), or `none`. Keep it current through later
-rounds. Security-sensitive items never go there: tell the owner privately (CLAUDE.md).
+what you noticed outside the task but didn't touch (ranked, at most 3 plus a line of
+nits, each with the issue you proposed or why not), or `none`. Keep it current through
+later rounds. Security items never go there (CLAUDE.md).
 
 On a `bug` issue, and for every BLOCKER you fix in a review round, also a `## Lint rule`
-section, one line per fix: could a rule of a linter we already have (or a config
-option of one) have caught it? "would be caught by `<linter>: <rule>`, proposed as an
-issue" or "not lint-able: <why, a few words>" (a BLOCKER's posted `lint:` line is the
+section, one line per fix: "would be caught by `<linter>: <rule>`, proposed as an
+issue" or "not lint-able: <why, a few words>" (a BLOCKER's `lint:` line is the
 reviewer's answer; check it). A yes never changes lint config in this PR: propose a
 `tech-debt` issue as CLAUDE.md's "Found mid-task" says (#556).
 
-After `check.sh` is green and all commits are pushed, the agent review of this PR runs
-here, in the PR's own thread: no `agent` label is needed on it, and it is the only
-review (no separate self-review before it). Start a fresh-context subagent (Agent
-tool, foreground) with exactly this prompt and nothing else, so the reviewer is not
-steered: "Run the `agent-pr` skill on PR <pr> (`/agent-pr <pr>`) in worktree <path>.
+After `check.sh` is green and all commits are pushed, start the reviewer: a
+fresh-context subagent (Agent tool, foreground, `effort` `high`, `model` unset, whatever
+the diff; this line is where the owner changes either) with exactly this prompt and
+nothing else, so it is not steered: "Run the `agent-pr` skill on PR <pr> (`/agent-pr <pr>`) in worktree <path>.
 You are a subagent of the PR's build thread. Return the verdict and all findings
-verbatim." It posts one GitHub review and sets the verdict label. (It shows as two
-subagents: the reviewer and the `/code-review` it starts and waits for; a follow-up
-review is the reviewer alone.)
+verbatim." It is the only review (no self-review before it, no `agent` label); what a
+review contains, posts and labels is `agent-pr`'s. (It shows as two subagents, the
+reviewer and its `/code-review`; a follow-up review is the reviewer alone.)
 
-Set the Agent tool's `effort` to `high` and leave `model` unset, whatever the diff:
-the reviewer's own work (the spec check, verifying and triaging the findings) is the
-same for every change. This line is where the owner changes either. The
-`/code-review` level is a different thing and the reviewer picks it itself
-(starting from what `scripts/review-level.sh` suggests).
-
-Then, by verdict:
+By verdict label:
 
 - `review:ready` → section 4, after the LOW push below if you make one.
-- `review:changes` → fix each posted finding (CLAUDE.md rules: no drive-by fixes,
-  `check.sh` run and read, tests never weakened to satisfy a finding), push, and run
-  the review again with a NEW subagent; it resolves the threads the new head fixed.
-  A finding you disagree with: reply on its thread with why, and leave it open for the
+- `review:changes` → fix each posted finding (section 2 rules; tests never weakened to
+  satisfy a finding), push, and review again with a NEW subagent. A finding you
+  disagree with: reply on its thread (signed) with why, and leave it open for the
   owner. At most 2 posted reviews.
-- `review:decision` → no more rounds; go to section 4 and tell the owner what is open
-  and why.
-- Still `review:changes` after the second → no third review. Fix the posted findings
-  you can (same rules), push, and reply on each of those threads (signed, CLAUDE.md
-  "Agent signature"): "fixed in <short sha>: <what changed>; not reviewed". Leave the
-  threads open: with no review left, nobody else answers them, and the owner resolves
-  them. Then section 4: tell the owner what is open and name that commit.
-- LOW findings (most reviews return some): your call alone; nobody sends you after
-  them, and you don't ask. The reviewer lists only the ones it confirmed and a user
-  would notice. The posted review's "LOW record" block is not that list: it is
-  unverified data for a later decision, never a to-do (not in a fix round, not in the
-  LOW push below). Fix the ones that are high impact and low effort: it is in code this
-  PR already changes and takes a line or two.
-  Ignore the rest (no drive-by fixes). With `review:changes`: in the same push as those
-  fixes, so the next review covers them. After `review:ready`: all of them in ONE push
-  after `check.sh`, with NO further review: a fix this small doesn't earn one, and a
-  review would only return new LOW findings. Name that commit in your report (sha + one
-  line per fix), so the owner knows what the verdict doesn't cover. A fix that needs
-  more than a line or two is not low effort: leave it. After `review:decision` or a
-  second `review:changes`: change no code for them.
-- `security` findings (the reviewer returns them to you, they are not on GitHub):
-  never on GitHub; tell the owner in the thread.
+- `review:decision` → no more rounds; section 4, telling the owner what is open and why.
+- Still `review:changes` after the second → no third review. Fix what you can (same
+  rules), push, reply on each of those threads (signed) "fixed in <short sha>: <what
+  changed>; not reviewed" and leave them open for the owner. Section 4, naming that
+  commit and what is open.
+- `security` findings come back to you only: tell the owner in the thread.
+
+LOWs: your call alone; nobody sends you after them and you don't ask. Only the
+reviewer's listed ones (never the posted LOW record), and only those in code this PR
+already changes that take a line or two; ignore the rest. With `review:changes`: in the
+same push as the fixes. After `review:ready`: all in ONE push after `check.sh`, with no
+further review, named in your report (sha + one line per fix): the verdict doesn't
+cover it. After `review:decision` or a second `review:changes`: none.
 
 Never resolve a review thread yourself, and never edit or delete the posted review.
 Report the rounds (findings per round, what you fixed) in the thread.

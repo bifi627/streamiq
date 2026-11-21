@@ -134,7 +134,7 @@ export function useArt(a: Art | null, width: number, enabled: boolean) {
           const b = await load(pc, gatewayId, a, width)
           return b && URL.createObjectURL(b)
         },
-    enabled: enabled && !!a,
+    enabled,
     staleTime: Infinity,
     gcTime: 0,
   })

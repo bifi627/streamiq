@@ -377,7 +377,7 @@ export function Controls({
 
   useEffect(() => {
     const v = video.current
-    if (!v) return
+    if (!v) return () => ui.stop()
     const key = (e: KeyboardEvent) => onKey(e, v, r, ui, setPage)
     window.addEventListener('keydown', key)
     return () => {

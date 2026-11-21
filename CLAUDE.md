@@ -264,12 +264,12 @@ Copy `.env.example` only to override.
 - **Frontend decision logic lives in `.ts`** (#532): a choice over state, an error, time or
   ordering goes in a plain `.ts` beside the component with a `node --test`; the `.tsx` only
   wires it (render branching stays). oxlint `complexity` ≤ 12 on `.tsx` enforces part of it.
-  The gateway's limit: golangci-lint `gocyclo` > 15 fails (#542; tests
-  excluded). Split into pieces that take and return values; a new `//nolint:gocyclo`
+  The Go limit (gateway and Go API): golangci-lint `gocyclo` > 15 fails (#542;
+  tests excluded). Split into pieces that take and return values; a new `//nolint:gocyclo`
   names the issue that splits it or the reason it stays.
   Size limits (#600, code lines: blank and comment lines skipped, tests excluded): a
-  function over 150 lines in the frontend (oxlint `max-lines-per-function`) or 80 in the
-  gateway (golangci-lint `funlen`) fails, and so does a source file over 500 in any stack
+  function over 150 lines in the frontend (oxlint `max-lines-per-function`) or 80 in Go
+  (gateway and Go API, golangci-lint `funlen`) fails, and so does a source file over 500 in any stack
   (`scripts/check-file-size.sh`; migrations and generated files excluded). Split along a
   real seam, never `Part1`/`Part2`. An exemption (`max-lines-per-function` in the disable
   comment, `//nolint:funlen // #N`, a line in `scripts/file-size-allowlist.txt`) names the
@@ -280,8 +280,8 @@ Copy `.env.example` only to override.
   commented-out code, copies of `docs/`, banners. Issue numbers only as `TODO(#N)`, on a
   `nolint` / `oxlint-disable` line, or `quirk(#N): …`. TS: oxlint `streamiq/no-low-value-comments`
   (`frontend/lint/streamiq.js`) catches issue refs, banners, name-restating, the usual
-  commented-out shapes and comments over 6 lines outside the file header; CSS, Go, C# and
-  scripts: `scripts/check-comments.sh` against `scripts/comment-baseline.txt` (issue refs,
+  commented-out shapes and comments over 6 lines outside the file header; CSS, Go (gateway, Go API, every
+  Go file), C# and scripts: `scripts/check-comments.sh` against `scripts/comment-baseline.txt` (issue refs,
   > 30 % comments); Go commented-out code: golangci-lint gocritic `commentedOutCode`. The rest
   needs reading.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

@@ -5,7 +5,6 @@ import { auth } from '../../firebase'
 import { API } from '../../api'
 import { diag, event, pcState, relayOn, relayTlsOn } from '../../diag'
 import {
-  answerCheck,
   authMessage,
   b64,
   comparisonCode,
@@ -23,32 +22,23 @@ import {
   type ClientKey,
 } from './store'
 import { sharer } from './shared'
-import { relayLine, relayServers } from './relay'
-import type { BrokerMessage, BrowserMessage } from '../../generated/protocol'
-import { lastingFailure } from './iceFailed'
+import { relayLine } from './relay'
+import type { BrowserMessage } from '../../generated/protocol'
 import {
-  AppError,
-  brokerClosed,
-  brokerError,
-  toAppError,
-  type Kind,
-} from '../../errors'
+  atOnce,
+  ICE_FAILED_GRACE_MS,
+  start,
+  step,
+  type Effect,
+  type Event,
+} from './handshake'
 
 export type { Session }
-
-type Msg = Record<string, string | undefined> & { type: string }
-
-// The gateway's challenge and nonce messages carry one: without it, it's refused.
-function theirNonce(m: Msg) {
-  if (!m.n)
-    throw new AppError('gateway-refused', `gateway's ${m.type} has no nonce`)
-  return m.n
-}
 
 // The key signs both certificate fingerprints and the gateway's nonce. No local
 // description = an SDP without a fingerprint, which throws.
 async function challengeAnswer(
-  m: Msg,
+  theirNonce: string,
   key: ClientKey,
   gatewayFp: string,
   sdp = '',
@@ -56,7 +46,7 @@ async function challengeAnswer(
   const sig = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     key.privateKey,
-    authMessage(gatewayFp, sdpFingerprint(sdp), theirNonce(m)),
+    authMessage(gatewayFp, sdpFingerprint(sdp), theirNonce),
   )
   return { spki: b64(key.spki), sig: b64(sig) }
 }
@@ -89,139 +79,103 @@ export async function connect(
   const send = (m: BrowserMessage) => ws.send(JSON.stringify(m))
 
   return new Promise<Session>((resolve, reject) => {
-    const err = (kind: Kind, detail: string) =>
-      new AppError(kind, detail, { gatewayId })
-    const fail = (x: unknown) => {
-      const e = toAppError(x)
-      close()
-      reject(e)
-    }
-    let gatewayFp = ''
-    let verdict: 'pinned' | 'unpinned' | 'refuse' = 'refuse'
-    let nB = ''
-    let noTurn = '' // why there's no relay, once `ready` says so
-
-    let opened = false
-    ws.onopen = () => {
-      opened = true
-      send({ type: 'auth', token: token ?? '' }) // signed out: the broker refuses it
-      keepAlive(send)
-    }
-    ws.onclose = (e) => fail(brokerClosed(opened, { gatewayId }, e.reason))
-    // Handle broker messages strictly in order. The gateway can still trickle a
-    // candidate before its answer (Pion gathers during SetLocalDescription), so
-    // candidates that beat the answer wait in `early`.
-    let queue = Promise.resolve()
-    const early: RTCIceCandidateInit[] = []
-    ws.onmessage = (e) => {
-      queue = queue.then(() => onBroker(JSON.parse(e.data))).catch(fail)
-    }
-    const onBroker = async (m: BrokerMessage) => {
-      if (m.type === 'ready') {
-        const { iceServers, noTurn: why } = relayServers(
-          m.iceServers,
-          relayTlsOn(),
-        )
-        noTurn = why
-        diag.relay = relayLine(noTurn)
-        // A forced relay without a TURN server can't connect: say why now.
-        if (noTurn && relayOn())
-          return fail(
-            err('ice-failed', `relay forced, but relay unavailable: ${noTurn}`),
-          )
-        pc.setConfiguration({ ...pc.getConfiguration(), iceServers })
-        const offer = await pc.createOffer()
-        await pc.setLocalDescription(offer)
-        send({ type: 'offer', gatewayId, sdp: pc.localDescription ?? offer })
-      } else if (m.type === 'answer') {
-        setTunnel(m.tunnel)
-        // Before a single byte goes to the gateway (pairing again is allowed).
-        const a = answerCheck(m.sdp.sdp ?? '', pin, !!onCode)
-        if ('refused' in a) return fail(err('pin-mismatch', a.refused))
-        gatewayFp = a.fp
-        verdict = a.verdict
-        await pc.setRemoteDescription(m.sdp)
-        for (const c of early.splice(0)) await pc.addIceCandidate(c)
-      } else if (m.type === 'ice') {
-        if (pc.remoteDescription) await pc.addIceCandidate(m.candidate)
-        else early.push(m.candidate)
-      } else if (m.type === 'error') {
-        fail(brokerError(m.error, { gatewayId }))
-      }
-    }
-    const iceState = lastingFailure(() =>
-      fail(
-        err(
-          'ice-failed',
-          `ICE failed: no direct or relayed route to the gateway${noTurn ? ` (relay unavailable: ${noTurn})` : ''}`,
-        ),
-      ),
-    )
-    pc.onconnectionstatechange = () => iceState(pc.connectionState)
-    pc.onicecandidate = (e) =>
-      e.candidate && send({ type: 'ice', candidate: e.candidate.toJSON() })
-
     const ch = pc.createDataChannel('auth')
     const say = (m: object) => ch.send(JSON.stringify(m))
-    ch.onclose = () =>
-      fail(err('gateway-refused', 'gateway closed the connection'))
-    ch.onmessage = (e) => onGateway(JSON.parse(e.data)).catch(fail)
-    const onGateway = async (m: Msg) => {
-      switch (m.type) {
+    let nB = '' // this browser's pairing nonce, revealed after the commit
+    let grace: ReturnType<typeof setTimeout> | undefined
+
+    const run = async (f: Effect) => {
+      switch (f.do) {
+        case 'auth':
+          send({ type: 'auth', token: token ?? '' }) // signed out: the broker refuses it
+          return keepAlive(send)
+        case 'relayLine':
+          diag.relay = relayLine(f.noTurn)
+          return
+        case 'offer':
+          pc.setConfiguration({
+            ...pc.getConfiguration(),
+            iceServers: f.iceServers,
+          })
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          return send({
+            type: 'offer',
+            gatewayId,
+            sdp: pc.localDescription ?? offer,
+          })
+        case 'answer':
+          setTunnel(f.tunnel)
+          return pc.setRemoteDescription(f.sdp)
+        case 'addIce':
+          return pc.addIceCandidate(f.candidate)
         case 'challenge': {
           const sdp = pc.localDescription?.sdp
-          // No matching pin (new browser, or the gateway's cert changed): ask for
-          // the code comparison even if the gateway knows our key — "ok" alone
-          // can't vouch for a certificate we haven't verified.
-          return say({
-            type: 'auth',
-            ...(await challengeAnswer(m, key, gatewayFp, sdp)),
-            pair: verdict !== 'pinned',
-          })
+          const answer = await challengeAnswer(f.n, key, f.fp, sdp)
+          return say({ type: 'auth', ...answer, pair: f.pair })
         }
-        case 'ok':
-          if (verdict !== 'pinned')
-            return fail(
-              err(
-                'pin-mismatch',
-                'gateway skipped pairing for an unpinned certificate',
-              ),
-            )
-          ch.onclose = null
-          return resolve(up())
-        case 'unpaired':
-          if (!onCode)
-            return fail(
-              err('not-paired', 'this browser is not paired with the gateway'),
-            )
+        case 'commit':
           nB = nonce()
           return say({
             type: 'commit',
             h: hex(await sha256(nB)),
             name: browserName(),
           })
-        case 'nonce':
+        case 'reveal':
           say({ type: 'reveal', n: nB })
-          return onCode?.(
-            await comparisonCode(gatewayFp, key.fp, theirNonce(m), nB),
-          )
+          return onCode?.(await comparisonCode(f.fp, key.fp, f.n, nB))
         case 'approved':
-          await setPin(gatewayId, gatewayFp)
+          await setPin(gatewayId, f.fp)
           void persistStorage().catch((e) =>
             event(`storage: persist failed: ${e}`),
           )
           shared.drop(gatewayId) // its session belongs to the old certificate
-          ch.onclose = null
           return resolve(up())
-        case 'rejected':
-          return fail(
-            err(
-              'gateway-refused',
-              `gateway refused: ${m.reason ?? 'rejected'}`,
-            ),
-          )
+        case 'resolve':
+          return resolve(up())
+        case 'grace':
+          clearTimeout(grace)
+          if (f.arm)
+            grace = setTimeout(
+              () => dispatch({ on: 'graceOver' }),
+              ICE_FAILED_GRACE_MS,
+            )
+          return
+        case 'fail':
+          close()
+          return reject(f.error)
       }
     }
+
+    let s = start({
+      gatewayId,
+      pin,
+      pairing: !!onCode,
+      forceRelay: relayOn(),
+      relayTls: relayTlsOn(),
+    })
+    let queue = Promise.resolve()
+    function dispatch(ev: Event) {
+      const r = step(s, ev)
+      s = r.state
+      for (const f of r.fx) {
+        if (atOnce(f)) void run(f)
+        else
+          queue = queue
+            .then(() => run(f))
+            .catch((error) => dispatch({ on: 'error', error }))
+      }
+    }
+
+    ws.onopen = () => dispatch({ on: 'open' })
+    ws.onclose = (e) => dispatch({ on: 'close', reason: e.reason })
+    ws.onmessage = (e) => dispatch({ on: 'broker', data: e.data })
+    pc.onconnectionstatechange = () =>
+      dispatch({ on: 'connection', state: pc.connectionState })
+    pc.onicecandidate = (e) =>
+      e.candidate && send({ type: 'ice', candidate: e.candidate.toJSON() })
+    ch.onclose = () => dispatch({ on: 'channelClose' })
+    ch.onmessage = (e) => dispatch({ on: 'gateway', data: e.data })
   })
 }
 

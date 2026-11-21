@@ -30,7 +30,9 @@ func applied(t *testing.T, url string) []string {
 
 func want(t *testing.T, got []string) {
 	t.Helper()
-	if !slices.Equal(got, []string{"0001_baseline.sql", "0002_rls.sql", "0003_gateway_by_credential.sql"}) {
+	if !slices.Equal(got, []string{"0001_baseline.sql", "0002_rls.sql", "0003_gateway_by_credential.sql",
+		"0004_claim_enrollment_token.sql",
+	}) {
 		t.Fatalf("applied %v", got)
 	}
 }

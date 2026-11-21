@@ -1,0 +1,5 @@
+*
+!gateway/go.mod
+!gateway/go.sum
+!gateway/proto
+!backend-go

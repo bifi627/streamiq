@@ -19,36 +19,14 @@ import (
 
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/tunnel"
+	"streamiq/gateway/proto"
 )
 
 // Msg is the broker envelope on the control socket (docs/protocol.md).
-type Msg struct {
-	Type      string                     `json:"type"` // offer | answer | ice | bye
-	Session   string                     `json:"session"`
-	User      string                     `json:"user,omitempty"` // offer only: the signed-in user's users.id, stamped by the broker
-	Role      string                     `json:"role,omitempty"` // offer only: that user's role in this gateway's household (admin | member)
-	SDP       *webrtc.SessionDescription `json:"sdp,omitempty"`
-	Candidate *webrtc.ICECandidateInit   `json:"candidate,omitempty"`
-}
+type Msg = proto.Msg[webrtc.SessionDescription, webrtc.ICECandidateInit]
 
-// Report is the gateway's account of a tunnel, sent once when its PeerConnection
-// ends (docs/protocol.md, "Telemetry"): the broker fills that tunnel's row with it.
-// local = the gateway's side of the selected pair, remote = the browser's; bytes as
-// the gateway counted them on the ICE transport (sent = gateway → client).
-type Report struct {
-	Type                string  `json:"type"` // tunnel
-	Session             string  `json:"session"`
-	Relay               bool    `json:"relay"`
-	Ipv6                bool    `json:"ipv6"`
-	LocalCandidateType  string  `json:"localCandidateType,omitempty"`
-	RemoteCandidateType string  `json:"remoteCandidateType,omitempty"`
-	Protocol            string  `json:"protocol,omitempty"`
-	BytesSent           uint64  `json:"bytesSent"`
-	BytesReceived       uint64  `json:"bytesReceived"`
-	Failure             *string `json:"failure"`            // nil = the tunnel came up and passed auth
-	Use                 string  `json:"use,omitempty"`      // what it was for (tunnel.Usage); "" = no request served
-	ActiveMs            *int64  `json:"activeMs,omitempty"` // from the offer to its last request's end; nil = none served
-}
+// Report is the gateway's account of a tunnel (docs/protocol.md, "Telemetry").
+type Report = proto.Report
 
 type Sessions struct {
 	Cert  *webrtc.Certificate

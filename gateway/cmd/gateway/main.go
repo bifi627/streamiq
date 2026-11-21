@@ -397,7 +397,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			version,
 			&lastBeat,
 			func() string { return *newer.Load() },
-			func() (string, any) { return b.beat(ctx) },
+			func() (string, *telemetry.Health) { return b.beat(ctx) },
 			sess.Handle,
 		)
 	})

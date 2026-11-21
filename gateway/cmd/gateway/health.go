@@ -26,12 +26,13 @@ type box struct {
 
 // beat is the heartbeat's telemetry level and the health it allows, read now:
 // a changed state/telemetry counts from the next heartbeat.
-func (b *box) beat(ctx context.Context) (string, any) {
+func (b *box) beat(ctx context.Context) (string, *telemetry.Health) {
 	level := telemetry.Read(b.dir)
 	if level != telemetry.Full {
 		return level, nil
 	}
-	return level, b.health(ctx)
+	h := b.health(ctx)
+	return level, &h
 }
 
 func (b *box) health(ctx context.Context) telemetry.Health {

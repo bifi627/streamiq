@@ -22,6 +22,8 @@ import (
 
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/tunnel"
+
+	"streamiq/gateway/proto"
 )
 
 const heartbeatEvery = 30 * time.Second
@@ -142,17 +144,7 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 	return &st, nil
 }
 
-type heartbeat struct {
-	Type     string `json:"type"`
-	LanURL   string `json:"lanUrl"`
-	Version  string `json:"version"`
-	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
-	Protocol int    `json:"protocol"`
-	Name     string `json:"name"` // the API mirrors it
-	// Telemetry is the level; Health what it allows (none at off). Older APIs ignore both.
-	Telemetry string `json:"telemetry"`
-	Health    any    `json:"health,omitempty"`
-}
+type heartbeat = proto.Heartbeat
 
 // RunControl holds the authenticated control socket until it drops: heartbeats
 // (liveness + update()) out, broker messages (signaling for browser sessions) in,
@@ -163,7 +155,7 @@ type heartbeat struct {
 // lastBeat holds the last heartbeat's unix time, 0 while disconnected (status page).
 // health is the telemetry level and the health it allows, read before each heartbeat.
 func RunControl(ctx context.Context, api string, st *State, lanURL, version string, lastBeat *atomic.Int64,
-	update func() string, health func() (level string, health any), handle func(raw []byte, send func(any))) error {
+	update func() string, health func() (level string, health *proto.Health), handle func(raw []byte, send func(any))) error {
 	// Dial's context bounds only the handshake: cancelling it once Dial returned
 	// leaves the socket open (coder/websocket does the same for HTTPClient.Timeout).
 	dialCtx, cancelDial := context.WithTimeout(ctx, dialTimeout)

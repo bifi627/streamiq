@@ -19,6 +19,8 @@ export function HealthSharing({ g, manage }: { g: Gateway; manage: boolean }) {
     tooOld,
     pending,
   })
+  // Reached: forget it, or a later change from elsewhere reads as waiting.
+  if (pending && pending === g.telemetry) setPending(null)
   if (!label && !control) return null
 
   async function toggle() {
@@ -48,8 +50,14 @@ export function HealthSharing({ g, manage }: { g: Gateway; manage: boolean }) {
       )}
       {control === 'update' && (
         <>
-          Update the gateway to change this here, or run{' '}
-          <code>gateway telemetry full</code> (or <code>off</code>) on it.
+          {label ? (
+            <>
+              Update the gateway to change this here, or run{' '}
+              <code>gateway telemetry full</code> (or <code>off</code>) on it.
+            </>
+          ) : (
+            'Health sharing: update the gateway to use it.'
+          )}
         </>
       )}
       {msg && <span role="alert"> {msg}</span>}

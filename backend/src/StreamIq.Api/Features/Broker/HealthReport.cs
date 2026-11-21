@@ -14,6 +14,10 @@ internal sealed record HealthReport(bool? JellyfinReachable, string? JellyfinVer
     /// A row at least this often while nothing changes, so the latest row says the box was alive then.
     internal static readonly TimeSpan SnapshotEvery = TimeSpan.FromMinutes(5);
 
+    /// Never two rows closer than this, whatever changed: the heartbeat comes every 30 s, so a
+    /// gateway can't add rows faster than its schedule (a change waits for the next beat).
+    internal static readonly TimeSpan MinGap = TimeSpan.FromSeconds(25);
+
     /// Missing = null (a gateway too old to send it); anything but `full` = `off`.
     internal static string? LevelOf(JsonObject m)
     {
@@ -38,16 +42,16 @@ internal sealed record HealthReport(bool? JellyfinReachable, string? JellyfinVer
     }
 
     /// A row when the slow-moving fields differ from the gateway's latest row, or that row is
-    /// SnapshotEvery old. Live counts and load alone don't make one (they'd add a row each beat).
+    /// SnapshotEvery old, never within MinGap of it. Live counts and load alone don't make one (they'd add a row each beat).
     /// The tenant filter is live on the gateway socket: only this household's rows are read.
     internal async Task StoreAsync(StreamIqDbContext db, Guid tenantId, Guid gatewayId, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
         var last = await db.GatewayHealth.AsNoTracking().Where(r => r.GatewayId == gatewayId)
             .OrderByDescending(r => r.At).FirstOrDefaultAsync(ct);
-        if (last is not null && now - last.At < SnapshotEvery
+        if (last is not null && (now - last.At < MinGap || now - last.At < SnapshotEvery
             && (last.JellyfinReachable, last.JellyfinVersion, last.Os, last.Arch, last.Transcoding, last.Offline)
-               == (JellyfinReachable, JellyfinVersion, Os, Arch, Transcoding, Offline))
+               == (JellyfinReachable, JellyfinVersion, Os, Arch, Transcoding, Offline)))
         {
             return;
         }

@@ -53,7 +53,8 @@ an API that doesn't know them ignores them (no protocol bump).
 **What the API stores (#423):** `gateways.telemetry` = the level (missing = null, a gateway
 too old to send one; any value but `full` = `off`). At `full` a `gateway_health` row
 (tenant-owned) when `jellyfin`, `os`, `arch`, `transcoding` or `offline` differ from that
-gateway's latest row, or that row is ≥ 5 min old; the counts and load alone add none. Each
+gateway's latest row, or that row is ≥ 5 min old, but never within 25 s of it (a change
+waits for the next heartbeat); the counts and load alone add none. Each
 field is checked: versions ≤ 40 chars, `os` / `arch` / `transcoding` / `offline` ≤ 20,
 counts 0–10 000, `cpu` / `memory` 0–100, else null; other fields are ignored. `off` stores
 nothing new and keeps the rows (no retention yet). `GET /api/gateways` returns

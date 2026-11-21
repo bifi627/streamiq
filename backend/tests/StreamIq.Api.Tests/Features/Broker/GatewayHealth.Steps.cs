@@ -107,10 +107,11 @@ public class GatewayHealthSteps(IntegrationFixture fx, BrokerSteps broker)
         Assert.Equal((tunnels, 0, 12.5, 47.3), (row.Tunnels, row.Transcodes, row.Cpu, row.Memory));
     }
 
-    [When("the latest health row of gateway \"([^\"]*)\" is 5 minutes old")]
-    public Task WhenOld(string name)
+    [When("the latest health row of gateway \"([^\"]*)\" is (5 minutes|25 seconds) old")]
+    public Task WhenOld(string name, string age)
     {
-        return Db(db => Rows(db, name).ExecuteUpdateAsync(s => s.SetProperty(r => r.At, r => r.At - HealthReport.SnapshotEvery)));
+        var by = age == "5 minutes" ? HealthReport.SnapshotEvery : HealthReport.MinGap;
+        return Db(db => Rows(db, name).ExecuteUpdateAsync(s => s.SetProperty(r => r.At, r => r.At - by)));
     }
 
     [Given("the household of \"([^\"]*)\" has a health row for gateway \"([^\"]*)\" with Jellyfin \"([^\"]*)\"")]

@@ -1,8 +1,8 @@
 Feature: Gateway health
   The heartbeat carries the gateway's telemetry level, and at `full` the box's health
   (#423). The API keeps the level on the gateway and a `gateway_health` row when the
-  health changes or the latest row is 5 minutes old. `off` stores nothing new and keeps
-  the rows. Rows are tenant-owned (the global filter).
+  health changes or the latest row is 5 minutes old, never two rows within 25 seconds.
+  `off` stores nothing new and keeps the rows. Rows are tenant-owned (the global filter).
 
   Scenario: A full heartbeat stores the level and a health row, listed for every member
     Given "alice@home.test" has an online gateway "nas"
@@ -18,9 +18,19 @@ Feature: Gateway health
     When gateway "nas" sends a full heartbeat with Jellyfin "10.11.2" and 1 tunnels
     And gateway "nas" sends a full heartbeat with Jellyfin "10.11.2" and 3 tunnels
     Then gateway "nas" has 1 health rows
-    When gateway "nas" sends a full heartbeat with Jellyfin "10.11.3" and 3 tunnels
+    When the latest health row of gateway "nas" is 25 seconds old
+    And gateway "nas" sends a full heartbeat with Jellyfin "10.11.3" and 3 tunnels
     Then gateway "nas" has 2 health rows
     And the latest health row of gateway "nas" has Jellyfin "10.11.3" and 3 tunnels
+
+  # The heartbeat comes every 30 s: a gateway flipping a field on every message adds no more.
+  Scenario: A change within 25 seconds of the latest row waits for the next heartbeat
+    Given "alice@home.test" has an online gateway "nas"
+    When gateway "nas" sends a full heartbeat with Jellyfin "10.11.2" and 1 tunnels
+    And gateway "nas" sends a full heartbeat with Jellyfin "10.11.3" and 1 tunnels
+    And gateway "nas" sends a full heartbeat with Jellyfin "10.11.4" and 1 tunnels
+    Then gateway "nas" has 1 health rows
+    And the latest health row of gateway "nas" has Jellyfin "10.11.2" and 1 tunnels
 
   Scenario: An unchanged box still gets a row every 5 minutes
     Given "alice@home.test" has an online gateway "nas"

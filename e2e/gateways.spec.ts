@@ -158,10 +158,16 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   await movies.click()
   await expect(b.locator('[role=alert][data-kind="tunnel-lost"]')).toBeVisible()
   await b.getByRole('link', { name: '← Gateways' }).click()
+  // Rename goes over the tunnel: gone with the pin, no reload.
+  const renameB = card(b)
+    .locator('.card-head')
+    .getByRole('button', { name: 'Rename' })
+  await expect(renameB).toBeVisible()
   await card(b).getByRole('button', { name: 'Test connection' }).click()
   await expect(
     b.getByText('this browser is not paired with the gateway'),
   ).toBeVisible()
+  await expect(renameB).toHaveCount(0)
 
   // Remove A itself: the reply still arrives, then the card offers Pair.
   a.once('dialog', (d) => d.accept())

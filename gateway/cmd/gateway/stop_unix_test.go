@@ -14,7 +14,7 @@ import (
 // TestHelperSleep is the stand-in process startAs runs, not a test.
 func TestHelperSleep(*testing.T) {
 	if os.Getenv("STREAMIQ_TEST_SLEEP") == "1" {
-		time.Sleep(time.Minute)
+		time.Sleep(time.Minute) //nolint:forbidigo // a process for the test to kill, not a wait
 	}
 }
 

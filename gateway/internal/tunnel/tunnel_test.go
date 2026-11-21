@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v4"
+
+	"streamiq/gateway/internal/testwait"
 )
 
 const (
@@ -463,15 +465,17 @@ func TestBlockedStreamEndsOnClose(t *testing.T) {
 			}
 			// Waiting on backpressure: the buffer went over MaxBuffered and now sits,
 			// unchanged, above the low-water mark that would wake the sender.
-			for start, was := time.Now(), uint64(0); ; was = gd.BufferedAmount() {
-				if was > MaxBuffered/2 && was == gd.BufferedAmount() {
-					break
+			var was uint64
+			var sampled time.Time
+			testwait.Until(t, 30*time.Second, func() bool {
+				if time.Since(sampled) < 300*time.Millisecond {
+					return false
 				}
-				if time.Since(start) > 30*time.Second {
-					t.Fatalf("sender never blocked (%d bytes buffered)", gd.BufferedAmount())
-				}
-				time.Sleep(300 * time.Millisecond)
-			}
+				now := gd.BufferedAmount()
+				blocked := was > MaxBuffered/2 && was == now
+				was, sampled = now, time.Now()
+				return blocked
+			}, "sender never blocked")
 			select {
 			case <-upstreamDone:
 				t.Fatal("upstream ended before the channel closed")
@@ -484,11 +488,7 @@ func TestBlockedStreamEndsOnClose(t *testing.T) {
 			case <-time.After(30 * time.Second):
 				t.Fatal("sender still blocked after the close: upstream response never closed")
 			}
-			for start := time.Now(); len(slots) != 0; time.Sleep(10 * time.Millisecond) {
-				if time.Since(start) > 10*time.Second {
-					t.Fatal("slot not given back")
-				}
-			}
+			testwait.Until(t, 10*time.Second, func() bool { return len(slots) == 0 }, "slot not given back")
 		})
 	}
 }

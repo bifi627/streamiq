@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
-	"time"
+	"testing/synctest"
 )
 
 // Shared vectors (docs/protocol.md): produced by WebCrypto, so this catches the
@@ -70,32 +70,32 @@ func TestCodeVector(t *testing.T) {
 }
 
 func TestApprovePersistsAndPendingCaps(t *testing.T) {
-	dir := t.TempDir()
-	s, _ := Open(dir)
-	got := make(chan bool)
-	go func() { ok, _ := s.Ask("phone", "fp-1", "123456", nil); got <- ok }()
-	for len(s.Pending()) == 0 {
-		time.Sleep(time.Millisecond)
-	}
-	if err := s.Decide(s.Pending()[0].ID, true); err != nil || !<-got {
-		t.Fatalf("approve failed: %v", err)
-	}
-	if s2, _ := Open(dir); !s2.Allowed("fp-1") {
-		t.Fatal("approval not persisted")
-	}
-
-	for range MaxPending {
-		if err := s.Reserve(); err != nil {
-			t.Fatal(err)
+	synctest.Test(t, func(t *testing.T) {
+		dir := t.TempDir()
+		s, _ := Open(dir)
+		got := make(chan bool)
+		go func() { ok, _ := s.Ask("phone", "fp-1", "123456", nil); got <- ok }()
+		synctest.Wait() // Ask now waits for Decide
+		if err := s.Decide(s.Pending()[0].ID, true); err != nil || !<-got {
+			t.Fatalf("approve failed: %v", err)
 		}
-	}
-	if s.Reserve() == nil {
-		t.Fatal("want an error past MaxPending")
-	}
-	s.Release()
-	if err := s.Reserve(); err != nil {
-		t.Fatalf("a released slot must be free again: %v", err)
-	}
+		if s2, _ := Open(dir); !s2.Allowed("fp-1") {
+			t.Fatal("approval not persisted")
+		}
+
+		for range MaxPending {
+			if err := s.Reserve(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if s.Reserve() == nil {
+			t.Fatal("want an error past MaxPending")
+		}
+		s.Release()
+		if err := s.Reserve(); err != nil {
+			t.Fatalf("a released slot must be free again: %v", err)
+		}
+	})
 }
 
 // A request whose connection ended leaves the local page at once.
@@ -110,21 +110,21 @@ func TestAskEndsWhenConnectionCloses(t *testing.T) {
 
 // Remove on the gateway page: the key is no longer allowed, also after a restart.
 func TestRemovePersists(t *testing.T) {
-	dir := t.TempDir()
-	s, _ := Open(dir)
-	go func() { _, _ = s.Ask("phone", "fp-1", "123456", nil) }() // the Decide below answers it
-	for len(s.Pending()) == 0 {
-		time.Sleep(time.Millisecond)
-	}
-	if err := s.Decide(s.Pending()[0].ID, true); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Remove("fp-1"); err != nil || s.Allowed("fp-1") {
-		t.Fatalf("still allowed after Remove (err %v)", err)
-	}
-	if s2, _ := Open(dir); s2.Allowed("fp-1") {
-		t.Fatal("Remove not persisted")
-	}
+	synctest.Test(t, func(t *testing.T) {
+		dir := t.TempDir()
+		s, _ := Open(dir)
+		go func() { _, _ = s.Ask("phone", "fp-1", "123456", nil) }() // the Decide below answers it
+		synctest.Wait()
+		if err := s.Decide(s.Pending()[0].ID, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Remove("fp-1"); err != nil || s.Allowed("fp-1") {
+			t.Fatalf("still allowed after Remove (err %v)", err)
+		}
+		if s2, _ := Open(dir); s2.Allowed("fp-1") {
+			t.Fatal("Remove not persisted")
+		}
+	})
 }
 
 // A name is 1–100 UTF-16 units after trimming (#520): exactly 100 is fine, an emoji counts 2.
@@ -146,26 +146,26 @@ func TestCleanNameLength(t *testing.T) {
 // Decide (#520): a reject pairs nothing, and approving a key that is already
 // paired (a second pairing, e.g. after a pin mismatch) adds no second entry.
 func TestDecideAllowlist(t *testing.T) {
-	s, _ := Open(t.TempDir())
-	decide := func(fp string, approve bool) {
-		t.Helper()
-		done := make(chan struct{})
-		go func() { _, _ = s.Ask("phone", fp, "123456", nil); close(done) }() // the Decide below answers it
-		for len(s.Pending()) == 0 {
-			time.Sleep(time.Millisecond)
+	synctest.Test(t, func(t *testing.T) {
+		s, _ := Open(t.TempDir())
+		decide := func(fp string, approve bool) {
+			t.Helper()
+			done := make(chan struct{})
+			go func() { _, _ = s.Ask("phone", fp, "123456", nil); close(done) }() // the Decide below answers it
+			synctest.Wait()
+			if err := s.Decide(s.Pending()[0].ID, approve); err != nil {
+				t.Fatal(err)
+			}
+			<-done
 		}
-		if err := s.Decide(s.Pending()[0].ID, approve); err != nil {
-			t.Fatal(err)
+		decide("fp-1", false)
+		if s.Allowed("fp-1") || len(s.Paired()) != 0 {
+			t.Fatalf("rejected key paired: %v", s.Paired())
 		}
-		<-done
-	}
-	decide("fp-1", false)
-	if s.Allowed("fp-1") || len(s.Paired()) != 0 {
-		t.Fatalf("rejected key paired: %v", s.Paired())
-	}
-	decide("fp-1", true)
-	decide("fp-1", true)
-	if len(s.Paired()) != 1 {
-		t.Fatalf("key approved twice: %v", s.Paired())
-	}
+		decide("fp-1", true)
+		decide("fp-1", true)
+		if len(s.Paired()) != 1 {
+			t.Fatalf("key approved twice: %v", s.Paired())
+		}
+	})
 }

@@ -87,8 +87,16 @@ func TestRunControlRevokedCredential(t *testing.T) {
 // instead of hanging the gateway offline; a socket that did open outlives the
 // dial timeout.
 func TestRunControlDialTimeout(t *testing.T) {
-	defer func(d time.Duration) { dialTimeout = d }(dialTimeout)
-	dialTimeout = 100 * time.Millisecond
+	defer func(f func(context.Context) (context.Context, context.CancelFunc)) { dialContext = f }(dialContext)
+	dialAfter := func(d time.Duration, ended chan struct{}) {
+		dialContext = func(ctx context.Context) (context.Context, context.CancelFunc) {
+			ctx, cancel := context.WithTimeout(ctx, d)
+			context.AfterFunc(ctx, func() { close(ended) })
+			return ctx, cancel
+		}
+	}
+	dialAfter(100*time.Millisecond, make(chan struct{}))
+	dialEnded := make(chan struct{})
 	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "Bearer hang" {
@@ -99,8 +107,8 @@ func TestRunControlDialTimeout(t *testing.T) {
 		if err != nil {
 			return
 		}
-		_, _, _ = c.Read(r.Context())       // the first heartbeat
-		time.Sleep(1500 * time.Millisecond) // past the second dial's 1 s timeout
+		_, _, _ = c.Read(r.Context()) // the first heartbeat
+		<-dialEnded
 		_ = c.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
 		c.Close(websocket.StatusNormalClosure, "")
 	}))
@@ -120,7 +128,7 @@ func TestRunControlDialTimeout(t *testing.T) {
 		t.Fatal("RunControl still dialing after the timeout")
 	}
 
-	dialTimeout = time.Second // room for a loaded machine; the socket must outlive it
+	dialAfter(time.Second, dialEnded) // room for a loaded machine; the socket must outlive its end
 	got := make(chan []byte, 1)
 	err := RunControl(
 		context.Background(),

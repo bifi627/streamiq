@@ -1,7 +1,6 @@
 // IndexedDB: this browser's client key (non-extractable CryptoKey — script on
 // the page can use it but never read it out) and the gateway pins, per gateway id.
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fingerprint } from './crypto'
 import { event } from '../../diag'
 
@@ -46,24 +45,24 @@ export async function clientKey(): Promise<ClientKey> {
 export const getPin = (gatewayId: string) =>
   kv<string | undefined>('readonly', (s) => s.get(`pin:${gatewayId}`))
 
-/** Whether this browser holds a pin for the gateway; a failed read = no. */
-export const usePinned = (gatewayId: string) =>
-  useQuery({
-    queryKey: ['pin', gatewayId],
+/** Whether this browser holds a pin for the gateway (null while it's read; a
+ * failed read = no). The setter is what this page found out (paired, removed,
+ * refused): it updates every mounted user of the gateway's pin, the card and
+ * its Pairing block alike. Read from IndexedDB again on the next mount. */
+export function usePin(gatewayId: string) {
+  const qc = useQueryClient()
+  const key = ['pin', gatewayId]
+  const { data } = useQuery({
+    queryKey: key,
     queryFn: () =>
       getPin(gatewayId).then(
         (p) => !!p,
         () => false,
       ),
-    gcTime: 0, // read again on every mount: setPin/deletePin don't update it
-  }).data
-
-/** Whether this browser holds a pin for the gateway: the stored one (null
- * while it's read) until this page finds out otherwise (paired, removed). */
-export function usePin(gatewayId: string) {
-  const stored = usePinned(gatewayId)
-  const [known, setKnown] = useState<boolean | null>(null)
-  return [known ?? stored ?? null, setKnown] as const
+    gcTime: 0,
+    staleTime: Infinity, // no refetch on focus: it would undo what the setter set
+  })
+  return [data ?? null, (v: boolean) => qc.setQueryData(key, v)] as const
 }
 
 export const setPin = (gatewayId: string, gatewayFp: string) =>

@@ -1,0 +1,9 @@
+# Context is the repo root (go.mod lives there): only the module files and gateway/ go in.
+*
+!go.mod
+!go.sum
+!gateway/
+gateway/streamiq-state/
+gateway/r8er-state/
+gateway/**/*.exe
+gateway/gateway

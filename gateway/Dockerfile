@@ -1,15 +1,16 @@
 # syntax=docker/dockerfile:1
 # streamiq gateway image (item 4). Multi-arch via buildx: TARGETOS/TARGETARCH come
 # from --platform; the Go cross-compile runs on the build host, no QEMU.
+# Build from the repo root (the module's go.mod is there): docker build -f gateway/Dockerfile -t streamiq-gateway:dev .
 # Base tags float at patch level on purpose — they pick up security updates.
 FROM --platform=$BUILDPLATFORM golang:1.27 AS build
 ARG TARGETOS TARGETARCH VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-COPY . .
+COPY gateway/ gateway/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o /gateway ./cmd/gateway \
+    go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o /gateway ./gateway/cmd/gateway \
  && mkdir /state
 
 # distroless/static: CA certs for the HTTPS API, no shell, runs as nonroot.

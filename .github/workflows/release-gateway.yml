@@ -35,7 +35,7 @@ jobs:
           fetch-depth: 0 # tags + history for next-gateway-version.sh
       - uses: actions/setup-go@v7
         with:
-          go-version-file: gateway/go.mod
+          go-version-file: go.mod
       - name: version
         id: version
         run: |

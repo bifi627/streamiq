@@ -117,7 +117,8 @@ down → prompt the user to start Desktop, don't skip.
 ## Go specifics
 
 - `go get <module>@<version>` per module (or `go get -u ./...` for a full
-  minor sweep), then `go mod tidy`. Commit `go.mod` + `go.sum` together.
+  minor sweep), run from `gateway/`, then `go mod tidy`. Commit `go.mod` + `go.sum`
+  (at the repo root) together.
 - Pion moves as a family — don't hand-pin one pion module against its
   siblings; let the resolver pick the coherent set.
 

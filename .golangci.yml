@@ -19,7 +19,7 @@ linters:
       - path: _test\.go
         linters: [gocyclo, funlen]
       # time.Sleep outside tests is product timing; testwait is the tests' one polling helper
-      - path-except: (_test\.go|internal/testwait/)
+      - path-except: (_test\.go|^gateway/internal/testwait/)
         linters: [forbidigo]
   settings:
     gosec:

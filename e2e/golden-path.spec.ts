@@ -20,6 +20,7 @@ import {
   videoTime,
 } from './helpers.ts'
 import { startGateway } from './stack.ts'
+import { envVar, must } from './must.ts'
 
 // The test's account, new per run of the test (set at its start).
 let account = ''
@@ -27,7 +28,7 @@ const email = () => account
 
 async function signIn(browser: Browser, create = false, path = '/') {
   const page = await newPage(browser) // own IndexedDB = own client key
-  await page.goto(process.env.E2E_APP_URL! + path)
+  await page.goto(envVar('E2E_APP_URL') + path)
   if (create)
     await page.getByRole('button', { name: 'Create an account' }).click()
   await page.getByLabel('Email').fill(email())
@@ -59,7 +60,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
 
   // Onboarding: Add gateway → run the shown install command.
   await a.getByRole('button', { name: 'Add gateway' }).click()
-  const cmd = (await a.locator('pre').first().textContent())!
+  const cmd = must(
+    await a.locator('pre').first().textContent(),
+    'install command',
+  )
   const env = Object.fromEntries(
     [...cmd.matchAll(/(STREAMIQ_\w+)=(\S+)/g)].map((m) => [m[1], m[2]]),
   )
@@ -96,7 +100,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       )
       // A free page port: the CLI's "is it running?" check must not hit an installed gateway.
       const cli = (...args: string[]) => {
-        const r = spawnSync(process.env.E2E_GATEWAY_BIN!, args, {
+        const r = spawnSync(envVar('E2E_GATEWAY_BIN'), args, {
           env: {
             ...process.env,
             STREAMIQ_STATE_DIR: stateDir,
@@ -185,7 +189,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
 
     await test.step('browser B (same account, never paired) is refused', async () => {
       // Signed out on the gateway's deep link: sign-in lands B on it.
-      const id = (await a.locator('li code').first().textContent())!
+      const id = must(
+        await a.locator('li code').first().textContent(),
+        'gateway id',
+      )
       const b = await signIn(browser, false, `/g/${id}`)
       await expect(
         b.locator('[role=alert][data-kind="not-paired"]'),
@@ -233,8 +240,11 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
     await test.step('evicted client key (#174): message → re-pair right there → stream', async () => {
       // What Safari's 7-day cap or disk pressure does: all IndexedDB gone
       // (client key, pins, and Firebase's sign-in with them).
-      const app = process.env.E2E_APP_URL!
-      const id = (await a.locator('li code').first().textContent())!
+      const app = envVar('E2E_APP_URL')
+      const id = must(
+        await a.locator('li code').first().textContent(),
+        'gateway id',
+      )
       const cdp = await a.context().newCDPSession(a)
       await cdp.send('Storage.clearDataForOrigin', {
         origin: new URL(app).origin,
@@ -253,7 +263,10 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         "This browser isn't paired with this gateway (anymore). Pair it again.",
       )
       await alert.getByRole('button', { name: 'Pair this browser' }).click()
-      const code = (await alert.getByLabel('Comparison code').textContent())!
+      const code = must(
+        await alert.getByLabel('Comparison code').textContent(),
+        'comparison code',
+      )
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)
       const request = gatewayPage.locator('form[action="/decide"]')
       await expect(request).toContainText(code)
@@ -277,7 +290,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
 
     await test.step('Remove in the web app → gateway revoked and disconnected', async () => {
       let out = ''
-      gateway.proc.stderr!.on('data', (d) => (out += d))
+      gateway.proc.stderr.on('data', (d) => (out += d))
       a.once('dialog', (d) => d.accept())
       await a.getByRole('button', { name: 'Remove' }).click()
       await expect(a.getByText('No gateways yet.')).toBeVisible()

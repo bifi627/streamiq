@@ -2,7 +2,11 @@
 // and preview.ts. Every process logs to e2e/logs/<name>.log (uploaded by CI on
 // failure; the preview's: e2e/.preview/logs) — the first place to look.
 // Imports carry .ts: preview.ts runs this under plain Node (type stripping).
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import {
+  spawn,
+  spawnSync,
+  type ChildProcessWithoutNullStreams,
+} from 'node:child_process'
 import { createHash, createHmac } from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
@@ -14,12 +18,16 @@ import {
   Wait,
 } from 'testcontainers'
 import { JELLYFIN_ADMIN, setupJellyfin } from './jellyfin.ts'
+import { envVar, must } from './must.ts'
 
 export const root = path.resolve(import.meta.dirname, '..')
 export const logs =
   process.env.E2E_LOGS ?? path.join(import.meta.dirname, 'logs')
 
-export type Proc = { proc: ChildProcess; stop: () => Promise<void> }
+export type Proc = {
+  proc: ChildProcessWithoutNullStreams
+  stop: () => Promise<void>
+}
 /** Every process start() spawned: the preview kills them when it fails or stops. */
 export const started: Proc[] = []
 
@@ -40,13 +48,15 @@ export function start(
     env: { ...process.env, ...opts.env },
     detached: !win,
   })
-  proc.stdout!.pipe(log)
-  proc.stderr!.pipe(log)
+  proc.stdout.pipe(log)
+  proc.stderr.pipe(log)
   const stop = async () => {
-    if (proc.exitCode !== null || proc.signalCode !== null) return
+    const pid = proc.pid // undefined: it never started
+    if (pid === undefined || proc.exitCode !== null || proc.signalCode !== null)
+      return
     const exited = new Promise((r) => proc.once('exit', r))
-    if (win) spawnSync('taskkill', ['/T', '/F', '/PID', String(proc.pid)])
-    else process.kill(-proc.pid!, 'SIGTERM')
+    if (win) spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)])
+    else process.kill(-pid, 'SIGTERM')
     await exited
   }
   started.push({ proc, stop })
@@ -100,12 +110,12 @@ export async function startGateway(
     STREAMIQ_STATE_DIR: stateDir,
     STREAMIQ_PAGE_PORT: String(port),
     STREAMIQ_LAN_URL: pageUrl,
-    STREAMIQ_ORIGIN: process.env.E2E_JELLYFIN_URL!,
+    STREAMIQ_ORIGIN: envVar('E2E_JELLYFIN_URL'),
     ...env,
   }
   const p = process.env.E2E_GATEWAY_IMAGE
     ? await dockerGateway(process.env.E2E_GATEWAY_IMAGE, port, gwEnv)
-    : start(`gateway-${port}`, process.env.E2E_GATEWAY_BIN!, [], {
+    : start(`gateway-${port}`, envVar('E2E_GATEWAY_BIN'), [], {
         cwd: root,
         env: gwEnv,
       })
@@ -213,9 +223,12 @@ async function dockerGateway(
 
 // Image pins live in docker-compose.yml (one source of truth, never `latest`).
 const pin = (name: string) =>
-  fs
-    .readFileSync(path.join(root, 'docker-compose.yml'), 'utf8')
-    .match(new RegExp(`image: (${name}:\\S+)`))![1]
+  must(
+    fs
+      .readFileSync(path.join(root, 'docker-compose.yml'), 'utf8')
+      .match(new RegExp(`image: (${name}:\\S+)`)),
+    `${name} image pin in docker-compose.yml`,
+  )[1]
 
 export type StackOptions = {
   /** Build output (backend + gateway binary), per checkout and per user (e2e,

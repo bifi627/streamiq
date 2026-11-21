@@ -65,7 +65,7 @@ const menu = (p: Page) =>
 /** The browser's name for a language code (labels use its locale). */
 const language = (p: Page, code: string) =>
   p.evaluate(
-    (c) => new Intl.DisplayNames(undefined, { type: 'language' }).of(c)!,
+    (c) => new Intl.DisplayNames(undefined, { type: 'language' }).of(c) ?? c,
     code,
   )
 
@@ -366,7 +366,9 @@ test('audio (#109): English first; German reloads at the playhead @player', asyn
   await openDock(page)
   const [en, de] = [await language(page, 'eng'), await language(page, 'deu')]
   // Jellyfin's default track (English, 440 Hz) first.
-  await page.evaluate(() => (document.querySelector('video')!.currentTime = 1)) // room left in the 30 s clip
+  await page
+    .locator('video')
+    .evaluate((v: HTMLVideoElement) => (v.currentTime = 1)) // room left in the 30 s clip
   await expect.poll(() => pitch(page), { timeout: 30_000 }).toBeCloseTo(440, -2)
   // A switch reloads at the playhead with AudioStreamIndex; the remux
   // carries the German track (880 Hz).
@@ -429,8 +431,8 @@ test('subtitles (#136, #269): off at first; the SRT cue at its own time; Off cle
     .click()
   await expect.poll(() => pitch(page), { timeout: 30_000 }).toBeCloseTo(880, -2)
   const cue = () =>
-    page.evaluate(() =>
-      [...document.querySelector('video')!.textTracks]
+    page.locator('video').evaluate((v: HTMLVideoElement) =>
+      [...v.textTracks]
         .filter((t) => t.mode === 'showing')
         .flatMap((t) => [...(t.activeCues ?? [])])
         .map((c) => (c as VTTCue).text)
@@ -445,8 +447,8 @@ test('subtitles (#136, #269): off at first; the SRT cue at its own time; Off cle
   await expect.poll(cue, { timeout: 15_000 }).toBe('streamiq e2e subtitle')
   // At its own time (0–30 s), not shifted by the mid-clip start.
   expect(
-    await page.evaluate(() =>
-      [...document.querySelector('video')!.textTracks]
+    await page.locator('video').evaluate((v: HTMLVideoElement) =>
+      [...v.textTracks]
         .filter((t) => t.mode === 'showing')
         .flatMap((t) => [...(t.cues ?? [])])
         .map((c) => [c.startTime, c.endTime]),
@@ -477,11 +479,10 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
   await a.keyboard.press('Enter')
   await expect(now('S1 · E1')).toBeVisible()
   await playing()
-  await a.evaluate(() => {
-    const v = document.querySelector('video')!
-    v.currentTime = v.duration - 0.5
-  })
-  await a.waitForFunction(() => document.querySelector('video')!.ended)
+  await a
+    .locator('video')
+    .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
+  await a.waitForFunction(() => document.querySelector('video')?.ended)
   // Finished episode → back: the first primary button shown already
   // names the next one (no stale "S1 · E1").
   await a.goBack()

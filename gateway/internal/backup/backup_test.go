@@ -154,16 +154,16 @@ func TestCompose(t *testing.T) {
 	if b, _ := os.ReadFile(into); string(b) != "services: {}" {
 		t.Fatalf("compose = %q", b)
 	}
-	if _, err := os.Stat(filepath.Join(dst, "install")); err == nil {
+	if _, err = os.Stat(filepath.Join(dst, "install")); err == nil {
 		t.Fatal("compose entry went into the state dir")
 	}
 
 	// An existing compose file is the user's: kept, also with --force.
-	if err := os.WriteFile(into, []byte("mine"), 0o644); err != nil {
+	if err = os.WriteFile(into, []byte("mine"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, force := range []bool{false, true} {
-		did, err := Restore(zipPath, filepath.Join(t.TempDir(), "state"), into, force)
+		did, err = Restore(zipPath, filepath.Join(t.TempDir(), "state"), into, force)
 		if err != nil || did != ComposeKept {
 			t.Fatalf("force=%v: did %q, err %v", force, did, err)
 		}

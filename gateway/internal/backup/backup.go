@@ -172,11 +172,11 @@ func Restore(path, dir, compose string, force bool) (string, error) {
 		return ComposeNone, err
 	}
 	defer zr.Close()
-	if err := checkEntries(path, zr.File); err != nil {
+	if err = checkEntries(path, zr.File); err != nil {
 		return ComposeNone, err
 	}
 	if !force {
-		if err := checkNoIdentity(dir); err != nil {
+		if err = checkNoIdentity(dir); err != nil {
 			return ComposeNone, err
 		}
 	}

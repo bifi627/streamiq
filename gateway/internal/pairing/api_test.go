@@ -59,10 +59,10 @@ func TestClientsAPI(t *testing.T) {
 			t.Errorf("member removes %s: %d, want 403", fp, s)
 		}
 	}
-	s, list, _ := call(tunnel.Admin, "GET", ClientsPath, "")
+	code, list, _ := call(tunnel.Admin, "GET", ClientsPath, "")
 	want := `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true},{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z","self":false}]`
-	if s != 200 || list != want {
-		t.Fatalf("list: %d %s", s, list)
+	if code != 200 || list != want {
+		t.Fatalf("list: %d %s", code, list)
 	}
 	// Rename (#365): same access as remove, the name rule of /streamiq/name, saved.
 	for _, fp := range []string{"bb", "zz"} {

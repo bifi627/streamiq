@@ -89,7 +89,7 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 			Jellyfin: func() any { return jf },
 			Offline:  func() string { return offline },
 		}
-		w := httptest.NewRecorder()
+		w = httptest.NewRecorder()
 		Handler(c).ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
 		body := w.Body.String()
 		if want == "" && (strings.Contains(body, "Offline") || strings.Contains(body, "Online lookups")) ||
@@ -101,7 +101,7 @@ func TestPageShowsPasswordFileNotPassword(t *testing.T) {
 	for level, cmd := range map[string]string{"off": "gateway telemetry full", "full": "gateway telemetry off"} {
 		c := Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store,
 			Jellyfin: func() any { return jf }, Telemetry: func() (string, string) { return level, "what it sends" }}
-		w := httptest.NewRecorder()
+		w = httptest.NewRecorder()
 		Handler(c).ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
 		if body := w.Body.String(); !strings.Contains(body, "Telemetry: <b>"+level+"</b> · sends what it sends") ||
 			!strings.Contains(body, "<code>"+cmd+"</code>") {

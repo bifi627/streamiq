@@ -334,7 +334,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	port := pagePort()
 	lan := onboarding.LANURL(port)
 	lanHost := ""
-	if u, err := url.Parse(lan); err == nil {
+	if u, _ := url.Parse(lan); u != nil {
 		lanHost = u.Hostname()
 	}
 	store, err := pairing.Open(stateDir)
@@ -347,9 +347,9 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	}
 	sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Root: root, API: webAPI,
 		Viewers: func(user string) {
-			ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+			viewerCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			defer cancel()
-			setup.EnsureViewer(ctx, user)
+			setup.EnsureViewer(viewerCtx, user)
 		}}
 	store.OnRemove = sess.Drop // removing a browser ends its open sessions
 	var lastBeat atomic.Int64

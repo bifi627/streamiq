@@ -128,7 +128,8 @@ func updateAndRollBack(t *testing.T, install string) {
 
 	// The new build reads the old state: a format change without a migration
 	// fails here. A deliberate break (feat!) changes this expectation, in its PR.
-	if _, got, err := identity.LoadOrCreate(state); err != nil || got != fp {
+	_, got, err := identity.LoadOrCreate(state)
+	if err != nil || got != fp {
 		t.Fatalf("identity after the update: %q, %v; want %q (the old one)", got, err, fp)
 	}
 	ps, err := pairing.Open(state)

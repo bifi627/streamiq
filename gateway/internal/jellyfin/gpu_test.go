@@ -21,7 +21,8 @@ func TestSetGPU(t *testing.T) {
 		if err != nil || !changed || string(got) != on {
 			t.Fatalf("nvidia: changed %v, err %v\n%s", changed, err, got)
 		}
-		if again, changed, err := SetGPU(got, true); changed || err != nil || string(again) != on {
+		again, changed, err := SetGPU(got, true)
+		if changed || err != nil || string(again) != on {
 			t.Fatalf("nvidia twice: changed %v, err %v", changed, err)
 		}
 		back, changed, err := SetGPU(got, false)

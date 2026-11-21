@@ -76,6 +76,13 @@ An admin's Activity opens on the whole household (`?scope=household`, admin only
 `TunnelSummary.cs`: tunnels, failures, relayed bytes), a member filter and a Member column,
 names from the members endpoint ("Former member" / "Deleted account" otherwise).
 
+**Gateway health** (#423): at telemetry `full` the heartbeat carries the box's health, kept
+in `gateway_health` (`Features/Broker/HealthReport.cs`): a row when Jellyfin, OS/arch,
+transcoding or the offline jail change, and at least every 5 min; the latest row is the
+current state. `gateways.telemetry` holds the level. Rows are kept (also after `off`).
+The web gateway card shows the level; an admin switches it over the tunnel
+(`POST /streamiq/telemetry`).
+
 ## Gateway (native binary)
 
 - Native binaries, not a Docker sidecar: on Docker Desktop a containerized gateway gets

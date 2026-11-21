@@ -261,7 +261,12 @@ file names or paths.
     gateway telemetry full     # share the box's health
     gateway telemetry off      # stop sending; the history StreamIQ already has is kept
 
-A household admin can switch it in the web app too, while the gateway is online.
+StreamIQ keeps the health it received at `full` (a row when something changes, and
+every 5 minutes otherwise), also after you switch to `off`: `off` only stops new
+data; it goes when the household is deleted.
+
+A household admin can switch it in the web app too (**Gateways**, the card's Health
+sharing line), while the gateway is online and that browser is paired.
 The level lives in `state/telemetry` (so `gateway backup` and rollback carry it);
 a running gateway uses a new level from its next heartbeat, no restart. The local
 gateway page shows it.

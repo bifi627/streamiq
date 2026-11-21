@@ -49,13 +49,22 @@ from `state/telemetry`, read before each heartbeat (`gateway telemetry off|full`
 gateway's own admin; absent when that fails or there is none), `cpu` / `memory` (busy %
 and memory used %, 0–100; absent where the platform can't measure them). Never names,
 users, client keys, media titles, file names or paths. Both fields are new and optional:
-an API that doesn't know them ignores them (no protocol bump). The API sets `last_seen_at = now`, `lan_url` (http/https only,
+an API that doesn't know them ignores them (no protocol bump).
+**What the API stores (#423):** `gateways.telemetry` = the level (missing = null, a gateway
+too old to send one; any value but `full` = `off`). At `full` a `gateway_health` row
+(tenant-owned) when `jellyfin`, `os`, `arch`, `transcoding` or `offline` differ from that
+gateway's latest row, or that row is ≥ 5 min old; the counts and load alone add none. Each
+field is checked: versions ≤ 40 chars, `os` / `arch` / `transcoding` / `offline` ≤ 20,
+counts 0–10 000, `cpu` / `memory` 0–100, else null; other fields are ignored. `off` stores
+nothing new and keeps the rows (no retention yet). `GET /api/gateways` returns
+`telemetry` to every member.
+The API also sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null) and
 `protocol` (below), and `name` (#310: trimmed, cut to 100 UTF-16 units, never inside a
 surrogate pair; missing, blank or with a control character = the stored name stays), and ignores any other field. The gateway owns
 its name; the API never writes it after enrollment. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
-`version`, `update` and `upgradeRequired`; everything richer comes from the gateway itself over the
+`version`, `update`, `upgradeRequired` and `telemetry`; everything richer comes from the gateway itself over the
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API

@@ -24,6 +24,7 @@ public static class ListGateways
                     d.LanUrl,
                     d.Version,
                     d.Update,
+                    d.Telemetry,
                     Online = d.LastSeenAt > onlineSince,
                     UpgradeRequired = d.Protocol < GatewaySocket.MinGatewayProtocol
                 })

@@ -108,6 +108,9 @@ namespace StreamIq.Api.Migrations
                     b.Property<int?>("Protocol")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Telemetry")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -125,6 +128,64 @@ namespace StreamIq.Api.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("gateways", (string)null);
+                });
+
+            modelBuilder.Entity("StreamIq.Api.Data.GatewayHealth", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Arch")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("Cpu")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid>("GatewayId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool?>("JellyfinReachable")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("JellyfinVersion")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<double?>("Memory")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Offline")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Os")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("Transcodes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Transcoding")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("Tunnels")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("GatewayId", "At");
+
+                    b.ToTable("gateway_health", (string)null);
                 });
 
             modelBuilder.Entity("StreamIq.Api.Data.Invite", b =>
@@ -290,6 +351,21 @@ namespace StreamIq.Api.Migrations
 
             modelBuilder.Entity("StreamIq.Api.Data.Gateway", b =>
                 {
+                    b.HasOne("StreamIq.Api.Data.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("StreamIq.Api.Data.GatewayHealth", b =>
+                {
+                    b.HasOne("StreamIq.Api.Data.Gateway", null)
+                        .WithMany()
+                        .HasForeignKey("GatewayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("StreamIq.Api.Data.Tenant", null)
                         .WithMany()
                         .HasForeignKey("TenantId")

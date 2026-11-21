@@ -39,6 +39,7 @@ public class Gateway : ITenantOwned
     public DateTimeOffset? LastSeenAt { get; set; }      // heartbeat → online/offline
     public string? Update { get; set; }                 // newer gateway release, from heartbeat; null = up to date
     public int? Protocol { get; set; }                  // gateway protocol from its last heartbeat (also a refused one)
+    public string? Telemetry { get; set; }              // off / full, from the last heartbeat; null = a gateway too old to send it
     public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -90,4 +91,25 @@ public class Tunnel : ITenantOwned
     public string? Failure { get; set; }                // why it never came up / passed auth (no pair: Relay/types unset); null = it did, but only when reported (BytesSent not null)
     public string? Use { get; set; }                    // what it was for (playback / browsing / …: an open word, docs/protocol.md); null = no request served, or not reported
     public long? ActiveMs { get; set; }                 // the gateway's clock: from the offer to its last request's end; null like Use
+}
+
+/// The box's health at `full` telemetry (docs/protocol.md): a row when it changes, and at
+/// least every 5 minutes. The gateway's latest row is its current state. Null = not sent.
+public class GatewayHealth : ITenantOwned
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public Guid GatewayId { get; set; }
+    public DateTimeOffset At { get; set; }
+    public required string Level { get; set; }          // the telemetry level that sent it
+    public bool? JellyfinReachable { get; set; }
+    public string? JellyfinVersion { get; set; }
+    public string? Os { get; set; }
+    public string? Arch { get; set; }
+    public string? Transcoding { get; set; }            // hardware acceleration: none / nvenc / …
+    public string? Offline { get; set; }                // the offline jail: enforced / allowed
+    public int? Tunnels { get; set; }                   // active tunnels
+    public int? Transcodes { get; set; }                // active Jellyfin transcodes
+    public double? Cpu { get; set; }                    // busy %, 0–100
+    public double? Memory { get; set; }                 // used %, 0–100
 }

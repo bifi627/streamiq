@@ -20,15 +20,15 @@ public class SocketMessageTests
     [Fact]
     public void HeartbeatParsesEveryField()
     {
-        var m = Msg("""{"type":"heartbeat","protocol":2,"lanUrl":"http://nas.local:8096","version":"1.4.0","update":"1.6.0","name":" nas "}""");
-        Assert.Equal(new Heartbeat(2, "http://nas.local:8096/", "1.4.0", "1.6.0", "nas"), Heartbeat.Parse(m));
+        var m = Msg("""{"type":"heartbeat","protocol":2,"lanUrl":"http://nas.local:8096","version":"1.4.0","update":"1.6.0","name":" nas ","telemetry":"full"}""");
+        Assert.Equal(new Heartbeat(2, "http://nas.local:8096/", "1.4.0", "1.6.0", "nas", "full"), Heartbeat.Parse(m));
     }
 
     [Fact]
     public void HeartbeatFieldsOfTheWrongTypeReadAsMissing()
     {
         var m = Msg("""{"type":"heartbeat","protocol":1,"lanUrl":5,"version":true,"update":[],"name":5}""");
-        Assert.Equal(new Heartbeat(1, null, null, null, null), Heartbeat.Parse(m));
+        Assert.Equal(new Heartbeat(1, null, null, null, null, null), Heartbeat.Parse(m));
     }
 
     // An old gateway's other fields can't skip the "update required" write: its
@@ -53,6 +53,60 @@ public class SocketMessageTests
     {
         var h = Heartbeat.Parse(Msg(json));
         Assert.Equal((version, update), (h.Version, h.Update));
+    }
+
+    // Missing = a gateway too old to send it; any other value, even of the wrong type, is off.
+    [Theory]
+    [InlineData("""{"telemetry":"full"}""", "full")]
+    [InlineData("""{"telemetry":"off"}""", "off")]
+    [InlineData("""{"telemetry":"basic"}""", "off")]
+    [InlineData("""{"telemetry":"FULL"}""", "off")]
+    [InlineData("""{"telemetry":5}""", "off")]
+    [InlineData("""{"telemetry":null}""", null)]
+    [InlineData("""{}""", null)]
+    public void TelemetryLevel(string json, string? level)
+    {
+        Assert.Equal(level, Heartbeat.Parse(Msg(json)).Telemetry);
+    }
+
+    [Fact]
+    public void HealthParsesEveryField()
+    {
+        var m = Msg("""
+            {"health":{"jellyfin":{"reachable":true,"version":"10.11.2"},"os":"windows","arch":"amd64",
+             "transcoding":"nvenc","offline":"enforced","tunnels":1,"transcodes":0,"cpu":12.5,"memory":47.3,"disk":5}}
+            """);
+        Assert.Equal(new HealthReport(true, "10.11.2", "windows", "amd64", "nvenc", "enforced", 1, 0, 12.5, 47.3), HealthReport.Parse(m));
+    }
+
+    // Out of bounds = null, never cut or clamped.
+    [Fact]
+    public void HealthFieldsOutOfBoundsOrOfTheWrongTypeAreNull()
+    {
+        var m = Msg("""
+            {"health":{"jellyfin":{"reachable":"yes","version":"V41"},"os":"X21","arch":"a\u0000",
+             "transcoding":5,"offline":"","tunnels":-1,"transcodes":10001,"cpu":100.1,"memory":-0.5}}
+            """.Replace("V41", new string('9', 41)).Replace("X21", new string('x', 21)));
+        Assert.Equal(new HealthReport(null, null, null, null, null, null, null, null, null, null), HealthReport.Parse(m));
+    }
+
+    [Theory]
+    [InlineData("""{}""")]
+    [InlineData("""{"health":5}""")]
+    [InlineData("""{"health":{"jellyfin":[]}}""")]
+    public void MissingHealthIsAllNull(string json)
+    {
+        Assert.Equal(new HealthReport(null, null, null, null, null, null, null, null, null, null), HealthReport.Parse(Msg(json)));
+    }
+
+    [Fact]
+    public void HealthAtTheBoundsIsKept()
+    {
+        var m = Msg("""
+            {"health":{"jellyfin":{"version":"V40"},"os":"X20",
+             "tunnels":10000,"transcodes":0,"cpu":0,"memory":100}}
+            """.Replace("V40", new string('9', 40)).Replace("X20", new string('x', 20)));
+        Assert.Equal(new HealthReport(null, new string('9', 40), new string('x', 20), null, null, null, 10000, 0, 0, 100), HealthReport.Parse(m));
     }
 
     [Fact]

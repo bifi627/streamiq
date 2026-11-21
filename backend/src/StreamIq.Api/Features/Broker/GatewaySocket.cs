@@ -7,7 +7,7 @@ using StreamIq.Api.Features.Onboarding;
 namespace StreamIq.Api.Features.Broker;
 
 /// The gateway's control socket, authenticated by its credential (Bearer):
-/// heartbeats (last_seen_at + advertised LAN URL + version + protocol) and the gateway's half of
+/// heartbeats (last_seen_at + advertised LAN URL + version + protocol + telemetry level and health) and the gateway's half of
 /// brokered browser sessions (answer/ice back to the session's browser), and its
 /// report of each tunnel when it ends.
 public static class GatewaySocket
@@ -80,9 +80,14 @@ public static class GatewaySocket
                         accepted = true;
                         Broker.Gateways[gatewayId] = me;   // a reconnect replaces the stale link
                     }
-                    if (!await Heartbeat.Parse(msg).StoreIfLiveAsync(db, gatewayId, hash, ct))
+                    var beat = Heartbeat.Parse(msg);
+                    if (!await beat.StoreIfLiveAsync(db, gatewayId, hash, ct))
                     {
                         await me.KillAsync("revoked");
+                    }
+                    else if (beat.Telemetry == HealthReport.Full)
+                    {
+                        await HealthReport.Parse(msg).StoreAsync(db, me.TenantId, gatewayId, ct);
                     }
                     break;
                 case "answer" or "ice" when accepted:
@@ -106,7 +111,7 @@ public static class GatewaySocket
     }
 
     /// A heartbeat (docs/protocol.md), its strings already cleaned for Postgres and the web app.
-    internal sealed record Heartbeat(int Protocol, string? LanUrl, string? Version, string? Update, string? Name)
+    internal sealed record Heartbeat(int Protocol, string? LanUrl, string? Version, string? Update, string? Name, string? Telemetry)
     {
         /// Missing or not a number = 0 (a gateway too old to send it).
         internal static int ProtocolOf(JsonObject m)
@@ -121,7 +126,8 @@ public static class GatewaySocket
                 SafeLanUrl(Broker.Str(m, "lanUrl")),
                 Broker.Str(m, "version") is { Length: <= 40 } v ? v : null,
                 Broker.Str(m, "update") is { Length: > 0 and <= 40 } u ? u : null,
-                SafeName(Broker.Str(m, "name")));
+                SafeName(Broker.Str(m, "name")),
+                HealthReport.LevelOf(m));
         }
 
         /// Recorded, so the Gateways list says "update required", not just offline.
@@ -143,6 +149,7 @@ public static class GatewaySocket
                     .SetProperty(d => d.Version, Version)
                     .SetProperty(d => d.Protocol, Protocol)
                     .SetProperty(d => d.Update, Update)
+                    .SetProperty(d => d.Telemetry, Telemetry)
                     .SetProperty(d => d.Name, d => name ?? d.Name), ct) > 0;
         }
     }

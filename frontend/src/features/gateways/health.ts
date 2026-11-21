@@ -1,17 +1,9 @@
 import { pair } from '../activity/tunnels.ts'
+import type { HealthRow } from '../../generated/gateways.ts'
 
 // GET /api/gateways/{id}/health: the last 7 days of `gateway_health`, oldest
-// first, led by the latest row before them (docs/protocol.md). Null = not sent.
-export type HealthRow = {
-  at: string
-  jellyfinReachable: boolean | null
-  jellyfinVersion: string | null
-  gatewayVersion: string | null
-  tunnels: number | null
-  transcodes: number | null
-  cpu: number | null
-  memory: number | null
-}
+// first, led by the latest row before them (docs/protocol.md).
+export type { HealthRow }
 
 export const WINDOW_MS = 7 * 24 * 3600_000
 // Rows come at least every 5 min while sharing is on: more than 10 min

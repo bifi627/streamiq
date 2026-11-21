@@ -7,11 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using StreamIq.Api;
 using StreamIq.Api.Auth;
 using StreamIq.Api.Data;
-using StreamIq.Api.Features.Gateways;
 using StreamIq.Api.Features.Household;
 using StreamIq.Api.Features.Invites;
 using StreamIq.Api.Features.Members;
-using StreamIq.Api.Features.Onboarding;
 using StreamIq.Api.Features.Tunnels;
 
 // Wiring only: its branches are config switches, not decisions to test.
@@ -83,8 +81,8 @@ builder.Services.AddAuthentication("Firebase")
     .AddScheme<AuthenticationSchemeOptions, FirebaseAuthHandler>("Firebase", _ => { });
 builder.Services.AddAuthorization();
 
-// Enrollments, enrollment tokens, invites and new households per client IP per minute
-// (the Go API limits the broker sockets with the same settings). Prod sets
+// Invites and new households per client IP per minute (the Go API's budget for the
+// broker sockets, enrollments and enrollment tokens uses the same settings). Prod sets
 // STREAMIQ_CLIENT_IP_HEADER to Railway's X-Real-IP (Dockerfile). Never the raw
 // X-Forwarded-For header: the client writes its left entries; RemoteIpAddress is
 // its rightmost one, which Railway's proxy appends (ASPNETCORE_FORWARDEDHEADERS_ENABLED).
@@ -153,10 +151,6 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 // Everything but /healthz sits under /api, so SPA client routes own the rest of the path space.
 var api = app.MapGroup("/api");
-ListGateways.Map(api);
-GetGatewayHealth.Map(api);
-CreateEnrollmentToken.Map(api);
-Enroll.Map(api);
 EndTunnel.Map(api);
 ListTunnels.Map(api);
 TunnelSummary.Map(api);

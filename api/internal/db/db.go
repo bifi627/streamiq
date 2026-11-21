@@ -62,7 +62,7 @@ func setAppPassword(ctx context.Context, ownerURL, password string) error {
 func (d *DB) Close() { d.pool.Close() }
 
 // InTenant runs fn in a transaction that sees tenant's rows only: the one place the
-// tenant is set. set_config's third argument makes it transaction-local, so it never
+// tenant is set (and InClaimedTenant). set_config's third argument makes it transaction-local, so it never
 // outlives the transaction on its pooled connection.
 func (d *DB) InTenant(ctx context.Context, tenant string, fn func(pgx.Tx) error) error {
 	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
@@ -70,6 +70,22 @@ func (d *DB) InTenant(ctx context.Context, tenant string, fn func(pgx.Tx) error)
 			return err
 		}
 		return fn(tx)
+	})
+}
+
+// InClaimedTenant is InTenant for a request whose tenant a claim finds: claim is a
+// query of one SECURITY DEFINER call that changes a row and returns its tenant, or no
+// row (pgx.ErrNoRows, fn not run). The claim is rolled back with fn's error.
+func (d *DB) InClaimedTenant(ctx context.Context, claim string, arg any, fn func(tx pgx.Tx, tenant string) error) error {
+	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
+		var tenant string
+		if err := tx.QueryRow(ctx, claim, arg).Scan(&tenant); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true)`, tenant); err != nil {
+			return err
+		}
+		return fn(tx, tenant)
 	})
 }
 

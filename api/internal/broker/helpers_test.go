@@ -18,6 +18,7 @@ import (
 	"streamiq/api/internal/auth"
 	"streamiq/api/internal/broker"
 	"streamiq/api/internal/gateways"
+	"streamiq/api/internal/iplimit"
 	"streamiq/api/internal/turn"
 )
 
@@ -43,7 +44,7 @@ func newStack(t *testing.T, issuer *turn.Issuer, perMinute int) *stack {
 	if issuer == nil {
 		issuer = &turn.Issuer{}
 	}
-	b := broker.New(apitest.DB, a, issuer, perMinute)
+	b := broker.New(apitest.DB, a, issuer, iplimit.New(perMinute, "X-Real-IP"))
 	mux := http.NewServeMux()
 	b.Routes(mux)
 	gateways.Routes(mux, a, apitest.DB, b)

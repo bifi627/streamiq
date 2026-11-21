@@ -9,8 +9,7 @@ import (
 // The heartbeat carries the gateway's telemetry level, and at `full` the box's health.
 // The broker keeps the level on the gateway and a gateway_health row when the health
 // changes or the latest row is 5 minutes old, never two rows within 25 seconds. `off`
-// stores nothing new and keeps the rows. Reading them (GET /api/gateways/{id}/health)
-// is the .NET API's until #729.
+// stores nothing new and keeps the rows. Reading them is the gateways slice's.
 
 func full(jellyfin string, tunnels int) map[string]any {
 	return map[string]any{"telemetry": "full", "health": map[string]any{

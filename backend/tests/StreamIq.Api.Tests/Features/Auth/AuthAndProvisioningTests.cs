@@ -17,7 +17,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
     {
         await fx.ResetAsync();
         using var client = fx.Factory.CreateClient();
-        var resp = await client.GetAsync("/api/gateways");
+        var resp = await client.GetAsync("/api/members");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
@@ -27,7 +27,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         await fx.ResetAsync();
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "not-a-jwt");
-        var resp = await client.GetAsync("/api/gateways");
+        var resp = await client.GetAsync("/api/members");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
@@ -39,7 +39,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var resp = await client.GetAsync("/api/gateways");   // signs in: adds the user, who has no household
+        var resp = await client.GetAsync("/api/members");   // signs in: adds the user, who has no household
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
 
         using var scope = fx.Factory.Services.CreateScope();
@@ -93,7 +93,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         {
             using var client = fx.Factory.CreateClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/gateways")).StatusCode); // no household yet
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/members")).StatusCode); // no household yet
         }
         await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => Hit()));
 

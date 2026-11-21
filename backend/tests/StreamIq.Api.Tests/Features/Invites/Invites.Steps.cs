@@ -29,16 +29,6 @@ public class InvitesSteps(IntegrationFixture fx)
         _last?.Dispose();
     }
 
-    [Given("\"(.*)\" has a household with gateway \"(.*)\"")]
-    public async Task GivenGateway(string email, string name)
-    {
-        var tenant = await HouseholdOf(email);
-        using var scope = fx.Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
-        db.Gateways.Add(new Gateway { TenantId = tenant, Name = name, CredentialHash = Guid.NewGuid().ToString() });
-        await db.SaveChangesAsync();
-    }
-
     [Given("\"(.*)\" created an invite")]
     public async Task GivenInvite(string email)
     {
@@ -151,18 +141,19 @@ public class InvitesSteps(IntegrationFixture fx)
         Assert.Equal([(await HouseholdOf(owner), role)], await Memberships(email));
     }
 
-    [Then("\"(.*)\" sees exactly gateway \"(.*)\" in the household of \"(.*)\"")]
-    public async Task ThenSeesIn(string email, string name, string owner)
+    // Members by name (the emulator accounts have no display name: their email).
+    [Then("\"(.*)\" sees exactly the members \"(.*)\" in the household of \"(.*)\"")]
+    public async Task ThenSeesIn(string email, string names, string owner)
     {
-        await Send(email, HttpMethod.Get, "/api/gateways", await HouseholdOf(owner));
-        Assert.Equal([name], (await Ok()).EnumerateArray().Select(g => g.GetProperty("name").GetString()));
+        await Send(email, HttpMethod.Get, "/api/members", await HouseholdOf(owner));
+        Assert.Equal(names.Split(", "), (await Ok()).EnumerateArray().Select(m => m.GetProperty("name").GetString()));
     }
 
-    [Then("\"(.*)\" sees exactly gateway \"(.*)\" without naming a household")]
-    public async Task ThenSees(string email, string name)
+    [Then("\"(.*)\" sees exactly the members \"(.*)\" without naming a household")]
+    public async Task ThenSees(string email, string names)
     {
-        await Send(email, HttpMethod.Get, "/api/gateways", null);
-        Assert.Equal([name], (await Ok()).EnumerateArray().Select(g => g.GetProperty("name").GetString()));
+        await Send(email, HttpMethod.Get, "/api/members", null);
+        Assert.Equal(names.Split(", "), (await Ok()).EnumerateArray().Select(m => m.GetProperty("name").GetString()));
     }
 
     [Then("\"(.*)\" has no pending invites")]

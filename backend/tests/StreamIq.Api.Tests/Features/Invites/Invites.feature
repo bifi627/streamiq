@@ -5,8 +5,8 @@ Feature: Invites
   revoked link is a 404, like an unknown one. (Tenant isolation, crown jewel.)
 
   Background:
-    Given "alice@home.test" has a household with gateway "alice-nas"
-    And "bob@home.test" has a household with gateway "bob-nas"
+    Given "alice@home.test" has a household
+    And "bob@home.test" has a household
 
   Scenario: Accepting an invite makes the user a member of that household only
     Given "alice@home.test" created an invite
@@ -15,8 +15,8 @@ Feature: Invites
     When "bob@home.test" accepts the invite
     Then the answer is the household of "alice@home.test"
     And "bob@home.test" is "admin" of their own household and "member" of the household of "alice@home.test"
-    And "bob@home.test" sees exactly gateway "alice-nas" in the household of "alice@home.test"
-    And "bob@home.test" sees exactly gateway "bob-nas" without naming a household
+    And "bob@home.test" sees exactly the members "alice@home.test, bob@home.test" in the household of "alice@home.test"
+    And "bob@home.test" sees exactly the members "bob@home.test" without naming a household
     And "alice@home.test" has no pending invites
 
   Scenario: A brand-new user who signs up through an invite is in that household only
@@ -26,7 +26,7 @@ Feature: Invites
     When "dave@home.test" accepts the invite
     Then the answer is the household of "alice@home.test"
     And "dave@home.test" is only "member" of the household of "alice@home.test"
-    And "dave@home.test" sees exactly gateway "alice-nas" without naming a household
+    And "dave@home.test" sees exactly the members "alice@home.test, dave@home.test" without naming a household
 
   Scenario: Accepting twice is a no-op the second time
     Given "alice@home.test" created an invite

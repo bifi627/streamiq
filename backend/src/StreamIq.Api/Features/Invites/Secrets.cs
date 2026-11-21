@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace StreamIq.Api.Features.Onboarding;
+namespace StreamIq.Api.Features.Invites;
 
-/// Onboarding secrets (enrollment token, gateway credential): random, URL-safe,
+/// Invite secrets: random, URL-safe,
 /// stored server-side as SHA-256 hex only — never the plaintext.
 public static class Secrets
 {

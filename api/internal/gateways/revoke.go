@@ -1,4 +1,3 @@
-// Package gateways is the household's gateways: DELETE /api/gateways/{id} (revoke).
 package gateways
 
 import (
@@ -11,15 +10,6 @@ import (
 	"streamiq/api/internal/broker"
 	"streamiq/api/internal/db"
 )
-
-func Routes(mux *http.ServeMux, a *auth.Auth, d *db.DB, b *broker.Broker) {
-	mux.HandleFunc(
-		"DELETE /api/gateways/{id}",
-		a.Handler(false, func(w http.ResponseWriter, r *http.Request, c auth.Caller) {
-			revoke(w, r, c, d, b)
-		}),
-	)
-}
 
 // revoke removes a gateway: its credential stops working at once, its socket and every
 // session through it are closed. ponytail: revoked = credential hash nulled, row kept,

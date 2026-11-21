@@ -143,9 +143,9 @@ through it (`1008 "gateway revoked"`). Another tenant's or an already revoked
 gateway → `404`. A gateway that authenticated just before the revoke is closed
 at its next heartbeat. Re-adding the box = re-enroll (`docs/install.md`).
 
-**Rate limits.** `/api/broker/ws` and `/api/gateways/ws` share a budget of 120 new
-sockets per client IP per minute; `/api/gateways/enroll` and the `POST`s that create a
-connection record, an invite or an enrollment token share another 120. Over either → `429`
+**Rate limits.** `/api/broker/ws`, `/api/gateways/ws`, `/api/gateways/enroll` and
+`POST /api/gateways/enrollment-tokens` share a budget of 120 per client IP per minute;
+the `POST`s that create an invite or a household share another 120. Over either → `429`
 (for a socket: the upgrade is refused). A flood shield, not a per-user quota: a
 household needs a handful per minute, and the headroom keeps many users behind
 one shared IP (carrier NAT, office) clear of it. On an open socket, a message past its token

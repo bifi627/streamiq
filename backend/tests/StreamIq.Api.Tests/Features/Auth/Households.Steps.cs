@@ -43,6 +43,12 @@ public class HouseholdsSteps(IntegrationFixture fx)
         _gateways[name] = gw.Id;
     }
 
+    [Given("\"(.*)\" has a household")]
+    public Task GivenHousehold(string email)
+    {
+        return HouseholdOf(email);
+    }
+
     [Given("\"(.*)\" is a member of the household of \"(.*)\"")]
     public async Task GivenMember(string email, string owner)
     {
@@ -63,28 +69,28 @@ public class HouseholdsSteps(IntegrationFixture fx)
         Assert.Equal(1, await db.Memberships.Where(m => m.UserId == user).ExecuteDeleteAsync());
     }
 
-    [When("\"(.*)\" lists gateways in the household of \"(.*)\"")]
+    [When("\"(.*)\" lists members in the household of \"(.*)\"")]
     public async Task WhenListsIn(string email, string owner)
     {
-        await Send(email, HttpMethod.Get, "/api/gateways", (await HouseholdOf(owner)).ToString());
+        await Send(email, HttpMethod.Get, "/api/members", (await HouseholdOf(owner)).ToString());
     }
 
-    [When("\"(.*)\" lists gateways in household \"(.*)\"")]
+    [When("\"(.*)\" lists members in household \"(.*)\"")]
     public Task WhenListsInRaw(string email, string household)
     {
-        return Send(email, HttpMethod.Get, "/api/gateways", household);
+        return Send(email, HttpMethod.Get, "/api/members", household);
     }
 
-    [When("\"(.*)\" lists gateways without naming a household")]
+    [When("\"(.*)\" lists members without naming a household")]
     public Task WhenLists(string email)
     {
-        return Send(email, HttpMethod.Get, "/api/gateways", null);
+        return Send(email, HttpMethod.Get, "/api/members", null);
     }
 
-    [When("\"(.*)\" creates an enrollment token in the household of \"(.*)\"")]
-    public async Task WhenEnrollmentToken(string email, string owner)
+    [When("\"(.*)\" creates an invite in the household of \"(.*)\"")]
+    public async Task WhenInvite(string email, string owner)
     {
-        await Send(email, HttpMethod.Post, "/api/gateways/enrollment-tokens", (await HouseholdOf(owner)).ToString());
+        await Send(email, HttpMethod.Post, "/api/invites", (await HouseholdOf(owner)).ToString());
     }
 
     [Then("the request is refused as not a member")]
@@ -127,20 +133,14 @@ public class HouseholdsSteps(IntegrationFixture fx)
         Assert.True(_last.IsSuccessStatusCode, $"got {(int)_last.StatusCode}");
     }
 
-    [Then("the list holds exactly \"(.*)\"")]
-    public async Task ThenExactly(string name)
+    // A household's members by name (the emulator accounts have no display name: their email).
+    [Then("the members are exactly \"(.*)\"")]
+    public async Task ThenExactly(string names)
     {
         Assert.NotNull(_last);
         Assert.Equal(HttpStatusCode.OK, _last.StatusCode);
         var list = await _last.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal([name], list.EnumerateArray().Select(g => g.GetProperty("name").GetString()));
-    }
-
-    [Then("\"(.*)\" still lists only gateway \"(.*)\"")]
-    public async Task ThenStillListed(string email, string name)
-    {
-        await Send(email, HttpMethod.Get, "/api/gateways", null);
-        await ThenExactly(name);
+        Assert.Equal(names.Split(", "), list.EnumerateArray().Select(m => m.GetProperty("name").GetString()));
     }
 
     [Then("\"(.*)\" is \"(.*)\" of the household of \"(.*)\" and \"(.*)\" of the household of \"(.*)\"")]

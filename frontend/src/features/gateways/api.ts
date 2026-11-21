@@ -4,18 +4,10 @@ import { share } from '../pairing/connect'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { httpError } from '../../errors'
 import { nextAsk, type HostLoad } from './host'
+import type { Gateway } from '../../generated/gateways'
+import type { EnrollmentToken as Install } from '../../generated/onboarding'
 
-export type Gateway = {
-  id: string
-  name: string | null
-  lastSeenAt: string | null
-  lanUrl: string | null
-  version: string | null
-  online: boolean
-  update: string | null // newer gateway release, null = up to date
-  upgradeRequired: boolean // refused: its protocol is below the API's minimum
-  telemetry: 'off' | 'full' | null // health sharing, from the heartbeat; null = too old to send it
-}
+export type { Gateway, Install }
 
 // Gateway API GET /streamiq/status over the tunnel (docs/protocol.md). All
 // optional: older gateways send fewer fields.
@@ -62,13 +54,6 @@ export type ScreenCommand =
   | { type: 'stop' }
   | { type: 'seek'; ticks: number }
   | { type: 'tracks'; audio?: number; subtitle?: number } // at least one; subtitle -1 = off
-
-export type Install = {
-  token: string
-  expiresAt: string
-  installCommand: string
-  installCommandPowershell: string
-}
 
 export const getGateways = () => authed<Gateway[]>('/gateways')
 

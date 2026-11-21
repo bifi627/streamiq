@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using StreamIq.Api.Data;
-using StreamIq.Api.Features.Onboarding;
 
 namespace StreamIq.Api.Features.Invites;
 

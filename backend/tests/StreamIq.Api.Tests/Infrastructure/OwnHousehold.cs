@@ -33,7 +33,7 @@ public static class OwnHousehold
     /// is the one named, which must be the user's, else the oldest.
     public static async Task<JsonElement> RawMeAsync(IntegrationFixture fx, HttpClient client, Guid? household = null)
     {
-        using (var res = await client.GetAsync("/api/gateways"))
+        using (var res = await client.GetAsync("/api/members"))
         {
             Assert.NotEqual(HttpStatusCode.Unauthorized, res.StatusCode);
         }

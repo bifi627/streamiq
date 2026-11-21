@@ -10,9 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +19,7 @@ import (
 
 	"streamiq/api/internal/auth"
 	"streamiq/api/internal/db"
+	"streamiq/api/internal/iplimit"
 	"streamiq/api/internal/turn"
 )
 
@@ -30,23 +29,18 @@ type Broker struct {
 	TURN *turn.Issuer
 	// AuthTimeout is how long a browser socket may take to send its auth message.
 	AuthTimeout time.Duration
-	// IPHeader names the request header with the client's IP (Railway: X-Real-IP);
-	// empty or missing = the connection's address. Never X-Forwarded-For: the client
-	// writes its left entries.
-	IPHeader string
 
-	ips      *ipLimit
+	ips      *iplimit.Limiter
 	mu       sync.Mutex
 	gateways map[string]*link    // gateway id → its socket, once it sent a supported heartbeat
 	sessions map[string]*session // session id → the browser
 }
 
-// New is a broker that lets each client IP open perMinute sockets a minute. A flood
-// shield, loose on purpose: users behind one carrier NAT share it.
-func New(d *db.DB, a *auth.Auth, t *turn.Issuer, perMinute int) *Broker {
+// New is a broker whose sockets spend ips' per-client-IP budget.
+func New(d *db.DB, a *auth.Auth, t *turn.Issuer, ips *iplimit.Limiter) *Broker {
 	return &Broker{
 		DB: d, Auth: a, TURN: t, AuthTimeout: 10 * time.Second,
-		ips:      &ipLimit{max: perMinute, counts: map[string]int{}},
+		ips:      ips,
 		gateways: map[string]*link{},
 		sessions: map[string]*session{},
 	}
@@ -54,8 +48,8 @@ func New(d *db.DB, a *auth.Auth, t *turn.Issuer, perMinute int) *Broker {
 
 // Routes: GET, the WebSocket handshake's method.
 func (b *Broker) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/gateways/ws", b.limited(b.gateway))
-	mux.HandleFunc("GET /api/broker/ws", b.limited(b.browser))
+	mux.HandleFunc("GET /api/gateways/ws", b.ips.Wrap(b.gateway))
+	mux.HandleFunc("GET /api/broker/ws", b.ips.Wrap(b.browser))
 }
 
 // link is one socket of the relay. coder/websocket allows concurrent writes, so many
@@ -156,38 +150,4 @@ func accept(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
 		conn.SetReadLimit(-1)
 	}
 	return conn, err
-}
-
-// limited answers 429 once the client's IP opened its sockets for this minute.
-func (b *Broker) limited(h http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ip := strings.TrimSpace(r.Header.Get(b.IPHeader))
-		if b.IPHeader == "" || ip == "" {
-			ip, _, _ = net.SplitHostPort(r.RemoteAddr)
-		}
-		if !b.ips.allow(ip, time.Now()) {
-			w.WriteHeader(http.StatusTooManyRequests)
-			return
-		}
-		h(w, r)
-	}
-}
-
-// ipLimit is a fixed one-minute window per IP. ponytail: one window for all IPs, reset
-// whole; per-IP windows if a burst at a window's edge ever matters.
-type ipLimit struct {
-	mu     sync.Mutex
-	max    int
-	start  time.Time
-	counts map[string]int
-}
-
-func (l *ipLimit) allow(ip string, now time.Time) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if now.Sub(l.start) >= time.Minute {
-		l.start, l.counts = now, map[string]int{}
-	}
-	l.counts[ip]++
-	return l.counts[ip] <= l.max
 }

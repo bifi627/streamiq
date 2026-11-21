@@ -136,6 +136,7 @@ export async function connect(
             )
           return
         case 'fail':
+          clearTimeout(grace)
           close()
           return reject(f.error)
       }

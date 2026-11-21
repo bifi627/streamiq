@@ -1,5 +1,5 @@
-// The connect handshake's decisions: connect.ts feeds every broker, peer
-// connection and data channel event into step() and carries out the effects.
+// The connect handshake's decisions: connect.ts feeds the broker socket,
+// connection state and data channel events into step() and carries out the effects.
 // docs/protocol.md, "Broker" + "Pairing".
 import {
   AppError,

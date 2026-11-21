@@ -1,10 +1,21 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "jsPlugins": ["./lint/streamiq.js"],
+  "plugins": [
+    "react",
+    "typescript",
+    "oxc"
+  ],
+  "jsPlugins": [
+    "./lint/streamiq.js"
+  ],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true
+      }
+    ],
     "typescript/no-import-type-side-effects": "error",
     "typescript/ban-ts-comment": [
       "error",
@@ -16,25 +27,49 @@
     ],
     "streamiq/require-suppression-reason": "error",
     "streamiq/no-hardcoded-locale": "error",
-    "streamiq/no-low-value-comments": "error"
+    "streamiq/no-low-value-comments": "error",
+    "react/set-state-in-effect": "error",
+    "no-empty": "error",
+    "no-empty-function": "error"
   },
   "overrides": [
     {
-      "files": ["**/*.tsx"],
-      "rules": { "complexity": ["error", { "max": 15 }] }
-    },
-    {
-      "files": ["src/**/*.ts", "src/**/*.tsx"],
+      "files": [
+        "**/*.tsx"
+      ],
       "rules": {
-        "max-lines-per-function": [
+        "complexity": [
           "error",
-          { "max": 150, "skipBlankLines": true, "skipComments": true }
+          {
+            "max": 12
+          }
         ]
       }
     },
     {
-      "files": ["**/*.test.ts", "**/*.test.tsx"],
-      "rules": { "max-lines-per-function": "off" }
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "rules": {
+        "max-lines-per-function": [
+          "error",
+          {
+            "max": 150,
+            "skipBlankLines": true,
+            "skipComments": true
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ],
+      "rules": {
+        "max-lines-per-function": "off"
+      }
     }
   ]
 }

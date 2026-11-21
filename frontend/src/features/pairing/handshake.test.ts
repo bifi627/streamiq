@@ -279,3 +279,48 @@ test('a broker error and broken JSON fail', () => {
     'unknown',
   )
 })
+
+test('pairing messages out of order are refused', async (t) => {
+  const refused = (over: Partial<Init>, ...events: Event[]) => {
+    const r = run(answered(over), ...events)
+    assert.equal(failure(r.fx)?.kind, 'gateway-refused')
+    assert.equal(failure(r.fx)?.message.endsWith('out of order'), true)
+    assert.equal(kinds(r.fx).includes('approved'), false)
+    return kinds(r.fx)
+  }
+  const pairing = { pin: undefined, pairing: true }
+  await t.test('approved without pairing (no code was compared)', () => {
+    refused(
+      { pin: undefined },
+      gateway({ type: 'challenge', n: 'n1' }),
+      gateway({ type: 'approved' }),
+    )
+  })
+  await t.test('approved before the reveal', () => {
+    refused(
+      pairing,
+      gateway({ type: 'unpaired' }),
+      gateway({ type: 'approved' }),
+    )
+  })
+  await t.test('a nonce before the commit', () => {
+    assert.deepEqual(refused(pairing, gateway({ type: 'nonce', n: 'gn' })), [
+      'fail',
+    ])
+  })
+  await t.test('a second nonce', () => {
+    refused(
+      pairing,
+      gateway({ type: 'unpaired' }),
+      gateway({ type: 'nonce', n: 'a' }),
+      gateway({ type: 'nonce', n: 'b' }),
+    )
+  })
+  await t.test('a second unpaired', () => {
+    refused(
+      pairing,
+      gateway({ type: 'unpaired' }),
+      gateway({ type: 'unpaired' }),
+    )
+  })
+})

@@ -41,6 +41,9 @@ export type State = Init & {
   early: RTCIceCandidateInit[]
   iceUp: boolean
   grace: boolean
+  // Pairing runs unpaired → commit → nonce → reveal → approved, each once:
+  // anything out of that order is refused.
+  paired: 'no' | 'committed' | 'revealed'
 }
 
 export type Event =
@@ -83,6 +86,7 @@ export const start = (init: Init): State => ({
   early: [],
   iceUp: false,
   grace: false,
+  paired: 'no',
 })
 
 export function step(s: State, ev: Event): Step {
@@ -188,12 +192,24 @@ function onGateway(s: State, m: Msg): Step {
             'gateway skipped pairing for an unpinned certificate',
           )
     case 'unpaired':
-      return s.pairing
-        ? { state: s, fx: [{ do: 'commit' }] }
-        : fail(s, 'not-paired', 'this browser is not paired with the gateway')
+      if (!s.pairing)
+        return fail(
+          s,
+          'not-paired',
+          'this browser is not paired with the gateway',
+        )
+      return s.paired === 'no'
+        ? { state: { ...s, paired: 'committed' }, fx: [{ do: 'commit' }] }
+        : outOfOrder(s, m)
     case 'nonce':
-      return withNonce(s, m, (n) => ({ do: 'reveal', n, fp: s.gatewayFp }))
+      if (s.paired !== 'committed') return outOfOrder(s, m)
+      return withNonce({ ...s, paired: 'revealed' }, m, (n) => ({
+        do: 'reveal',
+        n,
+        fp: s.gatewayFp,
+      }))
     case 'approved':
+      if (s.paired !== 'revealed') return outOfOrder(s, m)
       return {
         state: { ...s, phase: 'up' },
         fx: [{ do: 'approved', fp: s.gatewayFp }],
@@ -207,6 +223,9 @@ function onGateway(s: State, m: Msg): Step {
   }
   return same(s)
 }
+
+const outOfOrder = (s: State, m: Msg) =>
+  fail(s, 'gateway-refused', `gateway's ${m.type} out of order`)
 
 // The gateway's challenge and nonce messages carry one: without it, it's refused.
 function withNonce(s: State, m: Msg, fx: (n: string) => Effect): Step {

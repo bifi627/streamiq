@@ -1,6 +1,6 @@
 # Gateway release. Two ways in (#274):
 # - automatic: ci.yml calls this as its last job, after every check passed on a push to
-#   main, when scripts/next-gateway-version.sh finds gateway/ changed since the last stable
+#   main, when scripts/next-gateway-version.sh finds what the gateway builds with changed since the last stable
 #   release (and the subject has no `[skip release]`). It also picks the version: a breaking
 #   `type!:` gateway commit since that release bumps the minor, anything else the patch.
 # - by hand: pushing a tag gateway-vX.Y.Z releases that version: the only way to bump the

@@ -128,7 +128,8 @@ and daily peaks per local day.
 - Go module `streamiq` at the repo root (`go.mod`, `go.sum`, `.golangci.yml`): the gateway is
   `gateway/cmd` + `gateway/internal/<slice>`. Go commands name their tree or run from
   `gateway/`: `./...` from the root walks `frontend/` and `e2e/`'s `node_modules`.
-- Released on GitHub Releases: a merge touching `gateway/**` or `go.mod`/`go.sum` auto-versions a release after
+- Released on GitHub Releases: a merge changing what the gateway builds with (`gateway/**`, repo
+  packages it imports, its modules or the `go`/`toolchain` line in `go.mod`; `docs/tools.md`) auto-versions a release after
   green CI (`!` in the subject = minor bump; major = a hand-pushed `gateway-v*` tag;
   `release-gateway.yml`).
 - `install.sh` / `install.ps1`: install = update, SHA256-checked. Config in `gateway.env`.

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/websocket"
 
 	"streamiq/gateway/internal/tunnel"
+	"streamiq/protocol"
 )
 
 // Enrolls once against a fake control plane, then a second start with the
@@ -138,7 +139,7 @@ func TestRunControlDialTimeout(t *testing.T) {
 		"dev",
 		new(atomic.Int64),
 		func() string { return "" },
-		func() (string, any) { return "off", nil },
+		func() (string, *protocol.Health) { return "off", nil },
 		func(raw []byte, _ func(any)) {
 			if raw != nil {
 				got <- raw
@@ -185,7 +186,7 @@ func TestRunControlHeartbeats(t *testing.T) {
 			"1.4.0",
 			&lastBeat,
 			func() string { return "" },
-			func() (string, any) { return "off", nil },
+			func() (string, *protocol.Health) { return "off", nil },
 			func([]byte, func(any)) {},
 		)
 	}()
@@ -262,7 +263,7 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 			"dev",
 			new(atomic.Int64),
 			func() string { return "" },
-			func() (string, any) { return "off", nil },
+			func() (string, *protocol.Health) { return "off", nil },
 			func([]byte, func(any)) {},
 		)
 	}()
@@ -309,8 +310,17 @@ func TestRunControlUpgradeRequired(t *testing.T) {
 	defer srv.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := RunControl(ctx, srv.URL, &State{Credential: "c"}, "", "1.0.0", new(atomic.Int64),
-		func() string { return "" }, func() (string, any) { return "off", nil }, func([]byte, func(any)) {})
+	err := RunControl(
+		ctx,
+		srv.URL,
+		&State{Credential: "c"},
+		"",
+		"1.0.0",
+		new(atomic.Int64),
+		func() string { return "" },
+		func() (string, *protocol.Health) { return "off", nil },
+		func([]byte, func(any)) {},
+	)
 	if !errors.Is(err, ErrUpgradeRequired) {
 		t.Fatalf("want ErrUpgradeRequired, got %v", err)
 	}

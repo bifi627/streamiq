@@ -1,0 +1,118 @@
+// Package protocol holds the broker's messages on both of its sockets (docs/protocol.md,
+// "Gateway onboarding" + "Broker"): the gateway's on /api/gateways/ws, the browser's on
+// /api/broker/ws. The gateway and the Go API use them; scripts/gen-types.sh makes the
+// web app's TypeScript from them. Types only: no pion, no database, nothing from gateway/
+// or api/, so every side can import it.
+package protocol
+
+import "encoding/json"
+
+// Msg is the envelope between broker and gateway on /api/gateways/ws. S and C are the
+// SDP and the ICE candidate: the gateway reads them as pion's types, the broker relays
+// them as sent (json.RawMessage).
+type Msg[S, C any] struct {
+	Type      string `json:"type"                tstype:"'offer' | 'answer' | 'ice' | 'bye'"`
+	Session   string `json:"session"`
+	User      string `json:"user,omitempty"`                    // offer only: the signed-in user's users.id, stamped by the broker
+	Role      string `json:"role,omitempty"      tstype:"Role"` // offer only: that user's role in this gateway's household
+	SDP       *S     `json:"sdp,omitempty"`                     // offer, answer
+	Candidate *C     `json:"candidate,omitempty"`               // ice
+}
+
+// Report is the gateway's account of a tunnel, sent once when its PeerConnection
+// ends ("Telemetry"): the broker fills that tunnel's row with it.
+// local = the gateway's side of the selected pair, remote = the browser's; bytes as
+// the gateway counted them on the ICE transport (sent = gateway → client).
+type Report struct {
+	Type                string  `json:"type"                          tstype:"'tunnel'"`
+	Session             string  `json:"session"`
+	Relay               bool    `json:"relay"`
+	Ipv6                bool    `json:"ipv6"`
+	LocalCandidateType  string  `json:"localCandidateType,omitempty"`
+	RemoteCandidateType string  `json:"remoteCandidateType,omitempty"`
+	Protocol            string  `json:"protocol,omitempty"`
+	BytesSent           uint64  `json:"bytesSent"`
+	BytesReceived       uint64  `json:"bytesReceived"`
+	Failure             *string `json:"failure"                       tstype:"string | null,required"` // nil = the tunnel came up and passed auth
+	Use                 string  `json:"use,omitempty"`                                                 // what it was for; "" = no request served
+	ActiveMs            *int64  `json:"activeMs,omitempty"`                                            // from the offer to its last request's end; nil = none served
+}
+
+// Heartbeat is the gateway's liveness message: on connect, every 30 s, and early on a
+// change of what the API mirrors (name, telemetry level).
+type Heartbeat struct {
+	Type     string `json:"type"             tstype:"'heartbeat'"`
+	LanURL   string `json:"lanUrl"`
+	Version  string `json:"version"`
+	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
+	Protocol int    `json:"protocol"`
+	Name     string `json:"name"`
+	// Telemetry is the level; Health what it allows (none at off). Older APIs ignore both.
+	Telemetry string  `json:"telemetry"        tstype:"'off' | 'full'"`
+	Health    *Health `json:"health,omitempty"`
+}
+
+// Health is the heartbeat's `health` at telemetry full. Counts and versions only: never
+// names, users, client keys, media titles, file names or paths.
+type Health struct {
+	Jellyfin    Jellyfin `json:"jellyfin"`
+	OS          string   `json:"os"`
+	Arch        string   `json:"arch"`
+	Transcoding string   `json:"transcoding"`          // hardware acceleration, as in GET /streamiq/status
+	Offline     string   `json:"offline,omitempty"`    // jail state; none without a compose Jellyfin
+	Tunnels     int      `json:"tunnels"`              // active tunnels
+	Transcodes  *int     `json:"transcodes,omitempty"` // none when Jellyfin's /Sessions couldn't be read
+	CPU         *float64 `json:"cpu,omitempty"`        // busy %, 0–100
+	Memory      *float64 `json:"memory,omitempty"`     // used %, 0–100
+}
+
+// Jellyfin is Health's Jellyfin part.
+type Jellyfin struct {
+	Reachable bool   `json:"reachable"`
+	Version   string `json:"version"`
+}
+
+// Auth is the browser's first message on /api/broker/ws.
+type Auth struct {
+	Type  string `json:"type"  tstype:"'auth'"`
+	Token string `json:"token"` // Firebase ID token
+}
+
+// Ping keeps the browser's socket open through idle proxies; the broker ignores it.
+type Ping struct {
+	Type string `json:"type" tstype:"'ping'"`
+}
+
+// Ready answers a good Auth with this session's ICE servers, passed through as the
+// TURN provider made them.
+type Ready struct {
+	Type       string            `json:"type"       tstype:"'ready'"`
+	ICEServers []json.RawMessage `json:"iceServers" tstype:"RTCIceServer[]"`
+}
+
+// Offer is the browser's offer to one gateway.
+type Offer[S any] struct {
+	Type      string `json:"type"      tstype:"'offer'"`
+	GatewayID string `json:"gatewayId"`
+	SDP       *S     `json:"sdp"       tstype:",required"`
+}
+
+// Answer is the gateway's answer as the browser gets it. Tunnel is the tunnel's id
+// (the broker session), for the browser's throughput PATCH.
+type Answer[S any] struct {
+	Type   string `json:"type"   tstype:"'answer'"`
+	SDP    *S     `json:"sdp"    tstype:",required"`
+	Tunnel string `json:"tunnel"`
+}
+
+// Ice is one trickled candidate between browser and broker, either way.
+type Ice[C any] struct {
+	Type      string `json:"type"      tstype:"'ice'"`
+	Candidate *C     `json:"candidate" tstype:",required"`
+}
+
+// ErrorMsg tells the browser why its offer went nowhere.
+type ErrorMsg struct {
+	Type  string `json:"type"  tstype:"'error'"`
+	Error string `json:"error"`
+}

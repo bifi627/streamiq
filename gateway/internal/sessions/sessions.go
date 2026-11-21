@@ -19,36 +19,11 @@ import (
 
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/tunnel"
+	"streamiq/protocol"
 )
 
-// Msg is the broker envelope on the control socket (docs/protocol.md).
-type Msg struct {
-	Type      string                     `json:"type"` // offer | answer | ice | bye
-	Session   string                     `json:"session"`
-	User      string                     `json:"user,omitempty"` // offer only: the signed-in user's users.id, stamped by the broker
-	Role      string                     `json:"role,omitempty"` // offer only: that user's role in this gateway's household (admin | member)
-	SDP       *webrtc.SessionDescription `json:"sdp,omitempty"`
-	Candidate *webrtc.ICECandidateInit   `json:"candidate,omitempty"`
-}
-
-// Report is the gateway's account of a tunnel, sent once when its PeerConnection
-// ends (docs/protocol.md, "Telemetry"): the broker fills that tunnel's row with it.
-// local = the gateway's side of the selected pair, remote = the browser's; bytes as
-// the gateway counted them on the ICE transport (sent = gateway → client).
-type Report struct {
-	Type                string  `json:"type"` // tunnel
-	Session             string  `json:"session"`
-	Relay               bool    `json:"relay"`
-	Ipv6                bool    `json:"ipv6"`
-	LocalCandidateType  string  `json:"localCandidateType,omitempty"`
-	RemoteCandidateType string  `json:"remoteCandidateType,omitempty"`
-	Protocol            string  `json:"protocol,omitempty"`
-	BytesSent           uint64  `json:"bytesSent"`
-	BytesReceived       uint64  `json:"bytesReceived"`
-	Failure             *string `json:"failure"`            // nil = the tunnel came up and passed auth
-	Use                 string  `json:"use,omitempty"`      // what it was for (tunnel.Usage); "" = no request served
-	ActiveMs            *int64  `json:"activeMs,omitempty"` // from the offer to its last request's end; nil = none served
-}
+// Msg is the broker envelope on the control socket, with pion's SDP and candidate.
+type Msg = protocol.Msg[webrtc.SessionDescription, webrtc.ICECandidateInit]
 
 type Sessions struct {
 	Cert  *webrtc.Certificate
@@ -67,8 +42,8 @@ type Sessions struct {
 	cands map[string]*signaled            // session id → the kinds of candidate the browser signaled
 	API   *webrtc.API                     // from NewAPI; nil = Pion defaults
 
-	ctl     func(any) // the control socket that is up (RunControl's handle(nil, send)); nil = none
-	backlog []Report  // tunnel reports made while none was up, sent on the next one
+	ctl     func(any)         // the control socket that is up (RunControl's handle(nil, send)); nil = none
+	backlog []protocol.Report // tunnel reports made while none was up, sent on the next one
 }
 
 // NewAPI builds the one WebRTC API all sessions share. Native runs need
@@ -146,7 +121,7 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 func (s *Sessions) announce(send func(any)) {
 	s.mu.Lock()
 	s.ctl = send
-	var backlog []Report
+	var backlog []protocol.Report
 	if send != nil {
 		backlog, s.backlog = s.backlog, nil
 	}
@@ -401,7 +376,7 @@ func (s *Sessions) Drop(keyFp string) {
 // report sends r on the control socket that is up now, not the one that carried the
 // offer: a tunnel often ends because that one dropped ("gateway gone"). None up = held
 // for the next. ponytail: capped; a gateway that stays offline past it, or exits, loses them.
-func (s *Sessions) report(r Report) {
+func (s *Sessions) report(r protocol.Report) {
 	s.mu.Lock()
 	send := s.ctl
 	if send == nil && len(s.backlog) < 1000 {
@@ -434,8 +409,8 @@ func report(
 	cands *signaled,
 	last *webrtc.ICECandidatePair,
 	failure *string,
-) Report {
-	r := Report{Type: "tunnel", Session: id, Failure: failure}
+) protocol.Report {
+	r := protocol.Report{Type: "tunnel", Session: id, Failure: failure}
 	ice := pc.SCTP().Transport().ICETransport()
 	p, err := ice.GetSelectedCandidatePair()
 	if err != nil || p == nil {

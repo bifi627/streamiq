@@ -22,6 +22,7 @@ import (
 
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/tunnel"
+	"streamiq/protocol"
 )
 
 const heartbeatEvery = 30 * time.Second
@@ -147,18 +148,6 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 	return &st, nil
 }
 
-type heartbeat struct {
-	Type     string `json:"type"`
-	LanURL   string `json:"lanUrl"`
-	Version  string `json:"version"`
-	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
-	Protocol int    `json:"protocol"`
-	Name     string `json:"name"` // the API mirrors it
-	// Telemetry is the level; Health what it allows (none at off). Older APIs ignore both.
-	Telemetry string `json:"telemetry"`
-	Health    any    `json:"health,omitempty"`
-}
-
 // RunControl holds the authenticated control socket until it drops: heartbeats
 // (liveness + update()) out, broker messages (signaling for browser sessions) in,
 // handed to handle with a send func that writes JSON back on this socket.
@@ -167,8 +156,16 @@ type heartbeat struct {
 // tied to a broker message (tunnel reports) go out on the socket that is up.
 // lastBeat holds the last heartbeat's unix time, 0 while disconnected (status page).
 // health is the telemetry level and the health it allows, read before each heartbeat.
-func RunControl(ctx context.Context, api string, st *State, lanURL, version string, lastBeat *atomic.Int64,
-	update func() string, health func() (level string, health any), handle func(raw []byte, send func(any))) error {
+func RunControl(
+	ctx context.Context,
+	api string,
+	st *State,
+	lanURL, version string,
+	lastBeat *atomic.Int64,
+	update func() string,
+	health func() (level string, health *protocol.Health),
+	handle func(raw []byte, send func(any)),
+) error {
 	// Dial's context bounds only the handshake: cancelling it once Dial returned
 	// leaves the socket open (coder/websocket does the same for HTTPClient.Timeout).
 	dialCtx, cancelDial := dialContext(ctx)
@@ -203,7 +200,7 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 		defer t.Stop()
 		for first := true; ; first = false {
 			level, h := health()
-			send(heartbeat{
+			send(protocol.Heartbeat{
 				Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol,
 				Name: st.CurrentName(), Telemetry: level, Health: h,
 			})

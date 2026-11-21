@@ -96,23 +96,3 @@ func (s *Switch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.Changed()
 	tunnel.JSON(w, http.StatusOK, map[string]string{"level": in.Level})
 }
-
-// Health is the heartbeat's `health` at Full. Counts and versions only: never
-// names, users, client keys, media titles, file names or paths.
-type Health struct {
-	Jellyfin    Jellyfin `json:"jellyfin"`
-	OS          string   `json:"os"`
-	Arch        string   `json:"arch"`
-	Transcoding string   `json:"transcoding"`       // hardware acceleration, as in GET /streamiq/status
-	Offline     string   `json:"offline,omitempty"` // jail state; none without a compose Jellyfin
-	Tunnels     int      `json:"tunnels"`
-	Transcodes  *int     `json:"transcodes,omitempty"` // none when Jellyfin's /Sessions couldn't be read
-	CPU         *float64 `json:"cpu,omitempty"`        // busy %, 0–100
-	Memory      *float64 `json:"memory,omitempty"`     // used %, 0–100
-}
-
-// Jellyfin is Health's Jellyfin part.
-type Jellyfin struct {
-	Reachable bool   `json:"reachable"`
-	Version   string `json:"version"`
-}

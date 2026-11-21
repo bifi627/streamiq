@@ -40,6 +40,7 @@ import (
 	"streamiq/gateway/internal/telemetry"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
+	"streamiq/protocol"
 )
 
 // version is set at build time (-ldflags -X main.version=…; see Dockerfile).
@@ -397,7 +398,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			version,
 			&lastBeat,
 			func() string { return *newer.Load() },
-			func() (string, any) { return b.beat(ctx) },
+			func() (string, *protocol.Health) { return b.beat(ctx) },
 			sess.Handle,
 		)
 	})

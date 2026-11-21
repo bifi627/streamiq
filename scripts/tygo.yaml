@@ -1,0 +1,30 @@
+# TypeScript for the web app from the Go types that are the wire contract
+# (bash scripts/gen-types.sh). A ported REST slice adds its package here.
+packages:
+  - path: "streamiq/protocol"
+    output_path: "frontend/src/generated/protocol.ts"
+    frontmatter: |
+      export type Role = 'admin' | 'member'
+      /** What a browser sends on /api/broker/ws. */
+      export type BrowserMessage =
+        | Auth
+        | Offer<RTCSessionDescriptionInit>
+        | Ice<RTCIceCandidateInit>
+        | Ping
+      /** What a browser gets on /api/broker/ws. */
+      export type BrokerMessage =
+        | Ready
+        | Answer<RTCSessionDescriptionInit>
+        | Ice<RTCIceCandidateInit>
+        | ErrorMsg
+  - path: "streamiq/api/internal/auth"
+    output_path: "frontend/src/generated/auth.ts"
+    include_files: ["household.go"]
+    optional_type: "null"
+  - path: "streamiq/api/internal/me"
+    output_path: "frontend/src/generated/me.ts"
+    optional_type: "null"
+    type_mappings:
+      auth.Household: "auth.Household"
+    frontmatter: |
+      import type * as auth from './auth'

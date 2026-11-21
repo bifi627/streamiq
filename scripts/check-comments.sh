@@ -13,7 +13,7 @@ done
 go=$(bash scripts/go-sources.sh)
 files=$( {
   echo "$go"
-  find frontend/src -name '*.ts' -o -name '*.tsx' -o -name '*.css' | grep -vE '\.test\.tsx?$'
+  find frontend/src -name '*.ts' -o -name '*.tsx' -o -name '*.css' | grep -vE '\.test\.tsx?$' | bash scripts/drop-generated.sh
   find backend/src -name '*.cs' -not -path '*/obj/*' -not -path '*/bin/*' -not -path '*/Migrations/*' \
     -not -name '*.Designer.cs' -not -name '*.g.cs'
   ls scripts/*.sh scripts/*.ps1 scripts/*.sql .github/workflows/*.yml .golangci.yml .editorconfig

@@ -107,14 +107,15 @@ jobs:
       - run: bash scripts/check-docs-drift.sh # #488: STREAMIQ_* env vars + gateway routes documented
       - run: bash scripts/check-file-size.sh # #600: no source file over 500 code lines (all three stacks) outside the allowlist
       - run: bash scripts/check-comments.sh
+      - run: bash scripts/gen-types.sh --check # frontend/src/generated matches the Go wire types (Go + the frontend tree)
       # #581: actionlint (+ shellcheck on run: blocks) and shellcheck scripts/*.sh + the installer, pinned like scripts/check.sh
       - run: |
           docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -no-color
           docker run --rm -v "$PWD:/repo" -w /repo --entrypoint shellcheck rhysd/actionlint:1.7.12 scripts/*.sh gateway/install/install.sh
-      - run: test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
+      - run: test -z "$(gofmt -l . ../protocol)" || { echo "gofmt needed:"; gofmt -l . ../protocol; exit 1; }
         working-directory: gateway
       # #559: golangci-lint (its govet replaces go vet), pinned like scripts/check.sh
-      - run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./... && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --build-tags docker ./...
+      - run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./... ../protocol/... && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --build-tags docker ./...
         working-directory: gateway
       - run: go build ./... && go test -race ./...
         working-directory: gateway

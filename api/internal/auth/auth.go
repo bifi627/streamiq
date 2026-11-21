@@ -55,13 +55,6 @@ func NewVerifier(ctx context.Context) (*fbauth.Client, error) {
 	return app.Auth(ctx)
 }
 
-// Household is one of the user's memberships.
-type Household struct {
-	ID   string  `json:"id"`
-	Name *string `json:"name"`
-	Role string  `json:"role"`
-}
-
 // Caller is who a request acts as. Tenant and Role are empty for a user in no
 // household, which only optional handlers get.
 type Caller struct {

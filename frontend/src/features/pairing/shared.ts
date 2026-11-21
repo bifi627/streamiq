@@ -29,7 +29,9 @@ export function sharer<S extends Closable>(
   const shut = (e: Entry<S>) =>
     void e.p.then(
       (s) => s.close(),
-      () => {},
+      () => {
+        // a failed connect already rejected share() for its users
+      },
     )
   const evict = (id: string, e: Entry<S>) => {
     if (map.get(id) !== e) return

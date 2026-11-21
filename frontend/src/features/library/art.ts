@@ -10,6 +10,7 @@ import { tunnelFetch, tunnelJson } from '../../tunnel'
 import { ART_PREFIX, artCleared } from '../../leave'
 import { queryClient } from '../../query'
 import type { Speed } from '../../speed'
+import { event } from '../../diag'
 
 // The gateway's shared tunnel session (Library.tsx GatewayLibrary).
 export const Tunnel = createContext<{
@@ -107,7 +108,7 @@ export async function load(
             .map((k) => cache.delete(k)),
         )
       })
-      .catch(() => {}) // full or blocked: shown anyway, just not kept
+      .catch((e) => event(`art: cache put failed: ${e}`)) // shown anyway, just not kept
   }
   return blob
 }

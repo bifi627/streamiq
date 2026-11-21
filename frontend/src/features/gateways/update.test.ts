@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { AppError, describe } from '../../errors.ts'
-import { startOutcome, updated, updateState } from './update.ts'
+import { startOutcome, tracked, updated, updateState } from './update.ts'
 
 test('a remote update is done once online on another version (#312)', () => {
   const u = { to: '1.5.0', from: '1.4.0' }
@@ -96,4 +96,11 @@ test('Update: started, refused, or the error (#312, #564)', () => {
   assert.deepEqual(startOutcome(err, '1.4.0', false), {
     msg: describe(err).message,
   })
+})
+
+test('tracked: the notices of an update started here', () => {
+  for (const n of ['updating', 'notHappened', 'retry', 'notFinished'] as const)
+    assert.equal(tracked(n), true)
+  for (const n of ['button', 'reason', 'byHand', null] as const)
+    assert.equal(tracked(n), false)
 })

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { browserName, connect } from './connect'
-import { clientKey, usePinned } from './store'
+import { clientKey, usePin } from './store'
 import { renameMessage, toAppError } from '../../errors'
 import { listClients, renameClient } from '../gateways/api'
 import { isBack } from '../library/items'
@@ -11,6 +11,7 @@ import { pairInfo } from '../../stats'
 import { arrowFocus } from '../../focus'
 import { tvOn } from '../../settings'
 import { routeLine, showPair as pairShown, type State } from './pairState'
+import { event } from '../../diag'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
 // and tunnel one request through it ("Test connection": a cheap diagnostic).
@@ -20,7 +21,6 @@ export function Pairing({
   lanUrl,
   needsPair,
   onPaired,
-  onPin,
   open,
   children,
 }: {
@@ -30,11 +30,6 @@ export function Pairing({
   needsPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
-  /** Whether this browser has a stored pin for the gateway, read on mount
-   * (usePinned). A failed test doesn't call it again: the pin stays stored.
-   * Pass a stable function (a state setter or useCallback): a new one is
-   * called again with the read. */
-  onPin?: (pinned: boolean) => void
   /** Gateway card: Open takes Pair's place once this browser is paired. */
   open?: () => void
   /** With open: more actions in Open's row (Test connection goes below). */
@@ -43,12 +38,7 @@ export function Pairing({
   const [s, setS] = useState<State>({ step: 'idle' })
   // Pair shows while this browser has no pin for the gateway. ponytail: a pin
   // the gateway dropped (Remove on its page) only shows on a failed test.
-  const stored = usePinned(gatewayId)
-  const [known, setPinned] = useState<boolean | null>(null) // what a run found out since
-  const pinned = known ?? stored ?? null
-  useEffect(() => {
-    if (stored !== undefined) onPin?.(stored)
-  }, [stored, onPin])
+  const [pinned, setPinned] = usePin(gatewayId)
 
   const root = useRef<HTMLDivElement>(null)
   const testBtn = useRef<HTMLButtonElement>(null)
@@ -219,7 +209,8 @@ function NamePrompt({
         const me = l.find((c) => c.self)
         if (me?.name === browserName()) setDraft(me.name)
       },
-      () => {}, // no prompt; Rename on the Paired clients list still works
+      // no prompt; Rename on the Paired clients list still works
+      (e) => event(`pairing: own client name failed: ${e}`),
     )
   }, [gatewayId])
   const done = () => {

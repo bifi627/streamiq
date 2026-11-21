@@ -16,12 +16,15 @@
     ],
     "streamiq/require-suppression-reason": "error",
     "streamiq/no-hardcoded-locale": "error",
-    "streamiq/no-low-value-comments": "error"
+    "streamiq/no-low-value-comments": "error",
+    "react/set-state-in-effect": "error",
+    "no-empty": "error",
+    "no-empty-function": "error"
   },
   "overrides": [
     {
       "files": ["**/*.tsx"],
-      "rules": { "complexity": ["error", { "max": 15 }] }
+      "rules": { "complexity": ["error", { "max": 12 }] }
     },
     {
       "files": ["src/**/*.ts", "src/**/*.tsx"],

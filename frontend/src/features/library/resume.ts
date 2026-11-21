@@ -4,7 +4,7 @@
 // Played: false (a partial rewatch is in progress again). Only once this
 // playback has really played watchMin() (60 s): clicking through saves
 // nothing. The end marks the item played.
-import { watchMin } from '../../diag'
+import { event, watchMin } from '../../diag'
 import { tunnelJson } from '../../tunnel'
 import * as jf from './jellyfin'
 import { TICKS_PER_SECOND } from './items'
@@ -29,7 +29,9 @@ export function watchResume(
     lastT = t
   }
   const save = (body: object) =>
-    (saving = tunnelJson(pc, jf.userData(itemId), body).catch(() => {}))
+    (saving = tunnelJson(pc, jf.userData(itemId), body).catch((e) =>
+      event(`resume: save failed: ${e}`),
+    ))
   const report = () => {
     const t = Math.floor(v.currentTime)
     // Not after the end: its `pause` comes before `ended` (Played: true).

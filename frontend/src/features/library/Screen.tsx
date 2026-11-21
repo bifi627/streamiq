@@ -39,7 +39,8 @@ import {
   TICKS_PER_SECOND,
   type Item,
 } from './items'
-import { ICON, Icon } from './Controls'
+import { Icon } from './Controls'
+import { ICON } from './icons'
 import { Tunnel, backdrop, primary, useTunnelQuery } from './art'
 import { useScreens } from './queries'
 import { Artwork } from './Home'
@@ -160,7 +161,7 @@ export function ScreenPage() {
         const me = l.find((c) => c.self)
         if (me) setName(me.name)
       },
-      () => {},
+      (e) => event(`screen: own client name failed: ${e}`),
     )
   }, [pc])
   return (

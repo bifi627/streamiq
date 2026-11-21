@@ -5,12 +5,20 @@ import type { RefObject } from 'react'
 import { seekTarget, storedVolume } from './bar'
 import { isBack } from './items'
 import { clamp, keyAction, type Action } from './keys'
+import { noop } from '../../noop'
+import { event } from '../../diag'
 
 const HIDE_MS = 4000
 
 // Media actions; plain functions so the component never mutates its props.
 const toggle = (v: HTMLVideoElement) =>
-  v.paused ? v.play().catch(() => {}) : v.pause()
+  v.paused
+    ? v
+        .play()
+        .catch(
+          (e) => e.name !== 'AbortError' && event(`player: play failed: ${e}`),
+        ) // AbortError: a pause came first
+    : v.pause()
 const mute = (v: HTMLVideoElement) => {
   v.muted = !v.muted
 }
@@ -113,9 +121,9 @@ export function makeUi(
             }
           )
             .lock?.('landscape')
-            .catch(() => {}),
+            .catch((e) => event(`player: landscape lock failed: ${e}`)),
         )
-        .catch(() => {})
+        .catch((e) => event(`player: fullscreen failed: ${e}`))
     },
   }
   return ui
@@ -176,7 +184,7 @@ export function onKey(
     toggle: ui.toggle,
     seek: (x) => ui.seek(x.by),
     focusPlay: () => r.play.current?.focus(),
-    stay: () => {},
+    stay: noop,
     option: (x) =>
       move(
         Array.from(

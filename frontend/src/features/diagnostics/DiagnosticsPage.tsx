@@ -26,6 +26,7 @@ import {
   throughputLine,
   type Test,
 } from './report'
+import { noop } from '../../noop'
 
 export function DiagnosticsPage() {
   useSyncExternalStore(subscribe, snapshot) // Force relay checkbox, cpu/memory lines
@@ -55,7 +56,7 @@ export function DiagnosticsPage() {
     const show = (failed?: string) => setTest({ lines: [...lines], failed })
     show()
     let step = 'connect (broker → ICE → gateway auth)'
-    let close = () => {}
+    let close = noop
     diag.relay = ''
     // The broker's `ready` sets diag.relay, also when connect fails after it.
     const relay = () => diag.relay && lines.push(diag.relay)

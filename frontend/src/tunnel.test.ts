@@ -1,8 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { noop } from './noop.ts'
 
 // diag.ts (imported by tunnel.ts) hooks window errors at load.
-;(globalThis as any).addEventListener ??= () => {}
+;(globalThis as any).addEventListener ??= noop
 const { tunnelFetch } = await import('./tunnel.ts')
 const { diag } = await import('./diag.ts')
 
@@ -81,7 +82,7 @@ test('the request frame goes out on open; the browser closes after eof', async (
   assert.equal(lastReq().result, 'HTTP 204')
   // A GET carries no body field.
   const g = channel()
-  void tunnelFetch(g.pc, '/x').catch(() => {})
+  void tunnelFetch(g.pc, '/x').catch(noop) // never answered
   g.dc.onopen()
   assert.deepEqual(JSON.parse(g.dc.sent[0]), {
     method: 'GET',

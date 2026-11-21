@@ -10,7 +10,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Pairing } from '../pairing/Pairing'
 import { dropShared } from '../pairing/connect'
-import { deletePin } from '../pairing/store'
+import { deletePin, usePin } from '../pairing/store'
 import { renameMessage, toAppError, type AppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
 import { copyText } from '../../clipboard'
@@ -24,7 +24,8 @@ import { StatusDetails } from './StatusDetails'
 import { HealthSharing } from './HealthSharing'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
-import { canManage, shownError, type ActErr } from './list'
+import { canManage, gatewayName, shownError, type ActErr } from './list'
+import { event } from '../../diag'
 
 // `/`: straight into the library when the household has exactly one
 // gateway, else the list. History replace both ways, so Back doesn't bounce.
@@ -208,13 +209,15 @@ function GatewayCard({
 }) {
   const navigate = useNavigate()
   // This browser holds a pin for it: Rename and Update go over the tunnel, so
-  // they show only then. Pairing reports it (onPin, onPaired).
-  const [pinned, setPinned] = useState(false)
-  const manage = canManage(admin, g.online, pinned)
+  // they show only then.
+  const [pinned, setPinned] = usePin(g.id)
+  const manage = canManage(admin, g.online, !!pinned)
   // This browser removed itself from it: Pair shows again.
   const [unpaired, setUnpaired] = useState(false)
   async function removedSelf() {
-    await deletePin(g.id).catch(() => {}) // a stale pin would only fail later
+    await deletePin(g.id).catch((e) =>
+      event(`pairing: pin delete failed: ${e}`),
+    ) // a stale pin would only fail later
     dropShared(g.id) // the gateway closed it anyway
     setPinned(false)
     setUnpaired(true)
@@ -222,7 +225,7 @@ function GatewayCard({
   function remove() {
     if (
       confirm(
-        `Remove "${g.name ?? 'gateway'}"? It disconnects now and must be installed again to come back.`,
+        `Remove "${gatewayName(g)}"? It disconnects now and must be installed again to come back.`,
       )
     )
       onRemove()
@@ -231,7 +234,7 @@ function GatewayCard({
     <li className="card" data-gateway={g.id}>
       <div className="card-head">
         <EditableName
-          name={g.name ?? 'gateway'}
+          name={gatewayName(g)}
           label="Gateway name"
           hint={STORED}
           rename={manage ? onRename : undefined}
@@ -259,7 +262,6 @@ function GatewayCard({
           gatewayId={g.id}
           lanUrl={g.lanUrl}
           needsPair={unpaired}
-          onPin={setPinned}
           onPaired={() => {
             setPinned(true)
             setUnpaired(false)

@@ -1,6 +1,7 @@
 import { auth } from './firebase'
 import { clearArtThen } from './leave'
 import { AppError, httpError } from './errors'
+import { noop } from './noop'
 
 // Prod: the API serves this bundle, so same origin. Dev: vite :5173, API :5028.
 // Every endpoint lives under /api (the rest of the path space is client routes).
@@ -68,7 +69,7 @@ function lostHousehold(id: string): Promise<never> {
   clearArtThen(() =>
     location.pathname === '/join' ? location.reload() : location.replace('/'),
   ) // the lost household's artwork goes too
-  return new Promise(() => {}) // ponytail: the page is going away; callers never settle
+  return new Promise(noop) // ponytail: the page is going away; callers never settle
 }
 
 export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
@@ -87,7 +88,7 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 404 && res.headers.has('X-StreamIQ-Not-Member'))
     // No household at all: Shell shows the no-household screen once /me
     // is in, in place of the page that asked. ponytail: never settles, like lostHousehold.
-    return h ? lostHousehold(h) : new Promise<never>(() => {})
+    return h ? lostHousehold(h) : new Promise<never>(noop)
   if (!res.ok) throw httpError('api', res.status, path)
   return (res.status === 204 ? null : res.json()) as Promise<T>
 }

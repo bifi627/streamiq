@@ -61,3 +61,6 @@ export function removeOutcome(
   if (!self) return { done: 'row', msg: null }
   return { done: e ? 'kept' : 'self', msg: null }
 }
+
+/** A gateway's name, or "gateway" before it has one. */
+export const gatewayName = (g: { name: string | null }) => g.name ?? 'gateway'

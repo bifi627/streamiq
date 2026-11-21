@@ -28,7 +28,8 @@ import { TvAsk } from './TvMode'
 import { handoffHome, shellPage, tvRoute } from './tvRoute'
 import { Handoff } from './Handoff'
 import { arrowFocus } from './focus'
-import { needsAlias, PickAlias, signingIn } from './Alias'
+import { PickAlias } from './Alias'
+import { needsAlias, signingIn } from './aliases'
 import { clearArtThen } from './leave'
 import { useGateways } from './features/gateways/api'
 import { useQueryClient } from '@tanstack/react-query'
@@ -44,6 +45,7 @@ import {
 import { SignIn } from './features/signin/SignIn'
 import { Settings } from './features/settings/Settings'
 import { Activity } from './features/activity/Activity'
+import { event } from './diag'
 
 // Root layout; only mounted while signed in (App gates the whole router). Loads
 // /me once per page load and hands it to every view (HouseholdContext).
@@ -315,7 +317,9 @@ export default function App() {
       was = u
       // A Google sign-up clears its Google name first.
       void signingIn
-        .catch(() => {})
+        .catch((e) =>
+          event(`sign-in: Google sign-in or name clear failed: ${e}`),
+        )
         .then(() => {
           setUser(u)
           setReady(true)

@@ -5,6 +5,7 @@
 // Not the gateway: old Chromium (webOS TVs) loses frames on a remote close.
 import { request } from './diag.ts'
 import { AppError, httpError } from './errors.ts'
+import { noop } from './noop.ts'
 
 export type TunnelResponse = {
   status: number
@@ -135,7 +136,7 @@ export function tunnelLines(
     queueMicrotask(() =>
       onEnd(`createDataChannel: ${e instanceof Error ? e.message : e}`),
     )
-    return () => {}
+    return noop
   }
   dc.binaryType = 'arraybuffer'
   const text = new TextDecoder()

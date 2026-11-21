@@ -25,6 +25,7 @@ import {
 
 // Tunnels in this household, the last 30 days, ≤ 200: a member's own; an
 // admin's opens on everyone's, with a per-member summary and a member filter.
+// oxlint-disable-next-line complexity -- render branching; the filters' decisions live in tunnels.ts
 export function Activity() {
   const { me, current } = useHousehold()
   const admin = current?.role === 'admin'

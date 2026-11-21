@@ -13,7 +13,7 @@ Feature: Households
   Scenario: A member of one household naming another household sees nothing of it
     When "bob@home.test" lists members in the household of "alice@home.test"
     Then the request is refused as not a member
-    When "bob@home.test" creates an invite in the household of "alice@home.test"
+    When "bob@home.test" creates an invite naming the household of "alice@home.test"
     Then the request is refused as not a member
     And "alice@home.test" has no pending invites
 
@@ -30,24 +30,24 @@ Feature: Households
 
   Scenario: Without the header a user acts in their oldest household
     When "bob@home.test" lists members without naming a household
-    Then the members are exactly "bob@home.test"
+    Then the member list holds exactly "bob@home.test"
 
   Scenario: A user in two households sees each one only with the matching header
     Given "bob@home.test" is a member of the household of "alice@home.test"
     When "bob@home.test" lists members in the household of "alice@home.test"
-    Then the members are exactly "alice@home.test, bob@home.test"
+    Then the member list holds exactly "alice@home.test, bob@home.test"
     When "bob@home.test" lists members in the household of "bob@home.test"
-    Then the members are exactly "bob@home.test"
+    Then the member list holds exactly "bob@home.test"
     When "bob@home.test" lists members without naming a household
-    Then the members are exactly "bob@home.test"
+    Then the member list holds exactly "bob@home.test"
     And "bob@home.test" is "admin" of the household of "bob@home.test" and "member" of the household of "alice@home.test"
 
   Scenario: A removed membership loses access right away
     Given "bob@home.test" is a member of the household of "alice@home.test"
     When "bob@home.test" lists members in the household of "alice@home.test"
-    Then the members are exactly "alice@home.test, bob@home.test"
+    Then the member list holds exactly "alice@home.test, bob@home.test"
     When the membership of "bob@home.test" in the household of "alice@home.test" is removed
     And "bob@home.test" lists members in the household of "alice@home.test"
     Then the request is refused as not a member
     When "bob@home.test" lists members without naming a household
-    Then the members are exactly "bob@home.test"
+    Then the member list holds exactly "bob@home.test"

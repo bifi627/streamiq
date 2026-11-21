@@ -87,7 +87,7 @@ public class HouseholdsSteps(IntegrationFixture fx)
         return Send(email, HttpMethod.Get, "/api/members", null);
     }
 
-    [When("\"(.*)\" creates an invite in the household of \"(.*)\"")]
+    [When("\"(.*)\" creates an invite naming the household of \"(.*)\"")]
     public async Task WhenInvite(string email, string owner)
     {
         await Send(email, HttpMethod.Post, "/api/invites", (await HouseholdOf(owner)).ToString());
@@ -134,7 +134,7 @@ public class HouseholdsSteps(IntegrationFixture fx)
     }
 
     // A household's members by name (the emulator accounts have no display name: their email).
-    [Then("the members are exactly \"(.*)\"")]
+    [Then("the member list holds exactly \"(.*)\"")]
     public async Task ThenExactly(string names)
     {
         Assert.NotNull(_last);

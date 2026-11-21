@@ -49,14 +49,6 @@ public static class OwnHousehold
         return JsonSerializer.SerializeToElement(new { userId = user.Id, tenantId = tenant, memberships });
     }
 
-    /// For tests that only hold an ID token (broker sockets).
-    public static async Task EnsureAsync(IntegrationFixture fx, string idToken)
-    {
-        using var client = fx.Factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", idToken);
-        await MeAsync(fx, client);
-    }
-
     // The emulator's tokens are unsigned JWTs: the payload is plain base64url JSON.
     private static string FirebaseUid(AuthenticationHeaderValue bearer)
     {

@@ -39,10 +39,10 @@ public class ListTunnelsTests(IntegrationFixture fx)
     {
         await fx.ResetAsync();
         using var alice = await SignedInClient("alice@x.test");
-        var aliceMe = await OwnHousehold.MeAsync(alice);
+        var aliceMe = await OwnHousehold.MeAsync(fx, alice);
         var (home, aliceId) = (aliceMe.GetProperty("tenantId").GetGuid(), aliceMe.GetProperty("userId").GetGuid());
         using var bob = await SignedInClient("bob@x.test");
-        var bobMe = await OwnHousehold.MeAsync(bob);
+        var bobMe = await OwnHousehold.MeAsync(fx, bob);
         var (away, bobId) = (bobMe.GetProperty("tenantId").GetGuid(), bobMe.GetProperty("userId").GetGuid());
 
         // Bob is also a member of Alice's household; Alice of Bob's.
@@ -95,7 +95,7 @@ public class ListTunnelsTests(IntegrationFixture fx)
     {
         await fx.ResetAsync();
         using var alice = await SignedInClient("alice@x.test");
-        var me = await OwnHousehold.MeAsync(alice);
+        var me = await OwnHousehold.MeAsync(fx, alice);
         var (home, aliceId) = (me.GetProperty("tenantId").GetGuid(), me.GetProperty("userId").GetGuid());
         var nas = new Gateway { Id = Guid.NewGuid(), TenantId = home, Name = "nas", CredentialHash = "seeded" };
         await Seed(db =>
@@ -115,9 +115,9 @@ public class ListTunnelsTests(IntegrationFixture fx)
     private async Task<(HttpClient Alice, HttpClient Bob, Guid Home, Guid Away, Guid AliceId, Guid BobId)> AdminAndMember()
     {
         var alice = await SignedInClient("alice@x.test");
-        var aliceMe = await OwnHousehold.MeAsync(alice);
+        var aliceMe = await OwnHousehold.MeAsync(fx, alice);
         var bob = await SignedInClient("bob@x.test");
-        var bobMe = await OwnHousehold.MeAsync(bob);
+        var bobMe = await OwnHousehold.MeAsync(fx, bob);
         var (home, aliceId) = (aliceMe.GetProperty("tenantId").GetGuid(), aliceMe.GetProperty("userId").GetGuid());
         var (away, bobId) = (bobMe.GetProperty("tenantId").GetGuid(), bobMe.GetProperty("userId").GetGuid());
         await Seed(db => db.Memberships.Add(new Membership { TenantId = home, UserId = bobId, Role = Membership.Member }));

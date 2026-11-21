@@ -26,7 +26,7 @@ public class SpaFallbackTests(IntegrationFixture fx)
 
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/nope")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/gateways/x/y")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/me")).StatusCode);   // real endpoint, not the fallback
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/gateways")).StatusCode);   // real endpoint, not the fallback
         Assert.Contains("ok", await client.GetStringAsync("/healthz"));
     }
 }

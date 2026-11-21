@@ -123,7 +123,7 @@ public class BrokerSteps(IntegrationFixture fx)
     public async Task WhenOfferNaming(string email, string name, string owner)
     {
         using var ownerClient = await SignedIn(owner);
-        var household = (await ownerClient.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("tenantId").GetString();
+        var household = (await OwnHousehold.RawMeAsync(fx, ownerClient)).GetProperty("tenantId").GetString();
         _offerer = email;
         (await SignedIn(email)).Dispose();
         var wsc = fx.Factory.Server.CreateWebSocketClient();
@@ -142,7 +142,7 @@ public class BrokerSteps(IntegrationFixture fx)
         Assert.Equal("v=0 fake", m.GetProperty("sdp").GetProperty("sdp").GetString());
         // The broker stamps the offering user's internal id (users.id, not the Firebase UID).
         using var me = await SignedIn(_offerer);
-        Assert.Equal((await me.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("userId").GetString(),
+        Assert.Equal((await OwnHousehold.RawMeAsync(fx, me)).GetProperty("userId").GetString(),
             m.GetProperty("user").GetString());
         var session = m.GetProperty("session").GetString();
         Assert.NotNull(session);
@@ -425,7 +425,7 @@ public class BrokerSteps(IntegrationFixture fx)
     {
         var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await IdToken(email));
-        await OwnHousehold.MeAsync(client);
+        await OwnHousehold.MeAsync(fx, client);
         return client;
     }
 

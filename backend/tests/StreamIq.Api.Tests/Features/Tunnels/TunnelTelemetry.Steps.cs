@@ -49,7 +49,7 @@ public class TunnelTelemetrySteps(IntegrationFixture fx, BrokerSteps broker)
     private async Task<JsonElement> Me(string email)
     {
         using var client = await broker.SignedIn(email);
-        return await client.GetFromJsonAsync<JsonElement>("/api/me");
+        return await OwnHousehold.RawMeAsync(fx, client);
     }
 
     [Then("the tunnel is stored for gateway \"(.*)\" in the household of \"(.*)\" by \"(.*)\"")]

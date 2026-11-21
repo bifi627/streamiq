@@ -38,19 +38,21 @@ npm run lint --prefix frontend
 npm test --prefix frontend
 npm run build --prefix frontend
 
-echo "== gateway: release version + fmt + lint + build + test =="
+echo "== Go (gateway + API): release version + fmt + lint + build + test =="
 bash scripts/next-gateway-version.sh --test
 if command -v go >/dev/null 2>&1; then
-  (cd gateway && test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
+  (test -z "$(gofmt -l gateway api)" || { echo "gofmt needed:"; gofmt -l gateway api; exit 1; }
    # -race needs cgo; Go reports CGO_ENABLED=0 with no C compiler (e.g. Windows without gcc)
    race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race
    # one command per line: under set -e a failure inside an && chain only counts in its last command
    # #559: golangci-lint (its govet replaces go vet), pinned; go run keeps it out of go.mod
    lint="go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run"
    $lint ./...
-   $lint --build-tags docker ./...
+   $lint --build-tags docker ./gateway/...
    go build ./...
-   go test $race ./...
+   go test $race ./gateway/...
+   bash scripts/test-api.sh $race  # one Postgres + Firebase emulator for the run
+   cd gateway
    # #453 (CI job gateway-jellyfin): the real pinned Jellyfin in Docker, ~1 min. The pin bump
    # needs the last release's compose file; without gh (or offline) that half is skipped.
    old=$(mktemp -d); command -v cygpath >/dev/null && old=$(cygpath -m "$old")  # Go on Windows can't read /tmp

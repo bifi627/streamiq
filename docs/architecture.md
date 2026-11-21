@@ -5,11 +5,45 @@ area needs. Terms are in the `CLAUDE.md` glossary; the wire protocol is in
 `docs/protocol.md`. Update the section a change touches when a lasting fact changes. This
 is not a status log: open work lives in `gh issue list`, history in git.
 
+## Go API (`api/`, the port of `backend/`: #725)
+
+- Being ported slice by slice from the .NET API (`backend/`). In dev (`scripts/dev.ps1`)
+  and the e2e stack the Go API is the one API URL: it serves its slices (today `/healthz`
+  and `GET /api/me`) and proxies every other request, WebSocket upgrades included, to
+  the .NET API (`STREAMIQ_LEGACY_API_URL`) on the same database. It answers CORS for
+  both, as ASP.NET's policy did. Production still runs the .NET-only image (#732).
+- Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
+  `api/internal/{db,auth,apitest}` (shared kernel) and one package per slice (`me`);
+  `front` is `/healthz`, CORS and the proxy. `pgx` with hand-written SQL, no ORM;
+  columns keep EF's quoted PascalCase until #744.
+- **Migrations**: `api/migrations` runs each file once, in name order, each in its own
+  transaction, as the tables' owner (`DATABASE_URL`), recorded in `schema_migrations`.
+  `0001_baseline.sql` is the EF schema as `pg_dump` wrote it, with EF's history rows; on
+  a database EF already migrated it is recorded, not run. .NET still migrates with EF
+  first (dev and e2e start it first); no new EF migration lands during the port.
+- **Tenant isolation is Postgres row-level security** (`0002_rls.sql`): every
+  tenant-owned table has a policy `TenantId = app_tenant()` (`USING` + `WITH CHECK`) for
+  the role `streamiq_app`, which owns no table; `app_tenant()` reads `app.tenant_id`,
+  NULL when unset, so no tenant = no rows. The API connects as `streamiq_app` (its
+  password `STREAMIQ_APP_DB_PASSWORD`, set at start by the owner) and sets the tenant
+  per transaction only, in `db.InTenant`. Lookups that run before the tenant is known are
+  `SECURITY DEFINER` functions limited by their argument (`memberships_of(user)`). The
+  .NET API connects as the owner, so RLS doesn't apply to it.
+- **Auth** (`api/internal/auth`): the Firebase Admin SDK verifies ID tokens, one call
+  for the emulator and production; the emulator only with `STREAMIQ_ENV=development`.
+  First sign-in adds the `users` row (`ON CONFLICT` settles concurrent ones); the
+  household rule is the .NET one below.
+- Tests: `scripts/test-api.sh` starts one Postgres + emulator for the run; each package
+  makes its own database (`apitest`), or starts its own pair when run alone. The
+  isolation tests (`db`) run every rule against `streamiq_app` and, failing on purpose,
+  against the owner. Listen address: `STREAMIQ_API_ADDR`, else `:$PORT`.
+
 ## Auth and tenancy
 
 - Firebase ID tokens verified by FirebaseAdmin, one code path in dev and prod (emulator in
   dev). Own `users.id`, `firebase_uid` as a column.
-- Tenant = **household**. Isolation is ONE EF global query filter on `tenant_id`.
+- Tenant = **household**. In the .NET API, isolation is ONE EF global query filter on
+  `tenant_id`; in the Go API, row-level security (above).
 - `memberships` (tenant, user, role `admin`/`member`); a user can belong to several.
   Sign-up creates none: a user joins by invite or creates one (`POST /api/households`,
   becoming its admin). With none, only `/me`, invites and creating one work.

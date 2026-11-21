@@ -50,6 +50,15 @@ jobs:
       - run: bash scripts/check-tenant-filter.sh # #175: IgnoreQueryFilters / raw SQL only in allowlisted files
       - run: dotnet format backend/StreamIq.slnx --verify-no-changes
       - run: dotnet test backend/StreamIq.slnx --nologo
+      # The Go API: the gateway jobs lint and test gateway/ only. After dotnet test, which
+      # built the Firebase emulator image test-api.sh runs under the same tag.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - run: test -z "$(gofmt -l api)" || { echo "gofmt needed:"; gofmt -l api; exit 1; }
+      - run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./api/... # the root config, like the gateway's
+      - run: bash scripts/test-api.sh -race
       - run: docker compose config --quiet && docker compose --profile relay config --quiet
 
   frontend:

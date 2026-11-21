@@ -5,10 +5,10 @@ using System.Text.Json;
 using StreamIq.Api.Auth;
 using StreamIq.Api.Tests.Infrastructure;
 
-namespace StreamIq.Api.Tests.Features.Me;
+namespace StreamIq.Api.Tests.Features.Household;
 
 [Collection("integration")]
-public class GetMeTests(IntegrationFixture fx)
+public class CreateHouseholdTests(IntegrationFixture fx)
 {
     private async Task<HttpClient> SignedInClient(string email)
     {
@@ -18,29 +18,13 @@ public class GetMeTests(IntegrationFixture fx)
         return client;
     }
 
+    // #387: signed up, no household yet. Household-scoped endpoints answer like for a
+    // non-member, so the web app shows the no-household screen.
     [Fact]
-    public async Task Me_returns_the_signed_in_user_and_tenant()
-    {
-        await fx.ResetAsync();
-        using var client = await SignedInClient("me@x.test");
-        var body = await OwnHousehold.MeAsync(client);
-        Assert.False(string.IsNullOrEmpty(body.GetProperty("userId").GetString()));
-        Assert.False(string.IsNullOrEmpty(body.GetProperty("tenantId").GetString()));
-        Assert.False(body.TryGetProperty("email", out _)); // #65: no PII in our DB or API; Firebase owns it
-    }
-
-    // #387: signed up, no household yet. /me works and says so; household-scoped
-    // endpoints answer like for a non-member, so the web app shows the no-household screen.
-    [Fact]
-    public async Task A_user_with_no_household_gets_me_and_nothing_household_scoped()
+    public async Task A_user_with_no_household_gets_nothing_household_scoped()
     {
         await fx.ResetAsync();
         using var client = await SignedInClient("nohome@x.test");
-
-        var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
-        Assert.False(string.IsNullOrEmpty(me.GetProperty("userId").GetString()));
-        Assert.Equal(JsonValueKind.Null, me.GetProperty("tenantId").ValueKind);
-        Assert.Empty(me.GetProperty("memberships").EnumerateArray());
 
         foreach (var (method, path) in new[]
         {
@@ -64,7 +48,7 @@ public class GetMeTests(IntegrationFixture fx)
         using var first = await client.PostAsync("/api/households", null);
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         var id = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("householdId").GetGuid();
-        var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        var me = await OwnHousehold.RawMeAsync(fx, client);
         Assert.Equal(id, me.GetProperty("tenantId").GetGuid());
         var m = Assert.Single(me.GetProperty("memberships").EnumerateArray());
         Assert.Equal((id, "admin"), (m.GetProperty("id").GetGuid(), m.GetProperty("role").GetString()));
@@ -73,7 +57,7 @@ public class GetMeTests(IntegrationFixture fx)
 
         using var second = await client.PostAsync("/api/households", null);
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
-        Assert.Equal(2, (await client.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("memberships").GetArrayLength());
+        Assert.Equal(2, (await OwnHousehold.RawMeAsync(fx, client)).GetProperty("memberships").GetArrayLength());
     }
 
     [Fact]

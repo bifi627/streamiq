@@ -110,7 +110,7 @@ public class GatewayHealthSteps(IntegrationFixture fx, BrokerSteps broker)
         using var client = await broker.SignedIn(email);
         var tenant = (await GatewayRow(name)).TenantId;
         // A member acts in the gateway's household; anyone else in their own.
-        var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        var me = await OwnHousehold.RawMeAsync(fx, client);
         if (me.GetProperty("memberships").EnumerateArray().Any(h => h.GetProperty("id").GetGuid() == tenant))
         {
             client.DefaultRequestHeaders.Add(StreamIq.Api.Auth.Households.Header, tenant.ToString());
@@ -189,7 +189,7 @@ public class GatewayHealthSteps(IntegrationFixture fx, BrokerSteps broker)
     public async Task GivenForeignRow(string email, string name, string jellyfin)
     {
         using var client = await broker.SignedIn(email);
-        _foreign = (await client.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("tenantId").GetGuid();
+        _foreign = (await OwnHousehold.RawMeAsync(fx, client)).GetProperty("tenantId").GetGuid();
         await Db(db =>
         {
             db.GatewayHealth.Add(new GatewayHealth

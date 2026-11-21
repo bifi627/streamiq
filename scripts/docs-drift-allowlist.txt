@@ -1,3 +1,5 @@
 # STREAMIQ_* env vars scripts/check-docs-drift.sh doesn't require in docs/: test- or dev-only.
 # One per line: <NAME>  # <reason>
 STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE  # check.sh -> gateway tests: the last release's compose file for the upgrade test
+STREAMIQ_TEST_POSTGRES  # scripts/test-api.sh -> the API's tests (api/internal/apitest): the run's Postgres
+STREAMIQ_TEST_FIREBASE  # scripts/test-api.sh -> the API's tests (api/internal/apitest): the run's Auth emulator

@@ -17,7 +17,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
     {
         await fx.ResetAsync();
         using var client = fx.Factory.CreateClient();
-        var resp = await client.GetAsync("/api/me");
+        var resp = await client.GetAsync("/api/gateways");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
@@ -27,7 +27,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         await fx.ResetAsync();
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "not-a-jwt");
-        var resp = await client.GetAsync("/api/me");
+        var resp = await client.GetAsync("/api/gateways");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
@@ -39,8 +39,8 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var resp = await client.GetAsync("/api/me");         // triggers provisioning
-        resp.EnsureSuccessStatusCode();
+        var resp = await client.GetAsync("/api/gateways");   // signs in: adds the user, who has no household
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
 
         using var scope = fx.Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
@@ -53,8 +53,8 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
     {
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
-        return me.GetProperty("userId").GetString() ?? throw new InvalidOperationException("/api/me without userId");
+        var me = await OwnHousehold.RawMeAsync(fx, client);
+        return me.GetProperty("userId").GetString() ?? throw new InvalidOperationException("no userId");
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class AuthAndProvisioningTests(IntegrationFixture fx)
         {
             using var client = fx.Factory.CreateClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            (await client.GetAsync("/api/me")).EnsureSuccessStatusCode();
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/gateways")).StatusCode); // no household yet
         }
         await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => Hit()));
 

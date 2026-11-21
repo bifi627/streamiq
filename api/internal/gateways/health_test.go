@@ -16,7 +16,6 @@ func healthRow(t *testing.T, household, gateway string, daysOld int) {
 		VALUES (uuidv7(), $1, $2, now() - make_interval(days => $3), 'full', $3)`, household, gateway, daysOld)
 }
 
-// Any member reads the last 7 days, led by the row before them.
 func TestAnyMemberReadsTheLast7DaysLedByTheRowBeforeThem(t *testing.T) {
 	s := newServer(t)
 	_, home := s.admin(t, "alice@home.test")
@@ -45,7 +44,6 @@ func TestAnyMemberReadsTheLast7DaysLedByTheRowBeforeThem(t *testing.T) {
 	}
 }
 
-// Another household's gateway or an unknown one is not found.
 func TestAnotherHouseholdsGatewayOrAnUnknownOneIsNotFound(t *testing.T) {
 	s := newServer(t)
 	alice, home := s.admin(t, "alice@home.test")

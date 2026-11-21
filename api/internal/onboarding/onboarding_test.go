@@ -199,7 +199,6 @@ func TestATokenEnrollsOneGatewayIntoItsOwnHouseholdOnce(t *testing.T) {
 	}
 }
 
-// An expired enrollment token is rejected; so is an unknown one.
 func TestAnExpiredOrUnknownTokenIsRejected(t *testing.T) {
 	s := newDefault(t)
 	alice, _ := s.member(t, "alice@home.test", "admin")

@@ -32,8 +32,7 @@ func enroll(w http.ResponseWriter, r *http.Request, d *db.DB) {
 	}
 	out := Enrolled{Credential: newSecret(32)} // 256 bit
 	// Claim and row in one transaction: an enrollment that fails after the claim keeps the token.
-	err := d.InClaimedTenant(r.Context(),
-		`SELECT t::text FROM claim_enrollment_token($1) t WHERE t IS NOT NULL`, hash(rq.Token),
+	err := d.InClaimedTenant(r.Context(), db.EnrollmentToken, hash(rq.Token),
 		func(tx pgx.Tx, tenant string) error {
 			return tx.QueryRow(r.Context(), `INSERT INTO gateways ("Id", "TenantId", "Name", "DtlsFingerprint", "CredentialHash")
 				VALUES (uuidv7(), $1, $2, $3, $4) RETURNING "Id"::text`,

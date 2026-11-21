@@ -73,18 +73,25 @@ func (d *DB) InTenant(ctx context.Context, tenant string, fn func(pgx.Tx) error)
 	})
 }
 
-// InClaimedTenant is InTenant for a request whose tenant a claim finds: claim is a
-// query of one SECURITY DEFINER call that changes a row and returns its tenant, or no
-// row (pgx.ErrNoRows, fn not run). The claim is rolled back with fn's error.
+// Claim is a SECURITY DEFINER call that spends a row and returns its tenant, or no row.
+// Only this package defines one, so every place a tenant is set can be read here.
+type Claim struct{ sql string }
+
+// EnrollmentToken spends an unused, unexpired enrollment token by its hash
+// (api/migrations/0004_claim_enrollment_token.sql).
+var EnrollmentToken = Claim{`SELECT t::text FROM claim_enrollment_token($1) t WHERE t IS NOT NULL`}
+
+// InClaimedTenant is InTenant for a request whose tenant claim finds: no row is
+// pgx.ErrNoRows and fn doesn't run. The claim is rolled back with fn's error.
 func (d *DB) InClaimedTenant(
 	ctx context.Context,
-	claim string,
+	claim Claim,
 	arg any,
 	fn func(tx pgx.Tx, tenant string) error,
 ) error {
 	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
 		var tenant string
-		if err := tx.QueryRow(ctx, claim, arg).Scan(&tenant); err != nil {
+		if err := tx.QueryRow(ctx, claim.sql, arg).Scan(&tenant); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true)`, tenant); err != nil {

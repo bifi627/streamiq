@@ -7,6 +7,7 @@ import {
   clientsMessage,
   clientsNote,
   detailsMessage,
+  gatewayName,
   removeOutcome,
   shownError,
 } from './list.ts'
@@ -62,4 +63,9 @@ test("a Remove that works clears an earlier failed one's line (#637)", () => {
     removeOutcome(new AppError('not-paired', 'x'), true).msg,
     'Pair this browser to see them.',
   )
+})
+
+test('gatewayName: "gateway" before it has a name', () => {
+  assert.equal(gatewayName({ name: 'NAS' }), 'NAS')
+  assert.equal(gatewayName({ name: null }), 'gateway')
 })

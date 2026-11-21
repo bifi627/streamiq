@@ -28,3 +28,27 @@ export function memberNames(members: Named[]): Map<string, string> {
   }
   return out
 }
+
+/** The avatar letter: the name's first grapheme, so an emoji stays whole. */
+export const initial = (name: string) =>
+  ([...new Intl.Segmenter().segment(name)][0]?.segment ?? '').toUpperCase()
+
+/** The email under the name, unless the name already is it (or none). */
+export const emailLine = (m: Named) =>
+  m.email && m.email !== m.name ? m.email : ''
+
+/** A member's role chip and the admin's button that flips the role. */
+export const roleView = (role: 'admin' | 'member') =>
+  role === 'admin'
+    ? {
+        chip: 'chip admin',
+        label: 'Admin',
+        flip: 'Make member',
+        to: 'member' as const,
+      }
+    : {
+        chip: 'chip',
+        label: 'Member',
+        flip: 'Make admin',
+        to: 'admin' as const,
+      }

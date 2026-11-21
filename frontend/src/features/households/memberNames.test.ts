@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { memberNames } from './memberNames.ts'
+import { emailLine, initial, memberNames, roleView } from './memberNames.ts'
 
 const m = (userId: string, name: string | null, email?: string) => ({
   userId,
@@ -47,4 +47,15 @@ test('a blank alias (set outside the app) falls back, never an empty name', () =
   const names = memberNames([m('1aaaa', '   ', 'me@x'), m('1bbbb', '  ')])
   assert.equal(names.get('1aaaa'), 'me@x')
   assert.equal(names.get('1bbbb'), 'unknown user')
+})
+
+test('a member row: avatar letter, email line, role flip', () => {
+  assert.equal(initial('émile'), 'É')
+  assert.equal(initial('👍🏽 Sam'), '👍🏽')
+  assert.equal(initial(''), '')
+  assert.equal(emailLine(m('1', 'Alex', 'a@x.de')), 'a@x.de')
+  assert.equal(emailLine(m('1', 'a@x.de', 'a@x.de')), '')
+  assert.equal(emailLine(m('1', 'Alex')), '')
+  assert.equal(roleView('admin').to, 'member')
+  assert.equal(roleView('member').to, 'admin')
 })

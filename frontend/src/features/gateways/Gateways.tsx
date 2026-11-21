@@ -24,7 +24,7 @@ import { StatusDetails } from './StatusDetails'
 import { HealthSharing } from './HealthSharing'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
-import { canManage, shownError, type ActErr } from './list'
+import { canManage, gatewayName, shownError, type ActErr } from './list'
 import { event } from '../../diag'
 
 // `/`: straight into the library when the household has exactly one
@@ -225,7 +225,7 @@ function GatewayCard({
   function remove() {
     if (
       confirm(
-        `Remove "${g.name ?? 'gateway'}"? It disconnects now and must be installed again to come back.`,
+        `Remove "${gatewayName(g)}"? It disconnects now and must be installed again to come back.`,
       )
     )
       onRemove()
@@ -234,7 +234,7 @@ function GatewayCard({
     <li className="card" data-gateway={g.id}>
       <div className="card-head">
         <EditableName
-          name={g.name ?? 'gateway'}
+          name={gatewayName(g)}
           label="Gateway name"
           hint={STORED}
           rename={manage ? onRename : undefined}

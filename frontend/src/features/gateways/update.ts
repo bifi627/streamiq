@@ -27,6 +27,13 @@ export type Notice =
   | 'byHand'
   | null
 
+/** A notice about an update started here (the Updating line and what follows). */
+export const tracked = (n: Notice) =>
+  n === 'updating' ||
+  n === 'notHappened' ||
+  n === 'retry' ||
+  n === 'notFinished'
+
 export function updateState(x: {
   started: Started | null
   late: boolean

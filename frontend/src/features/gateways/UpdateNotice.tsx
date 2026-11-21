@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { getStatus, updateGateway, type Gateway } from './api'
 import { toAppError } from '../../errors'
-import { startOutcome, updated, updateState, type Started } from './update'
+import {
+  startOutcome,
+  tracked,
+  updated,
+  updateState,
+  type Started,
+} from './update'
+import { gatewayName } from './list'
 import { event } from '../../diag'
 
 // How long the card waits for the gateway to come back on the new version
@@ -68,7 +75,7 @@ export function UpdateNotice({
   async function start(target: string) {
     if (
       !confirm(
-        `Update "${g.name ?? 'gateway'}" to v${target}? It restarts: offline for a moment, open streams stop.`,
+        `Update "${gatewayName(g)}" to v${target}? It restarts: offline for a moment, open streams stop.`,
       )
     )
       return
@@ -99,12 +106,7 @@ export function UpdateNotice({
     remote,
   })
   if (!notice) return null
-  if (
-    notice === 'updating' ||
-    notice === 'notHappened' ||
-    notice === 'retry' ||
-    notice === 'notFinished'
-  )
+  if (tracked(notice))
     return (
       <p className="notice no-tv" role="status" tabIndex={-1} ref={status}>
         {notice === 'updating' ? (

@@ -4,7 +4,7 @@ import { authed } from '../../api'
 import { switchHousehold, useHousehold } from './household'
 import { ADMIN_ONLY, AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
-import { memberNames } from './memberNames'
+import { emailLine, initial, memberNames, roleView } from './memberNames'
 
 type Member = {
   userId: string
@@ -87,12 +87,11 @@ export function Members() {
       <ul className="rows" ref={list}>
         {members.map((m) => {
           const self = m.userId === me?.id
+          const role = roleView(m.role)
           return (
             <li key={m.userId}>
               <span className="avatar" aria-hidden="true">
-                {[
-                  ...new Intl.Segmenter().segment(who(m)),
-                ][0].segment.toUpperCase()}
+                {initial(who(m))}
               </span>
               <span className="who">
                 <span className="name-line">
@@ -100,12 +99,10 @@ export function Members() {
                     {who(m)}
                     {self && <span className="muted"> (you)</span>}
                   </b>
-                  <span className={m.role === 'admin' ? 'chip admin' : 'chip'}>
-                    {m.role === 'admin' ? 'Admin' : 'Member'}
-                  </span>
+                  <span className={role.chip}>{role.label}</span>
                 </span>
-                {m.email && m.email !== m.name && (
-                  <span className="meta muted">{m.email}</span>
+                {emailLine(m) && (
+                  <span className="meta muted">{emailLine(m)}</span>
                 )}
                 <span className="meta muted">
                   Joined {new Date(m.joinedAt).toLocaleDateString()}
@@ -114,13 +111,8 @@ export function Members() {
               {(me?.admin || self) && (
                 <span className="row-actions">
                   {me?.admin && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setRole(m, m.role === 'admin' ? 'member' : 'admin')
-                      }
-                    >
-                      {m.role === 'admin' ? 'Make member' : 'Make admin'}
+                    <button type="button" onClick={() => setRole(m, role.to)}>
+                      {role.flip}
                     </button>
                   )}
                   <button type="button" onClick={() => remove(m)}>

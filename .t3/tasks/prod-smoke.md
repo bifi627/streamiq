@@ -2,7 +2,7 @@
 # Mirror of the T3 scheduled task "prod smoke failed → investigate" (#574). Documentation
 # only: T3 enforces these settings. Change one in T3 → update this header in the same PR.
 trigger: webhook (GitHub repo webhook, `workflow_run` events → T3 relay)
-signature: x-hub-signature-256, hex, prefix "sha256=" (HMAC secret: docs/tools.md)
+signature: 'x-hub-signature-256, hex, prefix "sha256=" (HMAC secret in docs/tools.md)'
 filters:   # not the sender: a deploy run's actor is railway-app[bot]
   - headers.x-github-event == workflow_run
   - body.action == completed

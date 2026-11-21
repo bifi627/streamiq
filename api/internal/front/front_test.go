@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/coder/websocket"
 )
@@ -79,15 +80,17 @@ func TestRoutesGoServesAndTheRestIsProxied(t *testing.T) {
 
 func TestWebSocketsAreProxied(t *testing.T) {
 	ws := "ws" + serve(t)[len("http"):]
-	c, _, err := websocket.Dial(t.Context(), ws+"/api/broker/ws", nil)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second) // a broken proxy fails, never hangs
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, ws+"/api/broker/ws", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = c.CloseNow() }()
-	if werr := c.Write(t.Context(), websocket.MessageText, []byte("hi")); werr != nil {
+	if werr := c.Write(ctx, websocket.MessageText, []byte("hi")); werr != nil {
 		t.Fatal(werr)
 	}
-	_, b, err := c.Read(context.WithoutCancel(t.Context()))
+	_, b, err := c.Read(ctx)
 	if err != nil || string(b) != "legacy:hi" {
 		t.Fatalf("got %q, %v", b, err)
 	}

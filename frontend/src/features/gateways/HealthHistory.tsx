@@ -48,12 +48,13 @@ function History({ g }: { g: Gateway }) {
   if (!q.data.length)
     return (
       <p className="muted">
-        {g.telemetry === 'full'
-          ? 'No health data yet.'
-          : 'Health sharing is off: an admin turns it on above.'}
+        {g.telemetry === 'off'
+          ? 'Health sharing is off: an admin turns it on above.'
+          : 'No health data yet.'}
       </p>
     )
-  const now = Date.now()
+  // The fetch's time, not the render's: the rows don't move while the page polls.
+  const now = q.dataUpdatedAt
   return (
     <>
       <Incidents rows={q.data} now={now} />

@@ -103,7 +103,9 @@ export function dailyPeaks(rows: HealthRow[], now: number): DayPeaks[] {
   const days: DayPeaks[] = []
   const day = new Date(now)
   day.setHours(0, 0, 0, 0)
-  while (day.getTime() + 24 * 3600_000 > start) {
+  // Local days are 23 or 25 h around DST: each day ends at the next midnight.
+  const next = () => new Date(day).setDate(day.getDate() + 1)
+  while (next() > start) {
     days.push({
       day: new Date(day),
       tunnels: null,
@@ -111,7 +113,7 @@ export function dailyPeaks(rows: HealthRow[], now: number): DayPeaks[] {
       cpu: null,
       memory: null,
     })
-    day.setDate(day.getDate() - 1) // local days: 23 or 25 h around DST
+    day.setDate(day.getDate() - 1)
   }
   for (const r of rows) {
     const at = new Date(r.at)

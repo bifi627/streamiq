@@ -23,7 +23,7 @@ type Gateway struct {
 	// Update is a newer gateway release; null = up to date.
 	Update *string `json:"update"`
 	// Telemetry is health sharing, from the heartbeat; null = a gateway too old to send it.
-	Telemetry *string `json:"telemetry"       tstype:"'off' | 'full' | null"`
+	Telemetry *string `json:"telemetry" tstype:"'off' | 'full' | null"`
 	Online    bool    `json:"online"`
 	// UpgradeRequired: refused, its protocol is below the API's minimum.
 	UpgradeRequired bool `json:"upgradeRequired"`

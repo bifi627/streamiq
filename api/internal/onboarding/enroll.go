@@ -37,7 +37,8 @@ func enroll(w http.ResponseWriter, r *http.Request, d *db.DB) {
 		func(tx pgx.Tx, tenant string) error {
 			return tx.QueryRow(r.Context(), `INSERT INTO gateways ("Id", "TenantId", "Name", "DtlsFingerprint", "CredentialHash")
 				VALUES (uuidv7(), $1, $2, $3, $4) RETURNING "Id"::text`,
-				tenant, name(rq.Name), rq.Fingerprint, hash(out.Credential)).Scan(&out.GatewayID)
+				tenant, name(rq.Name), rq.Fingerprint, hash(out.Credential)).
+				Scan(&out.GatewayID)
 		})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows): // spent, expired or unknown

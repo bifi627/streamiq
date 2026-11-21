@@ -76,7 +76,12 @@ func (d *DB) InTenant(ctx context.Context, tenant string, fn func(pgx.Tx) error)
 // InClaimedTenant is InTenant for a request whose tenant a claim finds: claim is a
 // query of one SECURITY DEFINER call that changes a row and returns its tenant, or no
 // row (pgx.ErrNoRows, fn not run). The claim is rolled back with fn's error.
-func (d *DB) InClaimedTenant(ctx context.Context, claim string, arg any, fn func(tx pgx.Tx, tenant string) error) error {
+func (d *DB) InClaimedTenant(
+	ctx context.Context,
+	claim string,
+	arg any,
+	fn func(tx pgx.Tx, tenant string) error,
+) error {
 	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
 		var tenant string
 		if err := tx.QueryRow(ctx, claim, arg).Scan(&tenant); err != nil {

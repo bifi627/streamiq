@@ -38,9 +38,9 @@ func health(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	err = d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
 		// Another household's gateway is no row in this one's transaction: 404, like an unknown id.
 		var known bool
-		if err := tx.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM gateways WHERE "Id" = $1)`, id).
-			Scan(&known); err != nil || !known {
-			return errors.Join(err, pgx.ErrNoRows)
+		if e := tx.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM gateways WHERE "Id" = $1)`, id).
+			Scan(&known); e != nil || !known {
+			return errors.Join(e, pgx.ErrNoRows)
 		}
 		rows, _ := tx.Query(r.Context(), `SELECT `+healthCols+` FROM gateway_health WHERE "GatewayId" = $1
 			AND "At" >= coalesce((SELECT max("At") FROM gateway_health

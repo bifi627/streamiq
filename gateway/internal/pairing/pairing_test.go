@@ -70,8 +70,8 @@ func TestCodeVector(t *testing.T) {
 }
 
 func TestApprovePersistsAndPendingCaps(t *testing.T) {
+	dir := t.TempDir() // outside the bubble: its cleanup retries on real time (Windows)
 	synctest.Test(t, func(t *testing.T) {
-		dir := t.TempDir()
 		s, _ := Open(dir)
 		got := make(chan bool)
 		go func() { ok, _ := s.Ask("phone", "fp-1", "123456", nil); got <- ok }()
@@ -110,8 +110,8 @@ func TestAskEndsWhenConnectionCloses(t *testing.T) {
 
 // Remove on the gateway page: the key is no longer allowed, also after a restart.
 func TestRemovePersists(t *testing.T) {
+	dir := t.TempDir() // outside the bubble: its cleanup retries on real time (Windows)
 	synctest.Test(t, func(t *testing.T) {
-		dir := t.TempDir()
 		s, _ := Open(dir)
 		go func() { _, _ = s.Ask("phone", "fp-1", "123456", nil) }() // the Decide below answers it
 		synctest.Wait()
@@ -146,8 +146,9 @@ func TestCleanNameLength(t *testing.T) {
 // Decide (#520): a reject pairs nothing, and approving a key that is already
 // paired (a second pairing, e.g. after a pin mismatch) adds no second entry.
 func TestDecideAllowlist(t *testing.T) {
+	dir := t.TempDir()
 	synctest.Test(t, func(t *testing.T) {
-		s, _ := Open(t.TempDir())
+		s, _ := Open(dir)
 		decide := func(fp string, approve bool) {
 			t.Helper()
 			done := make(chan struct{})

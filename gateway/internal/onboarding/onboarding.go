@@ -26,11 +26,14 @@ import (
 
 const heartbeatEvery = 30 * time.Second
 
-// dialContext bounds the control socket's handshake: an API (or network)
+// dialTimeout bounds the control socket's handshake: an API (or network)
 // that never answers the upgrade must fail the dial so forever retries, not hang
-// the gateway offline until restarted. A var so tests can shorten it and see it end.
+// the gateway offline until restarted. A var so tests can shorten it.
+var dialTimeout = 20 * time.Second
+
+// dialContext is the handshake's context; a var so tests can see it end.
 var dialContext = func(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, 20*time.Second)
+	return context.WithTimeout(ctx, dialTimeout)
 }
 
 // Protocol is the gateway ↔ API protocol version (docs/protocol.md). Bump it on a

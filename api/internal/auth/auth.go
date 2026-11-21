@@ -103,16 +103,31 @@ func (a *Auth) Handler(optional bool, h func(http.ResponseWriter, *http.Request,
 	}
 }
 
+// Token is the Caller of an ID token that arrives in-band (the broker's first message),
+// through the same verification as Handler's. Tenant and Role stay empty.
+func (a *Auth) Token(ctx context.Context, token string) (Caller, error) {
+	t, err := a.verifier.VerifyIDToken(ctx, token)
+	if err != nil {
+		return Caller{}, err
+	}
+	return a.caller(ctx, t.UID)
+}
+
 func (a *Auth) caller(ctx context.Context, uid string) (Caller, error) {
 	user, err := a.provision(ctx, uid)
 	if err != nil {
 		return Caller{}, err
 	}
+	all, err := a.Households(ctx, user)
+	return Caller{User: user, Households: all}, err
+}
+
+// Households is user's memberships as they are now, oldest first.
+func (a *Auth) Households(ctx context.Context, user string) ([]Household, error) {
 	rows, _ := a.db.NoTenant().Query(ctx, `SELECT tenant_id, name, role FROM memberships_of($1)`, user)
-	all, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (h Household, err error) {
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (h Household, err error) {
 		return h, r.Scan(&h.ID, &h.Name, &h.Role)
 	})
-	return Caller{User: user, Households: all}, err
 }
 
 // provision returns the users row of a Firebase UID, adding it on first sign-in. No

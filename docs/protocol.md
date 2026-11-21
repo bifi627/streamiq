@@ -1,9 +1,9 @@
 # StreamIQ signaling protocol
 
 This file is the contract: onboarding, broker, pairing, tunnel. The broker's messages on
-both sockets (`/api/gateways/ws`, `/api/broker/ws`) are Go types in `protocol/` (#727): the
-gateway uses them, the web app's TypeScript is generated from them (`bash scripts/gen-types.sh`
-→ `frontend/src/generated/`), the .NET broker (`Features/Broker`) mirrors them by hand. The
+both sockets (`/api/gateways/ws`, `/api/broker/ws`) are Go types in `protocol/` (#727):
+the gateway and the Go API's broker (`api/internal/broker`) use them, the web app's TypeScript
+is generated from them (`bash scripts/gen-types.sh` → `frontend/src/generated/`). The
 rest is hand-mirrored in Go (`gateway/internal/{onboarding,pairing,tunnel}`) and TS
 (`frontend/src/features/pairing`, `frontend/src/tunnel.ts`).
 
@@ -78,7 +78,7 @@ tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
 protocol (currently **2**: 2 adds the `tunnel` report, #390; Go `onboarding.Protocol`). A breaking change bumps it. The API
-has one minimum (`GatewaySocket.MinGatewayProtocol`); raising it is a deliberate step,
+has one minimum (`broker.MinGatewayProtocol`, `api/internal/broker`); raising it is a deliberate step,
 since every gateway below it stops working until its owner updates. A first heartbeat
 below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the API
 records the version, `GET /api/gateways` reports `upgradeRequired: true`, and the
@@ -143,10 +143,10 @@ through it (`1008 "gateway revoked"`). Another tenant's or an already revoked
 gateway → `404`. A gateway that authenticated just before the revoke is closed
 at its next heartbeat. Re-adding the box = re-enroll (`docs/install.md`).
 
-**Rate limits.** `/api/broker/ws`, `/api/gateways/ws`, `/api/gateways/enroll` and the
-`POST`s that create a connection record, an invite or an enrollment token share a
-budget of 120 new requests per client IP per minute; over it → `429` (for a
-socket: the upgrade is refused). A flood shield, not a per-user quota: a
+**Rate limits.** `/api/broker/ws` and `/api/gateways/ws` share a budget of 120 new
+sockets per client IP per minute; `/api/gateways/enroll` and the `POST`s that create a
+connection record, an invite or an enrollment token share another 120. Over either → `429`
+(for a socket: the upgrade is refused). A flood shield, not a per-user quota: a
 household needs a handful per minute, and the headroom keeps many users behind
 one shared IP (carrier NAT, office) clear of it. On an open socket, a message past its token
 bucket (browser: burst 50, 10/s; gateway: burst 200, 50/s) closes it with

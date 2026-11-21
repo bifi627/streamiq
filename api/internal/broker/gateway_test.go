@@ -1,0 +1,103 @@
+package broker_test
+
+import (
+	"testing"
+
+	"streamiq/api/internal/apitest"
+)
+
+func gatewayCols(t *testing.T, g *gw, cols string) string {
+	t.Helper()
+	return apitest.Scalar[string](t, `SELECT concat_ws('|', `+cols+`) FROM gateways WHERE "Id" = $1`, g.id)
+}
+
+// A credential the way enrollment hands it out opens the socket.
+func TestAnEnrolledGatewaysCredentialOpensItsSocket(t *testing.T) {
+	s := newBroker(t)
+	nas := s.online("alice@home.test", "nas")
+	if !s.b.Online(nas.id) {
+		t.Fatal("not registered")
+	}
+}
+
+func TestAHeartbeatUpdatesOnlyTheSendingGatewaysRow(t *testing.T) {
+	s := newBroker(t)
+	nas := s.online("alice@home.test", "nas")
+	pc := s.enrolled("alice@home.test", "pc")
+	s.heartbeat(nas, map[string]any{"lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.6.0",
+		"jellyfin": map[string]any{"reachable": true}, "pairedClients": 2}) // old status fields: ignored
+	if got := gatewayCols(
+		t,
+		nas,
+		`"LanUrl", "Version", "Update", "Protocol"`,
+	); got != "http://192.168.1.20:8097/|1.4.0|1.6.0|1" {
+		t.Fatal(got)
+	}
+	if got := gatewayCols(
+		t,
+		pc,
+		`coalesce("LastSeenAt"::text, 'never'), coalesce("Version", 'none')`,
+	); got != "never|none" {
+		t.Fatal(got)
+	}
+}
+
+// The gateway owns its name; an older gateway sends none and changes nothing.
+func TestAHeartbeatsNameRenamesTheGateway(t *testing.T) {
+	s := newBroker(t)
+	nas := s.online("alice@home.test", "nas")
+	for _, c := range []struct {
+		sent any
+		want string
+	}{{"  Living room  ", "Living room"}, {"", "Living room"}, {nil, "Living room"}, {"a\u0000b", "Living room"}, {"Den", "Den"}} {
+		extra := map[string]any{}
+		if c.sent != nil {
+			extra["name"] = c.sent
+		}
+		s.heartbeat(nas, extra)
+		if got := gatewayCols(t, nas, `"Name"`); got != c.want {
+			t.Fatalf("%q: %q", c.sent, got)
+		}
+	}
+}
+
+func TestAGatewayBelowTheMinimumProtocolIsRefusedAndStoredAsSuch(t *testing.T) {
+	s := newBroker(t)
+	for _, p := range []any{0, nil, "1", 1.5} {
+		nas := s.enrolled("alice@home.test", "nas")
+		conn := s.dialGateway("Bearer " + nas.credential)
+		msg := map[string]any{"type": "heartbeat", "version": "1.0.0", "name": 5}
+		if p != nil {
+			msg["protocol"] = p
+		}
+		sendJSON(t, conn, msg)
+		closedAs(t, conn, "upgrade required")
+		if got := gatewayCols(
+			t,
+			nas,
+			`"Protocol", coalesce("LastSeenAt"::text, 'never')`,
+		); got != "0|never" ||
+			s.b.Online(nas.id) {
+			t.Fatalf("%v: %s", p, got)
+		}
+	}
+}
+
+func TestAGatewayAtTheCurrentProtocolIsAcceptedAndStaysOpen(t *testing.T) {
+	s := newBroker(t)
+	nas := s.online("alice@home.test", "nas")
+	if got := gatewayCols(t, nas, `"Protocol"`); got != "1" || !s.b.Online(nas.id) {
+		t.Fatal(got)
+	}
+	s.heartbeat(nas, nil) // still open
+}
+
+func TestAnAnswerBeforeTheFirstHeartbeatIsIgnored(t *testing.T) {
+	s := newBroker(t)
+	nas := s.online("alice@home.test", "nas")
+	browser := s.offer("alice@home.test", nas)
+	sid := session(t, nas)
+	late := s.dialGateway("Bearer " + nas.credential) // a reconnect that hasn't sent its heartbeat
+	sendJSON(t, late, map[string]any{"type": "answer", "session": sid, "sdp": map[string]any{"sdp": "v=0"}})
+	nothing(t, browser)
+}

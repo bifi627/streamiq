@@ -1,30 +1,22 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Net.WebSockets;
-using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
 using StreamIq.Api.Data;
-using StreamIq.Api.Features.Broker;
 using StreamIq.Api.Tests.Infrastructure;
-using Hub = StreamIq.Api.Features.Broker.Broker;
 
 namespace StreamIq.Api.Tests.Features.Onboarding;
 
 [Binding]
-public class OnboardingSteps(IntegrationFixture fx) : IDisposable
+public class OnboardingSteps(IntegrationFixture fx)
 {
     const string Fp = "sha-256 AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89";
 
     private string _token = "";
     private HttpStatusCode _enrollStatus;
-    private bool _refused;
-    private WebSocket? _ws;   // #176 protocol scenarios
-    private WebSocket Ws => _ws ?? throw new InvalidOperationException("no heartbeat sent");
-    private readonly Dictionary<string, string> _credentials = new();
 
     private async Task<HttpClient> SignIn(string email)
     {
@@ -74,17 +66,6 @@ public class OnboardingSteps(IntegrationFixture fx) : IDisposable
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.ExpiresAt, DateTimeOffset.UtcNow.AddMinutes(-1)));
     }
 
-    [Given("\"(.*)\" has an enrolled gateway \"(.*)\"")]
-    public async Task GivenEnrolled(string email, string name)
-    {
-        var res = await Enroll(await CreateToken(email), name);
-        res.EnsureSuccessStatusCode();
-        var body = await res.Content.ReadFromJsonAsync<JsonElement>();
-        var credential = body.GetProperty("credential").GetString();
-        Assert.NotNull(credential);
-        _credentials[name] = credential;
-    }
-
     [When("a gateway enrolls with that token")]
     public async Task WhenEnroll()
     {
@@ -107,166 +88,5 @@ public class OnboardingSteps(IntegrationFixture fx) : IDisposable
     public async Task ThenSeesCount(string email, int n)
     {
         Assert.Equal(n, (await Gateways(email)).GetArrayLength());
-    }
-
-    private async Task<WebSocket> Connect(string credential)
-    {
-        var ws = fx.Factory.Server.CreateWebSocketClient();
-        ws.ConfigureRequest = r => r.Headers.Authorization = $"Bearer {credential}";
-        return await ws.ConnectAsync(new Uri(fx.Factory.Server.BaseAddress, "/api/gateways/ws"), CancellationToken.None);
-    }
-
-    [When("a gateway connects with credential \"(.*)\"")]
-    public async Task WhenConnect(string credential)
-    {
-        try
-        {
-            (await Connect(credential)).Dispose();
-        }
-        catch (InvalidOperationException)
-        {
-            _refused = true;
-        }   // TestServer: handshake got a non-101 status
-    }
-
-    [Then("the gateway connection is refused")]
-    public void ThenRefused()
-    {
-        Assert.True(_refused);
-    }
-
-    [When("gateway \"(.*)\" heartbeats with LAN URL \"(.*)\" and version \"(.*)\"")]
-    public async Task WhenHeartbeat(string name, string lanUrl, string version)
-    {
-        using var ws = await Connect(_credentials[name]);
-        var msg = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { type = "heartbeat", lanUrl, version, protocol = GatewaySocket.MinGatewayProtocol }));
-        await ws.SendAsync(msg, WebSocketMessageType.Text, true, CancellationToken.None);
-        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);   // server finishes the frame first
-    }
-
-    [When("gateway \"(.*)\" heartbeats update \"(.*)\" plus old status fields \"(.*)\" and \"(.*)\"")]
-    public async Task WhenHeartbeatUpdate(string name, string update, string f1, string f2)
-    {
-        using var ws = await Connect(_credentials[name]);
-        var hb = new Dictionary<string, object>
-        {
-            ["type"] = "heartbeat",
-            ["version"] = "1.5.0",
-            ["update"] = update,
-            ["protocol"] = GatewaySocket.MinGatewayProtocol,
-            [f1] = new { reachable = true },   // pre-#140 gateway: the API ignores these
-            [f2] = 2,
-        };
-        await ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(hb), WebSocketMessageType.Text, true, CancellationToken.None);
-        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
-    }
-
-    // "none" = no name field; otherwise the quoted value is sent as it is.
-    [When("gateway \"(.*)\" heartbeats with name \"(.*)\"")]
-    public async Task WhenHeartbeatName(string gateway, string name)
-    {
-        using var ws = await Connect(_credentials[gateway]);
-        var hb = new Dictionary<string, object> { ["type"] = "heartbeat", ["protocol"] = GatewaySocket.MinGatewayProtocol };
-        if (name != "none")
-        {
-            hb["name"] = name.Trim('"');
-        }
-        await ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(hb), WebSocketMessageType.Text, true, CancellationToken.None);
-        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
-    }
-
-    [Then("\"(.*)\" sees 1 gateway named \"(.*)\"")]
-    public async Task ThenNamed(string email, string name)
-    {
-        Assert.Equal(name, Assert.Single((await Gateways(email)).EnumerateArray()).GetProperty("name").GetString());
-    }
-
-    [Then("\"(.*)\" sees \"(.*)\" with update \"(.*)\"")]
-    public async Task ThenUpdate(string email, string name, string update)
-    {
-        Assert.Equal(update, (await Gateway(email, name)).GetProperty("update").GetString());
-    }
-
-    [Then("\"(.*)\" sees no \"(.*)\" or \"(.*)\" or \"(.*)\" on \"(.*)\"")]
-    public async Task ThenNoFields(string email, string f1, string f2, string f3, string name)
-    {
-        var g = await Gateway(email, name);
-        foreach (var f in new[] { f1, f2, f3 })
-        {
-            Assert.False(g.TryGetProperty(f, out _), f);
-        }
-    }
-
-    private async Task<JsonElement> Gateway(string email, string name)
-    {
-        return (await Gateways(email)).EnumerateArray().Single(d => d.GetProperty("name").GetString() == name);
-    }
-
-    [Then("\"(.*)\" sees \"(.*)\" online at \"(.*)\"")]
-    public async Task ThenOnline(string email, string name, string lanUrl)
-    {
-        var d = await Gateway(email, name);
-        Assert.True(d.GetProperty("online").GetBoolean());
-        Assert.Equal(lanUrl, d.GetProperty("lanUrl").GetString());
-    }
-
-    [Then("\"(.*)\" sees \"(.*)\" at version \"(.*)\"")]
-    public async Task ThenVersion(string email, string name, string version)
-    {
-        Assert.Equal(version, (await Gateway(email, name)).GetProperty("version").GetString());
-    }
-
-    [Then("\"(.*)\" sees \"(.*)\" offline")]
-    public async Task ThenOffline(string email, string name)
-    {
-        Assert.False((await Gateway(email, name)).GetProperty("online").GetBoolean());
-    }
-
-    // #176: a heartbeat below the minimum protocol, or without one ("none"), is refused.
-    [When("gateway \"(.*)\" heartbeats with protocol \"(.*)\"")]
-    public async Task WhenHeartbeatProtocol(string name, string protocol)
-    {
-        _ws = await Connect(_credentials[name]);
-        var hb = new Dictionary<string, object> { ["type"] = "heartbeat", ["version"] = "1.0.0" };
-        if (protocol != "none")
-        {
-            hb["protocol"] = protocol == "current" ? GatewaySocket.MinGatewayProtocol : int.Parse(protocol);
-        }
-        await _ws.SendAsync(JsonSerializer.SerializeToUtf8Bytes(hb), WebSocketMessageType.Text, true, CancellationToken.None);
-    }
-
-    [Then("the gateway socket is closed with 1008 \"(.*)\"")]
-    public async Task ThenClosedWith(string reason)
-    {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var r = await Ws.ReceiveAsync(new byte[1024], cts.Token);
-        Assert.Equal(WebSocketMessageType.Close, r.MessageType);
-        Assert.Equal(WebSocketCloseStatus.PolicyViolation, Ws.CloseStatus);
-        Assert.Equal(reason, Ws.CloseStatusDescription);
-    }
-
-    // Accepted = the broker registered it (it would route sessions to it), socket still open.
-    [Then("\"(.*)\" has gateway \"(.*)\" registered with the broker")]
-    public async Task ThenRegistered(string email, string name)
-    {
-        var id = (await Gateway(email, name)).GetProperty("id").GetGuid();
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!Hub.Gateways.ContainsKey(id) && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
-        Assert.True(Hub.Gateways.ContainsKey(id), "gateway not registered with the broker");
-        Assert.Equal(WebSocketState.Open, Ws.State);
-    }
-
-    public void Dispose()
-    {
-        _ws?.Dispose();
-    }
-
-    [Then("\"(.*)\" sees \"(.*)\" with update required \"(.*)\"")]
-    public async Task ThenUpgradeRequired(string email, string name, bool required)
-    {
-        Assert.Equal(required, (await Gateway(email, name)).GetProperty("upgradeRequired").GetBoolean());
     }
 }

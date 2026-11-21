@@ -593,11 +593,8 @@ export async function startStack(o: StackOptions) {
         FIREBASE_AUTH_EMULATOR_HOST: new URL(emulator).host,
         FIREBASE_PROJECT_ID: 'demo-streamiq',
         CORS_ORIGINS: `${app},${built}`,
-        // The broker mints per-session creds from these (dev path; prod: Cloudflare).
-        STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
-        STREAMIQ_TURN_SECRET: 'e2e',
-        // Every test signals from 127.0.0.1: the per-IP limit (default 120/min)
-        // is shared by all workers, and a 429'd broker socket hangs a test.
+        // Every test enrolls from 127.0.0.1: the per-IP limit (default 120/min) is
+        // shared by all workers.
         STREAMIQ_SIGNALING_PER_MINUTE: '100000',
       },
     },
@@ -617,6 +614,11 @@ export async function startStack(o: StackOptions) {
           FIREBASE_AUTH_EMULATOR_HOST: new URL(emulator).host,
           FIREBASE_PROJECT_ID: 'demo-streamiq',
           CORS_ORIGINS: `${app},${built}`,
+          // The broker mints per-session creds from these (dev path; prod: Cloudflare).
+          STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
+          STREAMIQ_TURN_SECRET: 'e2e',
+          // Every test signals from 127.0.0.1: a 429'd broker socket hangs a test.
+          STREAMIQ_SIGNALING_PER_MINUTE: '100000',
         },
       })
       await timed('api', waitHttp(`${api}/healthz`, p))

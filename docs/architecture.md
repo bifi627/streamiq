@@ -8,12 +8,14 @@ is not a status log: open work lives in `gh issue list`, history in git.
 ## Go API (`api/`, the port of `backend/`: #725)
 
 - Being ported slice by slice from the .NET API (`backend/`). In dev (`scripts/dev.ps1`)
-  and the e2e stack the Go API is the one API URL: it serves its slices (today `/healthz`
-  and `GET /api/me`) and proxies every other request, WebSocket upgrades included, to
+  and the e2e stack the Go API is the one API URL: it serves its slices (today `/healthz`,
+  `GET /api/me`, the broker's two sockets and `DELETE /api/gateways/{id}`) and proxies every other request, WebSocket upgrades included, to
   the .NET API (`STREAMIQ_LEGACY_API_URL`) on the same database. It answers CORS for
   both, as ASP.NET's policy did. Production still runs the .NET-only image (#732).
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
-  `api/internal/{db,auth,apitest}` (shared kernel) and one package per slice (`me`);
+  `api/internal/{db,auth,apitest}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
+  `gateways`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
+  only imports between slices);
   `front` is `/healthz`, CORS and the proxy. `pgx` with hand-written SQL, no ORM;
   columns keep EF's quoted PascalCase until #744.
 - **Migrations**: `api/migrations` runs each file once, in name order, each in its own
@@ -27,7 +29,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   NULL when unset, so no tenant = no rows. The API connects as `streamiq_app` (its
   password `STREAMIQ_APP_DB_PASSWORD`, set at start by the owner) and sets the tenant
   per transaction only, in `db.InTenant`. Lookups that run before the tenant is known are
-  `SECURITY DEFINER` functions limited by their argument (`memberships_of(user)`). The
+  `SECURITY DEFINER` functions limited by their argument (`memberships_of(user)`,
+  `gateway_by_credential(hash)` for the gateway socket). The
   .NET API connects as the owner, so RLS doesn't apply to it.
 - **Auth** (`api/internal/auth`): the Firebase Admin SDK verifies ID tokens, one call
   for the emulator and production; the emulator only with `STREAMIQ_ENV=development`.
@@ -87,14 +90,19 @@ is not a status log: open work lives in `gh issue list`, history in git.
   and from the ported REST slices into `frontend/src/generated/`, committed; `check.sh` and CI
   fail when it is stale. The SDP and candidate are type parameters: pion's types in the
   gateway, the browser's `RTCSessionDescriptionInit` / `RTCIceCandidateInit` in the generated TS.
-- Tenant-scoped broker at `/api/broker/ws`, routing sessions to gateways; session-bound
-  connection auth.
+- Tenant-scoped broker in the Go API (`api/internal/broker`, `github.com/coder/websocket`):
+  `/api/broker/ws` (one browser session to one gateway, the ID token in-band as the first
+  message) and `/api/gateways/ws` (Bearer gateway credential). Its state (online gateways,
+  live sessions) is in the process's memory: one API instance. A socket holds no database
+  connection between messages; each write is one tenant transaction.
 - The broker checks membership for the offered gateway's household, never one the
   browser names, and puts the user's `role` in the gateway's offer: gateway API routes registered
   `tunnel.AdminOnly` answer a member `403`.
-- Rate limits: per client IP (`STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`), per-socket
-  message buckets, 10 s auth deadline.
-- TURN: credentials minted per broker session in `ready` and revoked at its end; no
+- Rate limits: new sockets per client IP and minute (`STREAMIQ_SIGNALING_PER_MINUTE`,
+  `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`; the .NET API limits its enroll,
+  invite and household calls with the same settings, a budget of its own), per-socket
+  message buckets (`golang.org/x/time/rate`), 10 s auth deadline.
+- TURN (`api/internal/turn`): credentials minted per broker session in `ready` and revoked at its end; no
   standalone TURN endpoint. Cloudflare in prod; coturn in dev via TURN REST
   (`STREAMIQ_TURN_SECRET`). `?relay` forces the relay path; `?relay=tls` keeps only the
   `turns:…:443` URLs (TLS 443 relay, #576: checked by the prod smoke only, local coturn has no TLS).
@@ -116,7 +124,7 @@ An admin's Activity opens on the whole household (`?scope=household`, admin only
 names from the members endpoint ("Former member" / "Deleted account" otherwise).
 
 **Gateway health** (#423): at telemetry `full` the heartbeat carries the box's health, kept
-in `gateway_health` (`Features/Broker/HealthReport.cs`): a row when Jellyfin, OS/arch,
+in `gateway_health` (`api/internal/broker`, `storeHealth`): a row when Jellyfin, OS/arch,
 transcoding or the offline jail change, and at least every 5 min, at most one per 25 s; the latest row is the
 current state. `gateways.telemetry` holds the level. Rows are kept (also after `off`).
 The web gateway card shows the level; an admin switches it over the tunnel

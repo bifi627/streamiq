@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using StreamIq.Api;
 using StreamIq.Api.Auth;
 using StreamIq.Api.Data;
-using StreamIq.Api.Features.Broker;
 using StreamIq.Api.Features.Gateways;
 using StreamIq.Api.Features.Household;
 using StreamIq.Api.Features.Invites;
@@ -83,15 +82,15 @@ builder.Services.AddScoped<UserProvisioner>();
 builder.Services.AddAuthentication("Firebase")
     .AddScheme<AuthenticationSchemeOptions, FirebaseAuthHandler>("Firebase", _ => { });
 builder.Services.AddAuthorization();
-builder.Services.AddHttpClient(); // broker -> Cloudflare TURN
 
-// New sockets + enrollments per client IP per minute. Prod sets
+// Enrollments, enrollment tokens, invites and new households per client IP per minute
+// (the Go API limits the broker sockets with the same settings). Prod sets
 // STREAMIQ_CLIENT_IP_HEADER to Railway's X-Real-IP (Dockerfile). Never the raw
 // X-Forwarded-For header: the client writes its left entries; RemoteIpAddress is
 // its rightmost one, which Railway's proxy appends (ASPNETCORE_FORWARDEDHEADERS_ENABLED).
 // A flood shield, loose on purpose: users behind one carrier NAT share this budget.
 // ponytail: in-memory per instance, no per-user limit; key one on the verified user
-// in BrowserSocket if a single account ever abuses it.
+// if a single account ever abuses it.
 var clientIpHeader = builder.Configuration["STREAMIQ_CLIENT_IP_HEADER"];
 var signalingPerMinute = builder.Configuration.GetValue("STREAMIQ_SIGNALING_PER_MINUTE", 120);
 builder.Services.AddRateLimiter(o =>
@@ -150,19 +149,14 @@ app.Use((ctx, next) =>
 app.UseAuthorization();
 app.UseRateLimiter();
 
-app.UseWebSockets();
-
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 // Everything but /healthz sits under /api, so SPA client routes own the rest of the path space.
 var api = app.MapGroup("/api");
 ListGateways.Map(api);
-RevokeGateway.Map(api);
 GetGatewayHealth.Map(api);
 CreateEnrollmentToken.Map(api);
 Enroll.Map(api);
-GatewaySocket.Map(api);
-BrowserSocket.Map(api);
 EndTunnel.Map(api);
 ListTunnels.Map(api);
 TunnelSummary.Map(api);

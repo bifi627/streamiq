@@ -535,7 +535,7 @@ export async function startStack(o: StackOptions) {
         await run(
           'go',
           ['build', '-o', bin, './cmd/gateway'],
-          path.join(root, 'gateway'),
+          process.env.E2E_GATEWAY_DIR ?? path.join(root, 'gateway'),
         )
         process.env.E2E_GATEWAY_BIN = bin
       })(),
@@ -560,7 +560,17 @@ export async function startStack(o: StackOptions) {
   process.env.E2E_API_URL = api // helpers.ts: users + invites over the API
   process.env.E2E_EMULATOR_URL = emulator
   process.env.E2E_PG_CONTAINER = pg.getId() // helpers.ts psql: tunnelRow, seedTunnel
-  const backend = start(
+  // Spike #720 (E2E_GO_API=1): the Go API takes the public port (auth, RLS, broker)
+  // and proxies the REST it doesn't have to the .NET API, which moves to a side port.
+  const goApi = !!process.env.E2E_GO_API
+  const legacy = goApi ? `http://127.0.0.1:${await freePort()}` : api
+  const pgUrl = (user: string, password: string) =>
+    `postgres://${user}:${password}@${pg.getHost()}:${pg.getMappedPort(5432)}/streamiq`
+  const turnEnv = {
+    STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
+    STREAMIQ_TURN_SECRET: 'e2e',
+  }
+  const dotnet = start(
     'backend',
     'dotnet',
     [path.join(apiOut, 'StreamIq.Api.dll')],
@@ -568,7 +578,7 @@ export async function startStack(o: StackOptions) {
       cwd: path.join(root, 'backend', 'src', 'StreamIq.Api'),
       env: {
         ASPNETCORE_ENVIRONMENT: 'Development',
-        ASPNETCORE_URLS: api,
+        ASPNETCORE_URLS: legacy,
         ConnectionStrings__Default: `Host=${pg.getHost()};Port=${pg.getMappedPort(5432)};Database=streamiq;Username=streamiq;Password=dev`,
         FIREBASE_AUTH_EMULATOR_HOST: new URL(emulator).host,
         FIREBASE_PROJECT_ID: 'demo-streamiq',
@@ -582,6 +592,27 @@ export async function startStack(o: StackOptions) {
       },
     },
   )
+  let backend = dotnet
+  if (goApi) {
+    await waitHttp(`${legacy}/healthz`, dotnet) // EF has migrated: the Go baseline is adopted
+    const goBin = path.join(o.dir, `streamiq-e2e-api${process.platform === 'win32' ? '.exe' : ''}`)
+    await run('go', ['build', '-o', goBin, './cmd/api'], path.join(root, 'backend-go'))
+    await pg.exec(['psql', '-U', 'streamiq', '-c', "CREATE ROLE streamiq_app LOGIN PASSWORD 'app'"])
+    backend = start('go-api', goBin, [], {
+      cwd: path.join(root, 'backend-go'),
+      env: {
+        PORT: String(apiPort),
+        STREAMIQ_ENV: 'development',
+        DATABASE_URL: pgUrl('streamiq', 'dev'),
+        STREAMIQ_APP_DATABASE_URL: pgUrl('streamiq_app', 'app'),
+        STREAMIQ_LEGACY_API_URL: legacy,
+        FIREBASE_AUTH_EMULATOR_HOST: new URL(emulator).host,
+        FIREBASE_PROJECT_ID: 'demo-streamiq',
+        CORS_ORIGINS: `${app},${built}`,
+        ...turnEnv,
+      },
+    })
+  }
 
   const vite = start(
     'vite',
@@ -598,7 +629,7 @@ export async function startStack(o: StackOptions) {
       '--strictPort',
     ],
     {
-      cwd: path.join(root, 'frontend'),
+      cwd: process.env.E2E_FRONTEND_DIR ?? path.join(root, 'frontend'),
       env: o.lan
         ? {
             PREVIEW_API: api,
@@ -625,7 +656,7 @@ export async function startStack(o: StackOptions) {
     emulator,
     procs: [backend, vite],
     async stop() {
-      await Promise.all([backend.stop(), vite.stop()])
+      await Promise.all([backend.stop(), dotnet.stop(), vite.stop()])
       // Ryuk reaps the containers even if this never runs (crash, Ctrl+C).
       await Promise.all([
         pg.stop(),

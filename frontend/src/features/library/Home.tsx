@@ -5,6 +5,7 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../errors'
+import { homeLists, homeView, ok, shelf, type Shelf } from './shelves'
 import { ErrorView, State } from '../../ErrorView'
 import {
   backdrop,
@@ -20,25 +21,14 @@ import {
   playable,
   playsAtOnce,
   TICKS_PER_SECOND,
+  timeLeft,
   type Item,
 } from './items'
 import * as jf from './jellyfin'
 
-// Each row loads on its own: one that fails shows its error, the others stay.
-type Shelf = Item[] | AppError
-type Lists = { resume: Shelf; recent: Shelf; views: Shelf }
-
-export const minutes = new Intl.NumberFormat(undefined, {
-  style: 'unit',
-  unit: 'minute',
-  unitDisplay: 'short',
-})
 const title = (i: Item) => i.SeriesName ?? i.Name
 function meta(i: Item) {
-  const pos = i.UserData?.PlaybackPositionTicks ?? 0
-  const left = i.RunTimeTicks
-    ? `${minutes.format(Math.max(1, Math.round((i.RunTimeTicks - pos) / TICKS_PER_SECOND / 60)))} left`
-    : ''
+  const left = timeLeft(i)
   const what =
     i.Type === 'Episode'
       ? `S${i.ParentIndexNumber ?? '?'} · E${i.IndexNumber ?? '?'} ${i.Name}`
@@ -55,18 +45,13 @@ export function Home() {
   useEffect(() => {
     items(pc, jf.resume).then(setResume, (e) => setResume(toAppError(e)))
   }, [pc])
-  const shelf = (q: ReturnType<typeof useTunnelQuery<{ Items: Item[] }>>) =>
-    q.data ? q.data.Items : q.error ? toAppError(q.error) : undefined
   const added = shelf(useTunnelQuery(jf.recentlyAdded))
   const views = shelf(useTunnelQuery(jf.userViews))
   // First visit: all settled before the home shows, so first focus lands
   // once, in its place. A revisit with both rows cached shows at once; the Resume spot
   // joins when it answers.
   const [warm] = useState(() => !!added && !!views)
-  const lists: Lists | null =
-    added && views && (resume || warm)
-      ? { resume: resume ?? [], recent: added, views }
-      : null
+  const lists = homeLists(added, views, resume, warm)
 
   const open = (i: Item) =>
     navigate({
@@ -90,11 +75,8 @@ export function Home() {
     })
 
   if (!lists) return <HomePlaceholder />
-  const ok = (r: Shelf) => (r instanceof AppError ? [] : r)
-  const [spot, ...more] = ok(lists.resume)
-  const recent = ok(lists.recent)
-  if (!spot && !recent.length && !ok(lists.views).length && !failed(lists))
-    return <State icon="empty" title="Nothing here." />
+  const { spot, more, recent, empty } = homeView(lists)
+  if (empty) return <State icon="empty" title="Nothing here." />
   return (
     <div className="home">
       <Row title="Continue watching" error={lists.resume}>
@@ -177,8 +159,6 @@ export function Home() {
     </div>
   )
 }
-
-const failed = (l: Lists) => Object.values(l).some((r) => r instanceof AppError)
 
 /** The home's shape while its rows load: the spot and one row of covers. */
 function HomePlaceholder() {

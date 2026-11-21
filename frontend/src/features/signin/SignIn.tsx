@@ -5,7 +5,7 @@ import {
 } from '@firebase/auth'
 import { auth } from '../../firebase'
 import { arrowFocus } from '../../focus'
-import { signInWithGoogle } from '../../Alias'
+import { signInWithGoogle } from '../../aliases'
 import { authMessage } from '../../authErrors'
 import { TvToggle } from '../../TvMode'
 

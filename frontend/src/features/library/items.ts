@@ -123,6 +123,38 @@ export function rangeHeader(start?: number, end?: number) {
 /** Jellyfin time unit: 100 ns ticks. */
 export const TICKS_PER_SECOND = 10_000_000
 
+export const minutes = new Intl.NumberFormat(undefined, {
+  style: 'unit',
+  unit: 'minute',
+  unitDisplay: 'short',
+})
+const toMinutes = (ticks: number) => ticks / TICKS_PER_SECOND / 60
+const position = (i: Item) => i.UserData?.PlaybackPositionTicks ?? 0
+
+/** "42 min", or '' without a runtime. */
+export const runtime = (i: Item) =>
+  i.RunTimeTicks ? minutes.format(Math.round(toMinutes(i.RunTimeTicks))) : ''
+
+/** "12 min left" (at least 1), or '' without a runtime. */
+export const timeLeft = (i: Item) =>
+  i.RunTimeTicks
+    ? `${minutes.format(Math.max(1, Math.round(toMinutes(i.RunTimeTicks - position(i)))))} left`
+    : ''
+
+/** Started and not watched to the end. */
+export const inProgress = (i: Item) => !i.UserData?.Played && position(i) > 0
+
+/** An episode row's state: 'Watched', the time left once started, else ''. */
+export const progress = (i: Item) =>
+  i.UserData?.Played ? 'Watched' : inProgress(i) ? timeLeft(i) : ''
+
+/** What the item page shows: the item, or for a season its series on that
+ * season's tab; null while the series loads. */
+export function pageItem(item: Item, series?: Item) {
+  if (item.Type !== 'Season' || !item.SeriesId) return { item }
+  return series ? { item: series, season: item.Id } : null
+}
+
 /** Video appends in a row that may leave the playhead without video before
  * the player gives up on stream copy (webOS drops stream-copied open-GOP
  * h264 after a seek/resume; the appends "succeed" but buffer nothing). */

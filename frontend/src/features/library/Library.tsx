@@ -21,8 +21,12 @@ import { guestNotice } from './guest'
 import { Player } from './Player'
 import {
   clock,
+  inProgress,
+  pageItem,
   playable,
   playsAtOnce,
+  progress,
+  runtime,
   TICKS_PER_SECOND,
   upNext,
   type Item,
@@ -33,7 +37,7 @@ import { PlayOn } from './Screen'
 import { arrowFocus } from '../../focus'
 import { tvOn } from '../../settings'
 import { Tunnel, backdrop, current, primary, useTunnelQuery } from './art'
-import { Artwork, minutes, Watched } from './Home'
+import { Artwork, Watched } from './Home'
 export { Home as LibraryHome } from './Home'
 
 // Layout route: the gateway's shared tunnel, held while navigating inside
@@ -129,11 +133,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
   const seriesId = it.data?.Type === 'Season' ? it.data.SeriesId : undefined
   const series = useTunnelQuery<Item>(seriesId ? jf.item(seriesId) : null)
   const error = it.error ?? series.error
-  const shown = !it.data
-    ? null
-    : !seriesId
-      ? { item: it.data }
-      : series.data && { item: series.data, season: it.data.Id }
+  const shown = it.data ? pageItem(it.data, series.data) : null
   if (error && !shown) return <ErrorView error={toAppError(error)} focus />
   if (!shown)
     return (
@@ -227,8 +227,7 @@ function Title({
     item.ProductionYear,
     series
       ? count && `${count} ${count === 1 ? 'season' : 'seasons'}`
-      : item.RunTimeTicks &&
-        minutes.format(Math.round(item.RunTimeTicks / TICKS_PER_SECOND / 60)),
+      : runtime(item),
     item.Genres?.[0],
   ].filter(Boolean)
 
@@ -323,12 +322,7 @@ function Title({
 }
 
 function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
-  const pos = item.UserData?.PlaybackPositionTicks ?? 0
-  const state = item.UserData?.Played
-    ? 'Watched'
-    : pos > 0 && item.RunTimeTicks
-      ? `${minutes.format(Math.max(1, Math.round((item.RunTimeTicks - pos) / TICKS_PER_SECOND / 60)))} left`
-      : ''
+  const state = progress(item)
   return (
     <button type="button" className="episode" onClick={() => onPlay(item)}>
       <span className="still">
@@ -338,20 +332,14 @@ function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
           width={352}
           className="still-art"
         />
-        {pos > 0 && !item.UserData?.Played && <Watched item={item} />}
+        {inProgress(item) && <Watched item={item} />}
       </span>
       <span className="ep-text">
         <b>
           {item.IndexNumber != null && `${item.IndexNumber}. `}
           {item.Name}
         </b>
-        {!!item.RunTimeTicks && (
-          <small className="muted">
-            {minutes.format(
-              Math.round(item.RunTimeTicks / TICKS_PER_SECOND / 60),
-            )}
-          </small>
-        )}
+        {runtime(item) && <small className="muted">{runtime(item)}</small>}
       </span>
       {state && (
         <small className={item.UserData?.Played ? 'muted' : 'ep-left'}>

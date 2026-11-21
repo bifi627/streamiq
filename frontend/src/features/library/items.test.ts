@@ -5,10 +5,15 @@ import {
   audioTracks,
   clock,
   covers,
+  inProgress,
+  pageItem,
   playable,
   playsAtOnce,
+  progress,
   rangeHeader,
+  runtime,
   subtitleTracks,
+  TICKS_PER_SECOND,
   upNext,
   type Item,
 } from './items.ts'
@@ -119,4 +124,28 @@ test('playable / playsAtOnce: what a tile opens', () => {
   assert.deepEqual(at('Series'), [false, false])
   assert.deepEqual(at('Season'), [false, false])
   assert.deepEqual(at('BoxSet', true), [false, false])
+})
+
+test('runtime, time left and an episode row state', () => {
+  const min = 60 * TICKS_PER_SECOND
+  const e = { Id: 'e', RunTimeTicks: 42 * min } as Item
+  assert.equal(runtime({ Id: 'x' } as Item), '')
+  assert.match(runtime(e), /42/)
+  assert.equal(progress(e), '')
+  const started = { ...e, UserData: { PlaybackPositionTicks: 41.9 * min } }
+  assert.ok(inProgress(started))
+  assert.match(progress(started), /1.*left/) // at least 1 minute
+  const watched = { ...started, UserData: { Played: true } }
+  assert.equal(inProgress(watched), false)
+  assert.equal(progress(watched), 'Watched')
+})
+
+test('pageItem: a season shows its series on that tab', () => {
+  const series = { Id: 's', Type: 'Series' } as Item
+  const season = { Id: 'n', Type: 'Season', SeriesId: 's' } as Item
+  assert.deepEqual(pageItem(series), { item: series })
+  assert.equal(pageItem(season), null) // series still loading
+  assert.deepEqual(pageItem(season, series), { item: series, season: 'n' })
+  const orphan = { Id: 'o', Type: 'Season' } as Item
+  assert.deepEqual(pageItem(orphan), { item: orphan })
 })

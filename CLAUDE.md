@@ -86,7 +86,8 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 - Go API: package per slice in `api/internal/<slice>/` (one file per use case, request/
   response types inline, colocated `_test.go` on `apitest`), shared kernel `db` (pool +
   `InTenant`, the one place the tenant is set), `auth`, `apitest`; `api/cmd/api/main.go`
-  wiring only; schema = numbered SQL in `api/migrations/`. Slices don't import each other.
+  wiring only; schema = numbered SQL in `api/migrations/`. Slices don't import each other
+  except `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn`.
 - Gateway: package per feature in `gateway/internal/<slice>/` with colocated `_test.go`;
   `cmd/gateway/main.go` is wiring only. Slices don't import each other except shared
   primitives (`identity`, `tunnel`, `pairing`).

@@ -1,5 +1,3 @@
-// Sign-up rules around the alias (Alias.tsx asks for it): who still needs
-// one, and the Google sign-up that clears its profile name first.
 import {
   getAdditionalUserInfo,
   GoogleAuthProvider,

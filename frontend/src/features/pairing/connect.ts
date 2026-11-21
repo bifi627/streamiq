@@ -115,9 +115,12 @@ export async function connect(
             h: hex(await sha256(nB)),
             name: browserName(),
           })
-        case 'reveal':
+        case 'reveal': {
           say({ type: 'reveal', n: nB })
-          return onCode?.(await comparisonCode(f.fp, key.fp, f.n, nB))
+          const code = await comparisonCode(f.fp, key.fp, f.n, nB)
+          // A connect that failed during the digest shows no code.
+          return s.phase === 'failed' ? undefined : onCode?.(code)
+        }
         case 'approved':
           await setPin(gatewayId, f.fp)
           void persistStorage().catch((e) =>

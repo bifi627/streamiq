@@ -96,7 +96,11 @@ Where to request or rotate credentials by hand:
 ## Releasing the gateway
 
 Automatic (#274): after CI passed on a push to `main` (the last job of `ci.yml`), the
-gateway releases if `gateway/` (`*_test.go` aside) changed since the last stable release.
+gateway releases if something it builds with changed since the last stable release
+(`*_test.go` aside): `gateway/`, a repo package it imports from outside `gateway/`
+(`protocol/`), or in the shared `go.mod` / `go.sum` a module it builds with (per `go list`,
+for each release OS) or the `go` / `toolchain` line. A dependency only the Go API uses cuts
+no release (#750).
 It releases what `main` is, so a change whose own push didn't release (red CI, a cancelled
 run, `[skip release]` in the subject) goes out with the next one. Version
 (`scripts/next-gateway-version.sh`): the highest stable `gateway-v*` tag, minor bumped if any

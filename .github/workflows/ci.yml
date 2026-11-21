@@ -243,6 +243,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # tags + history
+      - uses: actions/setup-go@v7 # `go list`: what the gateway builds with
+        with:
+          go-version-file: go.mod
       - id: c
         env:
           MSG: ${{ github.event.head_commit.message }} # via env, never inlined into the script

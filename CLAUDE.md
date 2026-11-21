@@ -255,8 +255,8 @@ Copy `.env.example` only to override.
   default locale, never a hardcoded format. A second language: #110.
 - **Frontend decision logic lives in `.ts`** (#532): a choice over state, an error, time or
   ordering goes in a plain `.ts` beside the component with a `node --test`; the `.tsx` only
-  wires it (render branching stays). oxlint `complexity` ≤ 15 on `.tsx` enforces part of it.
-  The gateway's limit is the same: golangci-lint `gocyclo` > 15 fails (#542; tests
+  wires it (render branching stays). oxlint `complexity` ≤ 12 on `.tsx` enforces part of it.
+  The gateway's limit: golangci-lint `gocyclo` > 15 fails (#542; tests
   excluded). Split into pieces that take and return values; a new `//nolint:gocyclo`
   names the issue that splits it or the reason it stays.
   Size limits (#600, code lines: blank and comment lines skipped, tests excluded): a

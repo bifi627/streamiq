@@ -10,7 +10,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Pairing } from '../pairing/Pairing'
 import { dropShared } from '../pairing/connect'
-import { deletePin } from '../pairing/store'
+import { deletePin, usePin } from '../pairing/store'
 import { renameMessage, toAppError, type AppError } from '../../errors'
 import { ErrorView, State } from '../../ErrorView'
 import { copyText } from '../../clipboard'
@@ -209,9 +209,9 @@ function GatewayCard({
 }) {
   const navigate = useNavigate()
   // This browser holds a pin for it: Rename and Update go over the tunnel, so
-  // they show only then. Pairing reports it (onPin, onPaired).
-  const [pinned, setPinned] = useState(false)
-  const manage = canManage(admin, g.online, pinned)
+  // they show only then.
+  const [pinned, setPinned] = usePin(g.id)
+  const manage = canManage(admin, g.online, !!pinned)
   // This browser removed itself from it: Pair shows again.
   const [unpaired, setUnpaired] = useState(false)
   async function removedSelf() {
@@ -262,7 +262,6 @@ function GatewayCard({
           gatewayId={g.id}
           lanUrl={g.lanUrl}
           needsPair={unpaired}
-          onPin={setPinned}
           onPaired={() => {
             setPinned(true)
             setUnpaired(false)

@@ -59,7 +59,7 @@ function scaled(n: number, units: string[], step: number): string {
 }
 
 /** "6 min 40 sec"; the small part only when it isn't 0. */
-function pair(big: string, n: number, small: string, m: number): string {
+export function pair(big: string, n: number, small: string, m: number): string {
   const head = unit(big).format(n)
   return m ? `${head} ${unit(small).format(m)}` : head
 }

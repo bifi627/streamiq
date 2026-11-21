@@ -22,6 +22,7 @@ import { EditableName, STORED } from './EditableName'
 import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
 import { HealthSharing } from './HealthSharing'
+import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
 import { canManage, shownError, type ActErr } from './list'
 
@@ -293,6 +294,7 @@ function GatewayCard({
         )
       )}
       <StatusDetails g={g} />
+      <HealthHistory g={g} />
       {/* A member's list is just this browser. */}
       <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
     </li>

@@ -1,6 +1,6 @@
 // The gateways page, on a paired browser with its own gateway (fixtures.ts
 // `paired`): rename, Status paired and unpaired, the nav chip's
-// dot, paired clients, the member view, health sharing, Reject on the
+// dot, paired clients, the member view, health sharing, the health history, Reject on the
 // local gateway page, a refused broker socket and TV mode.
 // Onboarding, Approve, Test connection and the removes that end sessions are
 // the golden path's; the offline dot (90 s), rejection edge cases and a
@@ -12,6 +12,7 @@ import {
   gatewayTab,
   join,
   pair,
+  seedHealth,
   signedInPage,
   signUp,
   uniqueEmail,
@@ -212,6 +213,45 @@ test('health sharing: an admin turns it on and off over the tunnel (#423) @gatew
   await expect(c.getByText('Health sharing: off.')).toBeVisible({
     timeout: 15_000,
   })
+})
+
+test('health history: an incident, a version change and daily peaks from stored rows (#424) @gateways', async ({
+  paired,
+}) => {
+  const { user, page } = paired
+  const [g] = await user.api<{ id: string }[]>('/gateways')
+  const base = { jellyfin: '10.11.2', gateway: '1.4.0', tunnels: 0, cpu: 10 }
+  seedHealth(user.tenantId, g.id, [
+    { ...base, minAgo: 9, reachable: true },
+    { ...base, minAgo: 7, reachable: false },
+    {
+      ...base,
+      minAgo: 4,
+      reachable: true,
+      jellyfin: '10.11.3',
+      tunnels: 2,
+      cpu: 55,
+    },
+    { ...base, minAgo: 1, reachable: true, jellyfin: '10.11.3' },
+  ])
+  const c = card(page)
+  await c.getByText('Health, last 7 days').click()
+  await expect(
+    c.getByRole('table', { name: 'Incidents' }).getByRole('row', {
+      name: /Jellyfin down .* 3 min/,
+    }),
+  ).toBeVisible()
+  await expect(
+    c.getByRole('table', { name: 'Version changes' }).getByRole('row', {
+      name: /Jellyfin 10\.11\.2 10\.11\.3/,
+    }),
+  ).toBeVisible()
+  // The row's local day: whichever it is, its peaks are these.
+  await expect(
+    c.getByRole('table', { name: 'Daily peaks' }).getByRole('row', {
+      name: / 2\s+55%/,
+    }),
+  ).toBeVisible()
 })
 
 test('reject on the local gateway page: refused, stays unpaired @gateways', async ({

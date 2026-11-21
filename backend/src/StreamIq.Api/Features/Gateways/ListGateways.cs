@@ -14,7 +14,7 @@ public static class ListGateways
         app.MapGet("/gateways", async (StreamIqDbContext db, CancellationToken ct) =>
         {
             var onlineSince = DateTimeOffset.UtcNow - OnlineWindow;
-            // Liveness only: the details come from the gateway API over the tunnel.
+            // Liveness + the telemetry level: the details come from the gateway API over the tunnel.
             return await db.Gateways.Where(d => d.CredentialHash != null).OrderBy(d => d.CreatedAt)   // revoked = hidden
                 .Select(d => new
                 {
@@ -24,6 +24,7 @@ public static class ListGateways
                     d.LanUrl,
                     d.Version,
                     d.Update,
+                    d.Telemetry,
                     Online = d.LastSeenAt > onlineSince,
                     UpgradeRequired = d.Protocol < GatewaySocket.MinGatewayProtocol
                 })

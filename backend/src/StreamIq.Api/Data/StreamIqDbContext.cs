@@ -16,6 +16,7 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
     public DbSet<EnrollmentToken> EnrollmentTokens => Set<EnrollmentToken>();
     public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<Tunnel> Tunnels => Set<Tunnel>();
+    public DbSet<GatewayHealth> GatewayHealth => Set<GatewayHealth>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -67,6 +68,12 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
             e.Property(x => x.CreatedAt).HasDefaultValueSql("now()").ValueGeneratedOnAdd();
         });
 
+        b.Entity<GatewayHealth>(e =>
+        {
+            e.ToTable("gateway_health");
+            e.HasIndex(x => new { x.GatewayId, x.At });
+        });
+
         // No navigation properties: entities stay plain scalars.
         b.Entity<Membership>().HasOne<Tenant>().WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Membership>().HasOne<AppUser>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
@@ -76,6 +83,8 @@ public class StreamIqDbContext(DbContextOptions<StreamIqDbContext> options) : Db
         b.Entity<Invite>().HasOne<AppUser>().WithMany().HasForeignKey(i => i.CreatedBy).OnDelete(DeleteBehavior.SetNull);
         b.Entity<Tunnel>().HasOne<Tenant>().WithMany().HasForeignKey(c => c.TenantId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Tunnel>().HasOne<Gateway>().WithMany().HasForeignKey(c => c.GatewayId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<GatewayHealth>().HasOne<Tenant>().WithMany().HasForeignKey(h => h.TenantId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<GatewayHealth>().HasOne<Gateway>().WithMany().HasForeignKey(h => h.GatewayId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<Tunnel>().HasOne<AppUser>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.SetNull);   // the telemetry outlives the account
 
         // A generic lambda on the instance property: EF reads CurrentTenantId per query,

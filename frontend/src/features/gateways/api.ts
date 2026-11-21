@@ -14,6 +14,7 @@ export type Gateway = {
   online: boolean
   update: string | null // newer gateway release, null = up to date
   upgradeRequired: boolean // refused: its protocol is below the API's minimum
+  telemetry: 'off' | 'full' | null // health sharing, from the heartbeat; null = too old to send it
 }
 
 // Gateway API GET /streamiq/status over the tunnel (docs/protocol.md). All
@@ -164,6 +165,11 @@ export const useGatewayStatus = (id: string, enabled: boolean) =>
     refetchOnWindowFocus: false, // nextAsk: no retry, each would open a tunnel
     refetchOnReconnect: false,
   })
+
+// Gateway API POST /streamiq/telemetry (admin-only): the gateway stores the level
+// and tells the API with an early heartbeat.
+export const setTelemetry = (id: string, level: 'off' | 'full') =>
+  viaTunnel<{ level: string }>(id, '/streamiq/telemetry', { level })
 
 export const removeClient = (id: string, keyFp: string) =>
   viaTunnel(id, '/streamiq/clients/remove', { keyFp })

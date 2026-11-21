@@ -1,6 +1,6 @@
 // The gateways page, on a paired browser with its own gateway (fixtures.ts
 // `paired`): rename, Status paired and unpaired, the nav chip's
-// dot, paired clients, the member view, Reject on the
+// dot, paired clients, the member view, health sharing, Reject on the
 // local gateway page, a refused broker socket and TV mode.
 // Onboarding, Approve, Test connection and the removes that end sessions are
 // the golden path's; the offline dot (90 s), rejection edge cases and a
@@ -192,6 +192,26 @@ test('member view: the gateway, no Add gateway, no Remove (#190) @gateways', asy
   await expect(m.getByLabel('Switch household')).toHaveValue(user.tenantId)
   await expect(m.getByRole('button', { name: 'Add gateway' })).toHaveCount(0)
   await expect(card(m).getByRole('button', { name: 'Remove' })).toHaveCount(0)
+  // Health sharing: the level, no switch.
+  await expect(card(m).getByText('Health sharing: off.')).toBeVisible()
+  await expect(card(m).getByRole('button', { name: 'Turn on' })).toHaveCount(0)
+})
+
+test('health sharing: an admin turns it on and off over the tunnel (#423) @gateways', async ({
+  paired,
+}) => {
+  const c = card(paired.page)
+  // The level comes back with the gateway's next heartbeat (sent at once),
+  // then the list's 5 s poll.
+  await expect(c.getByText('Health sharing: off.')).toBeVisible()
+  await c.getByRole('button', { name: 'Turn on' }).click()
+  await expect(c.getByText('Health sharing: on.')).toBeVisible({
+    timeout: 15_000,
+  })
+  await c.getByRole('button', { name: 'Turn off' }).click()
+  await expect(c.getByText('Health sharing: off.')).toBeVisible({
+    timeout: 15_000,
+  })
 })
 
 test('reject on the local gateway page: refused, stays unpaired @gateways', async ({

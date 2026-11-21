@@ -7,7 +7,8 @@ namespace StreamIq.Api.Features.Broker;
 /// A `full` heartbeat's `health` (docs/protocol.md), each field cleaned at the boundary:
 /// out of bounds or of the wrong type = null.
 internal sealed record HealthReport(bool? JellyfinReachable, string? JellyfinVersion, string? Os, string? Arch,
-    string? Transcoding, string? Offline, int? Tunnels, int? Transcodes, double? Cpu, double? Memory)
+    string? Transcoding, string? Offline, int? Tunnels, int? Transcodes, double? Cpu, double? Memory,
+    string? GatewayVersion = null)
 {
     public const string Off = "off", Full = "full";
 
@@ -50,8 +51,8 @@ internal sealed record HealthReport(bool? JellyfinReachable, string? JellyfinVer
         var last = await db.GatewayHealth.AsNoTracking().Where(r => r.GatewayId == gatewayId)
             .OrderByDescending(r => r.At).FirstOrDefaultAsync(ct);
         if (last is not null && (now - last.At < MinGap || now - last.At < SnapshotEvery
-            && (last.JellyfinReachable, last.JellyfinVersion, last.Os, last.Arch, last.Transcoding, last.Offline)
-               == (JellyfinReachable, JellyfinVersion, Os, Arch, Transcoding, Offline)))
+            && (last.JellyfinReachable, last.JellyfinVersion, last.GatewayVersion, last.Os, last.Arch, last.Transcoding, last.Offline)
+               == (JellyfinReachable, JellyfinVersion, GatewayVersion, Os, Arch, Transcoding, Offline)))
         {
             return;
         }
@@ -63,6 +64,7 @@ internal sealed record HealthReport(bool? JellyfinReachable, string? JellyfinVer
             Level = Full,
             JellyfinReachable = JellyfinReachable,
             JellyfinVersion = JellyfinVersion,
+            GatewayVersion = GatewayVersion,
             Os = Os,
             Arch = Arch,
             Transcoding = Transcoding,

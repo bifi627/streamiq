@@ -87,7 +87,7 @@ public static class GatewaySocket
                     }
                     else if (beat.Telemetry == HealthReport.Full)
                     {
-                        await HealthReport.Parse(msg).StoreAsync(db, me.TenantId, gatewayId, ct);
+                        await (HealthReport.Parse(msg) with { GatewayVersion = beat.Version }).StoreAsync(db, me.TenantId, gatewayId, ct);
                     }
                     break;
                 case "answer" or "ice" when accepted:

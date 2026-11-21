@@ -14,6 +14,7 @@ namespace StreamIq.Api.Tests.Features.Broker;
 public class GatewayHealthSteps(IntegrationFixture fx, BrokerSteps broker)
 {
     private Guid _foreign;
+    private HttpResponseMessage _read = new();
 
     // Raw rows: the test reads across tenants on purpose.
     private async Task<T> Db<T>(Func<StreamIqDbContext, Task<T>> q)
@@ -66,6 +67,76 @@ public class GatewayHealthSteps(IntegrationFixture fx, BrokerSteps broker)
     {
         return BrokerSteps.Send(broker.Gateway(name).Ws,
             new { type = "heartbeat", protocol = GatewaySocket.MinGatewayProtocol, telemetry = "full", health = Health(jellyfin, tunnels) });
+    }
+
+    [When("gateway \"([^\"]*)\" at version \"([^\"]*)\" sends a full heartbeat with Jellyfin \"([^\"]*)\" and ([0-9]+) tunnels")]
+    public Task WhenFullAt(string name, string version, string jellyfin, int tunnels)
+    {
+        return BrokerSteps.Send(broker.Gateway(name).Ws,
+            new { type = "heartbeat", protocol = GatewaySocket.MinGatewayProtocol, version, telemetry = "full", health = Health(jellyfin, tunnels) });
+    }
+
+    [Then("the latest health row of gateway \"([^\"]*)\" has gateway version \"([^\"]*)\"")]
+    public async Task ThenLatestVersion(string name, string version)
+    {
+        Assert.Equal(version, (await Db(db => Rows(db, name).OrderByDescending(r => r.At).FirstAsync())).GatewayVersion);
+    }
+
+    // Each row's Jellyfin version names its age ("d8"), so the read shows which rows came back.
+    [Given("gateway \"([^\"]*)\" has health rows ([0-9]+), ([0-9]+), ([0-9]+) and ([0-9]+) days old")]
+    public async Task GivenAged(string name, int a, int b, int c, int d)
+    {
+        var tenant = (await GatewayRow(name)).TenantId;
+        await Db(db =>
+        {
+            foreach (var days in new[] { a, b, c, d })
+            {
+                db.GatewayHealth.Add(new GatewayHealth
+                {
+                    TenantId = tenant,
+                    GatewayId = broker.Gateway(name).Id,
+                    At = DateTimeOffset.UtcNow.AddDays(-days),
+                    Level = HealthReport.Full,
+                    JellyfinVersion = $"d{days}",
+                });
+            }
+            return db.SaveChangesAsync();
+        });
+    }
+
+    [When("\"([^\"]*)\" reads the health of gateway \"([^\"]*)\"")]
+    public async Task WhenRead(string email, string name)
+    {
+        using var client = await broker.SignedIn(email);
+        var tenant = (await GatewayRow(name)).TenantId;
+        // A member acts in the gateway's household; anyone else in their own.
+        var me = await client.GetFromJsonAsync<JsonElement>("/api/me");
+        if (me.GetProperty("memberships").EnumerateArray().Any(h => h.GetProperty("id").GetGuid() == tenant))
+        {
+            client.DefaultRequestHeaders.Add(StreamIq.Api.Auth.Households.Header, tenant.ToString());
+        }
+        _read = await client.GetAsync($"/api/gateways/{broker.Gateway(name).Id}/health");
+    }
+
+    [When("\"([^\"]*)\" reads the health of an unknown gateway")]
+    public async Task WhenReadUnknown(string email)
+    {
+        using var client = await broker.SignedIn(email);
+        _read = await client.GetAsync($"/api/gateways/{Guid.NewGuid()}/health");
+    }
+
+    [Then("the health read lists the rows ([0-9]+), ([0-9]+) and ([0-9]+) days old, in that order")]
+    public async Task ThenReadRows(int a, int b, int c)
+    {
+        Assert.Equal(System.Net.HttpStatusCode.OK, _read.StatusCode);
+        var rows = await _read.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal([$"d{a}", $"d{b}", $"d{c}"], rows.EnumerateArray().Select(r => r.GetProperty("jellyfinVersion").GetString()));
+    }
+
+    [Then("the health read is not found")]
+    public void ThenReadNotFound()
+    {
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, _read.StatusCode);
     }
 
     // With health anyway: a level other than full stores none of it.

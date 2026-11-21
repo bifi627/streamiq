@@ -57,8 +57,13 @@ gateway's latest row, or that row is ≥ 5 min old, but never within 25 s of it 
 waits for the next heartbeat); the counts and load alone add none. Each
 field is checked: versions ≤ 40 chars, `os` / `arch` / `transcoding` / `offline` ≤ 20,
 counts 0–10 000, `cpu` / `memory` 0–100, else null; other fields are ignored. `off` stores
-nothing new and keeps the rows (no retention yet). `GET /api/gateways` returns
-`telemetry` to every member.
+nothing new and keeps the rows (no retention yet). Each row also carries the heartbeat's
+`version` as `GatewayVersion` (#424; a change makes a row like the fields above; rows from
+before stay null). `GET /api/gateways` returns `telemetry` to every member.
+`GET /api/gateways/{id}/health` (#424, any member) returns that gateway's rows of the last
+7 days, oldest first, led by the latest row before them: `at`, `jellyfinReachable`,
+`jellyfinVersion`, `gatewayVersion`, `tunnels`, `transcodes`, `cpu`, `memory` (null = not
+sent). Another household's gateway or an unknown id → 404.
 The API also sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null) and

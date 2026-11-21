@@ -81,7 +81,11 @@ in `gateway_health` (`Features/Broker/HealthReport.cs`): a row when Jellyfin, OS
 transcoding or the offline jail change, and at least every 5 min, at most one per 25 s; the latest row is the
 current state. `gateways.telemetry` holds the level. Rows are kept (also after `off`).
 The web gateway card shows the level; an admin switches it over the tunnel
-(`POST /streamiq/telemetry`).
+(`POST /streamiq/telemetry`). Rows carry the gateway's version too (#424).
+"Health, last 7 days" on the card (`HealthHistory.tsx`) reads `GET /api/gateways/{id}/health`
+(`Features/Gateways/GetGatewayHealth.cs`, raw rows) when opened, from the API, so offline and
+unpaired too; `health.ts` derives incidents (Jellyfin down, gaps over 10 min), version changes
+and daily peaks per local day.
 
 ## Gateway (native binary)
 

@@ -104,6 +104,7 @@ public class GatewayHealth : ITenantOwned
     public required string Level { get; set; }          // the telemetry level that sent it
     public bool? JellyfinReachable { get; set; }
     public string? JellyfinVersion { get; set; }
+    public string? GatewayVersion { get; set; }         // the heartbeat's `version`; null in rows before it
     public string? Os { get; set; }
     public string? Arch { get; set; }
     public string? Transcoding { get; set; }            // hardware acceleration: none / nvenc / …

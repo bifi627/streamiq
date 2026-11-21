@@ -67,6 +67,33 @@ export function seedTunnel(
   )
 }
 
+/** `gateway_health` rows of gatewayId (household tenantId), straight to
+ * Postgres: the stored history needs hours of heartbeats at `full`. */
+export function seedHealth(
+  tenantId: string,
+  gatewayId: string,
+  rows: {
+    minAgo: number
+    reachable: boolean
+    jellyfin: string
+    gateway: string
+    tunnels: number
+    cpu: number
+  }[],
+) {
+  const ids = [tenantId, gatewayId]
+  if (!ids.every((id) => /^[0-9a-f-]{36}$/.test(id)))
+    throw new Error(`not ids: ${ids}`)
+  const values = rows.map(
+    (r) =>
+      `('${randomUUID()}', '${tenantId}', '${gatewayId}', now() - interval '${Number(r.minAgo)} minutes', 'full', ${!!r.reachable}, ` +
+      `'${r.jellyfin.replace(/'/g, '')}', '${r.gateway.replace(/'/g, '')}', ${Number(r.tunnels)}, ${Number(r.cpu)})`,
+  )
+  psql(
+    `insert into gateway_health ("Id", "TenantId", "GatewayId", "At", "Level", "JellyfinReachable", "JellyfinVersion", "GatewayVersion", "Tunnels", "Cpu") values ${values.join(', ')}`,
+  )
+}
+
 /** A fresh address per call: the Auth emulator lives for the whole run, and
  * tests run in parallel and under --repeat-each. */
 export const uniqueEmail = (tag: string) =>

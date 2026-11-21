@@ -1,6 +1,7 @@
 package gateways
 
 import (
+	"cmp"
 	"errors"
 	"net/http"
 	"time"
@@ -40,7 +41,7 @@ func health(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 		var known bool
 		if e := tx.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM gateways WHERE "Id" = $1)`, id).
 			Scan(&known); e != nil || !known {
-			return errors.Join(e, pgx.ErrNoRows)
+			return cmp.Or(e, pgx.ErrNoRows)
 		}
 		rows, _ := tx.Query(r.Context(), `SELECT `+healthCols+` FROM gateway_health WHERE "GatewayId" = $1
 			AND "At" >= coalesce((SELECT max("At") FROM gateway_health

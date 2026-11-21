@@ -15,7 +15,7 @@ public sealed class StreamIqApiFactory(string connString, string emulatorHost)
         builder.UseSetting("ConnectionStrings:Default", connString);
         builder.UseSetting("FIREBASE_PROJECT_ID", "demo-streamiq");
         // Every test request shares one "client IP" (TestServer has none), so the
-        // signaling limit is lifted here; RateLimitTests derives a factory with it back on.
+        // signaling limit is lifted here.
         builder.UseSetting("STREAMIQ_SIGNALING_PER_MINUTE", "100000");
     }
 }

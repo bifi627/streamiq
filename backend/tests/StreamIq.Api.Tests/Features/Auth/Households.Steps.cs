@@ -119,20 +119,6 @@ public class HouseholdsSteps(IntegrationFixture fx)
         return $"{(int)r.StatusCode}\n{string.Join("\n", headers)}\n{await r.Content.ReadAsStringAsync()}";
     }
 
-    [Then("the request is refused as forbidden")]
-    public void ThenForbidden()
-    {
-        Assert.NotNull(_last);
-        Assert.Equal(HttpStatusCode.Forbidden, _last.StatusCode);
-    }
-
-    [Then("the request succeeds")]
-    public void ThenSucceeds()
-    {
-        Assert.NotNull(_last);
-        Assert.True(_last.IsSuccessStatusCode, $"got {(int)_last.StatusCode}");
-    }
-
     // A household's members by name (the emulator accounts have no display name: their email).
     [Then("the member list holds exactly \"(.*)\"")]
     public async Task ThenExactly(string names)

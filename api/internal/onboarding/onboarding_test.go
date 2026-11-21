@@ -170,7 +170,7 @@ func TestTheInstallCommandsCarryTheTokenAndTheAPIURL(t *testing.T) {
 	}
 }
 
-// Onboarding.feature: an enrollment token works exactly once; the credential is 256 bit,
+// An enrollment token works exactly once; the credential is 256 bit,
 // stored only as its hash; the gateway lands in the token's household only.
 func TestATokenEnrollsOneGatewayIntoItsOwnHouseholdOnce(t *testing.T) {
 	s := newDefault(t)
@@ -199,7 +199,7 @@ func TestATokenEnrollsOneGatewayIntoItsOwnHouseholdOnce(t *testing.T) {
 	}
 }
 
-// Onboarding.feature: an expired enrollment token is rejected; so is an unknown one.
+// An expired enrollment token is rejected; so is an unknown one.
 func TestAnExpiredOrUnknownTokenIsRejected(t *testing.T) {
 	s := newDefault(t)
 	alice, _ := s.member(t, "alice@home.test", "admin")
@@ -286,7 +286,7 @@ func TestAnEnrollmentThatFailsAfterTheClaimKeepsTheToken(t *testing.T) {
 	}
 }
 
-// RateLimitTests: enrollment and enrollment tokens spend the client IP's one budget.
+// Enrollment and enrollment tokens spend the client IP's one budget.
 func TestEnrollmentAndTokensAreLimitedPerClientIP(t *testing.T) {
 	s := newServer(t, onboarding.Install{Dev: true}, iplimit.New(3, "X-Real-IP"))
 	alice, _ := s.member(t, "alice@home.test", "admin")

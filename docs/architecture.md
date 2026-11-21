@@ -14,8 +14,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   the .NET API (`STREAMIQ_LEGACY_API_URL`) on the same database. It answers CORS for
   both, as ASP.NET's policy did. Production still runs the .NET-only image (#732).
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
-  `api/internal/{db,auth,apitest}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
-  `gateways`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
+  `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
+  `gateways`, `onboarding`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
   only imports between slices);
   `front` is `/healthz`, CORS and the proxy. `pgx` with hand-written SQL, no ORM;
   columns keep EF's quoted PascalCase until #744.
@@ -29,9 +29,11 @@ is not a status log: open work lives in `gh issue list`, history in git.
   the role `streamiq_app`, which owns no table; `app_tenant()` reads `app.tenant_id`,
   NULL when unset, so no tenant = no rows. The API connects as `streamiq_app` (its
   password `STREAMIQ_APP_DB_PASSWORD`, set at start by the owner) and sets the tenant
-  per transaction only, in `db.InTenant`. Lookups that run before the tenant is known are
+  per transaction only, in `db.InTenant` (or `db.InClaimedTenant`, whose tenant comes from a
+  claim in the same transaction). Lookups that run before the tenant is known are
   `SECURITY DEFINER` functions limited by their argument (`memberships_of(user)`,
-  `gateway_by_credential(hash)` for the gateway socket). The
+  `gateway_by_credential(hash)` for the gateway socket, `claim_enrollment_token(hash)`
+  for enrollment, which also spends the token). The
   .NET API connects as the owner, so RLS doesn't apply to it.
 - **Auth** (`api/internal/auth`): the Firebase Admin SDK verifies ID tokens, one call
   for the emulator and production; the emulator only with `STREAMIQ_ENV=development`.
@@ -56,8 +58,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   user's own membership (`Auth/Households.cs`, the one cross-tenant membership lookup).
   A non-member gets `404` with header `X-StreamIQ-Not-Member` (same for a foreign or
   missing household).
-- The membership's role is the request's `Role` claim. Adding and removing gateways is
-  admin-only (`RequireRole`, a member gets `403`); members list and open them.
+- The membership's role is the request's `Role` claim. Adding and removing gateways (Go
+  API) is admin-only, a member gets `403`; members list and open them.
 - **Invites** (`Features/Invites/`): an admin makes a single-use 7-day link
   (`/join#<token>`, only the hash stored). Accepting adds the signed-in user as `member`;
   the token picks the household.

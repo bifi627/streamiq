@@ -16,13 +16,15 @@ $here = (git rev-parse --show-toplevel)
 Set-Location $main
 git fetch --prune -q
 if ($LASTEXITCODE -ne 0) { throw 'git fetch failed' }
+# Drops registrations whose folder is gone, else `git branch -D` refuses those branches.
+if (-not $DryRun) { git worktree prune }
 
-# branch -> worktree path
+# branch -> worktree path; a registered folder that no longer exists counts as no worktree
 $paths = @{}
 $wt = $null
 foreach ($line in git worktree list --porcelain) {
     if ($line -like 'worktree *') { $wt = $line.Substring(9) }
-    elseif ($line -like 'branch refs/heads/*') { $paths[$line.Substring(18)] = $wt }
+    elseif ($line -like 'branch refs/heads/*' -and (Test-Path $wt)) { $paths[$line.Substring(18)] = $wt }
 }
 
 $pruned = 0
@@ -61,5 +63,4 @@ foreach ($b in git for-each-ref --format='%(refname:short)' refs/heads/) {
     Write-Host "pruned  $b ($why)$(if ($path) { " + $path" })" -ForegroundColor Green
     $pruned++
 }
-git worktree prune
 if (-not $DryRun) { Write-Host "$pruned pruned." }

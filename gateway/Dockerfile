@@ -8,6 +8,7 @@ ARG TARGETOS TARGETARCH VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
+COPY protocol/ protocol/
 COPY gateway/ gateway/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o /gateway ./gateway/cmd/gateway \

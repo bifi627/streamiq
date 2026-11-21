@@ -41,7 +41,7 @@ export function HealthSharing({ g, manage }: { g: Gateway; manage: boolean }) {
   }
 
   return (
-    <p className="meta muted no-tv" data-telemetry>
+    <p className="meta muted no-tv">
       {label && <>Health sharing: {label}. </>}
       {control === 'switch' && (
         <button type="button" disabled={busy || waiting} onClick={toggle}>

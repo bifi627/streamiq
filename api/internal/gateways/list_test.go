@@ -100,7 +100,7 @@ func TestAHouseholdNeverSeesAnotherHouseholdsGateways(t *testing.T) {
 		if status, body := s.get(t, c.token, "", "/api/gateways"); status != http.StatusOK || names(t, body) != c.want {
 			t.Fatalf("%d %s, want %q", status, body, c.want)
 		}
-	}	// A member lists them too (Households.feature: "a member still lists them").
+	} // A member lists them too (Households.feature: "a member still lists them").
 	apitest.Join(t, s.userID(t, bob), home, "member")
 	if status, body := s.get(t, bob, home, "/api/gateways"); status != http.StatusOK || names(t, body) != "alice-nas" {
 		t.Fatal(status, body)

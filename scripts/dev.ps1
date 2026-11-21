@@ -55,8 +55,11 @@ while ($true) {
     try { Invoke-WebRequest -UseBasicParsing http://localhost:5029/healthz *> $null; break } catch { Start-Sleep 1 }
 }
 $env:DATABASE_URL = $conn
+# streamiq_app logs in to whatever database this is (a Railway dev instance is public):
+# a fresh random password per run, never one from the repo. The API sets it at start.
+$appPassword = [guid]::NewGuid().ToString('N')
 $api = Start-Process powershell -PassThru -ArgumentList '-NoExit', '-Command', (
-    "Set-Location '$root'; `$env:STREAMIQ_ENV='development'; `$env:STREAMIQ_APP_DB_PASSWORD='dev'; " +
+    "Set-Location '$root'; `$env:STREAMIQ_ENV='development'; `$env:STREAMIQ_APP_DB_PASSWORD='$appPassword'; " +
     "`$env:STREAMIQ_API_ADDR='localhost:5028'; `$env:STREAMIQ_LEGACY_API_URL='http://localhost:5029'; " +
     "`$env:FIREBASE_AUTH_EMULATOR_HOST='localhost:9099'; `$env:FIREBASE_PROJECT_ID='demo-streamiq'; go run ./api/cmd/api")
 

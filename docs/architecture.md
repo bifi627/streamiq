@@ -82,6 +82,11 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 ## Broker and signaling
 
+- Messages: Go types in `protocol/` (types only: no pion, no database), used by the gateway;
+  `scripts/gen-types.sh` (tygo, `scripts/tygo.yaml`) generates the web app's TypeScript from them
+  and from the ported REST slices into `frontend/src/generated/`, committed; `check.sh` and CI
+  fail when it is stale. The SDP and candidate are type parameters: pion's types in the
+  gateway, the browser's `RTCSessionDescriptionInit` / `RTCIceCandidateInit` in the generated TS.
 - Tenant-scoped broker at `/api/broker/ws`, routing sessions to gateways; session-bound
   connection auth.
 - The broker checks membership for the offered gateway's household, never one the

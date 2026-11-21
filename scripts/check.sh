@@ -41,7 +41,8 @@ npm run build --prefix frontend
 echo "== Go (gateway + API): release version + fmt + lint + build + test =="
 if command -v go >/dev/null 2>&1; then
   bash scripts/next-gateway-version.sh --test
-  (test -z "$(gofmt -l gateway api)" || { echo "gofmt needed:"; gofmt -l gateway api; exit 1; }
+  bash scripts/gen-types.sh --check  # frontend/src/generated matches the Go wire types
+  (test -z "$(gofmt -l gateway api protocol)" || { echo "gofmt needed:"; gofmt -l gateway api protocol; exit 1; }
    # -race needs cgo; Go reports CGO_ENABLED=0 with no C compiler (e.g. Windows without gcc)
    race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race
    # one command per line: under set -e a failure inside an && chain only counts in its last command

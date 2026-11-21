@@ -1,3 +1,5 @@
 dist
 node_modules
 package-lock.json
+# scripts/gen-types.sh writes it
+src/generated

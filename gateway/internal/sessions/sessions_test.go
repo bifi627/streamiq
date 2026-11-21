@@ -24,6 +24,7 @@ import (
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/testwait"
 	"streamiq/gateway/internal/tunnel"
+	"streamiq/protocol"
 )
 
 // A browser (played by a second Pion peer) is refused tunnel channels until it
@@ -741,14 +742,14 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
 	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
-	reps := make(chan Report, 4)
-	next := func() Report {
+	reps := make(chan protocol.Report, 4)
+	next := func() protocol.Report {
 		select {
 		case r := <-reps:
 			return r
 		case <-time.After(10 * time.Second):
 			t.Fatal("no tunnel report")
-			return Report{}
+			return protocol.Report{}
 		}
 	}
 	bye := func(id string) {
@@ -772,7 +773,7 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	}
 	gateway.Handle(nil, nil) // the control socket dropped
 	bye("s1")
-	gateway.Handle(nil, func(v any) { reps <- v.(Report) }) // a new one is up
+	gateway.Handle(nil, func(v any) { reps <- v.(protocol.Report) }) // a new one is up
 	r := next()
 	if r.Type != "tunnel" || r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
 		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 ||
@@ -851,8 +852,8 @@ func TestClassify(t *testing.T) {
 // without a failure (#520): only ICE failing before it came up is "ice failed" (#485).
 func TestBrowserCloseReportsNoFailure(t *testing.T) {
 	gateway, store := newGateway(t)
-	reps := make(chan Report, 4)
-	gateway.Handle(nil, func(v any) { reps <- v.(Report) })
+	reps := make(chan protocol.Report, 4)
+	gateway.Handle(nil, func(v any) { reps <- v.(protocol.Report) })
 	b, _ := unpaired(t, gateway, "s1")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
@@ -924,7 +925,7 @@ func TestSignalingIgnored(t *testing.T) {
 func TestBacklogCap(t *testing.T) {
 	var s Sessions
 	for range 1001 {
-		s.report(Report{Type: "tunnel"})
+		s.report(protocol.Report{Type: "tunnel"})
 	}
 	n := 0
 	s.Handle(nil, func(any) { n++ })

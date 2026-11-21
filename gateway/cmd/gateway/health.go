@@ -12,6 +12,7 @@ import (
 	"streamiq/gateway/internal/telemetry"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
+	"streamiq/protocol"
 )
 
 // box reads the gateway box's state: GET /streamiq/status live, the heartbeat's
@@ -26,19 +27,20 @@ type box struct {
 
 // beat is the heartbeat's telemetry level and the health it allows, read now:
 // a changed state/telemetry counts from the next heartbeat.
-func (b *box) beat(ctx context.Context) (string, any) {
+func (b *box) beat(ctx context.Context) (string, *protocol.Health) {
 	level := telemetry.Read(b.dir)
 	if level != telemetry.Full {
 		return level, nil
 	}
-	return level, b.health(ctx)
+	h := b.health(ctx)
+	return level, &h
 }
 
-func (b *box) health(ctx context.Context) telemetry.Health {
+func (b *box) health(ctx context.Context) protocol.Health {
 	v := b.setup.View()
 	l := b.load.Load(b.compose)
-	h := telemetry.Health{
-		Jellyfin: telemetry.Jellyfin{Reachable: v.Reachable, Version: v.Version},
+	h := protocol.Health{
+		Jellyfin: protocol.Jellyfin{Reachable: v.Reachable, Version: v.Version},
 		OS:       runtime.GOOS, Arch: runtime.GOARCH, Transcoding: v.Transcoding(),
 		Offline: jellyfin.Offline(b.compose), Tunnels: b.sess.Active(), CPU: l.CPU,
 	}

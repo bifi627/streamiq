@@ -1,8 +1,11 @@
 # StreamIQ signaling protocol
 
-This file is the contract: onboarding, broker, pairing, tunnel. Messages are
-hand-mirrored in Go (`gateway/internal/{onboarding,sessions,pairing,tunnel}`),
-C# (`Features/Broker`) and TS (`frontend/src/features/pairing`, `frontend/src/tunnel.ts`).
+This file is the contract: onboarding, broker, pairing, tunnel. The broker's messages on
+both sockets (`/api/gateways/ws`, `/api/broker/ws`) are Go types in `protocol/` (#727): the
+gateway uses them, the web app's TypeScript is generated from them (`bash scripts/gen-types.sh`
+→ `frontend/src/generated/`), the .NET broker (`Features/Broker`) mirrors them by hand. The
+rest is hand-mirrored in Go (`gateway/internal/{onboarding,pairing,tunnel}`) and TS
+(`frontend/src/features/pairing`, `frontend/src/tunnel.ts`).
 
 **Paths.** Every API endpoint is under `/api` (#120); the rest of the path space
 belongs to the SPA's client routes (prod serves `index.html` for them, unknown

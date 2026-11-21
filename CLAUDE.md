@@ -274,5 +274,6 @@ Copy `.env.example` only to override.
   (`frontend/lint/streamiq.js`) catches issue refs, banners, name-restating, the usual
   commented-out shapes and comments over 6 lines outside the file header; CSS, Go, C# and
   scripts: `scripts/check-comments.sh` against `scripts/comment-baseline.txt` (issue refs,
-  > 30 % comments). The rest needs reading.
+  > 30 % comments); Go commented-out code: golangci-lint gocritic `commentedOutCode`. The rest
+  needs reading.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

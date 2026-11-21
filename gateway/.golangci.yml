@@ -27,7 +27,7 @@ linters:
       disable-all: true
       enabled-checks: [commentedOutCode]
     govet:
-      # a local hiding an outer variable, e.g. a named return err (default, non-strict mode)
+      # a local hiding an outer variable that is used after it (default, non-strict mode)
       enable: [shadow]
     nolintlint:
       # every //nolint names its linter and says why (an issue or the reason it stays)

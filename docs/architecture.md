@@ -14,7 +14,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   both, as ASP.NET's policy did. Production still runs the .NET-only image (#732).
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
   `api/internal/{db,auth,apitest}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
-  `gateways`; `gateways` → `broker` is the one import between slices);
+  `gateways`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
+  only imports between slices);
   `front` is `/healthz`, CORS and the proxy. `pgx` with hand-written SQL, no ORM;
   columns keep EF's quoted PascalCase until #744.
 - **Migrations**: `api/migrations` runs each file once, in name order, each in its own

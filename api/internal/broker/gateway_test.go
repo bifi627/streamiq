@@ -11,8 +11,7 @@ func gatewayCols(t *testing.T, g *gw, cols string) string {
 	return apitest.Scalar[string](t, `SELECT concat_ws('|', `+cols+`) FROM gateways WHERE "Id" = $1`, g.id)
 }
 
-// A credential the way enrollment hands it out opens the socket (replaces the .NET
-// onboarding step that connected one after enrolling).
+// A credential the way enrollment hands it out opens the socket.
 func TestAnEnrolledGatewaysCredentialOpensItsSocket(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
@@ -26,7 +25,7 @@ func TestAHeartbeatUpdatesOnlyTheSendingGatewaysRow(t *testing.T) {
 	nas := s.online("alice@home.test", "nas")
 	pc := s.enrolled("alice@home.test", "pc")
 	s.heartbeat(nas, map[string]any{"lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.6.0",
-		"jellyfin": map[string]any{"reachable": true}, "pairedClients": 2}) // pre-#140 fields: ignored
+		"jellyfin": map[string]any{"reachable": true}, "pairedClients": 2}) // old status fields: ignored
 	if got := gatewayCols(
 		t,
 		nas,

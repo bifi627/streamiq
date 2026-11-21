@@ -13,7 +13,7 @@ public class CorsTests(IntegrationFixture fx)
     public async Task Preflight_allows_only_listed_origins(string origin, bool allowed)
     {
         using var client = fx.Factory.CreateClient();
-        using var preflight = new HttpRequestMessage(HttpMethod.Options, "/api/me");
+        using var preflight = new HttpRequestMessage(HttpMethod.Options, "/api/gateways");
         preflight.Headers.Add("Origin", origin);
         preflight.Headers.Add("Access-Control-Request-Method", "GET");
         preflight.Headers.Add("Access-Control-Request-Headers", "authorization");
@@ -29,7 +29,7 @@ public class CorsTests(IntegrationFixture fx)
     public async Task Not_member_header_is_exposed()
     {
         using var client = fx.Factory.CreateClient();
-        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/me");
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/gateways");
         req.Headers.Add("Origin", "http://localhost:5173");
 
         using var response = await client.SendAsync(req);

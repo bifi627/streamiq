@@ -25,7 +25,7 @@ public class ListGatewaysTests(IntegrationFixture fx)
 
         // Tenant A signs in and creates a household, then gets a gateway seeded into its tenant.
         using var clientA = await SignedInClient("a@x.test");
-        var tenantAId = (await OwnHousehold.MeAsync(clientA)).GetProperty("tenantId").GetGuid();
+        var tenantAId = (await OwnHousehold.MeAsync(fx, clientA)).GetProperty("tenantId").GetGuid();
         using (var scope = fx.Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<StreamIqDbContext>();
@@ -38,7 +38,7 @@ public class ListGatewaysTests(IntegrationFixture fx)
         Assert.Equal(1, aGateways.GetArrayLength());
 
         using var clientB = await SignedInClient("b@x.test");
-        await OwnHousehold.MeAsync(clientB);
+        await OwnHousehold.MeAsync(fx, clientB);
         var bGateways = await clientB.GetFromJsonAsync<JsonElement>("/api/gateways");
         Assert.Equal(0, bGateways.GetArrayLength());
     }

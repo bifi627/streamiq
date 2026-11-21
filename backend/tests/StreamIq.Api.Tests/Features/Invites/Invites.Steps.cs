@@ -218,13 +218,13 @@ public class InvitesSteps(IntegrationFixture fx)
     private async Task<(Guid, string?)[]> Memberships(string email)
     {
         using var client = await SignedIn(email);
-        return (await client.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("memberships").EnumerateArray()
+        return (await OwnHousehold.RawMeAsync(fx, client)).GetProperty("memberships").EnumerateArray()
             .Select(m => (m.GetProperty("id").GetGuid(), m.GetProperty("role").GetString())).ToArray();
     }
 
     private async Task<JsonElement> Me(string email)
     {
         using var client = await SignedIn(email);
-        return await OwnHousehold.MeAsync(client);
+        return await OwnHousehold.MeAsync(fx, client);
     }
 }

@@ -38,7 +38,7 @@ section for an area before changing it.
 
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
-"browser device"; its key = client key); **API** = the control plane (`backend/`,
+"browser device"; its key = client key); **API** = the control plane (`backend/`, being ported to `api/`,
 `STREAMIQ_API_URL`); **broker** = the API's signaling endpoint (`/api/broker/ws` +
 `/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home
 LAN (code: `localpage`); **web gateway page** = the web app's view of a gateway;
@@ -66,7 +66,8 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 
 | Dir | What | Stack |
 |---|---|---|
-| `backend/` | Control plane: API + WebRTC signaling (one web app) | .NET 10, EF Core, Postgres |
+| `backend/` | Control plane: API + WebRTC signaling (one web app); the slices not ported to `api/` yet | .NET 10, EF Core, Postgres |
+| `api/` | The Go port of `backend/` (#725): serves its slices, proxies the rest to `backend/` in dev + e2e (`docs/architecture.md`) | Go, pgx, Postgres RLS, Firebase Admin SDK |
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
 | `e2e/` | E2E specs on one stack, in parallel: `golden-path` (browser → broker → gateway → Jellyfin; its tunnels on Activity), `multi-user` (two users over the tunnel), `gateways` (the gateways page spec: rename, status, status dot, paired clients, member view, local-page Reject, a refused broker socket), `households` (the household page + no-household screen: members, roles, invites, join, switcher, an admin's household Activity; no gateway), `library` (home redirect, nav Library link, shared session, folder deep link + cache, Recently added, Continue watching, season tabs, watched marks), `player` (privacy badge, profile line, deep link + Back key, ±10 s / play-pause, quality, compatible mode, Auto on a slow link, data saver, audio, auto audio, subtitles, next episode), `screen` (Use as screen entry, Play on…, the phone remote's commands, two phones, closing; tag `@player`), `diagnostics` (the dock on the library: bar, request table + log, stays open; the /diagnostics report: probe, Test connection direct + forced relay with its `tunnels` row, Copy report, a never-paired browser), `shell` (sign-in, nav, not-found, PWA, Settings; TV mode: the first visit on a TV (webOS on, the Android TV question), the handoff page (QR code, Back), the Settings + nav TV subsets; no gateway), `chrome87` (the production build signs in on a pinned Chromium 87, the webOS engine; tag `@shell`), `compat` (the last released gateway, via `gh release download`, against this commit's API: online → smoke, `upgradeRequired` → "Update required", neither → fail). `test` comes from `fixtures.ts` (Jellyfin per worker: in CI started by global setup, locally only when a spec needs it; fixture media encoded once into `e2e/.bin/media-<hash>`; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`; the area tags are `allowedTags` in `e2e/.oxlintrc.json` | Playwright + testcontainers-node |
@@ -81,6 +82,10 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 - API tests mirror it: `tests/…/Features/<Slice>/` holds that slice's Reqnroll
   `.feature` + steps and xUnit tests together; `Infrastructure/` = fixture/factory/
   token minter; `Data/` = shared-kernel tests.
+- Go API: package per slice in `api/internal/<slice>/` (one file per use case, request/
+  response types inline, colocated `_test.go` on `apitest`), shared kernel `db` (pool +
+  `InTenant`, the one place the tenant is set), `auth`, `apitest`; `api/cmd/api/main.go`
+  wiring only; schema = numbered SQL in `api/migrations/`. Slices don't import each other.
 - Gateway: package per feature in `gateway/internal/<slice>/` with colocated `_test.go`;
   `cmd/gateway/main.go` is wiring only. Slices don't import each other except shared
   primitives (`identity`, `tunnel`, `pairing`).
@@ -102,7 +107,8 @@ docker compose up -d                    # deps: postgres, jellyfin, firebase aut
 docker compose --profile relay up -d    # + local coturn (force relay via iceTransportPolicy)
 bash scripts/gen-test-media.sh          # generate dev-media/ (movies) + dev-shows/ (a series) fixtures (needs ffmpeg)
 
-dotnet run --project backend/src/StreamIq.Api     # backend (or: dotnet watch)
+dotnet run --project backend/src/StreamIq.Api     # .NET API on :5029 (or: dotnet watch); dev.ps1 runs the Go API in front
+bash scripts/test-api.sh [-race]                  # Go API tests: one Postgres + Firebase emulator for the run (Docker)
 dotnet test backend/StreamIq.slnx                 # backend tests (Testcontainers → needs Docker)
 npm run dev --prefix frontend                 # frontend
 npm run build --prefix frontend               # frontend build check

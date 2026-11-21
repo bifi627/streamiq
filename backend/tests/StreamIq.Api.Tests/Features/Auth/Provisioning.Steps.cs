@@ -16,7 +16,7 @@ public class ProvisioningSteps(IntegrationFixture fx)
         var token = await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123");
         using var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        (await client.GetAsync("/api/me")).EnsureSuccessStatusCode();
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, (await client.GetAsync("/api/gateways")).StatusCode); // signed in, no household
     }
 
     [When("\"(.*)\" creates a household")]

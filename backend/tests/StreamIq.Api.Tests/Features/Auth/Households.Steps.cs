@@ -202,6 +202,6 @@ public class HouseholdsSteps(IntegrationFixture fx)
     private async Task<JsonElement> Me(string email)
     {
         using var client = await SignedIn(email);
-        return await OwnHousehold.MeAsync(client);
+        return await OwnHousehold.MeAsync(fx, client);
     }
 }

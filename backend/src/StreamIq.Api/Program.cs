@@ -11,7 +11,6 @@ using StreamIq.Api.Features.Broker;
 using StreamIq.Api.Features.Gateways;
 using StreamIq.Api.Features.Household;
 using StreamIq.Api.Features.Invites;
-using StreamIq.Api.Features.Me;
 using StreamIq.Api.Features.Members;
 using StreamIq.Api.Features.Onboarding;
 using StreamIq.Api.Features.Tunnels;
@@ -157,7 +156,6 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 // Everything but /healthz sits under /api, so SPA client routes own the rest of the path space.
 var api = app.MapGroup("/api");
-GetMe.Map(api);
 ListGateways.Map(api);
 RevokeGateway.Map(api);
 GetGatewayHealth.Map(api);

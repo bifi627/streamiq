@@ -224,9 +224,10 @@ public partial class MembersSteps(IntegrationFixture fx)
     // unless raw (checks that a user has none).
     private async Task<JsonElement> Me(string email, Guid? household, bool raw = false)
     {
-        using var res = await Send(email, HttpMethod.Get, "/api/me", household);
-        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-        var me = await res.Content.ReadFromJsonAsync<JsonElement>();
+        using var client = fx.Factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            await TokenMinter.MintIdTokenAsync(fx.EmulatorHost, email, "password123"));
+        var me = await OwnHousehold.RawMeAsync(fx, client, household);
         if (raw || household is not null || me.GetProperty("memberships").GetArrayLength() > 0)
         {
             return me;

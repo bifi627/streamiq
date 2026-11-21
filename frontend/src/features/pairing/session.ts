@@ -2,6 +2,7 @@
 // report on close, and the Session handle connect() resolves with.
 import { authed } from '../../api'
 import { measure, type Speed } from '../../speed'
+import { event } from '../../diag'
 
 export type Session = {
   pc: RTCPeerConnection
@@ -40,7 +41,7 @@ export function lifetime(
       method: 'PATCH',
       body: JSON.stringify({ throughputKbps }),
     })
-      .catch(() => {})
+      .catch((e) => event(`tunnel: throughput report failed: ${e}`))
       .finally(teardown)
   }
   return {

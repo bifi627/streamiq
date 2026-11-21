@@ -7,6 +7,7 @@ import { switchHousehold } from './household'
 import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { arrowFocus } from '../../focus'
+import { event } from '../../diag'
 
 type Invite = { id: string; createdAt: string; expiresAt: string }
 type Preview = { householdId: string; name: string | null; member: boolean }
@@ -70,7 +71,7 @@ export function Invites() {
   const share = (url: string) =>
     navigator
       .share({ title: 'Join my StreamIQ household', url })
-      .catch(() => {}) // closed the share sheet
+      .catch((e) => event(`invite: share closed: ${e}`))
 
   return (
     <section className="card">

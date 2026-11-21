@@ -11,6 +11,7 @@ import { pairInfo } from '../../stats'
 import { arrowFocus } from '../../focus'
 import { tvOn } from '../../settings'
 import { routeLine, showPair as pairShown, type State } from './pairState'
+import { event } from '../../diag'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
 // and tunnel one request through it ("Test connection": a cheap diagnostic).
@@ -219,7 +220,8 @@ function NamePrompt({
         const me = l.find((c) => c.self)
         if (me?.name === browserName()) setDraft(me.name)
       },
-      () => {}, // no prompt; Rename on the Paired clients list still works
+      // no prompt; Rename on the Paired clients list still works
+      (e) => event(`pairing: own client name failed: ${e}`),
     )
   }, [gatewayId])
   const done = () => {

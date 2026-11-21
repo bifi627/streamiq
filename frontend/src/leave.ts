@@ -1,5 +1,6 @@
 // Leaving the account or household: the artwork caches go
 // (features/library/art.ts keeps them), then the page reloads.
+import { event } from './diag'
 export const ART_PREFIX = 'streamiq-art-'
 
 let clearing = false
@@ -17,6 +18,6 @@ export function clearArtThen(go: () => void) {
   })()
   // ponytail: a hung clear leaves the caches to the next sign-out; the reload wins.
   Promise.race([clear, new Promise((r) => setTimeout(r, 1000))])
-    .catch(() => {})
+    .catch((e) => event(`sign-out: cache clear failed: ${e}`))
     .finally(go)
 }

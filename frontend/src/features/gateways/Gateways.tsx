@@ -25,6 +25,7 @@ import { HealthSharing } from './HealthSharing'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
 import { canManage, shownError, type ActErr } from './list'
+import { event } from '../../diag'
 
 // `/`: straight into the library when the household has exactly one
 // gateway, else the list. History replace both ways, so Back doesn't bounce.
@@ -214,7 +215,9 @@ function GatewayCard({
   // This browser removed itself from it: Pair shows again.
   const [unpaired, setUnpaired] = useState(false)
   async function removedSelf() {
-    await deletePin(g.id).catch(() => {}) // a stale pin would only fail later
+    await deletePin(g.id).catch((e) =>
+      event(`pairing: pin delete failed: ${e}`),
+    ) // a stale pin would only fail later
     dropShared(g.id) // the gateway closed it anyway
     setPinned(false)
     setUnpaired(true)

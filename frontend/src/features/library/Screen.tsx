@@ -160,7 +160,7 @@ export function ScreenPage() {
         const me = l.find((c) => c.self)
         if (me) setName(me.name)
       },
-      () => {},
+      (e) => event(`screen: own client name failed: ${e}`),
     )
   }, [pc])
   return (

@@ -3,7 +3,7 @@
 // comparison code. docs/protocol.md, "Broker" + "Pairing".
 import { auth } from '../../firebase'
 import { API } from '../../api'
-import { diag, pcState, relayOn, relayTlsOn } from '../../diag'
+import { diag, event, pcState, relayOn, relayTlsOn } from '../../diag'
 import {
   answerCheck,
   authMessage,
@@ -180,7 +180,9 @@ export async function connect(
           return onCode?.(await comparisonCode(gatewayFp, key.fp, m.n!, nB))
         case 'approved':
           await setPin(gatewayId, gatewayFp)
-          void persistStorage().catch(() => {}) // best effort, logged to diag
+          void persistStorage().catch((e) =>
+            event(`storage: persist failed: ${e}`),
+          )
           shared.drop(gatewayId) // its session belongs to the old certificate
           ch.onclose = null
           return resolve(up())

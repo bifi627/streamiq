@@ -15,7 +15,9 @@ export function serial<T>(
     busy = q.length > 0
     if (busy)
       run(q.shift()!)
-        .catch(() => {})
+        .catch(() => {
+          // reported on the caller's path: the tunnel request log or its own handler
+        })
         .finally(next)
   }
   return (x: T) => {

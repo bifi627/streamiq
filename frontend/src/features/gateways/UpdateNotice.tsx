@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { getStatus, updateGateway, type Gateway } from './api'
 import { toAppError } from '../../errors'
 import { startOutcome, updated, updateState, type Started } from './update'
+import { event } from '../../diag'
 
 // How long the card waits for the gateway to come back on the new version
 // before it says the update didn't finish.
@@ -35,7 +36,7 @@ export function UpdateNotice({
     let on = true
     getStatus(g.id)
       .then((s) => on && setRemote(s.remoteUpdate ?? null))
-      .catch(() => {}) // the notice by hand stays
+      .catch((e) => event(`update: status failed: ${e}`)) // the notice by hand stays
     return () => {
       on = false
     }

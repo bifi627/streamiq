@@ -44,6 +44,7 @@ import {
 import { SignIn } from './features/signin/SignIn'
 import { Settings } from './features/settings/Settings'
 import { Activity } from './features/activity/Activity'
+import { event } from './diag'
 
 // Root layout; only mounted while signed in (App gates the whole router). Loads
 // /me once per page load and hands it to every view (HouseholdContext).
@@ -315,7 +316,7 @@ export default function App() {
       was = u
       // A Google sign-up clears its Google name first.
       void signingIn
-        .catch(() => {})
+        .catch((e) => event(`sign-in: Google name clear failed: ${e}`))
         .then(() => {
           setUser(u)
           setReady(true)

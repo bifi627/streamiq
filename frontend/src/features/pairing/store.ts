@@ -62,10 +62,7 @@ export function usePin(gatewayId: string) {
     gcTime: 0,
     staleTime: Infinity, // no refetch on focus: it would undo what the setter set
   })
-  return [
-    data ?? null,
-    (v: boolean) => qc.setQueryData(key, v),
-  ] as const
+  return [data ?? null, (v: boolean) => qc.setQueryData(key, v)] as const
 }
 
 export const setPin = (gatewayId: string, gatewayFp: string) =>

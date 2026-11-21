@@ -31,6 +31,11 @@ const heartbeatEvery = 30 * time.Second
 // the gateway offline until restarted. A var so tests can shorten it.
 var dialTimeout = 20 * time.Second
 
+// dialContext is the handshake's context; a var so tests can see it end.
+var dialContext = func(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, dialTimeout)
+}
+
 // Protocol is the gateway ↔ API protocol version (docs/protocol.md). Bump it on a
 // breaking change; the API refuses a gateway below its minimum ("upgrade required").
 const Protocol = 2
@@ -166,7 +171,7 @@ func RunControl(ctx context.Context, api string, st *State, lanURL, version stri
 	update func() string, health func() (level string, health any), handle func(raw []byte, send func(any))) error {
 	// Dial's context bounds only the handshake: cancelling it once Dial returned
 	// leaves the socket open (coder/websocket does the same for HTTPClient.Timeout).
-	dialCtx, cancelDial := context.WithTimeout(ctx, dialTimeout)
+	dialCtx, cancelDial := dialContext(ctx)
 	conn, res, err := websocket.Dial(dialCtx, api+"/api/gateways/ws", &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + st.Credential}},
 	})

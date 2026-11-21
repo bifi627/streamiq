@@ -89,6 +89,9 @@ func TestRunControlRevokedCredential(t *testing.T) {
 func TestRunControlDialTimeout(t *testing.T) {
 	defer func(d time.Duration) { dialTimeout = d }(dialTimeout)
 	dialTimeout = 100 * time.Millisecond
+	orig := dialContext
+	defer func() { dialContext = orig }()
+	dialEnded := make(chan struct{})
 	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "Bearer hang" {
@@ -99,8 +102,8 @@ func TestRunControlDialTimeout(t *testing.T) {
 		if err != nil {
 			return
 		}
-		_, _, _ = c.Read(r.Context())       // the first heartbeat
-		time.Sleep(1500 * time.Millisecond) // past the second dial's 1 s timeout
+		_, _, _ = c.Read(r.Context()) // the first heartbeat
+		<-dialEnded
 		_ = c.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
 		c.Close(websocket.StatusNormalClosure, "")
 	}))
@@ -121,6 +124,11 @@ func TestRunControlDialTimeout(t *testing.T) {
 	}
 
 	dialTimeout = time.Second // room for a loaded machine; the socket must outlive it
+	dialContext = func(ctx context.Context) (context.Context, context.CancelFunc) {
+		ctx, cancel := orig(ctx)
+		context.AfterFunc(ctx, func() { close(dialEnded) })
+		return ctx, cancel
+	}
 	got := make(chan []byte, 1)
 	err := RunControl(
 		context.Background(),

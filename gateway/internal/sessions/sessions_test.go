@@ -22,6 +22,7 @@ import (
 
 	"streamiq/gateway/internal/identity"
 	"streamiq/gateway/internal/pairing"
+	"streamiq/gateway/internal/testwait"
 	"streamiq/gateway/internal/tunnel"
 )
 
@@ -70,9 +71,7 @@ func TestPairThenTunnel(t *testing.T) {
 	h := sha256.Sum256([]byte(nB))
 	nA := b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": "test phone"})["n"].(string)
 	b.send(map[string]any{"type": "reveal", "n": nB})
-	for len(store.Pending()) == 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitPending(t, store)
 	p := store.Pending()[0]
 	if want := pairing.Code(fp, identity.Fingerprint(spki(key)), nA, nB); p.Code != want || p.Name != "test phone" {
 		t.Fatalf("pending = %+v, want code %s", p, want)
@@ -152,9 +151,7 @@ func TestRemoveClosesOpenSessions(t *testing.T) {
 		h := sha256.Sum256([]byte(nB))
 		b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": id})
 		b.send(map[string]any{"type": "reveal", "n": nB})
-		for len(store.Pending()) == 0 {
-			time.Sleep(10 * time.Millisecond)
-		}
+		waitPending(t, store)
 		if err := store.Decide(store.Pending()[0].ID, true); err != nil {
 			t.Fatal(err)
 		}
@@ -239,7 +236,7 @@ func (b *browser) commit() (map[string]any, string) {
 // them back): nothing is holding one.
 func slotsFree(t *testing.T, store *pairing.Store) {
 	t.Helper()
-	for start := time.Now(); ; time.Sleep(10 * time.Millisecond) {
+	testwait.Until(t, 10*time.Second, func() bool {
 		got := 0
 		for got < pairing.MaxPending && store.Reserve() == nil {
 			got++
@@ -247,13 +244,19 @@ func slotsFree(t *testing.T, store *pairing.Store) {
 		for range got {
 			store.Release()
 		}
-		if got == pairing.MaxPending {
-			return
-		}
-		if time.Since(start) > 10*time.Second {
-			t.Fatalf("only %d of %d pairing slots free", got, pairing.MaxPending)
-		}
-	}
+		return got == pairing.MaxPending
+	}, "not all %d pairing slots free", pairing.MaxPending)
+}
+
+// waitPending waits until a pairing request is on the local page.
+func waitPending(t *testing.T, store *pairing.Store) {
+	t.Helper()
+	testwait.Until(
+		t,
+		10*time.Second,
+		func() bool { return len(store.Pending()) > 0 },
+		"no pairing request on the local page",
+	)
 }
 
 // The handshake runs once per connection: a second `auth` channel on an
@@ -264,9 +267,7 @@ func TestSecondAuthChannelRefused(t *testing.T) {
 	b, key := unpaired(t, gateway, "s1")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
-	for len(store.Pending()) == 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitPending(t, store)
 	if err := store.Decide(store.Pending()[0].ID, true); err != nil {
 		t.Fatal(err)
 	}
@@ -379,9 +380,7 @@ func TestPairingSlotReservedAtCommit(t *testing.T) {
 	b, _ := unpaired(t, gateway, "denied")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
-	for len(store.Pending()) == 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitPending(t, store)
 	if err := store.Decide(store.Pending()[0].ID, false); err != nil {
 		t.Fatal(err)
 	}
@@ -394,9 +393,7 @@ func TestPairingSlotReservedAtCommit(t *testing.T) {
 	b, _ = unpaired(t, gateway, "gone")
 	_, nB = b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
-	for len(store.Pending()) == 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitPending(t, store)
 	b.pc.Close()
 	slotsFree(t, store)
 	if n := len(store.Pending()); n != 0 {
@@ -588,9 +585,7 @@ func TestScreenOverTunnel(t *testing.T) {
 		h := sha256.Sum256([]byte(nB))
 		b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": name})
 		b.send(map[string]any{"type": "reveal", "n": nB})
-		for len(store.Pending()) == 0 {
-			time.Sleep(10 * time.Millisecond)
-		}
+		waitPending(t, store)
 		if err := store.Decide(store.Pending()[0].ID, true); err != nil {
 			t.Fatal(err)
 		}
@@ -632,12 +627,9 @@ func TestScreenOverTunnel(t *testing.T) {
 	}
 
 	tv.pc.Close()
-	for start := time.Now(); phone.body(`{"method":"GET","url":"/streamiq/screens"}`) != "[]"; {
-		if time.Since(start) > 30*time.Second {
-			t.Fatal("screen outlived the TV's session")
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
+	testwait.Until(t, 30*time.Second, func() bool {
+		return phone.body(`{"method":"GET","url":"/streamiq/screens"}`) == "[]"
+	}, "screen outlived the TV's session")
 }
 
 // open sends one tunnel request and returns its frames as they arrive (head
@@ -700,9 +692,7 @@ func TestTunnelChannelCap(t *testing.T) {
 	b, _ := unpaired(t, gateway, "s1")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
-	for len(store.Pending()) == 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitPending(t, store)
 	if err := store.Decide(store.Pending()[0].ID, true); err != nil {
 		t.Fatal(err)
 	}
@@ -714,11 +704,8 @@ func TestTunnelChannelCap(t *testing.T) {
 	for range tunnel.MaxChannels {
 		go func() { held <- b.fetch() }()
 	}
-	for start := time.Now(); inFlight.Load() < tunnel.MaxChannels; time.Sleep(10 * time.Millisecond) {
-		if time.Since(start) > 10*time.Second {
-			t.Fatalf("only %d of %d channels served", inFlight.Load(), tunnel.MaxChannels)
-		}
-	}
+	testwait.Until(t, 10*time.Second, func() bool { return inFlight.Load() >= tunnel.MaxChannels },
+		"not all %d channels served", tunnel.MaxChannels)
 	if got := b.fetch(); got != "" || inFlight.Load() != tunnel.MaxChannels {
 		t.Fatalf("channel over the cap: body %q, %d requests reached Jellyfin", got, inFlight.Load())
 	}
@@ -729,11 +716,8 @@ func TestTunnelChannelCap(t *testing.T) {
 			t.Fatalf("held request = %q", got)
 		}
 	}
-	for start := time.Now(); b.fetch() != "jellyfin"; time.Sleep(10 * time.Millisecond) { // slots free as the closes arrive
-		if time.Since(start) > 10*time.Second {
-			t.Fatal("cap did not free up after the served channels ended")
-		}
-	}
+	testwait.Until(t, 10*time.Second, func() bool { return b.fetch() == "jellyfin" }, // slots free as the closes arrive
+		"cap did not free up after the served channels ended")
 }
 
 // The gateway reports each tunnel once when it ends (#390), read before the
@@ -779,9 +763,7 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	h := sha256.Sum256([]byte(nB))
 	b.say(map[string]any{"type": "commit", "h": hex.EncodeToString(h[:]), "name": "phone"})
 	b.send(map[string]any{"type": "reveal", "n": nB})
-	for len(store.Pending()) == 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitPending(t, store)
 	if err := store.Decide(store.Pending()[0].ID, true); err != nil {
 		t.Fatal(err)
 	}
@@ -874,9 +856,7 @@ func TestBrowserCloseReportsNoFailure(t *testing.T) {
 	b, _ := unpaired(t, gateway, "s1")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
-	for len(store.Pending()) == 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+	waitPending(t, store)
 	if err := store.Decide(store.Pending()[0].ID, true); err != nil {
 		t.Fatal(err)
 	}

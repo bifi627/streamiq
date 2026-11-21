@@ -141,11 +141,12 @@ func roundTrip(t *testing.T, compose []byte) {
 	}
 
 	// 1. The gateway completes the setup wizard.
-	for deadline := time.Now().Add(3 * time.Minute); !s.View().HasKey; time.Sleep(2 * time.Second) {
+	for deadline := time.Now().Add(3 * time.Minute); !s.View().HasKey; {
 		if time.Now().After(deadline) || ctx.Err() != nil {
 			t.Fatalf("the gateway did not set Jellyfin up: %+v", s.View())
 		}
 		s.poll(ctx)
+		time.Sleep(2 * time.Second) //nolint:forbidigo // a real Jellyfin container, polled every 2 s
 	}
 	if !s.View().Managed {
 		t.Fatalf("not managed: %+v", s.View())
@@ -194,7 +195,7 @@ func roundTrip(t *testing.T, compose []byte) {
 	}
 	t.Log(strings.TrimSpace(out.String()))
 	// Up again: a sign-in, not /System/Info/Public, which a starting Jellyfin answers before it restarts its listener.
-	for deadline := time.Now().Add(3 * time.Minute); ; time.Sleep(2 * time.Second) {
+	for deadline := time.Now().Add(3 * time.Minute); ; {
 		s.mu.Lock()
 		pw := s.creds.Password
 		s.mu.Unlock()
@@ -206,6 +207,7 @@ func roundTrip(t *testing.T, compose []byte) {
 		if unauthorized(err) || time.Now().After(deadline) || ctx.Err() != nil {
 			t.Fatalf("Jellyfin after the upgrade: %v", err)
 		}
+		time.Sleep(2 * time.Second) //nolint:forbidigo // a real Jellyfin container, polled every 2 s
 	}
 
 	// 4. The restore.

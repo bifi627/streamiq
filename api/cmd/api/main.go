@@ -16,7 +16,9 @@ import (
 	"streamiq/api/internal/db"
 	"streamiq/api/internal/front"
 	"streamiq/api/internal/gateways"
+	"streamiq/api/internal/iplimit"
 	"streamiq/api/internal/me"
+	"streamiq/api/internal/onboarding"
 	"streamiq/api/internal/turn"
 )
 
@@ -48,10 +50,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("STREAMIQ_SIGNALING_PER_MINUTE: %v", err)
 	}
-	b := broker.New(d, a, turn.FromEnv(), perMinute)
-	b.IPHeader = os.Getenv("STREAMIQ_CLIENT_IP_HEADER")
+	// One per-IP budget for the broker sockets, enrollment and enrollment tokens.
+	ips := iplimit.New(perMinute, os.Getenv("STREAMIQ_CLIENT_IP_HEADER"))
+	b := broker.New(d, a, turn.FromEnv(), ips)
 	b.Routes(mux)
 	gateways.Routes(mux, a, d, b)
+	onboarding.Routes(mux, a, d, ips, onboarding.Install{
+		PublicURL: os.Getenv("STREAMIQ_PUBLIC_URL"),
+		Dev:       os.Getenv("STREAMIQ_ENV") == "development",
+	})
 	srv := &http.Server{
 		Addr:              env("STREAMIQ_API_ADDR", ":"+env("PORT", "5028")), // PORT: what container hosts inject
 		Handler:           front.Handler(mux, strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ","), legacy),

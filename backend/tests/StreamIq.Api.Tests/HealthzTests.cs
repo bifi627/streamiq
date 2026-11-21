@@ -22,7 +22,7 @@ public class HealthzTests(IntegrationFixture fx)
 
     [Theory]
     [InlineData("/healthz")]
-    [InlineData("/api/gateways")]        // 401
+    [InlineData("/api/members")]        // 401
     [InlineData("/some/client/route")]
     public async Task Every_response_carries_the_security_headers(string path)
     {

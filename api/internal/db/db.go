@@ -62,7 +62,7 @@ func setAppPassword(ctx context.Context, ownerURL, password string) error {
 func (d *DB) Close() { d.pool.Close() }
 
 // InTenant runs fn in a transaction that sees tenant's rows only: the one place the
-// tenant is set. set_config's third argument makes it transaction-local, so it never
+// tenant is set (and InClaimedTenant). set_config's third argument makes it transaction-local, so it never
 // outlives the transaction on its pooled connection.
 func (d *DB) InTenant(ctx context.Context, tenant string, fn func(pgx.Tx) error) error {
 	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
@@ -70,6 +70,34 @@ func (d *DB) InTenant(ctx context.Context, tenant string, fn func(pgx.Tx) error)
 			return err
 		}
 		return fn(tx)
+	})
+}
+
+// Claim is a SECURITY DEFINER call that spends a row and returns its tenant, or no row.
+// Only this package defines one, so every place a tenant is set can be read here.
+type Claim struct{ sql string }
+
+// EnrollmentToken spends an unused, unexpired enrollment token by its hash
+// (api/migrations/0004_claim_enrollment_token.sql).
+var EnrollmentToken = Claim{`SELECT t::text FROM claim_enrollment_token($1) t WHERE t IS NOT NULL`}
+
+// InClaimedTenant is InTenant for a request whose tenant claim finds: no row is
+// pgx.ErrNoRows and fn doesn't run. The claim is rolled back with fn's error.
+func (d *DB) InClaimedTenant(
+	ctx context.Context,
+	claim Claim,
+	arg any,
+	fn func(tx pgx.Tx, tenant string) error,
+) error {
+	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
+		var tenant string
+		if err := tx.QueryRow(ctx, claim.sql, arg).Scan(&tenant); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true)`, tenant); err != nil {
+			return err
+		}
+		return fn(tx, tenant)
 	})
 }
 

@@ -10,6 +10,7 @@ import (
 	"streamiq/api/internal/auth"
 	"streamiq/api/internal/broker"
 	"streamiq/api/internal/gateways"
+	"streamiq/api/internal/iplimit"
 	"streamiq/api/internal/turn"
 )
 
@@ -24,7 +25,7 @@ func TestOnlyAnAdminRemovesAGatewayOfTheHouseholdTheRequestActsIn(t *testing.T) 
 	}
 	a := auth.New(v, apitest.DB)
 	mux := http.NewServeMux()
-	gateways.Routes(mux, a, apitest.DB, broker.New(apitest.DB, a, &turn.Issuer{}, 10))
+	gateways.Routes(mux, a, apitest.DB, broker.New(apitest.DB, a, &turn.Issuer{}, iplimit.New(10, "")))
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 

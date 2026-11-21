@@ -36,7 +36,7 @@ func (b *Broker) gateway(w http.ResponseWriter, r *http.Request) {
 	var me link
 	err := pgx.ErrNoRows
 	if strings.EqualFold(scheme, "Bearer") && credential != "" {
-		// The credential establishes the tenant: a SECURITY DEFINER lookup, the only one.
+		// The credential establishes the tenant: a SECURITY DEFINER lookup.
 		err = b.DB.NoTenant().QueryRow(r.Context(), `SELECT id, tenant_id FROM gateway_by_credential($1)`,
 			Hash(credential)).Scan(&me.gateID, &me.tenant)
 	}

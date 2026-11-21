@@ -9,12 +9,13 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 - Being ported slice by slice from the .NET API (`backend/`). In dev (`scripts/dev.ps1`)
   and the e2e stack the Go API is the one API URL: it serves its slices (today `/healthz`,
-  `GET /api/me`, the broker's two sockets and `DELETE /api/gateways/{id}`) and proxies every other request, WebSocket upgrades included, to
+  `GET /api/me`, the broker's two sockets, `GET /api/gateways`, `GET /api/gateways/{id}/health`,
+  `DELETE /api/gateways/{id}`, `POST /api/gateways/enrollment-tokens` and `POST /api/gateways/enroll`) and proxies every other request, WebSocket upgrades included, to
   the .NET API (`STREAMIQ_LEGACY_API_URL`) on the same database. It answers CORS for
   both, as ASP.NET's policy did. Production still runs the .NET-only image (#732).
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
-  `api/internal/{db,auth,apitest}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
-  `gateways`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
+  `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
+  `gateways`, `onboarding`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
   only imports between slices);
   `front` is `/healthz`, CORS and the proxy. `pgx` with hand-written SQL, no ORM;
   columns keep EF's quoted PascalCase until #744.
@@ -28,9 +29,11 @@ is not a status log: open work lives in `gh issue list`, history in git.
   the role `streamiq_app`, which owns no table; `app_tenant()` reads `app.tenant_id`,
   NULL when unset, so no tenant = no rows. The API connects as `streamiq_app` (its
   password `STREAMIQ_APP_DB_PASSWORD`, set at start by the owner) and sets the tenant
-  per transaction only, in `db.InTenant`. Lookups that run before the tenant is known are
+  per transaction only, in `db.InTenant` (or `db.InClaimedTenant`, whose tenant comes from a
+  claim in the same transaction). Lookups that run before the tenant is known are
   `SECURITY DEFINER` functions limited by their argument (`memberships_of(user)`,
-  `gateway_by_credential(hash)` for the gateway socket). The
+  `gateway_by_credential(hash)` for the gateway socket, `claim_enrollment_token(hash)`
+  for enrollment, which also spends the token). The
   .NET API connects as the owner, so RLS doesn't apply to it.
 - **Auth** (`api/internal/auth`): the Firebase Admin SDK verifies ID tokens, one call
   for the emulator and production; the emulator only with `STREAMIQ_ENV=development`.
@@ -55,8 +58,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   user's own membership (`Auth/Households.cs`, the one cross-tenant membership lookup).
   A non-member gets `404` with header `X-StreamIQ-Not-Member` (same for a foreign or
   missing household).
-- The membership's role is the request's `Role` claim. Adding and removing gateways is
-  admin-only (`RequireRole`, a member gets `403`); members list and open them.
+- The membership's role is the request's `Role` claim. Adding and removing gateways (Go
+  API) is admin-only, a member gets `403`; members list and open them.
 - **Invites** (`Features/Invites/`): an admin makes a single-use 7-day link
   (`/join#<token>`, only the hash stored). Accepting adds the signed-in user as `member`;
   the token picks the household.
@@ -71,7 +74,9 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 ## Gateway onboarding and pairing
 
-- Enrollment token → `/api/gateways/enroll` → gateway credential; authenticated
+- Enrollment token → `/api/gateways/enroll` → gateway credential (`api/internal/onboarding`;
+  the token is claimed before its household is known by the `SECURITY DEFINER` function
+  `claim_enrollment_token`, in one transaction with the new gateway row); authenticated
   `/api/gateways/ws` heartbeat carries the gateway version (shown in the Gateways list).
   A dropped socket reconnects forever with backoff (1 s doubling to 30 s, reset after a
   healthy 30 s); each handshake times out after 20 s, so an unanswered upgrade retries.
@@ -98,9 +103,10 @@ is not a status log: open work lives in `gh issue list`, history in git.
 - The broker checks membership for the offered gateway's household, never one the
   browser names, and puts the user's `role` in the gateway's offer: gateway API routes registered
   `tunnel.AdminOnly` answer a member `403`.
-- Rate limits: new sockets per client IP and minute (`STREAMIQ_SIGNALING_PER_MINUTE`,
-  `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`; the .NET API limits its enroll,
-  invite and household calls with the same settings, a budget of its own), per-socket
+- Rate limits: new sockets per client IP and minute, one budget with enrollment and
+  enrollment tokens (`api/internal/iplimit`; `STREAMIQ_SIGNALING_PER_MINUTE`,
+  `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`; the .NET API limits its invite and
+  household calls with the same settings, a budget of its own), per-socket
   message buckets (`golang.org/x/time/rate`), 10 s auth deadline.
 - TURN (`api/internal/turn`): credentials minted per broker session in `ready` and revoked at its end; no
   standalone TURN endpoint. Cloudflare in prod; coturn in dev via TURN REST
@@ -130,7 +136,7 @@ current state. `gateways.telemetry` holds the level. Rows are kept (also after `
 The web gateway card shows the level; an admin switches it over the tunnel
 (`POST /streamiq/telemetry`). Rows carry the gateway's version too (#424).
 "Health, last 7 days" on the card (`HealthHistory.tsx`) reads `GET /api/gateways/{id}/health`
-(`Features/Gateways/GetGatewayHealth.cs`, raw rows) when opened, from the API, so offline and
+(`api/internal/gateways/health.go`, raw rows) when opened, from the API, so offline and
 unpaired too; `health.ts` derives incidents (Jellyfin down, gaps over 10 min), version changes
 and daily peaks per local day.
 

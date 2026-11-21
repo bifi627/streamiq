@@ -29,7 +29,7 @@ set -euo pipefail
 XHIGH='
 backend/src/StreamIq.Api/Data/
 backend/src/StreamIq.Api/Auth/
-backend/src/StreamIq.Api/Features/Gateways/
+api/internal/onboarding/
 api/internal/db/
 api/internal/auth/
 api/internal/broker/

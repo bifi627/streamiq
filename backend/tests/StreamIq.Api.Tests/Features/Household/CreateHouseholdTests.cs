@@ -28,7 +28,6 @@ public class CreateHouseholdTests(IntegrationFixture fx)
 
         foreach (var (method, path) in new[]
         {
-            (HttpMethod.Get, "/api/gateways"), (HttpMethod.Post, "/api/gateways/enrollment-tokens"),
             (HttpMethod.Get, "/api/members"), (HttpMethod.Get, "/api/invites"), (HttpMethod.Post, "/api/invites"),
             (HttpMethod.Put, "/api/households/current/name"), (HttpMethod.Post, "/api/tunnels"),
         })
@@ -53,7 +52,7 @@ public class CreateHouseholdTests(IntegrationFixture fx)
         var m = Assert.Single(me.GetProperty("memberships").EnumerateArray());
         Assert.Equal((id, "admin"), (m.GetProperty("id").GetGuid(), m.GetProperty("role").GetString()));
         Assert.Equal(JsonValueKind.Null, m.GetProperty("name").ValueKind);   // named later (RenameHousehold)
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/gateways")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/members")).StatusCode);
 
         using var second = await client.PostAsync("/api/households", null);
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);

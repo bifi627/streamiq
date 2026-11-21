@@ -16,7 +16,6 @@ import (
 
 func TestSocketsAreLimitedPerClientIP(t *testing.T) {
 	s := newStack(t, nil, 2)
-	s.b.IPHeader = "X-Real-IP"
 	status := func(path, ip string) int {
 		_, rs, err := s.dial(path, http.Header{"X-Real-IP": {ip}})
 		if err == nil {

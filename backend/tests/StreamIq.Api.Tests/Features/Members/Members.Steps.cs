@@ -198,7 +198,7 @@ public partial class MembersSteps(IntegrationFixture fx)
         var me = await Me(email, null, raw: true);
         Assert.Empty(me.GetProperty("memberships").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, me.GetProperty("tenantId").ValueKind);
-        using var res = await Send(email, HttpMethod.Get, "/api/gateways", null);
+        using var res = await Send(email, HttpMethod.Get, "/api/members", null);
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
         Assert.Equal(["1"], res.Headers.GetValues(Households.NotMemberHeader));
     }

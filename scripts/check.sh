@@ -39,8 +39,8 @@ npm test --prefix frontend
 npm run build --prefix frontend
 
 echo "== Go (gateway + API): release version + fmt + lint + build + test =="
-bash scripts/next-gateway-version.sh --test
 if command -v go >/dev/null 2>&1; then
+  bash scripts/next-gateway-version.sh --test
   (test -z "$(gofmt -l gateway api)" || { echo "gofmt needed:"; gofmt -l gateway api; exit 1; }
    # -race needs cgo; Go reports CGO_ENABLED=0 with no C compiler (e.g. Windows without gcc)
    race=; [ "$(go env CGO_ENABLED)" = 1 ] && race=-race

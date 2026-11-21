@@ -148,6 +148,9 @@ namespace StreamIq.Api.Migrations
                     b.Property<Guid>("GatewayId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("GatewayVersion")
+                        .HasColumnType("text");
+
                     b.Property<bool?>("JellyfinReachable")
                         .HasColumnType("boolean");
 

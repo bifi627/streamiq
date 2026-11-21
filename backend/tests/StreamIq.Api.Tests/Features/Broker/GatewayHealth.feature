@@ -3,6 +3,8 @@ Feature: Gateway health
   (#423). The API keeps the level on the gateway and a `gateway_health` row when the
   health changes or the latest row is 5 minutes old, never two rows within 25 seconds.
   `off` stores nothing new and keeps the rows. Rows are tenant-owned (the global filter).
+  Each row carries the gateway's version (#424); `GET /api/gateways/{id}/health` returns
+  the last 7 days to any member, led by the latest row before them.
 
   Scenario: A full heartbeat stores the level and a health row, listed for every member
     Given "alice@home.test" has an online gateway "nas"
@@ -73,3 +75,28 @@ Feature: Gateway health
     Then gateway "nas" has telemetry "off"
     And gateway "nas" has 2 health rows
     And the household of "eve@home.test" still has its health row
+
+  Scenario: A changed gateway version makes a row and is stored with it
+    Given "alice@home.test" has an online gateway "nas"
+    When gateway "nas" at version "1.4.0" sends a full heartbeat with Jellyfin "10.11.2" and 1 tunnels
+    Then gateway "nas" has 1 health rows
+    And the latest health row of gateway "nas" has gateway version "1.4.0"
+    When the latest health row of gateway "nas" is 25 seconds old
+    And gateway "nas" at version "1.5.0" sends a full heartbeat with Jellyfin "10.11.2" and 1 tunnels
+    Then gateway "nas" has 2 health rows
+    And the latest health row of gateway "nas" has gateway version "1.5.0"
+
+  Scenario: Any member reads the last 7 days, led by the row before them
+    Given "alice@home.test" has an online gateway "nas"
+    And "bob@home.test" is a member of the household of "alice@home.test"
+    And gateway "nas" has health rows 10, 8, 6 and 1 days old
+    When "bob@home.test" reads the health of gateway "nas"
+    Then the health read lists the rows 8, 6 and 1 days old, in that order
+
+  Scenario: Another household's gateway or an unknown one is not found
+    Given "alice@home.test" has an online gateway "nas"
+    And gateway "nas" has health rows 10, 8, 6 and 1 days old
+    When "eve@home.test" reads the health of gateway "nas"
+    Then the health read is not found
+    When "alice@home.test" reads the health of an unknown gateway
+    Then the health read is not found

@@ -160,6 +160,7 @@ var api = app.MapGroup("/api");
 GetMe.Map(api);
 ListGateways.Map(api);
 RevokeGateway.Map(api);
+GetGatewayHealth.Map(api);
 CreateEnrollmentToken.Map(api);
 Enroll.Map(api);
 GatewaySocket.Map(api);

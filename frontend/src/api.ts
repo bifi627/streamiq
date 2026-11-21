@@ -1,6 +1,7 @@
 import { auth } from './firebase'
 import { clearArtThen } from './leave'
 import { AppError, httpError } from './errors'
+import type { Me } from './generated/api'
 
 // Prod: the API serves this bundle, so same origin. Dev: vite :5173, API :5028.
 // Every endpoint lives under /api (the rest of the path space is client routes).
@@ -92,18 +93,9 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
   return (res.status === 204 ? null : res.json()) as Promise<T>
 }
 
-// A household (code: tenant) the user belongs to.
-export type Membership = {
-  id: string
-  name: string | null
-  role: 'admin' | 'member'
-}
-// tenantId null = in no household yet: memberships is empty.
-export type Me = {
-  userId: string
-  tenantId: string | null
-  memberships: Membership[]
-}
+// A household (code: tenant) the user belongs to. tenantId null = in no household
+// yet: memberships is empty.
+export type { Household as Membership, Me } from './generated/api'
 // Any signed-in user: a new household with them as its admin.
 export const createHousehold = () =>
   authed<{ householdId: string }>('/households', { method: 'POST' })

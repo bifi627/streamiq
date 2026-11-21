@@ -1,0 +1,23 @@
+# TypeScript for the web app, generated from the Go structs that are the wire contract.
+# Run from backend-go/: go run github.com/gzuidhof/tygo@v0.2.21 generate
+packages:
+  - path: "streamiq/gateway/proto"
+    output_path: "../frontend/src/generated/protocol.ts"
+    frontmatter: |
+      export type Role = 'admin' | 'member'
+      /** What a browser sends on /api/broker/ws, and what it gets. */
+      export type BrowserMessage =
+        | Auth
+        | Offer<RTCSessionDescriptionInit>
+        | Ice<RTCIceCandidateInit>
+        | Ping
+      export type BrokerMessage =
+        | Ready
+        | Answer<RTCSessionDescriptionInit>
+        | Ice<RTCIceCandidateInit>
+        | Error
+  - path: "streamiq/backend/api"
+    output_path: "../frontend/src/generated/api.ts"
+    optional_type: "null"
+    type_mappings:
+      time.Time: "string"

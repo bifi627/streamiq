@@ -5,17 +5,9 @@ import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { httpError } from '../../errors'
 import { nextAsk, type HostLoad } from './host'
 
-export type Gateway = {
-  id: string
-  name: string | null
-  lastSeenAt: string | null
-  lanUrl: string | null
-  version: string | null
-  online: boolean
-  update: string | null // newer gateway release, null = up to date
-  upgradeRequired: boolean // refused: its protocol is below the API's minimum
-  telemetry: 'off' | 'full' | null // health sharing, from the heartbeat; null = too old to send it
-}
+import type { Gateway } from '../../generated/api'
+
+export type { Gateway }
 
 // Gateway API GET /streamiq/status over the tunnel (docs/protocol.md). All
 // optional: older gateways send fewer fields.

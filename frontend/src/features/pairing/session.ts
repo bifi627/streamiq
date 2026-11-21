@@ -52,7 +52,7 @@ export function lifetime(
     // The socket lives as long as the session, often idle (a screen
     // waiting); a proxy (Railway edge, Cloudflare tunnel) may drop a quiet one,
     // and that ends the tunnel too. The broker ignores the ping.
-    keepAlive: (send: (m: object) => void) => {
+    keepAlive: (send: (m: { type: 'ping' }) => void) => {
       ping = setInterval(() => send({ type: 'ping' }), 25_000)
     },
     up: (): Session => ({

@@ -26,6 +26,7 @@ import {
   toAppError,
   type Kind,
 } from '../../errors'
+import type { BrokerMessage, BrowserMessage } from '../../generated/protocol'
 
 export type { Session }
 
@@ -56,7 +57,7 @@ export async function connect(
   pc.addEventListener('connectionstatechange', () => pcState(pc))
   pc.addEventListener('iceconnectionstatechange', () => pcState(pc))
   const { close, setTunnel, keepAlive, up } = lifetime(pc, ws, gatewayId)
-  const send = (m: object) => ws.send(JSON.stringify(m))
+  const send = (m: BrowserMessage) => ws.send(JSON.stringify(m))
 
   return new Promise<Session>((resolve, reject) => {
     const err = (kind: Kind, detail: string) =>
@@ -74,7 +75,7 @@ export async function connect(
     let opened = false
     ws.onopen = () => {
       opened = true
-      send({ type: 'auth', token })
+      send({ type: 'auth', token: token ?? '' })
       keepAlive(send)
     }
     ws.onclose = (e) => fail(brokerClosed(opened, { gatewayId }, e.reason))
@@ -86,7 +87,7 @@ export async function connect(
     ws.onmessage = (e) => {
       queue = queue.then(() => onBroker(JSON.parse(e.data))).catch(fail)
     }
-    const onBroker = async (m: { type: string; [k: string]: any }) => {
+    const onBroker = async (m: BrokerMessage) => {
       if (m.type === 'ready') {
         const { iceServers, noTurn: why } = relayServers(
           m.iceServers,
@@ -101,11 +102,11 @@ export async function connect(
           )
         pc.setConfiguration({ ...pc.getConfiguration(), iceServers })
         await pc.setLocalDescription(await pc.createOffer())
-        send({ type: 'offer', gatewayId, sdp: pc.localDescription })
+        send({ type: 'offer', gatewayId, sdp: pc.localDescription! })
       } else if (m.type === 'answer') {
         setTunnel(m.tunnel)
         // Before a single byte goes to the gateway (pairing again is allowed).
-        const a = answerCheck(m.sdp.sdp, pin, !!onCode)
+        const a = answerCheck(m.sdp.sdp ?? '', pin, !!onCode)
         if ('refused' in a) return fail(err('pin-mismatch', a.refused))
         gatewayFp = a.fp
         verdict = a.verdict

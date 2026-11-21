@@ -26,7 +26,7 @@ type Gateway struct {
 	LanURL          *string    `json:"lanUrl"`
 	Version         *string    `json:"version"`
 	Update          *string    `json:"update"`
-	Telemetry       *string    `json:"telemetry"`
+	Telemetry       *string    `json:"telemetry" tstype:"'off' | 'full' | null"`
 	Online          bool       `json:"online"`
 	UpgradeRequired bool       `json:"upgradeRequired"`
 }

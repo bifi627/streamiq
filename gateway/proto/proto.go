@@ -83,6 +83,11 @@ type Auth struct {
 	Token string `json:"token"` // Firebase ID token
 }
 
+// Ping keeps the browser's socket open through idle proxies; the broker ignores it.
+type Ping struct {
+	Type string `json:"type" tstype:"'ping'"`
+}
+
 // ICEServer is one entry of Ready's list (RTCIceServer).
 type ICEServer struct {
 	URLs       []string `json:"urls"`
@@ -100,21 +105,21 @@ type Ready struct {
 type Offer[S any] struct {
 	Type      string `json:"type" tstype:"'offer'"`
 	GatewayID string `json:"gatewayId"`
-	SDP       *S     `json:"sdp"`
+	SDP       *S     `json:"sdp" tstype:",required"`
 }
 
 // Answer is the gateway's answer as the browser gets it. Tunnel is the tunnel's id
 // (the broker session), for the browser's throughput PATCH.
 type Answer[S any] struct {
 	Type   string `json:"type" tstype:"'answer'"`
-	SDP    *S     `json:"sdp"`
+	SDP    *S     `json:"sdp" tstype:",required"`
 	Tunnel string `json:"tunnel"`
 }
 
 // Ice is one trickled candidate between browser and broker, either way.
 type Ice[C any] struct {
 	Type      string `json:"type" tstype:"'ice'"`
-	Candidate *C     `json:"candidate"`
+	Candidate *C     `json:"candidate" tstype:",required"`
 }
 
 // Error tells the browser why its offer went nowhere.

@@ -1,9 +1,9 @@
 # StreamIQ signaling protocol
 
 This file is the contract: onboarding, broker, pairing, tunnel. The broker's messages on
-both sockets (`/api/gateways/ws`, `/api/broker/ws`) are Go types in `protocol/` (#727): the
-gateway uses them, the web app's TypeScript is generated from them (`bash scripts/gen-types.sh`
-→ `frontend/src/generated/`), the .NET broker (`Features/Broker`) mirrors them by hand. The
+both sockets (`/api/gateways/ws`, `/api/broker/ws`) are Go types in `protocol/` (#727):
+the gateway and the Go API's broker (`api/internal/broker`) use them, the web app's TypeScript
+is generated from them (`bash scripts/gen-types.sh` → `frontend/src/generated/`). The
 rest is hand-mirrored in Go (`gateway/internal/{onboarding,pairing,tunnel}`) and TS
 (`frontend/src/features/pairing`, `frontend/src/tunnel.ts`).
 
@@ -78,7 +78,7 @@ tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
 protocol (currently **2**: 2 adds the `tunnel` report, #390; Go `onboarding.Protocol`). A breaking change bumps it. The API
-has one minimum (`GatewaySocket.MinGatewayProtocol`); raising it is a deliberate step,
+has one minimum (`broker.MinGatewayProtocol`, `api/internal/broker`); raising it is a deliberate step,
 since every gateway below it stops working until its owner updates. A first heartbeat
 below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the API
 records the version, `GET /api/gateways` reports `upgradeRequired: true`, and the

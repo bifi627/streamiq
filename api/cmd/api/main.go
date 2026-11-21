@@ -7,13 +7,17 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"streamiq/api/internal/auth"
+	"streamiq/api/internal/broker"
 	"streamiq/api/internal/db"
 	"streamiq/api/internal/front"
+	"streamiq/api/internal/gateways"
 	"streamiq/api/internal/me"
+	"streamiq/api/internal/turn"
 )
 
 func main() {
@@ -40,6 +44,14 @@ func main() {
 	a := auth.New(verifier, d)
 	mux := http.NewServeMux()
 	me.Routes(mux, a)
+	perMinute, err := strconv.Atoi(env("STREAMIQ_SIGNALING_PER_MINUTE", "120"))
+	if err != nil {
+		log.Fatalf("STREAMIQ_SIGNALING_PER_MINUTE: %v", err)
+	}
+	b := broker.New(d, a, turn.FromEnv(), perMinute)
+	b.IPHeader = os.Getenv("STREAMIQ_CLIENT_IP_HEADER")
+	b.Routes(mux)
+	gateways.Routes(mux, a, d, b)
 	srv := &http.Server{
 		Addr:              env("STREAMIQ_API_ADDR", ":"+env("PORT", "5028")), // PORT: what container hosts inject
 		Handler:           front.Handler(mux, strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ","), legacy),

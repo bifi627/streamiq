@@ -11,12 +11,17 @@ using StreamIq.Api.Tests.Infrastructure;
 
 namespace StreamIq.Api.Tests.Features.Auth;
 
-/// Household steps; the membership ones are shared with Broker.feature.
+/// Household steps; the membership ones are shared with other features.
 /// "The household of X" = X's own household (OwnHousehold: made on first mention, their oldest).
 [Binding]
 public class HouseholdsSteps(IntegrationFixture fx)
 {
     private readonly Dictionary<string, Guid> _gateways = new();
+
+    public Guid GatewayId(string name)
+    {
+        return _gateways[name];
+    }
     private HttpResponseMessage? _last;
     private string? _prevAnswer;
 
@@ -80,27 +85,6 @@ public class HouseholdsSteps(IntegrationFixture fx)
     public async Task WhenEnrollmentToken(string email, string owner)
     {
         await Send(email, HttpMethod.Post, "/api/gateways/enrollment-tokens", (await HouseholdOf(owner)).ToString());
-    }
-
-    [When("\"(.*)\" removes gateway \"(.*)\" in the household of \"(.*)\"")]
-    public async Task WhenRemovesIn(string email, string name, string owner)
-    {
-        await Send(email, HttpMethod.Delete, $"/api/gateways/{_gateways[name]}", (await HouseholdOf(owner)).ToString());
-    }
-
-    [When("\"(.*)\" removes a gateway that doesn't exist in the household of \"(.*)\"")]
-    public async Task WhenRemovesMissing(string email, string owner)
-    {
-        await Send(email, HttpMethod.Delete, $"/api/gateways/{Guid.NewGuid()}", (await HouseholdOf(owner)).ToString());
-    }
-
-    // An ordinary 404: never carries the not-a-member marker.
-    [Then("the request is refused as not found")]
-    public void ThenNotFound()
-    {
-        Assert.NotNull(_last);
-        Assert.Equal(HttpStatusCode.NotFound, _last.StatusCode);
-        Assert.False(_last.Headers.Contains(Households.NotMemberHeader));
     }
 
     [Then("the request is refused as not a member")]
@@ -180,7 +164,7 @@ public class HouseholdsSteps(IntegrationFixture fx)
         _last = await client.SendAsync(req);
     }
 
-    private async Task<HttpClient> SignedIn(string email)
+    public async Task<HttpClient> SignedIn(string email)
     {
         var client = fx.Factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
@@ -189,7 +173,7 @@ public class HouseholdsSteps(IntegrationFixture fx)
     }
 
     // X's own household: their oldest membership, which /me without the header acts in.
-    private async Task<Guid> HouseholdOf(string email)
+    public async Task<Guid> HouseholdOf(string email)
     {
         return (await Me(email)).GetProperty("tenantId").GetGuid();
     }

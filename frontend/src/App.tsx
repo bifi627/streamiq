@@ -317,7 +317,9 @@ export default function App() {
       was = u
       // A Google sign-up clears its Google name first.
       void signingIn
-        .catch((e) => event(`sign-in: Google name clear failed: ${e}`))
+        .catch((e) =>
+          event(`sign-in: Google sign-in or name clear failed: ${e}`),
+        )
         .then(() => {
           setUser(u)
           setReady(true)

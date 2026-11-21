@@ -71,7 +71,7 @@ export function Invites() {
   const share = (url: string) =>
     navigator
       .share({ title: 'Join my StreamIQ household', url })
-      .catch((e) => event(`invite: share closed: ${e}`))
+      .catch((e) => event(`invite: share closed or failed: ${e}`))
 
   return (
     <section className="card">

@@ -13,7 +13,11 @@ const HIDE_MS = 4000
 // Media actions; plain functions so the component never mutates its props.
 const toggle = (v: HTMLVideoElement) =>
   v.paused
-    ? v.play().catch((e) => event(`player: play failed: ${e}`))
+    ? v
+        .play()
+        .catch(
+          (e) => e.name !== 'AbortError' && event(`player: play failed: ${e}`),
+        ) // AbortError: a pause came first
     : v.pause()
 const mute = (v: HTMLVideoElement) => {
   v.muted = !v.muted

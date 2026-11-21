@@ -123,7 +123,7 @@ export function rangeHeader(start?: number, end?: number) {
 /** Jellyfin time unit: 100 ns ticks. */
 export const TICKS_PER_SECOND = 10_000_000
 
-export const minutes = new Intl.NumberFormat(undefined, {
+const minutes = new Intl.NumberFormat(undefined, {
   style: 'unit',
   unit: 'minute',
   unitDisplay: 'short',

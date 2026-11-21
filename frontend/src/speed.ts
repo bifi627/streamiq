@@ -53,7 +53,9 @@ export function measure(pc: RTCPeerConnection, gatewayId: string): Speed {
       const runs: number[] = []
       for (let i = 0; i < 3; i++)
         runs.push(
-          await burst(saver ? MIB : burstSize(runs[runs.length - 1] ?? warm!)),
+          await burst(
+            warm === undefined ? MIB : burstSize(runs[runs.length - 1] ?? warm),
+          ),
         )
       fresh = median(runs)
       error = undefined

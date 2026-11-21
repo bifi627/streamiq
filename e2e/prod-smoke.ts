@@ -13,18 +13,25 @@ import { newContext, pair, videoTime } from './helpers.ts'
 import { JELLYFIN_ADMIN } from './jellyfin.ts'
 import { download } from './release.ts'
 import { freePort, root, start, startJellyfin, waitHttp } from './stack.ts'
+import { envVar, must } from './must.ts'
 
-const app = process.env.SMOKE_URL!
-const email = process.env.SMOKE_EMAIL!
-const password = process.env.SMOKE_PASSWORD!
+const app = envVar('SMOKE_URL')
+const email = envVar('SMOKE_EMAIL')
+const password = envVar('SMOKE_PASSWORD')
 
 /** A fresh ID token for the test account (Firebase REST, the app's public web key). */
 async function idToken() {
   const html = await fetch(app).then((r) => r.text())
-  const js = html.match(/\/assets\/index-[^"]+\.js/)![0]
-  const key = (await fetch(app + js).then((r) => r.text())).match(
-    /AIza[0-9A-Za-z_-]{35}/,
-  )![0]
+  const js = must(
+    html.match(/\/assets\/index-[^"]+\.js/),
+    'the app bundle in index.html',
+  )[0]
+  const key = must(
+    (await fetch(app + js).then((r) => r.text())).match(
+      /AIza[0-9A-Za-z_-]{35}/,
+    ),
+    'the Firebase web key in the bundle',
+  )[0]
   const r = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${key}`,
     {

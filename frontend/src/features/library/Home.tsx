@@ -2,7 +2,7 @@
 // button takes first focus, so one OK press resumes), up to 3 more in progress,
 // Recently added, and the libraries (the shell nav has no tunnel, so they live
 // here). Arrow keys: GatewayLibrary's D-pad container (Library.tsx).
-import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../errors'
 import { homeLists, homeView, ok, shelf, type Shelf } from './shelves'
@@ -11,7 +11,7 @@ import {
   backdrop,
   items,
   primary,
-  Tunnel,
+  useTunnel,
   useArt,
   useTunnelQuery,
   type Art,
@@ -37,7 +37,7 @@ function meta(i: Item) {
 }
 
 export function Home() {
-  const { gatewayId, pc } = useContext(Tunnel)
+  const { gatewayId, pc } = useTunnel()
   const navigate = useNavigate()
   // Resume is never cached (progress changes); Recently added and the
   // libraries are cached queries.
@@ -71,7 +71,7 @@ export function Home() {
   const episodes = (i: Item) =>
     navigate({
       to: '/g/$gatewayId/i/$itemId',
-      params: { gatewayId, itemId: (i.SeasonId ?? i.SeriesId)! },
+      params: { gatewayId, itemId: i.SeasonId ?? i.SeriesId ?? i.Id },
     })
 
   if (!lists) return <HomePlaceholder />

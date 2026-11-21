@@ -17,6 +17,7 @@ import {
   viaTunnel,
 } from './helpers.ts'
 import { jellyfinAdminGet } from './jellyfin.ts'
+import { envVar, must } from './must.ts'
 
 /** Plays the fixture from the library home to sec, then leaves (saves it). */
 async function playTo(p: Page, sec: number) {
@@ -24,10 +25,9 @@ async function playTo(p: Page, sec: number) {
   await p.getByRole('button', { name: /streamiq e2e clip/ }).click()
   await p.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page
   await expect.poll(() => videoTime(p), { timeout: 30_000 }).toBeGreaterThan(0)
-  await p.evaluate(
-    (s) => (document.querySelector('video')!.currentTime = s),
-    sec,
-  )
+  await p
+    .locator('video')
+    .evaluate((v: HTMLVideoElement, s) => (v.currentTime = s), sec)
   await expect.poll(() => videoTime(p)).toBeGreaterThan(sec)
   await p.goBack() // leaving the player saves the position
   await p.goBack() // movie page → folder
@@ -75,7 +75,10 @@ test(
       expect(own.status).toBe(200)
       const bs: Client[] = JSON.parse(own.body)
       expect(bs.map((c) => c.self)).toEqual([true])
-      const aKey = clients.find((c) => c.self)!.keyFp
+      const aKey = must(
+        clients.find((c) => c.self),
+        'the own client',
+      ).keyFp
       const remove = await viaTunnel(b, '/streamiq/clients/remove', {
         keyFp: aKey,
       })
@@ -85,8 +88,7 @@ test(
     await test.step('A and B play to different positions: one Jellyfin viewer each (#195)', async () => {
       await playTo(a, 5)
       await playTo(b, 15)
-      const jf = (p: string) =>
-        jellyfinAdminGet(process.env.E2E_JELLYFIN_URL!, p)
+      const jf = (p: string) => jellyfinAdminGet(envVar('E2E_JELLYFIN_URL'), p)
       const position = async (u: typeof A) => {
         const users: { Name: string; Id: string }[] = await jf('/Users')
         const viewer = users.find((x) => x.Name === `streamiq-${u.userId}`)

@@ -14,6 +14,7 @@ import {
 } from '@playwright/test'
 
 import { startGateway } from './stack.ts'
+import { envVar, must } from './must.ts'
 
 export const password = 'e2e-password'
 
@@ -22,7 +23,7 @@ function psql(sql: string): string {
     'docker',
     [
       'exec',
-      process.env.E2E_PG_CONTAINER!,
+      envVar('E2E_PG_CONTAINER'),
       'psql',
       '-U',
       'streamiq',
@@ -178,7 +179,7 @@ export async function onboardGateway(user: User) {
   const gateway = await startGateway(
     fs.mkdtempSync(path.join(os.tmpdir(), 'streamiq-e2e-gateway-')),
     {
-      STREAMIQ_API_URL: process.env.E2E_API_URL!,
+      STREAMIQ_API_URL: envVar('E2E_API_URL'),
       STREAMIQ_ENROLL_TOKEN: token,
     },
   )
@@ -213,7 +214,7 @@ export async function signIn(page: Page, user: User, household?: string) {
 }
 
 /** The web app's URL for path (Vite on this stack). */
-export const appUrl = (path = '') => process.env.E2E_APP_URL! + path
+export const appUrl = (path = '') => envVar('E2E_APP_URL') + path
 
 /** A new browser (newPage) opened at path, user signed in there. */
 export async function signedInPage(
@@ -300,7 +301,10 @@ export async function gatewayTab(ctx: BrowserContext, url: string) {
 /** Pair from the web app; approve on the gateway page only if the codes match. */
 export async function pair(app: Page, ctx: BrowserContext, gatewayUrl: string) {
   await app.getByRole('button', { name: 'Pair this browser' }).click()
-  const code = (await app.getByLabel('Comparison code').textContent())!
+  const code = must(
+    await app.getByLabel('Comparison code').textContent(),
+    'comparison code',
+  )
   const gatewayPage = await gatewayTab(ctx, gatewayUrl)
   const request = gatewayPage.locator('form[action="/decide"]')
   await expect(request).toContainText(code) // page self-refreshes every 3s
@@ -316,8 +320,9 @@ export const viaTunnel = (p: Page, url: string, body?: object) =>
   p.evaluate(
     ([url, body]) =>
       new Promise<{ status: number; body: string }>((resolve, reject) => {
-        const pcs = (window as { pcs?: RTCPeerConnection[] }).pcs!
-        const pc = pcs.findLast((x) => x.connectionState === 'connected')!
+        const pcs = (window as { pcs?: RTCPeerConnection[] }).pcs ?? []
+        const pc = pcs.findLast((x) => x.connectionState === 'connected')
+        if (!pc) return reject(new Error('no connected tunnel: keepPcs(p)?'))
         const dc = pc.createDataChannel(`req:${url}`)
         dc.binaryType = 'arraybuffer'
         let out = ''
@@ -351,12 +356,12 @@ export const viaTunnel = (p: Page, url: string, body?: object) =>
 export const keepPcs = (p: Page) =>
   p.addInitScript(() => {
     const P = RTCPeerConnection
-    const w = window as { pcs?: RTCPeerConnection[] }
-    w.pcs = []
+    const pcs: RTCPeerConnection[] = []
+    ;(window as { pcs?: RTCPeerConnection[] }).pcs = pcs
     window.RTCPeerConnection = class extends P {
       constructor(c?: RTCConfiguration) {
         super(c)
-        w.pcs!.push(this)
+        pcs.push(this)
       }
     } as typeof P
   })
@@ -365,7 +370,7 @@ export const keepPcs = (p: Page) =>
 export async function openLibrary(p: Page) {
   await p.locator('li.card').getByRole('button', { name: 'Open' }).click()
   await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible()
-  return p.url().match(/\/g\/([^/]+)$/)![1]
+  return must(p.url().match(/\/g\/([^/]+)$/), 'gateway id in the URL')[1]
 }
 
 /** The diagnostics dock starts collapsed; its button opens the sheet with

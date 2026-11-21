@@ -3,7 +3,7 @@
 // so a revisit doesn't fetch it through the tunnel again. The placeholder box
 // keeps its size (index.css `.art`) until the image arrives.
 import { createContext, useContext } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { skipToken, useQuery } from '@tanstack/react-query'
 import type { Item } from './items'
 import { image } from './jellyfin'
 import { tunnelFetch, tunnelJson } from '../../tunnel'
@@ -17,7 +17,14 @@ export const Tunnel = createContext<{
   gatewayId: string
   pc: RTCPeerConnection
   speed?: Speed
-}>(null!)
+} | null>(null)
+
+export function useTunnel() {
+  const t = useContext(Tunnel)
+  if (!t)
+    throw new Error('useTunnel outside a Tunnel provider (GatewayLibrary)')
+  return t
+}
 
 export type Art = { id: string; type: 'Primary' | 'Backdrop'; tag: string }
 
@@ -45,14 +52,16 @@ export const current = (gatewayId: string, dataUpdatedAt: number) =>
  * gatewayId, not pc (a reconnect keeps the data), the current pc fetches it.
  * Fresh 5 min, then shown at once and refetched. url null = not yet. */
 export function useTunnelQuery<T>(url: string | null) {
-  const { gatewayId, pc } = useContext(Tunnel)
+  const { gatewayId, pc } = useTunnel()
   return useQuery({
     queryKey: ['tunnel', gatewayId, url],
-    queryFn: async () => {
-      await playback.get(gatewayId)?.saved // else it reads the old progress
-      return tunnelJson<T>(pc, url!)
-    },
-    enabled: url !== null,
+    queryFn:
+      url === null
+        ? skipToken
+        : async () => {
+            await playback.get(gatewayId)?.saved // else it reads the old progress
+            return tunnelJson<T>(pc, url)
+          },
     staleTime: 5 * 60_000,
     gcTime: Infinity, // ponytail: kept until reload; KBs per screen. A cap if a TV tab grows
   })
@@ -116,14 +125,16 @@ export async function load(
 /** An image's object URL (null: none), loaded once enabled. Immutable per
  * tag, so never refetched; dropped with its last view (the Cache API keeps it). */
 export function useArt(a: Art | null, width: number, enabled: boolean) {
-  const { gatewayId, pc } = useContext(Tunnel)
+  const { gatewayId, pc } = useTunnel()
   return useQuery({
     queryKey: ['art', gatewayId, a?.id, a?.type, a?.tag, width],
-    queryFn: async () => {
-      const b = await load(pc, gatewayId, a!, width)
-      return b && URL.createObjectURL(b)
-    },
-    enabled: enabled && !!a,
+    queryFn: !a
+      ? skipToken
+      : async () => {
+          const b = await load(pc, gatewayId, a, width)
+          return b && URL.createObjectURL(b)
+        },
+    enabled,
     staleTime: Infinity,
     gcTime: 0,
   })

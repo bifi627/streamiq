@@ -156,7 +156,7 @@ function ensureCert() {
 
 function print(s: State) {
   console.log(`StreamIQ preview of ${root}
-  LAN:          ${s.lan!.join('  ') || '(no LAN address found)'}
+  LAN:          ${s.lan?.join('  ') || '(no LAN address found)'}
                 (phone/TV on the same network; accept the certificate warning once)
   local:        ${s.local}
   api:          ${s.api} (auth emulator: ${s.emulator}; for extra seeding)
@@ -206,7 +206,9 @@ async function up() {
       },
     )
     child.unref()
-    s = { pid: child.pid!, port }
+    if (child.pid === undefined)
+      throw new Error('the preview server did not start')
+    s = { pid: child.pid, port }
     write(s)
     console.log(
       `starting (pid ${s.pid}, ~2-4 min; log: ${path.join(dir, 'preview.log')}) ...`,
@@ -420,7 +422,7 @@ async function serve() {
       )
       tunnel = await new Promise<string>((resolve, reject) => {
         let out = ''
-        cf.proc.stderr!.on('data', (d) => {
+        cf.proc.stderr.on('data', (d) => {
           out += d
           const url = out.match(/https:\/\/[\w-]+\.trycloudflare\.com/)
           if (url && out.includes('Registered tunnel connection'))
@@ -433,7 +435,9 @@ async function serve() {
     }
 
     write({
-      ...read()!,
+      ...read(),
+      pid: process.pid, // serve itself: the pid `up` spawned
+      port,
       ready: true,
       tunnel,
       jellyfin: process.env.E2E_JELLYFIN_URL,
@@ -443,7 +447,7 @@ async function serve() {
       api: stack.api,
       emulator: stack.emulator,
       gatewayPage: gateway.pageUrl,
-      pids: started.map((p) => p.proc.pid!),
+      pids: started.flatMap((p) => p.proc.pid ?? []), // no pid: never started
       ports: [
         port,
         ...[stack.api, gateway.pageUrl].map((u) => Number(new URL(u).port)),

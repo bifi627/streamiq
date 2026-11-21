@@ -6,8 +6,8 @@ import fs from 'node:fs'
 import type { ServerResponse } from 'node:http'
 import path from 'node:path'
 import base from '../frontend/vite.config.ts'
+import { envVar } from './must.ts'
 
-const env = process.env
 // The API's CORS allowlist doesn't know these origins; same-origin needs no Origin.
 const sameOrigin = (target: string, ws = false) => ({
   target,
@@ -62,14 +62,14 @@ export default {
     // HTTP skips Vite's host check over HTTPS; the HMR socket doesn't.
     allowedHosts: ['.trycloudflare.com'],
     https: {
-      cert: fs.readFileSync(env.PREVIEW_CERT!),
-      key: fs.readFileSync(env.PREVIEW_KEY!),
+      cert: fs.readFileSync(envVar('PREVIEW_CERT')),
+      key: fs.readFileSync(envVar('PREVIEW_KEY')),
     },
     proxy: {
-      '/api': sameOrigin(env.PREVIEW_API!, true),
-      '/identitytoolkit.googleapis.com': sameOrigin(env.PREVIEW_AUTH!),
-      '/securetoken.googleapis.com': sameOrigin(env.PREVIEW_AUTH!),
-      '/emulator': sameOrigin(env.PREVIEW_AUTH!),
+      '/api': sameOrigin(envVar('PREVIEW_API'), true),
+      '/identitytoolkit.googleapis.com': sameOrigin(envVar('PREVIEW_AUTH')),
+      '/securetoken.googleapis.com': sameOrigin(envVar('PREVIEW_AUTH')),
+      '/emulator': sameOrigin(envVar('PREVIEW_AUTH')),
     },
   },
 }

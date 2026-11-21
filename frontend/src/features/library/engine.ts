@@ -221,6 +221,7 @@ export class Engine {
     await this.start(
       (startTicks ?? fresh.UserData?.PlaybackPositionTicks ?? 0) /
         TICKS_PER_SECOND,
+      caps,
     )
   }
 
@@ -240,7 +241,7 @@ export class Engine {
     })
 
   // Loads the stream at `at` seconds; called again by reload().
-  private async start(at: number) {
+  private async start(at: number, caps: Probe) {
     const load = ++this.loads
     this.at0 = at
     const q = this.q
@@ -274,7 +275,7 @@ export class Engine {
       jf.playbackInfo(this.itemId),
       {
         DeviceProfile: deviceProfile(
-          this.caps!,
+          caps,
           !allow.audio,
           this.compatible,
           eff,
@@ -296,12 +297,13 @@ export class Engine {
     )
     if (this.gone || load !== this.loads) return
     const src = info.MediaSources[0]
-    if (!src?.TranscodingUrl)
+    const url = src?.TranscodingUrl
+    if (!src || !url)
       throw new AppError(
         'playback',
         `Jellyfin offers no stream (${info.ErrorCode ?? 'no TranscodingUrl'})`,
       )
-    this.attach(load, at, src, { raw, limited: !!max, cap })
+    this.attach(load, at, src, { url, raw, limited: !!max, cap })
   }
 
   // Plays the load's TranscodingUrl: final params, the picker's state, hls.js.
@@ -309,9 +311,9 @@ export class Engine {
     load: number,
     at: number,
     src: PlayInfo,
-    o: { raw: boolean; limited: boolean; cap?: number },
+    o: { url: string; raw: boolean; limited: boolean; cap?: number },
   ) {
-    const [path, query] = src.TranscodingUrl!.split('?')
+    const [path, query] = o.url.split('?')
     const params = new URLSearchParams(query)
     // Raw: no bitrate cap at all. Jellyfin transcodes a source of unknown
     // bitrate whenever VideoBitrate is set.
@@ -394,7 +396,8 @@ export class Engine {
   // Restarts at the playhead: with less stream copy (the fallbacks), another
   // quality or audio track. Keeps the other choices.
   private reload(why: string, less: Partial<Copy> = {}) {
-    if (!this.caps) return // still starting: the first load picks it up
+    const caps = this.caps
+    if (!caps) return // still starting: the first load picks it up
     const t = this.now()
     if (this.live()) this.held = this.v.paused // else keep: a reload in flight paused it
     event(`${why} @${t.toFixed(1)}`)
@@ -404,7 +407,7 @@ export class Engine {
     const old = this.h
     this.h = null // no position reports while the media detaches
     old?.destroy()
-    this.start(t).catch((e) => this.set({ err: toAppError(e) }))
+    this.start(t, caps).catch((e) => this.set({ err: toAppError(e) }))
   }
 
   pickQuality(next: Quality) {

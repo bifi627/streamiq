@@ -27,6 +27,7 @@ import {
 import { JELLYFIN_ADMIN } from './jellyfin.ts'
 import { asset, download } from './release.ts'
 import { freePort, root, start, waitHttp } from './stack.ts'
+import { envVar } from './must.ts'
 
 test('the last released gateway works with this API, or is told to update @compat', async ({
   browser,
@@ -38,7 +39,8 @@ test('the last released gateway works with this API, or is told to update @compa
   fs.rmSync(dir, { recursive: true, force: true })
   const bin = download(dir)
   test.skip(!bin, `no ${asset} in a gateway release: nothing to test against`)
-  fs.chmodSync(bin!, 0o755)
+  if (!bin) return // test.skip above ended the test
+  fs.chmodSync(bin, 0o755)
 
   const user = await signUp(uniqueEmail('compat'))
   const { token } = await user.api('/gateways/enrollment-tokens', {
@@ -46,7 +48,7 @@ test('the last released gateway works with this API, or is told to update @compa
   })
   const port = await freePort()
   const pageUrl = `http://127.0.0.1:${port}`
-  const gateway = start(`gateway-release-${port}`, bin!, [], {
+  const gateway = start(`gateway-release-${port}`, bin, [], {
     cwd: root,
     env: {
       STREAMIQ_STATE_DIR: fs.mkdtempSync(
@@ -55,7 +57,7 @@ test('the last released gateway works with this API, or is told to update @compa
       STREAMIQ_PAGE_PORT: String(port),
       STREAMIQ_LAN_URL: pageUrl,
       STREAMIQ_ORIGIN: jellyfin,
-      STREAMIQ_API_URL: process.env.E2E_API_URL!,
+      STREAMIQ_API_URL: envVar('E2E_API_URL'),
       STREAMIQ_ENROLL_TOKEN: token,
     },
   })

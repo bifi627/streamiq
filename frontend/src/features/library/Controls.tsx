@@ -80,7 +80,8 @@ function useMedia(
   const [volume, setVolume] = useState(0.5)
   const [full, setFull] = useState(false)
   useEffect(() => {
-    const v = video.current!
+    const v = video.current
+    if (!v) return
     const sync = () => {
       setPaused(v.paused)
       // No frame yet (a reload): currentTime reads 0 until the new
@@ -375,7 +376,8 @@ export function Controls({
   const media = useMedia(video, setTime, ui.poke)
 
   useEffect(() => {
-    const v = video.current!
+    const v = video.current
+    if (!v) return () => ui.stop()
     const key = (e: KeyboardEvent) => onKey(e, v, r, ui, setPage)
     window.addEventListener('keydown', key)
     return () => {
@@ -446,7 +448,7 @@ export function Controls({
           <Seek
             time={time}
             duration={duration}
-            onSeek={(t) => setTime(seekTo(video.current!, t))}
+            onSeek={(t) => video.current && setTime(seekTo(video.current, t))}
           />
           <Menu
             settings={settings}
@@ -466,7 +468,7 @@ export function Controls({
             qBtn={qBtn}
             menuOpen={page !== null}
             onGear={() => setPage(page === null ? 'main' : null)}
-            onVolume={(x) => setVol(video.current!, x)}
+            onVolume={(x) => video.current && setVol(video.current, x)}
             onNext={onNext}
           />
         </div>

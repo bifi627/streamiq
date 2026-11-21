@@ -18,6 +18,7 @@ import {
   uniqueEmail,
   type User,
 } from './helpers.ts'
+import { must } from './must.ts'
 
 const card = (p: Page) => p.locator('li.card')
 /** Another browser of user (own client key), never paired, on Gateways. */
@@ -41,7 +42,7 @@ test('rename: shown once paired, Escape cancels, Enter saves a trimmed name @gat
 
   const input = card(b).getByRole('textbox', { name: 'Gateway name' })
   const heading = card(b).getByRole('heading', { level: 2 })
-  const before = (await heading.textContent())!
+  const before = must(await heading.textContent(), 'gateway name heading text')
   await renameBtn.click()
   await input.fill('discarded')
   await b.keyboard.press('Escape') // cancels
@@ -268,7 +269,10 @@ test('reject on the local gateway page: refused, stays unpaired @gateways', asyn
   const b = await second(browser, user)
   const pairBtn = card(b).getByRole('button', { name: 'Pair this browser' })
   await pairBtn.click()
-  const code = (await b.getByLabel('Comparison code').textContent())!
+  const code = must(
+    await b.getByLabel('Comparison code').textContent(),
+    'comparison code',
+  )
   const local = await gatewayTab(gatewayCtx, gateway.pageUrl)
   const request = local.locator('form[action="/decide"]')
   await expect(request).toContainText(code) // page self-refreshes every 3s

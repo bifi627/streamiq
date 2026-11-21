@@ -19,7 +19,8 @@
     "streamiq/no-low-value-comments": "error",
     "react/set-state-in-effect": "error",
     "no-empty": "error",
-    "no-empty-function": "error"
+    "no-empty-function": "error",
+    "typescript/no-non-null-assertion": "error"
   },
   "overrides": [
     {
@@ -37,7 +38,10 @@
     },
     {
       "files": ["**/*.test.ts", "**/*.test.tsx"],
-      "rules": { "max-lines-per-function": "off" }
+      "rules": {
+        "max-lines-per-function": "off",
+        "typescript/no-non-null-assertion": "off"
+      }
     }
   ]
 }

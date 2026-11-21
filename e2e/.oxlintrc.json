@@ -22,7 +22,8 @@
       { "allowConditional": true, "disallowFixme": true }
     ],
     "playwright/require-annotation-reason": "error",
-    "playwright/no-slowed-test": "error"
+    "playwright/no-slowed-test": "error",
+    "typescript/no-non-null-assertion": "error"
   },
   "overrides": [
     {

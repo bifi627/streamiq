@@ -6,6 +6,7 @@ import {
   tracked,
   updated,
   updateState,
+  type Notice,
   type Started,
 } from './update'
 import { gatewayName } from './list'
@@ -106,22 +107,22 @@ export function UpdateNotice({
     remote,
   })
   if (!notice) return null
-  if (tracked(notice))
+  if (updating && tracked(notice))
     return (
       <p className="notice no-tv" role="status" tabIndex={-1} ref={status}>
         {notice === 'updating' ? (
-          `Updating to v${updating!.to}… The gateway is offline for a moment.`
+          `Updating to v${updating.to}… The gateway is offline for a moment.`
         ) : notice !== 'notFinished' ? (
           <>
-            The update to v{updating!.to} hasn't happened: the gateway still
-            runs v{g.version}. It failed or is still backing up: see{' '}
+            The update to v{updating.to} hasn't happened: the gateway still runs
+            v{g.version}. It failed or is still backing up: see{' '}
             <code>update.log</code> next to the gateway, at home.
             {notice === 'retry' && (
               <>
                 {' '}
                 <button
                   type="button"
-                  onClick={() => start(g.update ?? updating!.to)}
+                  onClick={() => start(g.update ?? updating.to)}
                 >
                   Try again
                 </button>
@@ -131,19 +132,46 @@ export function UpdateNotice({
           </>
         ) : (
           <>
-            The update to v{updating!.to} didn't finish: the gateway isn't back.
+            The update to v{updating.to} didn't finish: the gateway isn't back.
             At home, see <code>update.log</code> next to the gateway, and run{' '}
             <code>gateway rollback</code> to go back (docs/install.md).
           </>
         )}
       </p>
     )
+  if (!g.update) return null
+  return (
+    <Available
+      update={g.update}
+      notice={notice}
+      remote={remote}
+      msg={msg}
+      start={start}
+    />
+  )
+}
+
+// The heartbeat's newer release, no update started here: the button, the reason
+// it can't, or how to update by hand.
+function Available({
+  update,
+  notice,
+  remote,
+  msg,
+  start,
+}: {
+  update: string
+  notice: Notice
+  remote: true | string | null
+  msg: string | null
+  start: (target: string) => void
+}) {
   return (
     <p className="notice no-tv">
-      Update available: {g.update}.{' '}
+      Update available: {update}.{' '}
       {notice === 'button' ? (
-        <button type="button" onClick={() => start(g.update!)}>
-          Update to v{g.update}
+        <button type="button" onClick={() => start(update)}>
+          Update to v{update}
         </button>
       ) : notice === 'reason' ? (
         <>

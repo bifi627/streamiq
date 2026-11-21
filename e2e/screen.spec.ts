@@ -8,6 +8,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import { keepPcs, openLibrary, pitch, videoTime, viaTunnel } from './helpers.ts'
+import { must } from './must.ts'
 
 const CLIP = 'streamiq e2e clip' // 30 s, English 440 Hz + German 880 Hz, .en.srt
 
@@ -27,7 +28,10 @@ async function useAsScreen(tv: Page) {
   await tv.getByRole('link', { name: 'Use as screen' }).click()
   const waiting = tv.getByRole('heading', { name: /^Screen: / })
   await expect(waiting).toBeVisible()
-  return (await waiting.textContent())!.replace('Screen: ', '')
+  return must(await waiting.textContent(), 'screen heading text').replace(
+    'Screen: ',
+    '',
+  )
 }
 
 /** A phone: a new tab on the TV's gateway library, Movies, the clip's Play on… open. */
@@ -64,8 +68,8 @@ const paused = (tv: Page) =>
 
 /** The TV's showing subtitle cues, joined. */
 const cue = (tv: Page) =>
-  tv.evaluate(() =>
-    [...document.querySelector('video')!.textTracks]
+  tv.locator('video').evaluate((v: HTMLVideoElement) =>
+    [...v.textTracks]
       .filter((t) => t.mode === 'showing')
       .flatMap((t) => [...(t.activeCues ?? [])])
       .map((c) => (c as VTTCue).text)
@@ -160,12 +164,16 @@ test('remote commands (#181): play / pause, audio, subtitles, position, ±10 s, 
   await expect.poll(() => paused(tv)).toBe(false)
   await expect(button('Pause')).toBeVisible()
   // Audio while playing, early in the 30 s clip: German = 880 Hz on the TV.
-  const de = await phone.evaluate(() =>
-    new Intl.DisplayNames(undefined, { type: 'language' }).of('deu')!,
+  const de = await phone.evaluate(
+    () =>
+      new Intl.DisplayNames(undefined, { type: 'language' }).of('deu') ?? 'deu',
   )
   const audio = phone.getByLabel('Audio')
   await audio.selectOption(
-    (await audio.locator('option', { hasText: de }).getAttribute('value'))!,
+    must(
+      await audio.locator('option', { hasText: de }).getAttribute('value'),
+      `${de} audio option value`,
+    ),
   )
   await expect.poll(() => pitch(tv), { timeout: 30_000 }).toBeCloseTo(880, -2)
   // From here paused: a track pick keeps a paused TV paused, and seeks move
@@ -233,7 +241,10 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… li
   const { phone } = await cast(tv)
   const phone2 = await secondPhone(tv)
   // Arranged over the tunnel: back to the waiting screen.
-  const screen = phone.url().match(/\/remote\/([^/]+)$/)![1]
+  const screen = must(
+    phone.url().match(/\/remote\/([^/]+)$/),
+    'screen id in the URL',
+  )[1]
   await viaTunnel(phone, `/streamiq/screens/${screen}`, { type: 'stop' })
   await expect(tv.getByRole('heading', { name: /^Screen: / })).toBeVisible()
   await tv.keyboard.press('Escape') // back where it was opened: Gateways

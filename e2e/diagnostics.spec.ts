@@ -13,6 +13,7 @@ import {
   signedInPage,
   tunnelRow,
 } from './helpers.ts'
+import { must } from './must.ts'
 
 const report = (p: Page) =>
   p.locator('pre', { hasText: 'StreamIQ diagnostics' })
@@ -53,7 +54,7 @@ async function testConnection(page: Page) {
       EndedAt: expect.any(String),
       BytesSent: expect.any(Number),
     })
-  return { patch, row: tunnelRow(id)! }
+  return { patch, row: must(tunnelRow(id), `tunnels row ${id}`) }
 }
 
 test('dock (#71, #230): bar, request table + log, stays open, links the report @diagnostics', async ({

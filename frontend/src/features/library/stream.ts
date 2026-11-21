@@ -23,9 +23,10 @@ export function autoLine(a: {
   saver: boolean
   eff: Quality
 }) {
-  const link = a.mbps
-    ? `~${a.mbps.toFixed(1)} Mbps${a.fresh ? '' : ' (stored hint)'} → cap ${mbps(a.cap!)}`
-    : 'unknown'
+  const link =
+    a.mbps && a.cap
+      ? `~${a.mbps.toFixed(1)} Mbps${a.fresh ? '' : ' (stored hint)'} → cap ${mbps(a.cap)}`
+      : 'unknown'
   const src = a.bitrate ? mbps(a.bitrate) : '?'
   const saver = a.saver ? ', data saver on' : ''
   const plays = a.eff === 'Auto' ? 'no limit (fits)' : a.eff

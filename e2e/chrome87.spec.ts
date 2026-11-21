@@ -14,6 +14,7 @@ import { chromium, type Browser } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import { password, signUp, uniqueEmail } from './helpers.ts'
 import { root, start, waitHttp } from './stack.ts'
+import { envVar, must } from './must.ts'
 
 // Revisions on the 87 branch (87.0.4280.0); the snapshot bucket has no Windows
 // build at the Linux one. Bump: the bucket listing in docs/tools.md, new sha256.
@@ -32,7 +33,10 @@ const builds: Record<string, { zip: string; exe: string; sha256: string }> = {
 
 /** The pinned Chromium 87's executable, downloaded and checked on first use. */
 async function chromium87() {
-  const b = builds[process.platform]!
+  const b = must(
+    builds[process.platform],
+    `a Chromium 87 build for ${process.platform}`,
+  )
   const dir = path.join(
     import.meta.dirname,
     '.bin',
@@ -57,7 +61,7 @@ async function chromium87() {
   const x =
     process.platform === 'win32'
       ? spawnSync(
-          path.join(process.env.SystemRoot!, 'System32', 'tar.exe'),
+          path.join(envVar('SystemRoot'), 'System32', 'tar.exe'),
           ['-xf', 'c.zip'],
           { cwd: tmp },
         )
@@ -70,7 +74,7 @@ async function chromium87() {
 
 /** `vite build` of this checkout against this stack, served by `vite preview`. */
 async function serveBuild() {
-  const url = process.env.E2E_BUILD_URL!
+  const url = envVar('E2E_BUILD_URL')
   const out = path.join(import.meta.dirname, '.bin', 'app-build')
   const vite = path.join('node_modules', 'vite', 'bin', 'vite.js')
   const cwd = path.join(root, 'frontend')
@@ -135,16 +139,20 @@ test('Chromium 87 (webOS): the production build signs in to Gateways @shell', as
       ([email, pw]) => {
         // React tracks the value setter: set through the prototype, then `input`.
         const set = (sel: string, v: string) => {
-          const el = document.querySelector<HTMLInputElement>(sel)!
-          Object.getOwnPropertyDescriptor(
+          const el = document.querySelector<HTMLInputElement>(sel)
+          const setter = Object.getOwnPropertyDescriptor(
             HTMLInputElement.prototype,
             'value',
-          )!.set!.call(el, v)
+          )?.set
+          if (!el || !setter) throw new Error(`no ${sel} or no value setter`)
+          setter.call(el, v)
           el.dispatchEvent(new Event('input', { bubbles: true }))
         }
         set('input[type=email]', email)
         set('input[type=password]', pw)
-        document.querySelector('form')!.requestSubmit()
+        const form = document.querySelector('form')
+        if (!form) throw new Error('no sign-in form')
+        form.requestSubmit()
       },
       [user.email, password],
     )

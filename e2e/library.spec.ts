@@ -14,6 +14,7 @@ import {
   videoTime,
   viaTunnel,
 } from './helpers.ts'
+import { must } from './must.ts'
 
 const movies = (p: Page) => p.getByRole('button', { name: /Movies/ })
 const recent = (p: Page) =>
@@ -150,7 +151,11 @@ test('continue watching: newest first; the click-through guard keeps the order (
       )
     ).body,
   ) as { Items: { Id: string; Name: string }[] }
-  const id = (name: string) => Items.find((i) => i.Name === name)!.Id
+  const id = (name: string) =>
+    must(
+      Items.find((i) => i.Name === name),
+      name,
+    ).Id
   for (const [name, at] of [
     ['streamiq e2e clip', '2026-01-01T00:00:00Z'],
     ['streamiq e2e mp2 default', '2026-01-02T00:00:00Z'],
@@ -218,11 +223,10 @@ test('watched marks: a finished episode reads Watched, a part-played one its tim
   // Arrange over the tunnel: E1 to its end, E2 part-played.
   await first.getByRole('button').first().click()
   await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(0)
-  await a.evaluate(() => {
-    const v = document.querySelector('video')!
-    v.currentTime = v.duration - 0.5
-  })
-  await a.waitForFunction(() => document.querySelector('video')!.ended)
+  await a
+    .locator('video')
+    .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
+  await a.waitForFunction(() => document.querySelector('video')?.ended)
   await a.goBack()
   await second.getByRole('button').first().click()
   await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(2)

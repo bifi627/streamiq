@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 baseline=scripts/comment-baseline.txt
-for p in frontend/src gateway backend/src scripts .github/workflows gateway/.golangci.yml .editorconfig; do
+for p in frontend/src gateway backend/src scripts .github/workflows .golangci.yml .editorconfig; do
   [ -e "$p" ] || { echo "check-comments: $p missing" >&2; exit 2; }
 done
 
@@ -15,7 +15,7 @@ files=$( {
   find gateway -name '*.go' -not -name '*_test.go'
   find backend/src -name '*.cs' -not -path '*/obj/*' -not -path '*/bin/*' -not -path '*/Migrations/*' \
     -not -name '*.Designer.cs' -not -name '*.g.cs'
-  ls scripts/*.sh scripts/*.ps1 scripts/*.sql .github/workflows/*.yml gateway/.golangci.yml .editorconfig
+  ls scripts/*.sh scripts/*.ps1 scripts/*.sql .github/workflows/*.yml .golangci.yml .editorconfig
 } | sort)
 
 # shellcheck disable=SC2086 # one path per line, none with spaces

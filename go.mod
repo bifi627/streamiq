@@ -1,4 +1,4 @@
-module streamiq/gateway
+module streamiq
 
 go 1.27.0
 

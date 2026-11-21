@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: gateway/go.mod
+          go-version-file: go.mod
       - run: bash scripts/next-gateway-version.sh --test # #274: release-gateway's version bump
       - run: bash scripts/check-docs-drift.sh # #488: STREAMIQ_* env vars + gateway routes documented
       - run: bash scripts/check-file-size.sh # #600: no source file over 500 code lines (all three stacks) outside the allowlist
@@ -125,8 +125,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: gateway/go.mod
-          cache-dependency-path: gateway/go.sum
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
       - run: gh release download --repo "$GITHUB_REPOSITORY" --pattern streamiq-gateway-windows-amd64.exe --dir "$RUNNER_TEMP"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -150,8 +150,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: gateway/go.mod
-          cache-dependency-path: gateway/go.sum
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
       - run: gh release download --repo "$GITHUB_REPOSITORY" --pattern jellyfin-compose.yml --dir "$RUNNER_TEMP"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -177,8 +177,8 @@ jobs:
       - uses: actions/setup-dotnet@v6
       - uses: actions/setup-go@v7
         with:
-          go-version-file: gateway/go.mod
-          cache-dependency-path: gateway/go.sum
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc

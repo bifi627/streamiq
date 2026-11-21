@@ -4,7 +4,7 @@
 #   next-gateway-version.sh --test  → self-check against a scratch repo (check.sh + CI)
 # Base = the highest stable tag gateway-vX.Y.Z (semver sort; prereleases ignored).
 # Nothing to release: HEAD is already in the base release (an older commit, a re-run),
-# or gateway/ (tests aside) is unchanged since it. So it releases main's state, not one
+# or gateway/ (tests aside) and go.mod/go.sum are unchanged since it. So it releases main's state, not one
 # commit: a change whose own run never released (red CI, cancelled, [skip release]) goes
 # out with the next release.
 # Bump: a breaking subject (`type!:` / `type(scope)!:`) on any gateway commit since the
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 next() {
-  local base ma mi pa log paths=(gateway/ ':(exclude,glob)gateway/**/*_test.go')
+  local base ma mi pa log paths=(gateway/ go.mod go.sum ':(exclude,glob)gateway/**/*_test.go')
   base=$(git tag -l 'gateway-v*' | sed 's#^gateway-v##' | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -1)
   if [ -n "$base" ]; then
     git merge-base --is-ancestor HEAD "gateway-v$base" && return 0
@@ -44,6 +44,7 @@ if [ "${1:-}" = --test ]; then
                                             want 0.1.1 "a frontend break is not a gateway break"
   g tag gateway-v0.2.0-rc.1;                want 0.1.1 "prerelease ignored"
   g tag gateway-v1.0.0; c gateway/a.go "fix: y"; want 1.0.1 "hand-pushed major followed"
+  g tag gateway-v1.0.1; c go.sum "fix(deps): bump"; want 1.0.2 "the root go.sum counts as a gateway change"
   # a stable tag off main (e.g. a PR branch head before its squash merge) must not block
   g checkout -q -b side HEAD~1; c gateway/s.go "fix: side"; g tag gateway-v1.0.08; g checkout -q -
                                             want 1.0.9 "tag off main doesn't block; decimal, not octal"

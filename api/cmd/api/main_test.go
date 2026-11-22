@@ -10,7 +10,7 @@ func TestDatabaseURLFallsBackInDevelopmentOnly(t *testing.T) {
 		if (err != nil) != wantErr || (err == nil && url == "") {
 			t.Fatalf("STREAMIQ_ENV=%q: %q, %v", env, url, err)
 		}
-		if err != nil && err.Error() != "DATABASE_URL is not set (only STREAMIQ_ENV=development falls back to the compose Postgres)" {
+		if err != nil && err != errNoDatabaseURL {
 			t.Fatalf("STREAMIQ_ENV=%q: %v", env, err)
 		}
 	}

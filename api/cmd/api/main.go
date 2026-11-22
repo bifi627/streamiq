@@ -81,12 +81,14 @@ func main() {
 
 // databaseURL falls back to the compose Postgres in development only, so a production
 // start without DATABASE_URL fails here instead of dialling localhost.
+var errNoDatabaseURL = errors.New("DATABASE_URL is not set (required unless STREAMIQ_ENV=development)")
+
 func databaseURL() (string, error) {
 	if url := os.Getenv("DATABASE_URL"); url != "" {
 		return url, nil
 	}
 	if os.Getenv("STREAMIQ_ENV") != "development" {
-		return "", errors.New("DATABASE_URL is not set (only STREAMIQ_ENV=development falls back to the compose Postgres)")
+		return "", errNoDatabaseURL
 	}
 	return "postgres://streamiq:dev@localhost:5432/streamiq", nil
 }

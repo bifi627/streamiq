@@ -19,9 +19,9 @@ func TestTheSummaryCountsEveryRowOfTheWindowBeyond200PerUser(t *testing.T) {
 	}
 	with(bob.id, `use = 'playback', relay = true, bytes_sent = 1000, bytes_received = 24`)
 	with(bob.id, `use = 'management', relay = true, bytes_sent = 100`) // hidden, its relay bytes count
-	with(bob.id, `use = 'diagnostics'`)                                   // hidden
-	with(bob.id, `use = 'management', failure = 'ice failed'`)          // failed: not hidden
-	with("", `use = 'browsing'`)                                          // a deleted account
+	with(bob.id, `use = 'diagnostics'`)                                // hidden
+	with(bob.id, `use = 'management', failure = 'ice failed'`)         // failed: not hidden
+	with("", `use = 'browsing'`)                                       // a deleted account
 	tunnel(t, alice.home, nas, bob.id, "31 days")
 
 	status, body := s.get(t, alice, alice.home, "/api/tunnels/summary")

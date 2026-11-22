@@ -84,7 +84,8 @@ func TestEFMigratedDatabaseAdoptsTheBaseline(t *testing.T) {
 	if _, err := conn.PgConn().Exec(t.Context(), string(baseline)).ReadAll(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := conn.Exec(t.Context(),
+	if _, err := conn.Exec(
+		t.Context(),
 		`INSERT INTO tenants SELECT * FROM json_populate_record(null::tenants, '{"Id": "0190a000-0000-7000-8000-000000000001", "Name": "kept", "CreatedAt": "2026-01-01T00:00:00Z"}')`,
 	); err != nil {
 		t.Fatal(err)

@@ -99,7 +99,7 @@ jobs:
       - run: bash scripts/check-docs-drift.sh # #488: STREAMIQ_* env vars + gateway routes documented
       - run: bash scripts/check-file-size.sh # #600: no source file over 500 code lines (frontend + Go) outside the allowlist
       - run: bash scripts/check-comments.sh
-      - run: bash scripts/check-migrations.sh # #775: squawk on the migrations not applied yet
+      - run: bash scripts/check-migrations.sh # squawk on the migrations not applied yet
       - run: bash scripts/gen-types.sh --check # frontend/src/generated matches the Go wire types (Go + the frontend tree)
       # #581: actionlint (+ shellcheck on run: blocks) and shellcheck scripts/*.sh + the installer, pinned like scripts/check.sh
       - run: |

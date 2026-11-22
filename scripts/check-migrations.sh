@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-applied=0007
+applied=0007 # bump only in a PR after the newer ones ran in production, never in the one adding them
 img=ghcr.io/sbdchd/squawk:2.72.0
 files=()
 for f in api/migrations/*.sql; do

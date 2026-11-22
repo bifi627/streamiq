@@ -8,9 +8,9 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { browserName } from '../pairing/connect'
-import { toAppError } from '../../errors'
-import * as jf from './jellyfin'
-import { event } from '../../diag'
+import { toAppError } from '../../shared/errors'
+import * as jf from '../library/jellyfin'
+import { event } from '../../shared/diag'
 import {
   clientsOn,
   commandScreen,
@@ -23,7 +23,7 @@ import {
 } from '../gateways/api'
 import { clampSeek, polled } from './remote'
 import { serial } from './serial'
-import { Player } from './Player'
+import { Player } from '../player/Player'
 import {
   audioTracks,
   clock,
@@ -31,12 +31,12 @@ import {
   subtitleTracks,
   TICKS_PER_SECOND,
   type Item,
-} from './items'
-import { Icon } from './Controls'
-import { ICON } from './icons'
-import { backdrop, primary, useTunnel, useTunnelQuery } from './art'
-import { useScreens } from './queries'
-import { Artwork } from './Home'
+} from '../library/items'
+import { Icon } from '../player/Controls'
+import { ICON } from '../player/icons'
+import { backdrop, primary, useTunnel, useTunnelQuery } from '../library/art'
+import { useScreens } from '../library/queries'
+import { Artwork } from '../library/Home'
 
 // Screen mode (docs/protocol.md "Screens"): this device holds GET
 // /streamiq/screen and plays what a phone on the same gateway sends. The screen

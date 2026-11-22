@@ -5,7 +5,7 @@ import {
   type Gateway,
   type GatewayStatus,
 } from './api'
-import { toAppError } from '../../errors'
+import { toAppError } from '../../shared/errors'
 import { detailsMessage } from './list'
 import { loadHints, loadLine } from './host'
 

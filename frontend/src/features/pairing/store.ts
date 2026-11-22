@@ -2,7 +2,7 @@
 // the page can use it but never read it out) and the gateway pins, per gateway id.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fingerprint } from './crypto'
-import { event } from '../../diag'
+import { event } from '../../shared/diag'
 
 const db = new Promise<IDBDatabase>((resolve, reject) => {
   const r = indexedDB.open('streamiq', 1)

@@ -1,4 +1,4 @@
-// Run: node --test src/features/library/quality.test.ts (part of scripts/check.sh).
+// Run: node --test src/features/player/quality.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { qualityOptions } from './quality.ts'

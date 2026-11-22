@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { Link } from '@tanstack/react-router'
-import { arrowFocus } from './focus'
+import { arrowFocus } from '../../shared/focus'
 import {
   debugOn,
   diag,
@@ -10,7 +10,7 @@ import {
   setRelay,
   snapshot,
   subscribe,
-} from './diag'
+} from '../../shared/diag'
 
 /** Settings checkbox: a TV remote can reach it, unlike the URL bar. */
 export function DiagnosticsToggle() {

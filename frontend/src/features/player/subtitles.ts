@@ -4,9 +4,9 @@
 // segment timestamps that shift with where the transcode job started, so its
 // cues landed seconds off. Stream.vtt is in content time, which is the
 // playlist's and so the <video>'s.
-import { event } from '../../diag'
-import { tunnelFetch } from '../../tunnel'
-import * as jf from './jellyfin'
+import { event } from '../../shared/diag'
+import { tunnelFetch } from '../../shared/tunnel'
+import * as jf from '../library/jellyfin'
 
 /** The subtitle <track> of `v`: show(index, source) fetches and shows one
  * (-1 = off); close() removes it for good. */

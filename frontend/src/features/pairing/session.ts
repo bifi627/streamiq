@@ -1,8 +1,8 @@
 // A tunnel's lifetime on this browser: the broker keep-alive, the throughput
 // report on close, and the Session handle connect() resolves with.
-import { authed } from '../../api'
-import { measure, type Speed } from '../../speed'
-import { event } from '../../diag'
+import { authed } from '../../shared/api'
+import { measure, type Speed } from '../../shared/speed'
+import { event } from '../../shared/diag'
 import type { Ping } from '../../generated/protocol'
 
 export type Session = {

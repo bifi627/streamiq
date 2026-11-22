@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
-import { csp } from './src/csp.ts'
+import { csp } from './src/shared/csp.ts'
 
 // ponytail: the VITE_ vars from the environment only (Dockerfile, e2e), not .env files.
 const env = process.env

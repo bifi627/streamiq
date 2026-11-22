@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { authed } from '../../api'
+import { authed } from '../../shared/api'
 import { switchHousehold, useHousehold } from './household'
-import { ADMIN_ONLY, AppError, toAppError } from '../../errors'
-import { ErrorView } from '../../ErrorView'
+import { ADMIN_ONLY, AppError, toAppError } from '../../shared/errors'
+import { ErrorView } from '../../shared/ErrorView'
 import { emailLine, initial, memberNames, roleView } from './memberNames'
 import type { Member } from '../../generated/members'
 

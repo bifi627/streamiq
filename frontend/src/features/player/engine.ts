@@ -7,18 +7,18 @@
 // Screen mode: `remote` feeds it a phone's pause/resume/seek/tracks commands;
 // play/stop are the screen's. A phone's pause holds through startup and reloads.
 import Hls from 'hls.js'
-import { queryClient } from '../../query'
-import { AppError, toAppError } from '../../errors'
-import { tunnelJson } from '../../tunnel'
-import { event, failLoads, watchVideo } from '../../diag'
-import { compatibleOn, dataSaverOn, quality } from '../../settings'
-import type { Speed } from '../../speed'
+import { queryClient } from '../../shared/query'
+import { AppError, toAppError } from '../../shared/errors'
+import { tunnelJson } from '../../shared/tunnel'
+import { event, failLoads, watchVideo } from '../../shared/diag'
+import { compatibleOn, dataSaverOn, quality } from '../../shared/settings'
+import type { Speed } from '../../shared/speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { TUNNEL_ORIGIN } from './loader'
-import * as jf from './jellyfin'
-import { playback } from './art'
+import * as jf from '../library/jellyfin'
+import { playback } from '../library/art'
 import { newHls } from './hls'
-import { watchResume } from './resume'
+import { watchResume } from '../library/resume'
 import { subtitleTrack } from './subtitles'
 import type { Link } from './quality'
 import { autoLine, qualityLine, transcodeParams, urlAudio } from './stream'
@@ -49,7 +49,7 @@ import {
   subtitleTracks,
   TICKS_PER_SECOND,
   type Item,
-} from './items'
+} from '../library/items'
 
 /** What the Player shows; the engine sets parts of it. */
 export type View = {

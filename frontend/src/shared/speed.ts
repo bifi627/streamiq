@@ -7,8 +7,8 @@
 // saver: no warm-up and 3 × 1 MiB (~3 MB), not kept as the hint (it reads low: ramp-up).
 import { event } from './diag'
 import { pairInfo } from './stats'
-import { burstOn } from './features/gateways/api'
-import { burstSize, median } from './features/library/profile'
+import { burstOn } from '../features/gateways/api'
+import { burstSize, median } from '../features/player/profile'
 import { dataSaverOn } from './settings'
 
 const MIB = 1 << 20

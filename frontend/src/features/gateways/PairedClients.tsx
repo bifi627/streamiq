@@ -6,7 +6,7 @@ import {
   type Client,
   type Gateway,
 } from './api'
-import { toAppError } from '../../errors'
+import { toAppError } from '../../shared/errors'
 import { EditableName } from './EditableName'
 import {
   clientRenameMessage,

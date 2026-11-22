@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { authed } from '../../api'
-import { copyText } from '../../clipboard'
+import { authed } from '../../shared/api'
+import { copyText } from '../../shared/clipboard'
 import { switchHousehold } from './household'
-import { AppError, toAppError } from '../../errors'
-import { ErrorView } from '../../ErrorView'
-import { arrowFocus } from '../../focus'
-import { event } from '../../diag'
+import { AppError, toAppError } from '../../shared/errors'
+import { ErrorView } from '../../shared/ErrorView'
+import { arrowFocus } from '../../shared/focus'
+import { event } from '../../shared/diag'
 import type {
   Accepted,
   Created,

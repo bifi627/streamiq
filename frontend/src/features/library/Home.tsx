@@ -4,9 +4,9 @@
 // here). Arrow keys: GatewayLibrary's D-pad container (Library.tsx).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { AppError, toAppError } from '../../errors'
+import { AppError, toAppError } from '../../shared/errors'
 import { homeLists, homeView, ok, shelf, type Shelf } from './shelves'
-import { ErrorView, State } from '../../ErrorView'
+import { ErrorView, State } from '../../shared/ErrorView'
 import {
   backdrop,
   items,

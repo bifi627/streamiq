@@ -1,4 +1,4 @@
-// Run: node --test src/features/library/remote.test.ts (part of scripts/check.sh).
+// Run: node --test src/features/screen/remote.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { clampSeek, polled } from './remote.ts'

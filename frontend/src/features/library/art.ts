@@ -6,11 +6,11 @@ import { createContext, useContext } from 'react'
 import { skipToken, useQuery } from '@tanstack/react-query'
 import type { Item } from './items'
 import { image } from './jellyfin'
-import { tunnelFetch, tunnelJson } from '../../tunnel'
-import { ART_PREFIX, artCleared } from '../../leave'
-import { queryClient } from '../../query'
-import type { Speed } from '../../speed'
-import { event } from '../../diag'
+import { tunnelFetch, tunnelJson } from '../../shared/tunnel'
+import { ART_PREFIX, artCleared } from '../../shared/leave'
+import { queryClient } from '../../shared/query'
+import type { Speed } from '../../shared/speed'
+import { event } from '../../shared/diag'
 
 // The gateway's shared tunnel session (Library.tsx GatewayLibrary).
 export const Tunnel = createContext<{

@@ -2,8 +2,8 @@ import { auth } from './firebase'
 import { clearArtThen } from './leave'
 import { AppError, httpError } from './errors'
 import { noop } from './noop'
-import type { Me } from './generated/me'
-import type { Created, Named } from './generated/household'
+import type { Me } from '../generated/me'
+import type { Created, Named } from '../generated/household'
 
 // Prod: the API serves this bundle, so same origin. Dev: vite :5173, API :5028.
 // Every endpoint lives under /api (the rest of the path space is client routes).

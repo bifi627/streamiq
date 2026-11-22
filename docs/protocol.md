@@ -8,7 +8,7 @@ gateway ↔ browser contracts are Go types in the gateway slice that serves them
 types-only file each, generated the same way (#801): the `auth` channel
 (`gateway/internal/sessions/messages.go`, "Pairing") and the gateway API's bodies
 ("Gateway API"). The tunnel framing is hand-mirrored in Go (`gateway/internal/tunnel`)
-and TS (`frontend/src/tunnel.ts`).
+and TS (`frontend/src/shared/tunnel.ts`).
 
 **Paths.** Every API endpoint is under `/api` (#120); the rest of the path space
 belongs to the SPA's client routes (prod serves `index.html` for them, unknown
@@ -665,7 +665,7 @@ isn't allowlisted (not needed).
 ### Browser mechanism: hls.js custom loader, not a Service Worker (decided)
 
 Playback is Jellyfin **HLS**, so a custom hls.js loader
-(`frontend/src/features/library/loader.ts`) reads straight from the data
+(`frontend/src/features/player/loader.ts`) reads straight from the data
 channel in **page context**, where the channel handle already lives. A Service
 Worker would add a `postMessage` hop (the channel can't live in the SW). It
 would also need register+activate before it controls the page, and it can be

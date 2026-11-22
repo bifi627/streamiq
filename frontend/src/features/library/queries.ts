@@ -1,12 +1,12 @@
 // The library's polls and reads over the gateway's open tunnel. Keyed by
 // gatewayId: the queryFn always runs on the pc it was last rendered with.
 import { useQuery } from '@tanstack/react-query'
-import { pairInfo } from '../../stats'
+import { pairInfo } from '../../shared/stats'
 import { routeOn, screensOn, statusOn } from '../gateways/api'
 import { useTunnelQuery } from './art'
 import type { Item } from './items'
 import * as jf from './jellyfin'
-import { polled } from './remote'
+import { polled } from '../screen/remote'
 
 type PC = RTCPeerConnection
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { setTelemetry, type Gateway } from './api'
-import { describe, toAppError } from '../../errors'
+import { describe, toAppError } from '../../shared/errors'
 import { telemetryView, type Level } from './telemetry'
 
 // Health sharing: the level from the last heartbeat. The gateway's state file is the

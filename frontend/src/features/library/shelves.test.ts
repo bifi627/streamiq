@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AppError } from '../../errors.ts'
+import { AppError } from '../../shared/errors.ts'
 import { homeLists, homeView, shelf } from './shelves.ts'
 import type { Item } from './items.ts'
 

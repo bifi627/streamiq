@@ -1,10 +1,10 @@
 import { useContext, useState } from 'react'
 import { signOut } from '@firebase/auth'
-import { auth } from '../../firebase'
-import { createHousehold, renameHousehold } from '../../api'
-import { AppError, describe, toAppError } from '../../errors'
-import { ErrorView } from '../../ErrorView'
-import { arrowFocus } from '../../focus'
+import { auth } from '../../shared/firebase'
+import { createHousehold, renameHousehold } from '../../shared/api'
+import { AppError, describe, toAppError } from '../../shared/errors'
+import { ErrorView } from '../../shared/ErrorView'
+import { arrowFocus } from '../../shared/focus'
 import { EditableName, STORED } from '../gateways/EditableName'
 import {
   householdLabel,

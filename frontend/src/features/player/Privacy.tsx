@@ -6,7 +6,7 @@
 // Focusing or clicking the badge shows the one-line explanation
 // (CSS: .badge:focus / [aria-expanded] + .explain); the relayed MB live there.
 import { useState } from 'react'
-import { useOnLan, usePairInfo } from './queries'
+import { useOnLan, usePairInfo } from '../library/queries'
 
 export function Privacy({
   gatewayId,

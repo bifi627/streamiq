@@ -1,5 +1,5 @@
 // The library home's rows (Home.tsx): when it shows and what each row holds.
-import { AppError, toAppError } from '../../errors.ts'
+import { AppError, toAppError } from '../../shared/errors.ts'
 import type { Item } from './items.ts'
 
 // Each row loads on its own: one that fails shows its error, the others stay.

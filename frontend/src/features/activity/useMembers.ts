@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { authed } from '../../api'
+import { authed } from '../../shared/api'
 import { memberNames } from '../households/memberNames'
 import type { Member } from '../../generated/members'
 

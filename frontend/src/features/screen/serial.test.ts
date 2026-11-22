@@ -1,4 +1,4 @@
-// Run: node --test src/features/library/serial.test.ts (part of scripts/check.sh).
+// Run: node --test src/features/screen/serial.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { serial } from './serial.ts'

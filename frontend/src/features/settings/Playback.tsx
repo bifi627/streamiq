@@ -8,7 +8,7 @@ import {
   setCompatible,
   setDataSaver,
   setRaw,
-} from '../../settings'
+} from '../../shared/settings'
 import { netReport } from './network'
 
 // Settings' Playback card: compatible mode, data saver, Raw.

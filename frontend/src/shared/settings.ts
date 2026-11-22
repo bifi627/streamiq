@@ -7,8 +7,8 @@ import {
   toQuality,
   type Quality,
   type SaverMode,
-} from './features/library/profile'
-import { guessTv } from './tv'
+} from '../features/player/profile'
+import { guessTv } from '../features/tv/tv'
 
 const KEY = 'streamiq.settings.compatible'
 const RAW_KEY = 'streamiq.settings.raw'

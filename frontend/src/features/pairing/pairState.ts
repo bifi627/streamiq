@@ -1,7 +1,7 @@
 // The pairing block's state and what it shows (Pairing.tsx wires it).
-import type { AppError } from '../../errors'
+import type { AppError } from '../../shared/errors'
 import type { SystemInfo } from '../library/jellyfin'
-import type { PairInfo } from '../../stats'
+import type { PairInfo } from '../../shared/stats'
 
 export type State =
   | { step: 'idle' }

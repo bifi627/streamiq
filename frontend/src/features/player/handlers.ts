@@ -3,10 +3,10 @@
 // state and passes refs and setters in.
 import type { RefObject } from 'react'
 import { seekTarget, storedVolume } from './bar'
-import { isBack } from './items'
+import { isBack } from '../library/items'
 import { clamp, keyAction, type Action } from './keys'
-import { noop } from '../../noop'
-import { event } from '../../diag'
+import { noop } from '../../shared/noop'
+import { event } from '../../shared/diag'
 
 const HIDE_MS = 4000
 

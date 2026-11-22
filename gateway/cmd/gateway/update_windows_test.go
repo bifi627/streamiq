@@ -20,7 +20,6 @@ import (
 	"streamiq/gateway/internal/identity"
 	"streamiq/gateway/internal/onboarding"
 	"streamiq/gateway/internal/pairing"
-	"streamiq/gateway/internal/service"
 	"streamiq/gateway/internal/update"
 )
 
@@ -217,9 +216,6 @@ func TestUpdateUpToDate(t *testing.T) {
 // setup serves this commit's build as release v<latest> and points the
 // gateway (this process and the binaries it starts) at it and at an install dir.
 func setup(t *testing.T, latest string) (install, state string) {
-	if service.Installed() {
-		t.Skip("the logon task " + service.Task + " is installed here: update and rollback would stop it")
-	}
 	served := filepath.Join(t.TempDir(), "new.exe")
 	build(t, served, latest)
 	bin := read(t, served)

@@ -18,8 +18,30 @@ import (
 	"unicode/utf16"
 )
 
-// Task is the scheduled task's name.
-const Task = "streamiq-gateway"
+// Task is the scheduled task's name for the gateway installed at exe.
+func Task(exe string) string { return Name("streamiq-gateway", filepath.Dir(exe)) }
+
+// Name is prefix for the default install dir (named streamiq), else
+// prefix-<dir's name>: the install dir is the gateway's identity on this
+// machine, so a second install gets its own task and compose project. Only
+// a-z, 0-9, - and _ (what compose project names allow; fine for schtasks).
+// ponytail: two install dirs with the same name on one machine share them;
+// a hash of the full path is the upgrade path.
+func Name(prefix, dir string) string {
+	n := strings.Trim(strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r + 'a' - 'A'
+		}
+		return '-'
+	}, filepath.Base(dir)), "-_")
+	if n == "" || n == "streamiq" {
+		return prefix
+	}
+	return prefix + "-" + n
+}
 
 // ErrUnsupported is what `service` and `update` say outside Windows.
 var ErrUnsupported = fmt.Errorf("not supported yet on %s, use install.sh", runtime.GOOS)
@@ -42,11 +64,11 @@ func Install(exe string) error {
 		return err
 	}
 	defer os.Remove(path)
-	if err := schtasks("/Create", "/F", "/TN", Task, "/XML", path); err != nil {
+	if err := schtasks("/Create", "/F", "/TN", Task(exe), "/XML", path); err != nil {
 		return err
 	}
 	Stop(exe)
-	return Start()
+	return Start(exe)
 }
 
 // Uninstall stops the gateway and removes the task. state/ and gateway.env stay.
@@ -54,28 +76,28 @@ func Uninstall(exe string) error {
 	if !Supported() {
 		return ErrUnsupported
 	}
-	if !Installed() {
-		return fmt.Errorf("task %s is not installed", Task)
+	if !Installed(exe) {
+		return fmt.Errorf("task %s is not installed", Task(exe))
 	}
 	Stop(exe)
-	return schtasks("/Delete", "/F", "/TN", Task)
+	return schtasks("/Delete", "/F", "/TN", Task(exe))
 }
 
-// Installed reports whether the logon task exists.
-func Installed() bool {
-	return Supported() && exec.Command("schtasks", "/Query", "/TN", Task).Run() == nil
+// Installed reports whether exe's logon task exists.
+func Installed(exe string) bool {
+	return Supported() && exec.Command("schtasks", "/Query", "/TN", Task(exe)).Run() == nil
 }
 
-// Start runs the task now.
-func Start() error { return schtasks("/Run", "/TN", Task) }
+// Start runs exe's task now.
+func Start(exe string) error { return schtasks("/Run", "/TN", Task(exe)) }
 
-// Stop ends the task (its console window) and any gateway running from exe,
+// Stop ends exe's task (its console window) and any gateway running from exe,
 // except this process. Best effort: nothing running is fine.
 func Stop(exe string) {
 	if !Supported() {
 		return
 	}
-	_ = exec.Command("schtasks", "/End", "/TN", Task).Run() // best effort (above)
+	_ = exec.Command("schtasks", "/End", "/TN", Task(exe)).Run() // best effort (above)
 	// The task's cmd /k is the parent; make sure the gateway itself is gone too,
 	// including one started by an older install.ps1 (no task).
 	ps := fmt.Sprintf("Get-Process | Where-Object { $_.Path -eq '%s' -and $_.Id -ne %d } | Stop-Process -Force",

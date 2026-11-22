@@ -94,16 +94,21 @@ func parse(v string) []int {
 // DownloadURL is where release assets live (STREAMIQ_DOWNLOAD overrides it, as in the installers).
 const DownloadURL = "https://github.com/bifi627/streamiq/releases/latest/download"
 
-// Command is the one line the user runs to update on this OS.
+// Command is the one line the user runs to update on this OS. install.sh gets
+// this binary's dir: a second gateway on the machine lives in another one.
 func Command() string {
+	exe, err := os.Executable()
 	if runtime.GOOS == "windows" {
-		exe, err := os.Executable()
 		if err != nil {
 			exe = "gateway.exe"
 		}
 		return exe + " update"
 	}
-	return "curl -fsSL " + DownloadURL + "/install.sh | sh"
+	if err != nil {
+		return "curl -fsSL " + DownloadURL + "/install.sh | sh"
+	}
+	return "curl -fsSL " + DownloadURL + "/install.sh | STREAMIQ_DIR='" +
+		strings.ReplaceAll(filepath.Dir(exe), "'", `'\''`) + "' sh"
 }
 
 // Asset is this platform's release binary, as release-gateway.yml names it.

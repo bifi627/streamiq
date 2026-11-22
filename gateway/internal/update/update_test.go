@@ -201,3 +201,14 @@ func TestBackupsKeepThreeAndPreviousIsNewest(t *testing.T) {
 		t.Fatalf("backups mode %v, want 0700", fi.Mode().Perm())
 	}
 }
+
+// install.sh updates the default dir unless told this gateway's.
+func TestCommandNamesTheInstallDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("gateway update there")
+	}
+	exe, _ := os.Executable()
+	if got, want := Command(), "STREAMIQ_DIR='"+filepath.Dir(exe)+"' sh"; !strings.HasSuffix(got, want) {
+		t.Errorf("Command() = %q, want it to end in %q", got, want)
+	}
+}

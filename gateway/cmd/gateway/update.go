@@ -49,8 +49,8 @@ func selfUpdate(ctx context.Context, exe string) error {
 		return err
 	}
 	os.Remove(exe + ".old") // left by a rollback, or an older release's update
-	task := service.Installed()
-	if err := swap(exe, keep, task, service.Stop, service.Start); err != nil {
+	task := service.Installed(exe)
+	if err := swap(exe, keep, task, service.Stop, func() error { return service.Start(exe) }); err != nil {
 		return err
 	}
 	fmt.Print(updated(version, latest, keep, task))
@@ -190,7 +190,7 @@ func rollback(ctx context.Context, exe string) error {
 		return err
 	}
 	kept := filepath.Join(dir, filepath.Base(exe))
-	task := service.Installed()
+	task := service.Installed(exe)
 	stopGateway(exe)
 	if err = waitStopped(); err != nil {
 		return err
@@ -226,7 +226,7 @@ func rollback(ctx context.Context, exe string) error {
 // does. Not for Windows without the task (a gateway started by hand).
 func startGateway(exe string, task bool) error {
 	if task {
-		return service.Start()
+		return service.Start(exe)
 	}
 	return exec.Command("sh", "-c", `cd "$1" && nohup "$2" >> "$1/gateway.log" 2>&1 &`, "sh", filepath.Dir(exe), exe).
 		Run()
@@ -245,7 +245,7 @@ func waitStopped() error {
 // restartGateway restarts a gateway running from exe (not this process) so it
 // reads gateway.env again; one started by hand on Windows is left to the user.
 func restartGateway(exe string) error {
-	task := service.Installed()
+	task := service.Installed(exe)
 	if !task && runtime.GOOS == "windows" {
 		fmt.Println("Restart the gateway to apply it: close its window and start it again (gateway run).")
 		return nil

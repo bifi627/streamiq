@@ -1,11 +1,7 @@
 import { bytes } from '../activity/tunnels.ts'
+import type { Load as HostLoad } from '../../generated/host.ts'
 
-// GET /streamiq/status `host` (docs/protocol.md): any field may be missing.
-export type HostLoad = {
-  cpu?: number
-  memory?: { used: number; total: number }
-  disk?: { free: number; total: number }
-}
+export type { HostLoad }
 
 const pct = new Intl.NumberFormat(undefined, {
   style: 'percent',

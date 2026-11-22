@@ -82,7 +82,7 @@ type Switch struct {
 }
 
 func (s *Switch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var in struct{ Level string }
+	var in Level
 	b, _ := io.ReadAll(r.Body)
 	if json.Unmarshal(b, &in) != nil || (in.Level != Off && in.Level != Full) {
 		tunnel.Fail(w, http.StatusBadRequest, fmt.Errorf("gateway API: telemetry: %w", ErrBadLevel))
@@ -94,5 +94,5 @@ func (s *Switch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("gateway: telemetry %s (gateway API)", in.Level)
 	s.Changed()
-	tunnel.JSON(w, http.StatusOK, map[string]string{"level": in.Level})
+	tunnel.JSON(w, http.StatusOK, in)
 }

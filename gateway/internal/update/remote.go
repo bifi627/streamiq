@@ -68,10 +68,10 @@ func (r *Remote) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	v, refused, err := r.Run()
 	switch {
 	case refused != "":
-		tunnel.JSON(w, http.StatusConflict, map[string]string{"reason": refused})
+		tunnel.JSON(w, http.StatusConflict, Refused{refused})
 	case err != nil:
 		tunnel.Fail(w, http.StatusInternalServerError, fmt.Errorf("gateway API: update: %w", err))
 	default:
-		tunnel.JSON(w, http.StatusAccepted, map[string]string{"version": v})
+		tunnel.JSON(w, http.StatusAccepted, Started{v})
 	}
 }

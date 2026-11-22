@@ -1,6 +1,7 @@
 package update
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -65,8 +66,12 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 	}))
 	defer srv.Close()
 	dst := filepath.Join(t.TempDir(), "gateway.exe.new")
-	if err := Download(context.Background(), srv.URL, "streamiq-gateway-windows-amd64.exe", dst); err != nil {
+	var bar bytes.Buffer
+	if err := Download(context.Background(), srv.URL, "streamiq-gateway-windows-amd64.exe", dst, &bar); err != nil {
 		t.Fatal(err)
+	}
+	if !strings.HasSuffix(bar.String(), "100%  0.0 / 0.0 MB\n") {
+		t.Fatalf("progress = %q", bar.String())
 	}
 	if b, _ := os.ReadFile(dst); string(b) != string(bin) {
 		t.Fatalf("downloaded %q", b)
@@ -78,6 +83,7 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 		srv.URL,
 		"streamiq-gateway-windows-amd64.exe",
 		dst,
+		nil,
 	); err == nil ||
 		!strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("tampered binary: err = %v", err)
@@ -85,8 +91,29 @@ func TestDownloadVerifiesChecksum(t *testing.T) {
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
 		t.Fatal("refused download left a file behind")
 	}
-	if err := Download(context.Background(), srv.URL, "streamiq-gateway-linux-arm64", dst); err == nil {
+	if err := Download(context.Background(), srv.URL, "streamiq-gateway-linux-arm64", dst, nil); err == nil {
 		t.Fatal("asset missing from SHA256SUMS: want error")
+	}
+}
+
+func TestProgressRedrawsOnlyOnChange(t *testing.T) {
+	var out bytes.Buffer
+	p := &progress{out: &out, total: 4_000_000, last: -1}
+	for range 4 {
+		_, _ = p.Write(make([]byte, 20_000)) // 0.5 % each: one line per whole percent
+	}
+	_, _ = p.Write(make([]byte, 3_920_000))
+	if want := "  0%  0.0 / 4.0 MB  1%  0.0 / 4.0 MB  2%  0.1 / 4.0 MB100%  4.0 / 4.0 MB"; out.String() != want {
+		t.Fatalf("got %q, want %q", out.String(), want)
+	}
+
+	out.Reset()
+	p = &progress{out: &out, total: -1, last: -1}
+	for range 3 {
+		_, _ = p.Write(make([]byte, 60_000))
+	}
+	if want := "0.1 MB0.2 MB"; out.String() != want {
+		t.Fatalf("no length: got %q, want %q", out.String(), want)
 	}
 }
 

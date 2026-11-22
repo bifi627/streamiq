@@ -124,7 +124,7 @@ func (s *Store) ServeProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := tunnel.SessionOf(r).Key
-	var err error = ErrNotPaired
+	err := ErrNotPaired
 	if s.Allowed(key) {
 		err = s.profiles.set(key, in)
 	}

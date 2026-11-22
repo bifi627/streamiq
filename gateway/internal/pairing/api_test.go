@@ -265,14 +265,14 @@ func TestClientProfile(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(dir, "allowlist.json")); strings.Contains(string(b), "probe") {
 		t.Fatalf("profile in allowlist.json: %s", b)
 	}
-	if err := store.Remove("aa"); err != nil {
+	if err = store.Remove("aa"); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(dir, "profiles.json")); strings.Contains(string(b), `"aa"`) {
 		t.Fatalf("profile outlived its client: %s", b)
 	}
 	// A torn profiles.json loses the profiles, never the start.
-	if err := os.WriteFile(filepath.Join(dir, "profiles.json"), []byte(`{"bb":{"pro`), 0o600); err != nil {
+	if err = os.WriteFile(filepath.Join(dir, "profiles.json"), []byte(`{"bb":{"pro`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	torn, err := Open(dir)

@@ -90,9 +90,12 @@ It writes no code itself.
      without one (a crash, a question to the owner in its own thread, a missing tool)
      leaves this thread idle; the owner sees the worker thread stopped and says "check
      the worker" here. Then read the worker thread once (`t3_thread_read`): a question
-     → tell the owner it waits for them there and end your turn; a PR → step 4;
-     neither → tell the owner what it shows and ask (AskUserQuestion: start a new
-     worker / stop the group).
+     → tell the owner it waits for them there and end your turn; a PR with a
+     `review:*` label → step 4; a PR without one is a build that stopped half-way (the
+     draft PR opens before any code) → ask the owner (AskUserQuestion: resume that
+     worker with `t3_thread_send` "carry on with `build-issue`", which resumes from its
+     PR head / stop the group); no PR → ask the same with "start a new worker" in place
+     of resume.
   4. Hand over: check the PR yourself (`gh pr view <pr> --json state,isDraft,labels`,
      `gh pr checks <pr>`), then give the owner the PR link, its review verdict and its
      CI status here; CI red → send the worker back to fix it first (`t3_thread_send`)

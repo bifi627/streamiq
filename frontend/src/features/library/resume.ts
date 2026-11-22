@@ -4,8 +4,8 @@
 // Played: false (a partial rewatch is in progress again). Only once this
 // playback has really played watchMin() (60 s): clicking through saves
 // nothing. The end marks the item played.
-import { event, watchMin } from '../../diag'
-import { tunnelJson } from '../../tunnel'
+import { event, watchMin } from '../../shared/diag'
+import { tunnelJson } from '../../shared/tunnel'
 import * as jf from './jellyfin'
 import { TICKS_PER_SECOND } from './items'
 

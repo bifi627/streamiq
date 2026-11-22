@@ -24,10 +24,11 @@ func (s *Sessions) serveAuth(
 	id, user string,
 	pc *webrtc.PeerConnection,
 	d *webrtc.DataChannel,
+	pre *preAuth,
 	authed *atomic.Bool,
 	why *atomic.Value,
 ) {
-	a := &authRun{s: s, id: id, user: user, send: d.SendText, close: d.Close, authed: authed, why: why,
+	a := &authRun{s: s, id: id, user: user, send: d.SendText, close: d.Close, pre: pre, authed: authed, why: why,
 		challenge: pairing.Nonce(), done: make(chan struct{}),
 		// The browser's DTLS cert as actually negotiated on this connection.
 		peerFp: func() string { return identity.Fingerprint(pc.SCTP().Transport().GetRemoteCertificate()) },
@@ -65,6 +66,7 @@ type authRun struct {
 	send      func(string) error // the channel's SendText
 	close     func() error       // the channel's Close
 	peerFp    func() string      // the browser's DTLS fingerprint on this connection
+	pre       *preAuth
 	authed    *atomic.Bool
 	why       *atomic.Value
 	challenge string
@@ -142,7 +144,7 @@ func (a *authRun) auth(m Auth) {
 		return // ended meanwhile: no key to leak, no viewer to make
 	}
 	if a.s.Store.Allowed(fp) && !m.Pair {
-		a.s.authorize(a.user, a.authed)
+		a.s.authorize(a.user, a.pre, a.authed)
 		a.say(OK{Type: "ok"})
 	} else {
 		a.why.Store("unpaired")
@@ -153,21 +155,26 @@ func (a *authRun) auth(m Auth) {
 func (a *authRun) commit(m Commit) {
 	// The slot is taken before the nonce goes out, so the nonces handed
 	// out are capped like the requests on the local page.
-	if err := a.s.Store.Reserve(); err != nil {
+	if err := a.s.Store.Reserve(a.user); err != nil {
 		a.fail(err.Error())
 		return
 	}
+	a.pre.pairing.Store(true)
 	a.reveal = make(chan string, 1)
 	nA := pairing.Nonce() // only now: the browser is committed to nB
-	go a.s.pair(a.id, a.keyFp, m.H, trim(m.Name), nA, a.reveal, a.done, a.fail, func() {
-		a.s.authorize(a.user, a.authed)
-		a.say(Approved{Type: "approved"})
-	})
+	go func() {
+		defer a.s.Store.Release(a.user)
+		defer a.pre.pairing.Store(false)
+		a.s.pair(a.id, a.keyFp, m.H, trim(m.Name), nA, a.reveal, a.done, a.fail, func() {
+			a.s.authorize(a.user, a.pre, a.authed)
+			a.say(Approved{Type: "approved"})
+		})
+	}()
 	a.say(Nonce{Type: "nonce", N: nA})
 }
 
-// pair is the exchange after an accepted commit. It owns the pairing slot and
-// gives it back however the exchange ends.
+// pair is the exchange after an accepted commit; its caller holds the pairing
+// slot until it returns, however the exchange ends.
 func (s *Sessions) pair(
 	id, keyFp, commit, name, nA string,
 	reveal <-chan string,
@@ -175,7 +182,6 @@ func (s *Sessions) pair(
 	fail func(string),
 	approved func(),
 ) {
-	defer s.Store.Release()
 	var nB string
 	select {
 	case nB = <-reveal:

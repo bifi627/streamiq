@@ -7,7 +7,7 @@ import {
   brokerError,
   toAppError,
   type Kind,
-} from '../../errors.ts'
+} from '../../shared/errors.ts'
 import { answerCheck } from './crypto.ts'
 import { relayServers } from './relay.ts'
 import type { BrokerMessage } from '../../generated/protocol.ts'
@@ -214,12 +214,16 @@ function onGateway(s: State, m: GatewayAuthMessage): Step {
         state: { ...s, phase: 'up' },
         fx: [{ do: 'approved', fp: s.gatewayFp }],
       }
-    case 'rejected':
+    case 'rejected': {
+      const why = m.reason ?? 'rejected'
+      // A full pairing queue (all slots, or this user's one) frees up: busy, not refused.
+      const full = /pending pairing requests|already pairing/.test(why)
       return fail(
         s,
-        'gateway-refused',
-        `gateway refused: ${m.reason ?? 'rejected'}`,
+        full ? 'gateway-busy' : 'gateway-refused',
+        `gateway refused: ${why}`,
       )
+    }
   }
   return same(s)
 }

@@ -1,8 +1,8 @@
 import { createContext, useContext } from 'react'
-import { setHousehold, type Me } from '../../api'
-import { clearArtThen } from '../../leave'
-import { noop } from '../../noop'
-export { householdLabel } from '../../api'
+import { setHousehold, type Me } from '../../shared/api'
+import { clearArtThen } from '../../shared/leave'
+import { noop } from '../../shared/noop'
+export { householdLabel } from '../../shared/api'
 
 // The one /me of this page load (Shell fetches it) and the household it acts in.
 // null until /me is in.

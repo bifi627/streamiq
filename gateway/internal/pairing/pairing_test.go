@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -83,19 +84,39 @@ func TestApprovePersistsAndPendingCaps(t *testing.T) {
 			t.Fatal("approval not persisted")
 		}
 
-		for range MaxPending {
-			if err := s.Reserve(); err != nil {
+		for i := range MaxPending {
+			if err := s.Reserve(fmt.Sprint("u", i)); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if s.Reserve() == nil {
+		if s.Reserve("u-new") == nil {
 			t.Fatal("want an error past MaxPending")
 		}
-		s.Release()
-		if err := s.Reserve(); err != nil {
+		s.Release("u0")
+		if err := s.Reserve("u-new"); err != nil {
 			t.Fatalf("a released slot must be free again: %v", err)
 		}
 	})
+}
+
+// One user holds at most MaxPendingPerUser slots; the others stay free for the household.
+func TestReservePerUser(t *testing.T) {
+	s, _ := Open(t.TempDir())
+	for range MaxPendingPerUser {
+		if err := s.Reserve("a"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.Reserve("a"); err == nil || !strings.Contains(err.Error(), "already pairing") {
+		t.Fatalf("one over MaxPendingPerUser = %v, want refused", err)
+	}
+	if err := s.Reserve("b"); err != nil {
+		t.Fatalf("another user must still get a slot: %v", err)
+	}
+	s.Release("a")
+	if err := s.Reserve("a"); err != nil {
+		t.Fatalf("a released slot must be free again: %v", err)
+	}
 }
 
 // A request whose connection ended leaves the local page at once.

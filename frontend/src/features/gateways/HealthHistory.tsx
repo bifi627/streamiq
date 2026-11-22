@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { authed } from '../../api'
-import { describe, toAppError } from '../../errors'
+import { authed } from '../../shared/api'
+import { describe, toAppError } from '../../shared/errors'
 import type { Gateway } from './api'
 import {
   dailyPeaks,

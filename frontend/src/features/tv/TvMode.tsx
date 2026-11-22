@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { arrowFocus } from './focus'
-import { setTv, tvOn } from './settings'
+import { arrowFocus } from '../../shared/focus'
+import { setTv, tvOn } from '../../shared/settings'
 
 /** The TV-mode checkbox, on the sign-in page and in Settings: both read the
  * stored value on mount, so a change in one shows in the other. */

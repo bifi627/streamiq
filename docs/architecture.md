@@ -17,7 +17,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
   `front` is `/healthz`, CORS, the security headers (`nosniff`, `strict-origin-when-cross-origin`
   and a Content-Security-Policy, on every response) and the web app (a file that
   exists, else `index.html` for a path without an extension; `/api/*` stays a 404). The policy
-  comes from `frontend/src/csp.ts` (own origin, Firebase sign-in, `blob:` media/workers/posters,
+  comes from `frontend/src/shared/csp.ts` (own origin, Firebase sign-in, `blob:` media/workers/posters,
   nothing inline): Vite sends it from `vite dev` (wider: inline scripts and styles, the HMR
   socket) and `vite preview`, and writes the build's into `csp.txt`, which `front` sends with
   the web app (the API won't start without it); without a web app it is
@@ -208,6 +208,10 @@ and daily peaks per local day.
 
 ## Web client (`frontend/`)
 
+- Layout of `frontend/src/`: the shell (`main.tsx`, `App.tsx`, `index.css`), `shared/`
+  (modules two or more features import), `features/<feature>/` (`library`, `player`,
+  `screen`, `tv`, …) and `generated/` (tygo output).
+
 - Gateways → Open → library / series / episodes → hls.js player over the tunnel (custom
   loader), subtitles, resume via Jellyfin UserData. Every Jellyfin request the client makes
   is a path builder in `features/library/jellyfin.ts`, mirroring the gateway allowlist
@@ -217,15 +221,15 @@ and daily peaks per local day.
   (`HouseholdContext`, `useHousehold()` in `features/households/household.ts`); a picker
   shows with more than one membership. The chosen household is per device
   (`localStorage`); `switchHousehold()` stores it and fully reloads `/` (closes tunnels,
-  drops the old household's state). On `X-StreamIQ-Not-Member`, `authed()` (`api.ts`)
+  drops the old household's state). On `X-StreamIQ-Not-Member`, `authed()` (`shared/api.ts`)
   drops the choice and reloads `/` with a notice.
 - Design tokens and base styles (dark, pill buttons, one 3 px `:focus-visible` ring) in
   `frontend/src/index.css`, CSS that Chrome 87 / webOS reads. Shell nav, gateway chip.
-- Per-device **TV mode** (`settings.ts`, `html.tv`); the user agent sets only its
-  first-visit default (`tv.ts`: known TV → on, Android box → ask once, #309). Its routes
-  are an allowlist (`tvRoute.ts`): any other route, unknown ones included, renders the
+- Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its
+  first-visit default (`features/tv/tv.ts`: known TV → on, Android box → ask once, #309). Its routes
+  are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the
   handoff page (the URL to open on a phone or PC) and drops out of the nav. D-pad = arrow keys:
-  `onKeyDown={arrowFocus}` (`frontend/src/focus.ts`) on a container.
+  `onKeyDown={arrowFocus}` (`frontend/src/shared/focus.ts`) on a container.
 - Library home (`features/library/Home.tsx`): Resume spot, Recently added, libraries.
   Artwork through `art.ts`: loads only on screen, cached per gateway in the Cache API,
   deleted on sign-out and household switch.

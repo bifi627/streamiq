@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { browserName, connect } from './connect'
 import { clientKey, usePin } from './store'
-import { renameMessage, toAppError } from '../../errors'
+import { renameMessage, toAppError } from '../../shared/errors'
 import { listClients, renameClient } from '../gateways/api'
 import { isBack } from '../library/items'
 import { systemInfo, type SystemInfo } from '../library/jellyfin'
-import { ErrorView } from '../../ErrorView'
-import { tunnelJson } from '../../tunnel'
-import { pairInfo } from '../../stats'
-import { arrowFocus } from '../../focus'
-import { tvOn } from '../../settings'
+import { ErrorView } from '../../shared/ErrorView'
+import { tunnelJson } from '../../shared/tunnel'
+import { pairInfo } from '../../shared/stats'
+import { arrowFocus } from '../../shared/focus'
+import { tvOn } from '../../shared/settings'
 import { routeLine, showPair as pairShown, type State } from './pairState'
-import { event } from '../../diag'
+import { event } from '../../shared/diag'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
 // and tunnel one request through it ("Test connection": a cheap diagnostic).
@@ -54,15 +54,21 @@ export function Pairing({
     if (keep.current && lost) testBtn.current?.focus()
     if (s.step === 'done' || s.step === 'failed') keep.current = false
   }, [s])
+  // Leaving the page ends a running attempt: the gateway frees the pairing slot
+  // now, not after its 5-minute expiry.
+  const attempt = useRef<AbortController>(undefined)
+  useEffect(() => () => attempt.current?.abort(), [])
   const busy = s.step === 'connecting' || s.step === 'code'
   async function run(pair: boolean) {
     if (busy) return
     keep.current = !!root.current?.contains(document.activeElement)
     setS({ step: 'connecting', pair })
+    attempt.current = new AbortController()
     try {
       const x = await connect(
         gatewayId,
         pair ? (code) => setS({ step: 'code', code }) : undefined,
+        attempt.current.signal,
       )
       if (pair) setPinned(true)
       try {

@@ -23,6 +23,7 @@ test('broker error text', () => {
     brokerError('gateway offline or unknown').kind,
     'gateway-offline',
   )
+  assert.equal(brokerError('gateway busy').kind, 'gateway-busy')
   assert.equal(brokerError('something new').kind, 'unknown')
 })
 
@@ -72,6 +73,7 @@ test('every kind: a message and the buttons it shows', () => {
     'broker-unreachable': ['retry'],
     'broker-lost': ['retry'],
     'gateway-offline': ['retry', 'gateways'],
+    'gateway-busy': ['retry'],
     'ice-failed': ['retry'],
     'not-paired': ['pair'],
     'pin-mismatch': ['pair'],

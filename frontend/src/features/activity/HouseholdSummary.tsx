@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { authed } from '../../api'
-import { toAppError } from '../../errors'
-import { ErrorView } from '../../ErrorView'
+import { authed } from '../../shared/api'
+import { toAppError } from '../../shared/errors'
+import { ErrorView } from '../../shared/ErrorView'
 import { memberLabel, shownTunnels, type SummaryRow } from './household'
 import { bytes } from './tunnels'
 

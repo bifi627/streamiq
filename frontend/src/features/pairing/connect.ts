@@ -1,9 +1,9 @@
 // Connect to a gateway through the tenant broker, enforce the pin, prove this
 // browser's client key, and (when pairing) run commit/reveal for the
 // comparison code. docs/protocol.md, "Broker" + "Pairing".
-import { auth } from '../../firebase'
-import { API } from '../../api'
-import { diag, event, pcState, relayOn, relayTlsOn } from '../../diag'
+import { auth } from '../../shared/firebase'
+import { API } from '../../shared/api'
+import { diag, event, pcState, relayOn, relayTlsOn } from '../../shared/diag'
 import {
   authMessage,
   b64,
@@ -23,6 +23,7 @@ import {
 } from './store'
 import { sharer } from './shared'
 import { relayLine } from './relay'
+import { AppError } from '../../shared/errors'
 import type { BrowserMessage } from '../../generated/protocol'
 import type { ClientAuthMessage } from '../../generated/sessions'
 import {
@@ -55,10 +56,12 @@ async function challengeAnswer(
 /**
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
  * unpaired browser starts pairing and onCode receives the code to compare.
+ * An aborted signal closes the attempt: the gateway frees its pairing slot.
  */
 export async function connect(
   gatewayId: string,
   onCode?: (code: string) => void,
+  signal?: AbortSignal,
 ): Promise<Session> {
   const [key, pin, token] = await Promise.all([
     clientKey(),
@@ -84,6 +87,14 @@ export async function connect(
     const say = (m: ClientAuthMessage) => ch.send(JSON.stringify(m))
     let nB = '' // this browser's pairing nonce, revealed after the commit
     let grace: ReturnType<typeof setTimeout> | undefined
+    signal?.addEventListener(
+      'abort',
+      () => {
+        close()
+        reject(new AppError('unknown', 'connect aborted'))
+      },
+      { once: true },
+    )
 
     const run = async (f: Effect) => {
       switch (f.do) {

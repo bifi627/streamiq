@@ -3,11 +3,11 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from '@firebase/auth'
-import { auth } from '../../firebase'
-import { arrowFocus } from '../../focus'
-import { signInWithGoogle } from '../../aliases'
-import { authMessage } from '../../authErrors'
-import { TvToggle } from '../../TvMode'
+import { auth } from '../../shared/firebase'
+import { arrowFocus } from '../../shared/focus'
+import { signInWithGoogle } from '../../shared/aliases'
+import { authMessage } from './authErrors'
+import { TvToggle } from '../tv/TvMode'
 
 // The signed-out page: Google or email + password, sign in or sign up.
 export function SignIn() {

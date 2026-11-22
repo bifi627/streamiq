@@ -7,6 +7,7 @@ export type Kind =
   | 'broker-unreachable' // broker socket closed before it opened: offline or rate-limited (a 429 is invisible to JS)
   | 'broker-lost' // broker socket dropped after it opened
   | 'gateway-offline'
+  | 'gateway-busy' // the gateway refused for now: too many unauthenticated connections, or its pairing slots are taken
   | 'ice-failed'
   | 'not-paired'
   | 'pin-mismatch'
@@ -80,7 +81,11 @@ export const brokerClosed = (
 /** The broker's `{type:"error"}` text (docs/protocol.md). */
 export const brokerError = (text: string, context: Context = {}) =>
   new AppError(
-    /offline/i.test(text) ? 'gateway-offline' : 'unknown',
+    /offline/i.test(text)
+      ? 'gateway-offline'
+      : /busy/i.test(text)
+        ? 'gateway-busy'
+        : 'unknown',
     text,
     context,
   )
@@ -123,6 +128,11 @@ export function describe(e: AppError): {
       return {
         message: 'The gateway is offline.',
         actions: ['retry', 'gateways'],
+      }
+    case 'gateway-busy':
+      return {
+        message: 'The gateway is busy. Try again in a moment.',
+        actions: ['retry'],
       }
     case 'ice-failed':
       return {

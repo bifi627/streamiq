@@ -10,14 +10,14 @@ import {
   setRelay,
   snapshot,
   subscribe,
-} from '../../diag'
-import { copyText } from '../../clipboard'
-import { pairInfo, pathLine } from '../../stats'
-import { dataSaverOn } from '../../settings'
+} from '../../shared/diag'
+import { copyText } from '../../shared/clipboard'
+import { pairInfo, pathLine } from '../../shared/stats'
+import { dataSaverOn } from '../../shared/settings'
 import { connect } from '../pairing/connect'
-import { isKind } from '../../errors'
+import { isKind } from '../../shared/errors'
 import { useGateways } from '../gateways/api'
-import { describe, probe } from '../library/profile'
+import { describe, probe } from '../player/profile'
 import { useHousehold } from '../households/household'
 import {
   defaultGateway,
@@ -26,7 +26,7 @@ import {
   throughputLine,
   type Test,
 } from './report'
-import { noop } from '../../noop'
+import { noop } from '../../shared/noop'
 
 export function DiagnosticsPage() {
   useSyncExternalStore(subscribe, snapshot) // Force relay checkbox, cpu/memory lines

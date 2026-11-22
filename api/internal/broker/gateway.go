@@ -97,7 +97,7 @@ func (b *Broker) serveGateway(ctx context.Context, me *link, hash string) {
 				kill(me.conn, "revoked")
 				return
 			}
-		case (t == "answer" || t == "ice") && accepted:
+		case (t == "answer" || t == "ice" || t == "error") && accepted:
 			b.relayToBrowser(me, t, m)
 		case t == "tunnel" && accepted:
 			if rp := parseReport(m); rp != nil {
@@ -110,6 +110,8 @@ func (b *Broker) serveGateway(ctx context.Context, me *link, hash string) {
 // relayToBrowser forwards only into sessions opened for this gateway: a gateway can't
 // inject signaling into another gateway's (or household's) session. Only the fields the
 // protocol defines; the answer tells the browser its tunnel id, for its throughput PATCH.
+// An error is the gateway refusing the offer: only GatewayBusy, so a gateway can't put its
+// own text into the browser's error path.
 func (b *Broker) relayToBrowser(me *link, t string, m Fields) {
 	sid := id(m, "session")
 	b.mu.Lock()
@@ -118,10 +120,15 @@ func (b *Broker) relayToBrowser(me *link, t string, m Fields) {
 	if s == nil || s.via.gateID != me.gateID {
 		return
 	}
-	if t == "answer" {
+	switch t {
+	case "answer":
 		send(s.conn, protocol.Answer[json.RawMessage]{Type: t, SDP: ptr[json.RawMessage](m, "sdp"), Tunnel: sid})
-	} else {
+	case "ice":
 		send(s.conn, protocol.Ice[json.RawMessage]{Type: t, Candidate: ptr[json.RawMessage](m, "candidate")})
+	case "error":
+		if str(m, "error") == protocol.GatewayBusy {
+			send(s.conn, protocol.ErrorMsg{Type: t, Error: protocol.GatewayBusy})
+		}
 	}
 }
 

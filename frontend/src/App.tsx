@@ -10,10 +10,10 @@ import {
   useLocation,
   useParams,
 } from '@tanstack/react-router'
-import { auth } from './firebase'
-import { getMe, takeNotice, type Me } from './api'
-import { AppError, toAppError } from './errors'
-import { ErrorView, UncaughtErrors } from './ErrorView'
+import { auth } from './shared/firebase'
+import { getMe, takeNotice, type Me } from './shared/api'
+import { AppError, toAppError } from './shared/errors'
+import { ErrorView, UncaughtErrors } from './shared/ErrorView'
 import { Gateways, Home } from './features/gateways/Gateways'
 import {
   GatewayLibrary,
@@ -21,16 +21,22 @@ import {
   LibraryHome,
   PlayerPage,
 } from './features/library/Library'
-import { RemotePage, ScreenPage } from './features/library/Screen'
-import { Diagnostics } from './Diagnostics'
-import { askTv, lastGateway, setLastGateway, TV_EVENT, tvOn } from './settings'
-import { TvAsk } from './TvMode'
-import { handoffHome, shellPage, tvRoute } from './tvRoute'
-import { Handoff } from './Handoff'
-import { arrowFocus } from './focus'
-import { PickAlias } from './Alias'
-import { needsAlias, signingIn } from './aliases'
-import { clearArtThen } from './leave'
+import { RemotePage, ScreenPage } from './features/screen/Screen'
+import { Diagnostics } from './features/diagnostics/Diagnostics'
+import {
+  askTv,
+  lastGateway,
+  setLastGateway,
+  TV_EVENT,
+  tvOn,
+} from './shared/settings'
+import { TvAsk } from './features/tv/TvMode'
+import { handoffHome, shellPage, tvRoute } from './features/tv/tvRoute'
+import { Handoff } from './features/tv/Handoff'
+import { arrowFocus } from './shared/focus'
+import { PickAlias } from './shared/Alias'
+import { needsAlias, signingIn } from './shared/aliases'
+import { clearArtThen } from './shared/leave'
 import { useGateways } from './features/gateways/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
@@ -45,7 +51,7 @@ import {
 import { SignIn } from './features/signin/SignIn'
 import { Settings } from './features/settings/Settings'
 import { Activity } from './features/activity/Activity'
-import { event } from './diag'
+import { event } from './shared/diag'
 
 // Root layout; only mounted while signed in (App gates the whole router). Loads
 // /me once per page load and hands it to every view (HouseholdContext).

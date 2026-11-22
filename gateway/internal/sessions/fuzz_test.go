@@ -107,7 +107,7 @@ func runHandshake(t *testing.T, msgs [][]byte, paired, approve bool) []string {
 	synctest.Test(t, func(t *testing.T) {
 		s := &Sessions{Fp: fuzzGatewayFp, Store: store, keys: map[string]string{},
 			ends: map[string]func(bool){"s": func(bool) {}}}
-		a := &authRun{s: s, id: "s", user: "u", authed: new(atomic.Bool), why: new(atomic.Value),
+		a := &authRun{s: s, id: "s", user: "u", pre: s.admit(), authed: new(atomic.Bool), why: new(atomic.Value),
 			challenge: fuzzChallenge, done: make(chan struct{}),
 			send: func(m string) error {
 				var head struct{ Type string }

@@ -1,4 +1,4 @@
-import { AppError, describe } from '../../errors.ts'
+import { AppError, describe } from '../../shared/errors.ts'
 
 // A remote update the gateway card started: the target it named and
 // the version the gateway ran before.

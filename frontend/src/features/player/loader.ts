@@ -10,8 +10,8 @@ import type {
   LoaderContext,
   LoaderStats,
 } from 'hls.js'
-import { tunnelFetch } from '../../tunnel'
-import { rangeHeader } from './items'
+import { tunnelFetch } from '../../shared/tunnel'
+import { rangeHeader } from '../library/items'
 
 export const TUNNEL_ORIGIN = 'https://gateway.tunnel'
 

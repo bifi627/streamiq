@@ -21,7 +21,7 @@ var allowedHeaders = "Authorization,Content-Type," + auth.HouseholdHeader
 
 // Handler serves mux behind CORS for origins, every response with the security headers.
 // With webDir set, mux also serves the built web app from it, and every response carries
-// the build's Content-Security-Policy (csp.txt, from frontend/src/csp.ts); without (dev,
+// the build's Content-Security-Policy (csp.txt, from frontend/src/shared/csp.ts); without (dev,
 // tests), a path no slice serves is a 404 and the policy only forbids framing.
 func Handler(mux *http.ServeMux, origins []string, webDir string) (http.Handler, error) {
 	policy := "frame-ancestors 'none'"

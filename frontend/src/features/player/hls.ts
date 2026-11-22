@@ -3,10 +3,10 @@
 // reports failures (errors and stuck video appends) to the fallback
 // chain (onFailure, profile.ts).
 import Hls from 'hls.js'
-import { changed, diag, event, ranges } from '../../diag'
+import { changed, diag, event, ranges } from '../../shared/diag'
 import { tunnelLoader } from './loader'
 import type { Failure } from './profile'
-import { covers, STUCK_APPENDS } from './items'
+import { covers, STUCK_APPENDS } from '../library/items'
 
 export function newHls(
   pc: RTCPeerConnection,

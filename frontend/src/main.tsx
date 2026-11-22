@@ -2,9 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { applyTv } from './settings'
+import { applyTv } from './shared/settings'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClient } from './query'
+import { queryClient } from './shared/query'
 
 applyTv()
 

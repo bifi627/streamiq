@@ -1,5 +1,5 @@
 import { useCanGoBack, useNavigate, useRouter } from '@tanstack/react-router'
-import { arrowFocus } from './focus'
+import { arrowFocus } from '../../shared/focus'
 import { useQrSvg } from './qr'
 
 /** TV mode's stand-in for a route a TV can't use (tvRoute.ts). */

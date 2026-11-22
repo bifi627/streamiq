@@ -1,4 +1,4 @@
-// Run: node --test src/features/library/stream.test.ts (part of scripts/check.sh).
+// Run: node --test src/features/player/stream.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { autoLine, qualityLine, transcodeParams, urlAudio } from './stream.ts'

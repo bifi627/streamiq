@@ -31,7 +31,7 @@ func remove(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 		case lastAdmin:
 			return errLastAdmin
 		}
-		if _, err := tx.Exec(r.Context(), `DELETE FROM memberships WHERE "UserId" = $1`, user); err != nil {
+		if _, err = tx.Exec(r.Context(), `DELETE FROM memberships WHERE "UserId" = $1`, user); err != nil {
 			return err
 		}
 		// One statement on the invites slice's table: it must commit with the removal.

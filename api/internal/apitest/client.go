@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -99,4 +100,28 @@ func Alias(t *testing.T, token, alias string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+// GoogleToken is an ID token from a Google sign-in through the emulator's signInWithIdp,
+// which takes the Google id_token as plain JSON claims (what its fake popup sends).
+func GoogleToken(t *testing.T, sub, email string) string {
+	t.Helper()
+	claims, _ := json.Marshal(map[string]any{"sub": sub, "email": email, "email_verified": true,
+		"name": "G User", "picture": "https://x.test/p.png"})
+	body, _ := json.Marshal(map[string]any{"requestUri": "http://localhost", "returnSecureToken": true,
+		"postBody": "id_token=" + url.QueryEscape(string(claims)) + "&providerId=google.com"})
+	rs, err := http.Post(
+		"http://"+Emulator+"/identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=fake-api-key",
+		"application/json",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rs.Body.Close() }()
+	var out struct{ IDToken string }
+	if err := json.NewDecoder(rs.Body).Decode(&out); err != nil || out.IDToken == "" {
+		t.Fatalf("signInWithIdp: %d %v", rs.StatusCode, err)
+	}
+	return out.IDToken
 }

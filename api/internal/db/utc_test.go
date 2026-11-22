@@ -24,8 +24,8 @@ func TestTimestampsScanAsUTC(t *testing.T) {
 	defer d.Close()
 	var at time.Time
 	err = d.InTenant(t.Context(), "00000000-0000-0000-0000-000000000001", func(tx pgx.Tx) error {
-		if _, err := tx.Exec(t.Context(), `SET LOCAL TIME ZONE 'America/New_York'`); err != nil {
-			return err
+		if _, e := tx.Exec(t.Context(), `SET LOCAL TIME ZONE 'America/New_York'`); e != nil {
+			return e
 		}
 		return tx.QueryRow(t.Context(), `SELECT timestamptz '2026-11-22 10:00:00+00'`).Scan(&at)
 	})

@@ -207,6 +207,15 @@ func Reset(t *testing.T) {
 	Exec(t, `TRUNCATE users, tenants CASCADE`)
 }
 
+// WaitForLocks returns once n sessions of this package's database wait on a lock: a
+// race test's requests, all queued behind a lock the test holds.
+func WaitForLocks(t *testing.T, n int) {
+	t.Helper()
+	for Scalar[int](t, `SELECT count(*) FROM pg_stat_activity
+		WHERE datname = current_database() AND wait_event_type = 'Lock'`) < n {
+	}
+}
+
 // Exec runs sql as the owner.
 func Exec(t *testing.T, sql string, args ...any) {
 	t.Helper()

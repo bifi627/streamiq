@@ -17,7 +17,7 @@ type Member struct {
 	Name *string `json:"name"`
 	// Email is on the caller's own row only.
 	Email    string    `json:"email,omitempty" tstype:"string | undefined"`
-	Role     string    `json:"role" tstype:"'admin' | 'member'"`
+	Role     string    `json:"role"            tstype:"'admin' | 'member'"`
 	JoinedAt time.Time `json:"joinedAt"`
 }
 

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -88,8 +89,12 @@ func check(t *testing.T, a apitest.Answer, want int) {
 // memberships is user's households as "household:role", oldest first.
 func memberships(t *testing.T, user string) string {
 	t.Helper()
-	return apitest.Scalar[string](t, `SELECT coalesce(string_agg("TenantId"::text || ':' || "Role", ',' ORDER BY "CreatedAt"), '')
-		FROM memberships WHERE "UserId" = $1`, user)
+	return apitest.Scalar[string](
+		t,
+		`SELECT coalesce(string_agg("TenantId"::text || ':' || "Role", ',' ORDER BY "CreatedAt"), '')
+		FROM memberships WHERE "UserId" = $1`,
+		user,
+	)
 }
 
 func TestAnAdminCreatesAnInvite128BitFor7DaysStoredOnlyAsItsHash(t *testing.T) {
@@ -317,7 +322,11 @@ func TestAPreviewTellsNothingAboutAnyOtherHousehold(t *testing.T) {
 	inv := w.create(t, w.alice, "")
 	for _, token := range []string{w.bob, apitest.Token(t, "dave@home.test")} {
 		a := w.preview(t, token, inv.Token)
-		if p := apitest.JSON[invites.Preview](t, a); p.HouseholdID != w.aliceHH || strings.Contains(string(a.Body), w.bobHH) ||
+		if p := apitest.JSON[invites.Preview](
+			t,
+			a,
+		); p.HouseholdID != w.aliceHH ||
+			strings.Contains(string(a.Body), w.bobHH) ||
 			strings.Contains(string(a.Body), "Bob") {
 			t.Fatalf("%s", a.Body)
 		}
@@ -329,13 +338,23 @@ func TestOneInviteAcceptedByTwoUsersAtOnceGivesOneNewMember(t *testing.T) {
 	inv := w.create(t, w.alice, "")
 	carol := apitest.Token(t, "carol@home.test")
 	w.s.User(t, carol)
+	// Both claims wait on the invite's row until this transaction ends.
+	tx, err := apitest.Owner.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), `SELECT FROM invites WHERE "Id" = $1 FOR UPDATE`, inv.ID); err != nil {
+		t.Fatal(err)
+	}
 	var wg sync.WaitGroup
 	got := make([]int, 2)
 	for i, token := range []string{w.bob, carol} {
 		wg.Go(func() { got[i] = w.accept(t, token, inv.Token).Status })
 	}
+	apitest.WaitForLocks(t, 2)
+	_ = tx.Commit(t.Context())
 	wg.Wait()
-	if !(got[0] == 200 && got[1] == 404 || got[0] == 404 && got[1] == 200) {
+	if slices.Sort(got); !slices.Equal(got, []int{200, 404}) {
 		t.Fatalf("%v, want one 200 and one 404", got)
 	}
 	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE "TenantId" = $1`, w.aliceHH); n != 2 {
@@ -380,5 +399,18 @@ func TestNewInvitesAreLimitedPerClientIP(t *testing.T) {
 	got := []int{create("203.0.113.1"), create("203.0.113.1"), create("203.0.113.1"), create("203.0.113.2")}
 	if got[0] != 200 || got[1] != 200 || got[2] != 429 || got[3] != 200 {
 		t.Fatal(got)
+	}
+}
+
+// A user in no household gets the not-a-member 404 on the household's invites, as on
+// everything household-scoped: the web app shows its no-household screen.
+func TestAUserInNoHouseholdHasNoInvites(t *testing.T) {
+	w := newWorld(t, iplimit.New(100, ""))
+	nohome := apitest.Token(t, "nohome@home.test")
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		if a := w.s.Do(t, method, "/api/invites", nohome, "", ""); a.Status != http.StatusNotFound ||
+			a.Header.Get(auth.NotMemberHeader) != "1" {
+			t.Fatalf("%s: %d", method, a.Status)
+		}
 	}
 }

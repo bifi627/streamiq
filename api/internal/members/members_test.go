@@ -9,10 +9,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"streamiq/api/internal/apitest"
 	"streamiq/api/internal/auth"
@@ -254,10 +254,10 @@ func TestTwoAdminsDemotingEachOtherAtOnceLeaveOneAdmin(t *testing.T) {
 	for i, pair := range [][2]string{{h.alice, h.bobID}, {h.bob, h.aliceID}} {
 		wg.Go(func() { got[i] = h.role(t, pair[0], pair[1], "member").Status })
 	}
-	time.Sleep(200 * time.Millisecond) // ponytail: both are waiting by then; the result holds either way
+	apitest.WaitForLocks(t, 2)
 	_ = tx.Commit(t.Context())
 	wg.Wait()
-	if !(got[0] == 204 && got[1] == 409 || got[0] == 409 && got[1] == 204) {
+	if slices.Sort(got); !slices.Equal(got, []int{204, 409}) {
 		t.Fatalf("%v, want one 204 and one 409", got)
 	}
 	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE "TenantId" = $1 AND "Role" = 'admin'`,

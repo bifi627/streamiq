@@ -135,6 +135,7 @@ func (s *stack) dial(path string, h http.Header) (*websocket.Conn, *http.Respons
 // messages in order, so a tunnel report for a marker row sent after it is stored after.
 func (s *stack) heartbeat(g *gw, extra map[string]any) {
 	s.t.Helper()
+	apitest.Exec(s.t, `UPDATE gateways SET "LastSeenAt" = NULL WHERE "Id" = $1`, g.id)
 	marker := apitest.Scalar[string](s.t, `INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "Relay", "Ipv6")
 		VALUES (uuidv7(), $1, $2, false, false) RETURNING "Id"::text`, g.tenant, g.id)
 	msg := map[string]any{"type": "heartbeat", "protocol": broker.MinGatewayProtocol}
@@ -147,6 +148,9 @@ func (s *stack) heartbeat(g *gw, extra map[string]any) {
 		return apitest.Scalar[bool](s.t, `SELECT "BytesSent" IS NOT NULL FROM tunnels WHERE "Id" = $1`, marker)
 	})
 	apitest.Exec(s.t, `DELETE FROM tunnels WHERE "Id" = $1`, marker)
+	if !apitest.Scalar[bool](s.t, `SELECT "LastSeenAt" IS NOT NULL FROM gateways WHERE "Id" = $1`, g.id) {
+		s.t.Fatal("heartbeat not stored")
+	}
 }
 
 // browser is a browser socket of email after `ready`; email has a household of its own.

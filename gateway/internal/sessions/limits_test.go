@@ -87,12 +87,12 @@ func TestUnauthedDeadline(t *testing.T) {
 	}
 	t.Run("closed at the deadline", func(t *testing.T) {
 		run(t, func(s *Sessions, _ *preAuth, _, ended *atomic.Bool, why *atomic.Value) {
-			time.Sleep(UnauthedFor - time.Millisecond)
+			<-time.After(UnauthedFor - time.Millisecond) // the bubble's fake clock
 			synctest.Wait()
 			if ended.Load() {
 				t.Fatal("closed before the deadline")
 			}
-			time.Sleep(time.Millisecond)
+			<-time.After(time.Millisecond)
 			synctest.Wait()
 			if !ended.Load() || why.Load() != "not authenticated within 30s" || s.unauthed != 0 {
 				t.Fatalf("at the deadline: ended %v, why %v, unauthed %d", ended.Load(), why.Load(), s.unauthed)
@@ -102,7 +102,7 @@ func TestUnauthedDeadline(t *testing.T) {
 	t.Run("authed in time", func(t *testing.T) {
 		run(t, func(_ *Sessions, _ *preAuth, authed, ended *atomic.Bool, _ *atomic.Value) {
 			authed.Store(true)
-			time.Sleep(2 * UnauthedFor)
+			<-time.After(2 * UnauthedFor)
 			synctest.Wait()
 			if ended.Load() {
 				t.Fatal("an authed session must stay")
@@ -112,13 +112,13 @@ func TestUnauthedDeadline(t *testing.T) {
 	t.Run("pairing postpones it", func(t *testing.T) {
 		run(t, func(_ *Sessions, pre *preAuth, _, ended *atomic.Bool, _ *atomic.Value) {
 			pre.pairing.Store(true)
-			time.Sleep(3 * UnauthedFor)
+			<-time.After(3 * UnauthedFor)
 			synctest.Wait()
 			if ended.Load() {
 				t.Fatal("closed during a pairing exchange")
 			}
 			pre.pairing.Store(false) // rejected: still not authenticated
-			time.Sleep(UnauthedFor)
+			<-time.After(UnauthedFor)
 			synctest.Wait()
 			if !ended.Load() {
 				t.Fatal("still open a round after the exchange ended unapproved")

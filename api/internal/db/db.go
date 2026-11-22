@@ -66,8 +66,9 @@ func Connect(ctx context.Context, cfg *pgxpool.Config) (*DB, error) {
 
 // atStart runs as the owner, past row-level security: it gives AppRole its password
 // (ALTER ROLE takes no parameters, hence the quoted literal) and ends every tunnel row
-// still open. No socket can belong to one: one API instance runs (migrations.go), so the
-// process that held it died without its cleanup (a kill, a crash).
+// still open: its process died without its cleanup (a kill, a crash), or it is the
+// previous deployment, which Railway stops only once this one is up. That one's own
+// cleanup stamps its rows again when it stops.
 func atStart(ctx context.Context, ownerURL, password string) error {
 	conn, err := pgx.Connect(ctx, ownerURL)
 	if err != nil {

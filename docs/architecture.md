@@ -123,7 +123,11 @@ is not a status log: open work lives in `gh issue list`, history in git.
 One row per tunnel in `tunnels`: the broker writes the row and its end, the gateway
 reports route, bytes, what the tunnel was used for (playback / browsing / diagnostics /
 management) and its active time, the browser adds only its measured throughput
-(`PATCH /api/tunnels/{id}`, its own tunnel only). The web app shows
+(`PATCH /api/tunnels/{id}`, its own tunnel only). A stop (SIGTERM) closes every broker
+socket through its normal cleanup within 8 s (`shutdownTimeout`): each open tunnel gets its
+end and its TURN credential is revoked. A killed or crashed process can't: the next start
+ends every row still open at its own start time (`api/internal/db`, one instance). During a
+deploy the old one still runs: its rows are ended early, then stamped again by its own stop. The web app shows
 a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, or relayed.
 A member's own tunnels in the household (30 days, ≤ 200) are on the Activity page
 (`/activity`, `GET /api/tunnels`, `api/internal/tunnels`): use, route,

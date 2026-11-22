@@ -7,8 +7,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -28,8 +30,13 @@ import (
 	"streamiq/api/internal/turn"
 )
 
+// shutdownTimeout bounds a stop: the sockets' cleanup, then the open requests. Railway
+// kills the process RAILWAY_DEPLOYMENT_DRAINING_SECONDS after SIGTERM, which must be longer.
+const shutdownTimeout = 8 * time.Second
+
 func main() {
-	ctx := context.Background()
+	ctx, stopped := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
+	defer stopped()
 	url, err := databaseURL()
 	if err != nil {
 		log.Fatal(err)
@@ -75,8 +82,28 @@ func main() {
 		Handler:           front.Handler(mux, strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ","), web),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	log.Printf("api: listening on %s", srv.Addr)
-	log.Fatal(srv.ListenAndServe())
+	serve(ctx, srv, b)
+}
+
+// serve runs srv until ctx is done, then closes the broker's sockets through their normal
+// cleanup (tunnel ends, TURN revokes) and stops srv, within shutdownTimeout.
+func serve(ctx context.Context, srv *http.Server, b *broker.Broker) {
+	go func() {
+		log.Printf("api: listening on %s", srv.Addr)
+		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal(err)
+		}
+	}()
+	<-ctx.Done()
+	log.Print("api: stopping")
+	stop, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := b.Shutdown(stop); err != nil {
+		log.Printf("api: sockets not all closed: %v", err)
+	}
+	if err := srv.Shutdown(stop); err != nil {
+		log.Printf("api: requests not all done: %v", err)
+	}
 }
 
 var errNoDatabaseURL = errors.New("DATABASE_URL is not set (required unless STREAMIQ_ENV=development)")

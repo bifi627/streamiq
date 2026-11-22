@@ -56,7 +56,7 @@ func Run(m *testing.M) int {
 	must(eventually(90*time.Second, func() error { return exec1(ctx, Postgres, `CREATE DATABASE `+name) }))
 	OwnerURL = withDB(Postgres, name)
 	var err error
-	DB, err = open(ctx)
+	DB, err = Open(ctx)
 	must(err)
 	defer DB.Close()
 	Owner, err = pgxpool.New(ctx, OwnerURL)
@@ -75,10 +75,10 @@ func Run(m *testing.M) int {
 	return m.Run()
 }
 
-// open is db.Open, one package at a time: the role streamiq_app is the cluster's, and
+// Open is db.Open, one package at a time: the role streamiq_app is the cluster's, and
 // concurrent CREATE or ALTER ROLEs of it fail. The lock is on the server's own database
 // (advisory locks are per database), held by this connection until it closes.
-func open(ctx context.Context) (*db.DB, error) {
+func Open(ctx context.Context) (*db.DB, error) {
 	conn, err := pgx.Connect(ctx, Postgres)
 	if err != nil {
 		return nil, err

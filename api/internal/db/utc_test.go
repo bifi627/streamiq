@@ -12,12 +12,12 @@ import (
 )
 
 // A timestamp read through the API's pool goes out as JSON in UTC (…Z), whatever the
-// server's zone (time.Local) and the session's.
+// server's zone (time.Local, UTC+5 from TestMain) and the session's.
 func TestTimestampsScanAsUTC(t *testing.T) {
-	local := time.Local
-	time.Local = time.FixedZone("UTC+5", 5*60*60)
-	t.Cleanup(func() { time.Local = local })
-	d, err := db.Connect(t.Context(), apitest.AppConfig(t)) // a pool made in this zone
+	if _, off := time.Now().Zone(); off == 0 {
+		t.Fatal("time.Local is UTC: the test proves nothing")
+	}
+	d, err := db.Connect(t.Context(), apitest.AppConfig(t))
 	if err != nil {
 		t.Fatal(err)
 	}

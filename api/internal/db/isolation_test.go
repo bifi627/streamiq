@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,7 +16,12 @@ import (
 	"streamiq/api/internal/db"
 )
 
-func TestMain(m *testing.M) { os.Exit(apitest.Run(m)) }
+// The package runs in a non-UTC zone (TestTimestampsScanAsUTC), set before any goroutine
+// starts: a write later races the pools' goroutines, which read time.Local.
+func TestMain(m *testing.M) {
+	time.Local = time.FixedZone("UTC+5", 5*60*60)
+	os.Exit(apitest.Run(m))
+}
 
 var tenantOwned = []string{"memberships", "gateways", "enrollment_tokens", "invites", "tunnels", "gateway_health"}
 

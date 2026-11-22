@@ -16,12 +16,18 @@ func Routes(mux *http.ServeMux, a *auth.Auth, d *db.DB) {
 	mux.HandleFunc("GET /api/tunnels", a.Handler(false, func(w http.ResponseWriter, r *http.Request, c auth.Caller) {
 		list(w, r, c, d)
 	}))
-	mux.HandleFunc("GET /api/tunnels/summary", a.Handler(false, func(w http.ResponseWriter, r *http.Request, c auth.Caller) {
-		summary(w, r, c, d)
-	}))
-	mux.HandleFunc("PATCH /api/tunnels/{id}", a.Handler(false, func(w http.ResponseWriter, r *http.Request, c auth.Caller) {
-		throughput(w, r, c, d)
-	}))
+	mux.HandleFunc(
+		"GET /api/tunnels/summary",
+		a.Handler(false, func(w http.ResponseWriter, r *http.Request, c auth.Caller) {
+			summary(w, r, c, d)
+		}),
+	)
+	mux.HandleFunc(
+		"PATCH /api/tunnels/{id}",
+		a.Handler(false, func(w http.ResponseWriter, r *http.Request, c auth.Caller) {
+			throughput(w, r, c, d)
+		}),
+	)
 }
 
 // Window is how far back Activity reads; Limit caps the list (not the summary).

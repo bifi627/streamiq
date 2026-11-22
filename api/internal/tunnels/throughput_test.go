@@ -80,7 +80,14 @@ func TestAPatchNeverChangesAnotherHouseholdsTunnel(t *testing.T) {
 	if v := kbps(t, id); status != http.StatusNotFound || v != nil {
 		t.Fatal(status, "stored:", v != nil)
 	}
-	if status, _ := s.do(t, alice, bob.home, http.MethodPatch, "/api/tunnels/"+id, `{"throughputKbps":1}`); status != http.StatusNoContent {
+	if status, _ := s.do(
+		t,
+		alice,
+		bob.home,
+		http.MethodPatch,
+		"/api/tunnels/"+id,
+		`{"throughputKbps":1}`,
+	); status != http.StatusNoContent {
 		t.Fatal(status) // in its own household it is hers
 	}
 }

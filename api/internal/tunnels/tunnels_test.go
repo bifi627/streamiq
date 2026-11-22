@@ -88,9 +88,15 @@ func gateway(t *testing.T, household, name string) string {
 // tunnel adds a row of user ("" = a deleted account) through gw, age old (a Postgres interval).
 func tunnel(t *testing.T, household, gw, user, age string) string {
 	t.Helper()
-	return apitest.Scalar[string](t, `INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "UserId", "Relay", "Ipv6", "CreatedAt")
+	return apitest.Scalar[string](
+		t,
+		`INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "UserId", "Relay", "Ipv6", "CreatedAt")
 		VALUES (uuidv7(), $1, $2, nullif($3, '')::uuid, false, false, now() - $4::interval) RETURNING "Id"::text`,
-		household, gw, user, age)
+		household,
+		gw,
+		user,
+		age,
+	)
 }
 
 // tunnelsAgo adds n rows of user, 1..n minutes old.

@@ -79,7 +79,7 @@ func atStart(ctx context.Context, ownerURL, password string) error {
 	if err != nil {
 		return err
 	}
-	_, err = conn.Exec(ctx, `UPDATE tunnels SET "EndedAt" = now() WHERE "EndedAt" IS NULL`)
+	_, err = conn.Exec(ctx, `UPDATE tunnels SET ended_at = now() WHERE ended_at IS NULL`)
 	return err
 }
 

@@ -90,8 +90,8 @@ func (s *stack) enrolled(email, name string) *gw {
 	g := &gw{tenant: s.household(email), credential: rand.Text()}
 	g.id = apitest.Scalar[string](
 		s.t,
-		`INSERT INTO gateways ("Id", "TenantId", "Name", "DtlsFingerprint", "CredentialHash")
-		VALUES (uuidv7(), $1, $2, 'sha-256 AB', encode(sha256(convert_to($3, 'UTF8')), 'hex')) RETURNING "Id"::text`,
+		`INSERT INTO gateways (id, tenant_id, name, dtls_fingerprint, credential_hash)
+		VALUES (uuidv7(), $1, $2, 'sha-256 AB', encode(sha256(convert_to($3, 'UTF8')), 'hex')) RETURNING id::text`,
 		g.tenant,
 		name,
 		g.credential,
@@ -135,9 +135,9 @@ func (s *stack) dial(path string, h http.Header) (*websocket.Conn, *http.Respons
 // messages in order, so a tunnel report for a marker row sent after it is stored after.
 func (s *stack) heartbeat(g *gw, extra map[string]any) {
 	s.t.Helper()
-	apitest.Exec(s.t, `UPDATE gateways SET "LastSeenAt" = NULL WHERE "Id" = $1`, g.id)
-	marker := apitest.Scalar[string](s.t, `INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "Relay", "Ipv6")
-		VALUES (uuidv7(), $1, $2, false, false) RETURNING "Id"::text`, g.tenant, g.id)
+	apitest.Exec(s.t, `UPDATE gateways SET last_seen_at = NULL WHERE id = $1`, g.id)
+	marker := apitest.Scalar[string](s.t, `INSERT INTO tunnels (id, tenant_id, gateway_id, relay, ipv6)
+		VALUES (uuidv7(), $1, $2, false, false) RETURNING id::text`, g.tenant, g.id)
 	msg := map[string]any{"type": "heartbeat", "protocol": broker.MinGatewayProtocol}
 	for k, v := range extra {
 		msg[k] = v
@@ -145,10 +145,10 @@ func (s *stack) heartbeat(g *gw, extra map[string]any) {
 	sendJSON(s.t, g.conn, msg)
 	sendJSON(s.t, g.conn, map[string]any{"type": "tunnel", "session": marker, "bytesSent": 0, "bytesReceived": 0})
 	waitFor(s.t, func() bool {
-		return apitest.Scalar[bool](s.t, `SELECT "BytesSent" IS NOT NULL FROM tunnels WHERE "Id" = $1`, marker)
+		return apitest.Scalar[bool](s.t, `SELECT bytes_sent IS NOT NULL FROM tunnels WHERE id = $1`, marker)
 	})
-	apitest.Exec(s.t, `DELETE FROM tunnels WHERE "Id" = $1`, marker)
-	if !apitest.Scalar[bool](s.t, `SELECT "LastSeenAt" IS NOT NULL FROM gateways WHERE "Id" = $1`, g.id) {
+	apitest.Exec(s.t, `DELETE FROM tunnels WHERE id = $1`, marker)
+	if !apitest.Scalar[bool](s.t, `SELECT last_seen_at IS NOT NULL FROM gateways WHERE id = $1`, g.id) {
 		s.t.Fatal("heartbeat not stored")
 	}
 }

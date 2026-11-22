@@ -38,7 +38,7 @@ func TestRemovingAGatewayRevokesItsCredentialAndEndsItsSessions(t *testing.T) {
 		rs.StatusCode != http.StatusUnauthorized {
 		t.Fatal("the credential still works")
 	}
-	if apitest.Scalar[bool](t, `SELECT "CredentialHash" IS NOT NULL FROM gateways WHERE "Id" = $1`, nas.id) {
+	if apitest.Scalar[bool](t, `SELECT credential_hash IS NOT NULL FROM gateways WHERE id = $1`, nas.id) {
 		t.Fatal("not revoked")
 	}
 	if got := s.remove("alice@home.test", nas); got != http.StatusNotFound {

@@ -31,7 +31,7 @@ func createToken(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB
 	}
 	t := EnrollmentToken{Token: newSecret(16), ExpiresAt: time.Now().Add(TokenLifetime).UTC()} // 128 bit
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		_, err := tx.Exec(r.Context(), `INSERT INTO enrollment_tokens ("Id", "TenantId", "TokenHash", "ExpiresAt")
+		_, err := tx.Exec(r.Context(), `INSERT INTO enrollment_tokens (id, tenant_id, token_hash, expires_at)
 			VALUES (uuidv7(), $1, $2, $3)`, c.Tenant, hash(t.Token), t.ExpiresAt)
 		return err
 	})

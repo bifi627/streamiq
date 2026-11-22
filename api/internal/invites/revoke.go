@@ -24,7 +24,7 @@ func revoke(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	}
 	var n int64
 	err = d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		tag, e := tx.Exec(r.Context(), `DELETE FROM invites WHERE "Id" = $1 AND "UsedAt" IS NULL`, id)
+		tag, e := tx.Exec(r.Context(), `DELETE FROM invites WHERE id = $1 AND used_at IS NULL`, id)
 		n = tag.RowsAffected()
 		return e
 	})

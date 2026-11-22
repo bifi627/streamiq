@@ -26,8 +26,8 @@ func list(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	}
 	out := []Invite{}
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		rows, _ := tx.Query(r.Context(), `SELECT "Id"::text, "CreatedAt", "ExpiresAt" FROM invites
-			WHERE "UsedAt" IS NULL AND "ExpiresAt" > now() ORDER BY "CreatedAt", "Id"`)
+		rows, _ := tx.Query(r.Context(), `SELECT id::text, created_at, expires_at FROM invites
+			WHERE used_at IS NULL AND expires_at > now() ORDER BY created_at, id`)
 		var err error
 		out, err = pgx.AppendRows(out, rows, pgx.RowToStructByPos[Invite])
 		return err

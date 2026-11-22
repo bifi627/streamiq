@@ -19,11 +19,11 @@ func TestOnlyTheCallersOwnTunnelsInTheRequestsHouseholdFromTheLast30Days(t *test
 	apitest.Join(t, bob.id, alice.home, "member")
 	apitest.Join(t, alice.id, bob.home, "member")
 	nas, other := gateway(t, alice.home, "nas"), gateway(t, bob.home, "other")
-	apitest.Exec(t, `UPDATE gateways SET "CredentialHash" = NULL WHERE "Id" = $1`, nas) // revoked: keeps its name
+	apitest.Exec(t, `UPDATE gateways SET credential_hash = NULL WHERE id = $1`, nas) // revoked: keeps its name
 	mine := tunnel(t, alice.home, nas, alice.id, "1 hour")
-	apitest.Exec(t, `UPDATE tunnels SET "Relay" = true, "Ipv6" = true, "BytesSent" = 5000, "BytesReceived" = 10,
-		"ThroughputKbps" = 20000, "Failure" = 'x', "Use" = 'playback', "ActiveMs" = 4200,
-		"LocalCandidateType" = 'relay', "EndedAt" = "CreatedAt" + interval '5 minutes' WHERE "Id" = $1`, mine)
+	apitest.Exec(t, `UPDATE tunnels SET relay = true, ipv6 = true, bytes_sent = 5000, bytes_received = 10,
+		throughput_kbps = 20000, failure = 'x', use = 'playback', active_ms = 4200,
+		local_candidate_type = 'relay', ended_at = created_at + interval '5 minutes' WHERE id = $1`, mine)
 	tunnel(t, alice.home, nas, alice.id, "31 days")
 	tunnel(t, alice.home, nas, bob.id, "2 hours")
 	tunnel(t, bob.home, other, alice.id, "3 hours")

@@ -31,11 +31,11 @@ func remove(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 		case lastAdmin:
 			return errLastAdmin
 		}
-		if _, err = tx.Exec(r.Context(), `DELETE FROM memberships WHERE "UserId" = $1`, user); err != nil {
+		if _, err = tx.Exec(r.Context(), `DELETE FROM memberships WHERE user_id = $1`, user); err != nil {
 			return err
 		}
 		// One statement on the invites slice's table: it must commit with the removal.
-		_, err = tx.Exec(r.Context(), `DELETE FROM invites WHERE "CreatedBy" = $1 AND "UsedAt" IS NULL`, user)
+		_, err = tx.Exec(r.Context(), `DELETE FROM invites WHERE created_by = $1 AND used_at IS NULL`, user)
 		return err
 	}))
 }

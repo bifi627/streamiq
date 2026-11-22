@@ -18,14 +18,15 @@ is not a status log: open work lives in `gh issue list`, history in git.
   `front` is `/healthz`, CORS, the security headers (`nosniff`, `frame-ancestors 'none'`,
   `strict-origin-when-cross-origin`, on every response) and the web app (a file that
   exists, else `index.html` for a path without an extension; `/api/*` stays a 404). `pgx` with hand-written SQL, no ORM;
-  columns keep EF's quoted PascalCase until #744.
+  names are snake_case and unquoted.
 - **Migrations**: `api/migrations` runs each file once, in name order, each in its own
   transaction, as the tables' owner (`DATABASE_URL`), recorded in `schema_migrations`.
   `0001_baseline.sql` is the EF schema as `pg_dump` wrote it, with EF's history rows; on
-  a database EF already migrated it is recorded, not run. Nothing runs EF any more; no
-  new EF migration lands. `__EFMigrationsHistory` stays until #744.
+  a database EF already migrated (a backup from before the cutover) it is recorded, not
+  run. `0007_snake_case.sql` renames EF's PascalCase columns, constraints and indexes to
+  snake_case and drops `__EFMigrationsHistory`.
 - **Tenant isolation is Postgres row-level security** (`0002_rls.sql`): every
-  tenant-owned table has a policy `TenantId = app_tenant()` (`USING` + `WITH CHECK`) for
+  tenant-owned table has a policy `tenant_id = app_tenant()` (`USING` + `WITH CHECK`) for
   the role `streamiq_app`, which owns no table; `app_tenant()` reads `app.tenant_id`,
   NULL when unset, so no tenant = no rows. The API connects as `streamiq_app` (its
   password `STREAMIQ_APP_DB_PASSWORD`, set at start by the owner) and sets the tenant
@@ -37,7 +38,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
   preview, `claim_invite(hash)` for accept and `create_household(user)` for a new
   household with its first membership, `0005_households_invites.sql`; `sign_in(firebase uid)`
   finds or adds the user, `0006_rls_tenants_users.sql`). `tenants` has the same policy on
-  its own `Id`, and `streamiq_app` may not insert or delete one; `users` is read only:
+  its own `id`, and `streamiq_app` may not insert or delete one; `users` is read only:
   the members of the transaction's tenant, written only by `sign_in`. Every timestamp scans as UTC (`db.Connect`), so
   the JSON ends in `Z`.
 - **Auth** (`api/internal/auth`): the Firebase Admin SDK verifies ID tokens, one call

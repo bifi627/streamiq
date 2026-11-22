@@ -34,8 +34,8 @@ func enroll(w http.ResponseWriter, r *http.Request, d *db.DB) {
 	// Claim and row in one transaction: an enrollment that fails after the claim keeps the token.
 	err := d.InClaimedTenant(r.Context(), db.EnrollmentToken, hash(rq.Token),
 		func(tx pgx.Tx, tenant string) error {
-			return tx.QueryRow(r.Context(), `INSERT INTO gateways ("Id", "TenantId", "Name", "DtlsFingerprint", "CredentialHash")
-				VALUES (uuidv7(), $1, $2, $3, $4) RETURNING "Id"::text`,
+			return tx.QueryRow(r.Context(), `INSERT INTO gateways (id, tenant_id, name, dtls_fingerprint, credential_hash)
+				VALUES (uuidv7(), $1, $2, $3, $4) RETURNING id::text`,
 				tenant, name(rq.Name), rq.Fingerprint, hash(out.Credential)).
 				Scan(&out.GatewayID)
 		})

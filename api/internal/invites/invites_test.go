@@ -39,7 +39,7 @@ func newWorld(t *testing.T, ips *iplimit.Limiter) world {
 	w.aliceID, w.bobID = w.s.User(t, w.alice), w.s.User(t, w.bob)
 	w.aliceHH = apitest.Household(t, w.aliceID, "admin")
 	w.bobHH = apitest.Household(t, w.bobID, "admin")
-	apitest.Exec(t, `UPDATE tenants SET "Name" = NULL`) // previews fall back to the inviter's name
+	apitest.Exec(t, `UPDATE tenants SET name = NULL`) // previews fall back to the inviter's name
 	return w
 }
 
@@ -91,8 +91,8 @@ func memberships(t *testing.T, user string) string {
 	t.Helper()
 	return apitest.Scalar[string](
 		t,
-		`SELECT coalesce(string_agg("TenantId"::text || ':' || "Role", ',' ORDER BY "CreatedAt"), '')
-		FROM memberships WHERE "UserId" = $1`,
+		`SELECT coalesce(string_agg(tenant_id::text || ':' || role, ',' ORDER BY created_at), '')
+		FROM memberships WHERE user_id = $1`,
 		user,
 	)
 }
@@ -110,11 +110,11 @@ func TestAnAdminCreatesAnInvite128BitFor7DaysStoredOnlyAsItsHash(t *testing.T) {
 		t.Fatalf("expires in %v", d)
 	}
 	h := sha256.Sum256([]byte(c.Token))
-	if got := apitest.Scalar[string](t, `SELECT "TokenHash" FROM invites WHERE "Id" = $1`, c.ID); got !=
+	if got := apitest.Scalar[string](t, `SELECT token_hash FROM invites WHERE id = $1`, c.ID); got !=
 		hex.EncodeToString(h[:]) {
 		t.Fatalf("stored %s", got)
 	}
-	if n := apitest.Scalar[int](t, `SELECT count(*) FROM invites WHERE "TokenHash" = $1`, c.Token); n != 0 {
+	if n := apitest.Scalar[int](t, `SELECT count(*) FROM invites WHERE token_hash = $1`, c.Token); n != 0 {
 		t.Fatal("the plaintext token is stored")
 	}
 }
@@ -160,18 +160,18 @@ func TestThePreviewNamesTheHouseholdElseTheInvitersAliasElseNothing(t *testing.T
 	erin := apitest.Token(t, "erin-invites@home.test") // its alias stays in the emulator: no other test uses it
 	apitest.Alias(t, erin, "Erin")
 	erinHH := apitest.Household(t, w.s.User(t, erin), "admin")
-	apitest.Exec(t, `UPDATE tenants SET "Name" = NULL`)
+	apitest.Exec(t, `UPDATE tenants SET name = NULL`)
 	inv := w.create(t, erin, erinHH)
 	name := func() *string { return apitest.JSON[invites.Preview](t, w.preview(t, w.bob, inv.Token)).Name }
 	if n := name(); n == nil || *n != "Erin's household" {
 		t.Fatal(n)
 	}
-	apitest.Exec(t, `UPDATE tenants SET "Name" = 'The Smiths' WHERE "Id" = $1`, erinHH)
+	apitest.Exec(t, `UPDATE tenants SET name = 'The Smiths' WHERE id = $1`, erinHH)
 	if n := name(); n == nil || *n != "The Smiths" {
 		t.Fatal(n)
 	}
-	apitest.Exec(t, `UPDATE tenants SET "Name" = NULL`)
-	apitest.Exec(t, `UPDATE invites SET "CreatedBy" = NULL`) // the inviter's account is gone
+	apitest.Exec(t, `UPDATE tenants SET name = NULL`)
+	apitest.Exec(t, `UPDATE invites SET created_by = NULL`) // the inviter's account is gone
 	if n := name(); n != nil {
 		t.Fatal(*n)
 	}
@@ -212,7 +212,7 @@ func TestAnUnusableInviteIsRefusedAsNotFound(t *testing.T) {
 	carolID := w.s.User(t, carol)
 	used, expired, revoked := w.create(t, w.alice, ""), w.create(t, w.alice, ""), w.create(t, w.alice, "")
 	status(t, w.accept(t, w.bob, used.Token), http.StatusOK)
-	apitest.Exec(t, `UPDATE invites SET "ExpiresAt" = now() - interval '1 second' WHERE "Id" = $1`, expired.ID)
+	apitest.Exec(t, `UPDATE invites SET expires_at = now() - interval '1 second' WHERE id = $1`, expired.ID)
 	status(t, w.s.Do(t, http.MethodDelete, "/api/invites/"+revoked.ID, w.alice, "", ""), http.StatusNoContent)
 	for name, token := range map[string]string{
 		"used": used.Token, "expired": expired.Token, "revoked": revoked.Token,
@@ -306,7 +306,7 @@ func TestAnInviteJoinsItsOwnHouseholdOnlyWhateverTheRequestNames(t *testing.T) {
 	if got := memberships(t, carolID); got != carolHH+":admin,"+w.aliceHH+":member" {
 		t.Fatal(got)
 	}
-	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE "TenantId" = $1`, w.bobHH); n != 1 {
+	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE tenant_id = $1`, w.bobHH); n != 1 {
 		t.Fatalf("bob's household has %d members", n)
 	}
 	// Naming a household that isn't the caller's is the not-a-member 404, as everywhere.
@@ -318,7 +318,7 @@ func TestAnInviteJoinsItsOwnHouseholdOnlyWhateverTheRequestNames(t *testing.T) {
 
 func TestAPreviewTellsNothingAboutAnyOtherHousehold(t *testing.T) {
 	w := newWorld(t, iplimit.New(100, ""))
-	apitest.Exec(t, `UPDATE tenants SET "Name" = 'Bob''s place' WHERE "Id" = $1`, w.bobHH)
+	apitest.Exec(t, `UPDATE tenants SET name = 'Bob''s place' WHERE id = $1`, w.bobHH)
 	inv := w.create(t, w.alice, "")
 	for _, token := range []string{w.bob, apitest.Token(t, "dave@home.test")} {
 		a := w.preview(t, token, inv.Token)
@@ -343,7 +343,7 @@ func TestOneInviteAcceptedByTwoUsersAtOnceGivesOneNewMember(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(t.Context(), `SELECT FROM invites WHERE "Id" = $1 FOR UPDATE`, inv.ID); err != nil {
+	if _, err := tx.Exec(t.Context(), `SELECT FROM invites WHERE id = $1 FOR UPDATE`, inv.ID); err != nil {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
@@ -357,7 +357,7 @@ func TestOneInviteAcceptedByTwoUsersAtOnceGivesOneNewMember(t *testing.T) {
 	if slices.Sort(got); !slices.Equal(got, []int{200, 404}) {
 		t.Fatalf("%v, want one 200 and one 404", got)
 	}
-	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE "TenantId" = $1`, w.aliceHH); n != 2 {
+	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE tenant_id = $1`, w.aliceHH); n != 2 {
 		t.Fatalf("%d members, want alice and one more", n)
 	}
 }
@@ -370,7 +370,7 @@ func TestAcceptingWhenAlreadyJoinedConcurrentlyLeavesTheInviteUnspent(t *testing
 	// The caller's households are read before the claim: a membership added in between
 	// is what a concurrent join looks like. A trigger adds it right before the insert.
 	apitest.Exec(t, `CREATE FUNCTION race_join() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-		INSERT INTO memberships ("TenantId", "UserId", "Role") VALUES (NEW."TenantId", NEW."UserId", 'member')
+		INSERT INTO memberships (tenant_id, user_id, role) VALUES (NEW.tenant_id, NEW.user_id, 'member')
 		ON CONFLICT DO NOTHING; RETURN NEW; END $$`)
 	apitest.Exec(t, `CREATE TRIGGER race BEFORE INSERT ON memberships FOR EACH ROW WHEN (pg_trigger_depth() = 0)
 		EXECUTE FUNCTION race_join()`)
@@ -381,7 +381,7 @@ func TestAcceptingWhenAlreadyJoinedConcurrentlyLeavesTheInviteUnspent(t *testing
 	if a.Status != http.StatusOK || string(a.Body) != `{"householdId":"`+w.aliceHH+`"}` {
 		t.Fatalf("%d %s", a.Status, a.Body)
 	}
-	if used := apitest.Scalar[bool](t, `SELECT "UsedAt" IS NOT NULL FROM invites WHERE "Id" = $1`, inv.ID); used {
+	if used := apitest.Scalar[bool](t, `SELECT used_at IS NOT NULL FROM invites WHERE id = $1`, inv.ID); used {
 		t.Fatal("the invite was spent")
 	}
 }

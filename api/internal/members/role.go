@@ -36,7 +36,7 @@ func setRole(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 		case lastAdmin && rq.Role == "member":
 			return errLastAdmin
 		}
-		_, err = tx.Exec(r.Context(), `UPDATE memberships SET "Role" = $2 WHERE "UserId" = $1`, user, rq.Role)
+		_, err = tx.Exec(r.Context(), `UPDATE memberships SET role = $2 WHERE user_id = $1`, user, rq.Role)
 		return err
 	}))
 }

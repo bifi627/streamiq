@@ -26,8 +26,8 @@ func create(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	}
 	out := Created{Token: newToken()}
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		return tx.QueryRow(r.Context(), `INSERT INTO invites ("Id", "TenantId", "TokenHash", "CreatedBy", "ExpiresAt")
-			VALUES (uuidv7(), $1, $2, $3, now() + interval '7 days') RETURNING "Id"::text, "ExpiresAt"`,
+		return tx.QueryRow(r.Context(), `INSERT INTO invites (id, tenant_id, token_hash, created_by, expires_at)
+			VALUES (uuidv7(), $1, $2, $3, now() + interval '7 days') RETURNING id::text, expires_at`,
 			c.Tenant, hash(out.Token), c.User).Scan(&out.ID, &out.ExpiresAt)
 	})
 	writeJSON(w, out, err)

@@ -15,11 +15,11 @@ import (
 
 func tunnelRow(t *testing.T, sid, cols string) string {
 	t.Helper()
-	return apitest.Scalar[string](t, `SELECT concat_ws('|', `+cols+`) FROM tunnels WHERE "Id" = $1`, sid)
+	return apitest.Scalar[string](t, `SELECT concat_ws('|', `+cols+`) FROM tunnels WHERE id = $1`, sid)
 }
 
 func ended(t *testing.T, sid string) bool {
-	return apitest.Scalar[bool](t, `SELECT "EndedAt" IS NOT NULL FROM tunnels WHERE "Id" = $1`, sid)
+	return apitest.Scalar[bool](t, `SELECT ended_at IS NOT NULL FROM tunnels WHERE id = $1`, sid)
 }
 
 func reportOf(sid string, extra map[string]any) map[string]any {
@@ -36,7 +36,7 @@ func reportOf(sid string, extra map[string]any) map[string]any {
 func waitReported(t *testing.T, sid string) {
 	t.Helper()
 	waitFor(t, func() bool {
-		return apitest.Scalar[bool](t, `SELECT "BytesSent" IS NOT NULL FROM tunnels WHERE "Id" = $1`, sid)
+		return apitest.Scalar[bool](t, `SELECT bytes_sent IS NOT NULL FROM tunnels WHERE id = $1`, sid)
 	})
 }
 
@@ -48,7 +48,7 @@ func TestARoutedOfferWritesTheTunnelRowForTheGatewaysHouseholdAndTheUser(t *test
 	s.offer("bob@home.test", nas)
 	sid := session(t, nas)
 	want := nas.tenant + "|" + nas.id + "|" + bob + "|f|f"
-	if got := tunnelRow(t, sid, `"TenantId", "GatewayId", "UserId", "Relay", "Ipv6"`); got != want || ended(t, sid) {
+	if got := tunnelRow(t, sid, `tenant_id, gateway_id, user_id, relay, ipv6`); got != want || ended(t, sid) {
 		t.Fatalf("row %s, ended %v", got, ended(t, sid))
 	}
 }
@@ -80,8 +80,8 @@ func TestTheGatewaysReportFillsItsOwnTunnelAlsoAfterTheBrowserLeft(t *testing.T)
 	waitFor(t, func() bool { return ended(t, sid) })
 	sendJSON(t, nas.conn, reportOf(sid, nil))
 	waitReported(t, sid)
-	cols := `"Relay", "Ipv6", "BytesSent", "BytesReceived", "LocalCandidateType", "RemoteCandidateType", "Protocol",
-		coalesce("Failure", 'none'), "Use", "ActiveMs"`
+	cols := `relay, ipv6, bytes_sent, bytes_received, local_candidate_type, remote_candidate_type, protocol,
+		coalesce(failure, 'none'), use, active_ms`
 	if got := tunnelRow(t, sid, cols); got != "t|f|5000|100|relay|srflx|udp|none|playback|4200" {
 		t.Fatal(got)
 	}
@@ -96,7 +96,7 @@ func TestASecondReportForTheSameTunnelIsIgnored(t *testing.T) {
 	waitReported(t, sid)
 	sendJSON(t, nas.conn, reportOf(sid, map[string]any{"failure": "ice failed", "bytesSent": 0}))
 	s.heartbeat(nas, nil) // read after the second report: that one was handled
-	if got := tunnelRow(t, sid, `"BytesSent", coalesce("Failure", 'none')`); got != "5000|none" {
+	if got := tunnelRow(t, sid, `bytes_sent, coalesce(failure, 'none')`); got != "5000|none" {
 		t.Fatal(got)
 	}
 }
@@ -111,7 +111,7 @@ func TestAGatewayCannotReportAnotherGatewaysTunnelEvenInTheSameHousehold(t *test
 	sid := session(t, nas)
 	sendJSON(t, evil.conn, reportOf(sid, nil))
 	s.heartbeat(evil, nil)
-	if got := tunnelRow(t, sid, `coalesce("BytesSent"::text, 'none')`); got != "none" {
+	if got := tunnelRow(t, sid, `coalesce(bytes_sent::text, 'none')`); got != "none" {
 		t.Fatal(got)
 	}
 }
@@ -122,8 +122,8 @@ func TestDeletingTheUserKeepsTheTunnelWithoutItsUser(t *testing.T) {
 	s.offer("alice@home.test", nas)
 	sid := session(t, nas)
 	_, alice := s.user("alice@home.test")
-	apitest.Exec(t, `DELETE FROM users WHERE "Id" = $1`, alice)
-	if got := tunnelRow(t, sid, `coalesce("UserId"::text, 'none')`); got != "none" {
+	apitest.Exec(t, `DELETE FROM users WHERE id = $1`, alice)
+	if got := tunnelRow(t, sid, `coalesce(user_id::text, 'none')`); got != "none" {
 		t.Fatal(got)
 	}
 }
@@ -137,8 +137,8 @@ func TestAFailedTunnelsReportWithZeroBytesIsRecordedWithAllItsFields(t *testing.
 	sendJSON(t, nas.conn, reportOf(sid, map[string]any{"relay": false, "ipv6": true, "protocol": "tcp", "bytesSent": 0,
 		"bytesReceived": 0, "failure": "ice failed", "use": nil, "activeMs": nil}))
 	waitReported(t, sid)
-	cols := `"Relay", "Ipv6", "Protocol", "BytesSent", "BytesReceived", "Failure", coalesce("Use", 'none'),
-		coalesce("ActiveMs"::text, 'none')`
+	cols := `relay, ipv6, protocol, bytes_sent, bytes_received, failure, coalesce(use, 'none'),
+		coalesce(active_ms::text, 'none')`
 	if got := tunnelRow(t, sid, cols); got != "f|t|tcp|0|0|ice failed|none|none" {
 		t.Fatal(got)
 	}

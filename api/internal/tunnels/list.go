@@ -45,12 +45,12 @@ func list(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	}
 	out := []Tunnel{}
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		rows, _ := tx.Query(r.Context(), `SELECT t."Id"::text, t."CreatedAt", t."EndedAt", g."Id"::text, g."Name",
-			t."Relay", t."Ipv6", t."BytesSent", t."BytesReceived", t."ThroughputKbps", t."Failure", t."Use",
-			t."ActiveMs", CASE WHEN $1 THEN t."UserId"::text END
-			FROM tunnels t JOIN gateways g ON g."Id" = t."GatewayId"
-			WHERE ($1 OR t."UserId" = $2) AND t."CreatedAt" > now() - $3::interval
-			ORDER BY t."CreatedAt" DESC LIMIT $4`, household, c.User, Window, Limit)
+		rows, _ := tx.Query(r.Context(), `SELECT t.id::text, t.created_at, t.ended_at, g.id::text, g.name,
+			t.relay, t.ipv6, t.bytes_sent, t.bytes_received, t.throughput_kbps, t.failure, t.use,
+			t.active_ms, CASE WHEN $1 THEN t.user_id::text END
+			FROM tunnels t JOIN gateways g ON g.id = t.gateway_id
+			WHERE ($1 OR t.user_id = $2) AND t.created_at > now() - $3::interval
+			ORDER BY t.created_at DESC LIMIT $4`, household, c.User, Window, Limit)
 		var err error
 		out, err = pgx.AppendRows(out, rows, func(row pgx.CollectableRow) (t Tunnel, err error) {
 			err = row.Scan(&t.ID, &t.CreatedAt, &t.EndedAt, &t.GatewayID, &t.GatewayName, &t.Relay, &t.IPv6,

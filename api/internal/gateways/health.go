@@ -39,14 +39,14 @@ func health(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	err = d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
 		// Another household's gateway is no row in this one's transaction: 404, like an unknown id.
 		var known bool
-		if e := tx.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM gateways WHERE "Id" = $1)`, id).
+		if e := tx.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM gateways WHERE id = $1)`, id).
 			Scan(&known); e != nil || !known {
 			return cmp.Or(e, pgx.ErrNoRows)
 		}
-		rows, _ := tx.Query(r.Context(), `SELECT `+healthCols+` FROM gateway_health WHERE "GatewayId" = $1
-			AND "At" >= coalesce((SELECT max("At") FROM gateway_health
-				WHERE "GatewayId" = $1 AND "At" < now() - $2::interval), now() - $2::interval)
-			ORDER BY "At"`, id, HealthWindow)
+		rows, _ := tx.Query(r.Context(), `SELECT `+healthCols+` FROM gateway_health WHERE gateway_id = $1
+			AND at >= coalesce((SELECT max(at) FROM gateway_health
+				WHERE gateway_id = $1 AND at < now() - $2::interval), now() - $2::interval)
+			ORDER BY at`, id, HealthWindow)
 		out, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (h HealthRow, err error) {
 			err = row.Scan(&h.At, &h.JellyfinReachable, &h.JellyfinVersion, &h.GatewayVersion,
 				&h.Tunnels, &h.Transcodes, &h.CPU, &h.Memory)
@@ -61,4 +61,4 @@ func health(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	writeJSON(w, out, err)
 }
 
-const healthCols = `"At", "JellyfinReachable", "JellyfinVersion", "GatewayVersion", "Tunnels", "Transcodes", "Cpu", "Memory"`
+const healthCols = `at, jellyfin_reachable, jellyfin_version, gateway_version, tunnels, transcodes, cpu, memory`

@@ -75,6 +75,7 @@ func atStart(ctx context.Context, ownerURL, password string) error {
 		return err
 	}
 	defer func() { _ = conn.Close(ctx) }()
+	// sqlcheck: DDL takes no parameters; the password is our own config, quoted
 	_, err = conn.Exec(ctx, `ALTER ROLE `+AppRole+` LOGIN PASSWORD '`+strings.ReplaceAll(password, `'`, `''`)+`'`)
 	if err != nil {
 		return err
@@ -119,6 +120,7 @@ func (d *DB) InClaimedTenant(
 ) error {
 	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
 		var tenant string
+		// sqlcheck: a Claim is built only here, from a literal
 		if err := tx.QueryRow(ctx, claim.sql, arg).Scan(&tenant); err != nil {
 			return err
 		}

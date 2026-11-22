@@ -2,13 +2,15 @@
 // `paired`): `/` → the one gateway's library, the nav's Library link, the
 // shared session, folder deep links + cache, Recently added,
 // Continue watching's order and click-through guard, season tabs
-// and watched marks. Folder → movie → Play and the Resume spot are the golden
+// and watched marks, no speed test while browsing. Folder → movie → Play and the Resume spot are the golden
 // path's; `/` with no gateway or several, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   appUrl,
+  bursts,
+  countBursts,
   keepPcs,
   openLibrary as open,
   videoTime,
@@ -238,4 +240,19 @@ test('watched marks: a finished episode reads Watched, a part-played one its tim
   await expect(
     second.getByRole('progressbar', { name: / watched$/ }),
   ).toBeVisible()
+})
+
+test('browsing sends no speed test burst (#813) @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await countBursts(page)
+  await page.reload()
+  await open(page)
+  await movies(page).click()
+  await page.getByRole('button', { name: 'streamiq e2e clip' }).click()
+  await expect(
+    page.getByRole('button', { name: /^(Play|Resume)$/ }),
+  ).toBeVisible()
+  expect(await bursts(page)).toBe(0)
 })

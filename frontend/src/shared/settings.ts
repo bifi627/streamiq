@@ -9,6 +9,7 @@ import {
   type SaverMode,
 } from '../features/player/profile'
 import { guessTv } from '../features/tv/tv'
+import { DEFAULT_EVERY, toEvery, type Every } from './speedPolicy'
 
 const KEY = 'streamiq.settings.compatible'
 const RAW_KEY = 'streamiq.settings.raw'
@@ -89,6 +90,25 @@ export const netInfo = () =>
     }
   ).connection
 export const dataSaverOn = () => saverOn(dataSaver(), netInfo())
+
+/** "Measure connection speed": how long a reading is used before Auto
+ * playback measures again, or Off (only /diagnostics measures). */
+const SPEED_KEY = 'streamiq.settings.speedEvery'
+export function speedEvery(): Every {
+  try {
+    return toEvery(localStorage.getItem(SPEED_KEY))
+  } catch {
+    return DEFAULT_EVERY
+  }
+}
+export function setSpeedEvery(v: Every) {
+  try {
+    if (v === DEFAULT_EVERY) localStorage.removeItem(SPEED_KEY)
+    else localStorage.setItem(SPEED_KEY, v)
+  } catch {
+    /* not saved: stays every 2 h */
+  }
+}
 
 /** TV mode: larger root size + 5 % safe-area padding (index.css
  * `html.tv`). Stored '1' / '0'; unset = first visit, where the TV guess

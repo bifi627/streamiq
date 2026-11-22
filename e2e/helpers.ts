@@ -373,6 +373,21 @@ export const keepPcs = (p: Page) =>
     } as typeof P
   })
 
+/** Counts the throughput test's /streamiq/burst requests on every load of p;
+ * `bursts` reads the count of the current load. */
+export const countBursts = (p: Page) =>
+  p.addInitScript(() => {
+    const w = window as unknown as { bursts: number }
+    w.bursts = 0
+    const create = RTCPeerConnection.prototype.createDataChannel
+    RTCPeerConnection.prototype.createDataChannel = function (label, o) {
+      if (label.startsWith('req:/streamiq/burst')) w.bursts++
+      return create.call(this, label, o)
+    }
+  })
+export const bursts = (p: Page) =>
+  p.evaluate(() => (window as { bursts?: number }).bursts)
+
 /** Opens the paired gateway's library from the Gateways card; its id. */
 export async function openLibrary(p: Page) {
   await p.locator('li.card').getByRole('button', { name: 'Open' }).click()

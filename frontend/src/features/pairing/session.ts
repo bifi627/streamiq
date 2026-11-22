@@ -10,8 +10,8 @@ export type Session = {
   close: () => void
   /** close() ran (the pc closes a moment later, after the throughput PATCH). */
   closed: boolean
-  /** gateway → client throughput: starts the measurement on the first
-   * call, once per session, so sessions that never stream cost no bursts. */
+  /** gateway → client throughput: measures only when Auto playback or
+   * /diagnostics asks (speed.ts). */
   speed: () => Speed
 }
 

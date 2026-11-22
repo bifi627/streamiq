@@ -8,14 +8,17 @@ import {
   setCompatible,
   setDataSaver,
   setRaw,
+  setSpeedEvery,
+  speedEvery,
 } from '../../shared/settings'
 import { netReport } from './network'
 
-// Settings' Playback card: compatible mode, data saver, Raw.
+// Settings' Playback card: compatible mode, data saver, measuring, Raw.
 export function Playback() {
   const [compatible, setOn] = useState(compatibleOn)
   const [raw, setRawOn] = useState(rawOn)
   const [saver, setSaver] = useState(dataSaver)
+  const [every, setEvery] = useState(speedEvery)
   return (
     <div className="card">
       <h2>Playback</h2>
@@ -70,6 +73,38 @@ export function Playback() {
             and the speed test uses ~3 MB instead of up to ~50 MB. Automatic
             turns it on on mobile data or when the browser asks to save data.
             This browser reports: {netReport(netInfo())}.
+          </p>
+        </li>
+        <li>
+          <div className="setting">
+            <span id="speed">Measure connection speed</span>
+            <div role="group" aria-labelledby="speed" className="choice">
+              {(
+                [
+                  ['30m', 'Every 30 min'],
+                  ['2h', 'Every 2 h'],
+                  ['1d', 'Every day'],
+                  ['off', 'Off'],
+                ] as const
+              ).map(([v, name]) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={every === v}
+                  onClick={() => {
+                    setSpeedEvery(v)
+                    setEvery(v)
+                  }}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="muted">
+            Auto quality measures the speed to your home PC when a video starts,
+            at most this often per connection. Off: it uses the last result, or
+            no limit.
           </p>
         </li>
         <li>

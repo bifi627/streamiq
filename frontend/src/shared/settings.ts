@@ -106,7 +106,7 @@ export function setSpeedEvery(v: Every) {
     if (v === DEFAULT_EVERY) localStorage.removeItem(SPEED_KEY)
     else localStorage.setItem(SPEED_KEY, v)
   } catch {
-    /* not saved: stays every 2 h */
+    /* not saved: the previous choice stays */
   }
 }
 

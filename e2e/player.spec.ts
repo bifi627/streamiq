@@ -366,10 +366,11 @@ test('Auto measures once per tunnel, then uses the cache (#813) @player', async 
   await countBursts(page)
   await arrange(page, DIAG)
   await play(page)
-  await expect.poll(() => bursts(page)).toBe(4) // warm-up + 3
+  await openDock(page)
+  await expect(page.getByText(/speed: ~[\d.]+ Mbps \(median of/)).toBeVisible()
+  expect(await bursts(page)).toBe(4) // warm-up + 3
   await page.goBack()
   await page.getByRole('button', { name: /^(Play|Resume)$/ }).click()
-  await openDock(page)
   await expect(
     page.getByText(/speed: ~[\d.]+ Mbps \(cached, \d+ min old; direct/),
   ).toBeVisible()

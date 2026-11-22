@@ -208,6 +208,8 @@ test('Settings toggles persist across a reload @shell', async ({ browser }) => {
   await p.getByLabel('Compatible mode').check()
   await saver.getByRole('button', { name: 'On' }).click()
   await expect(p.getByText(/^On now:/)).toBeVisible()
+  const speed = p.getByRole('group', { name: 'Measure connection speed' })
+  await speed.getByRole('button', { name: 'Every day' }).click()
   await p.getByLabel('Raw quality option').check()
   await p.getByLabel('Diagnostics panel').check()
   await expect(dock).toBeVisible()
@@ -221,6 +223,9 @@ test('Settings toggles persist across a reload @shell', async ({ browser }) => {
     'true',
   )
   await expect(p.getByText(/^On now:/)).toBeVisible()
+  await expect(
+    speed.getByRole('button', { name: 'Every day' }),
+  ).toHaveAttribute('aria-pressed', 'true')
   await expect(p.getByLabel('Raw quality option')).toBeChecked()
   await expect(p.getByLabel('Diagnostics panel')).toBeChecked()
   await expect(dock).toBeVisible()
@@ -231,9 +236,9 @@ test('Settings toggles persist across a reload @shell', async ({ browser }) => {
 })
 
 // The D-pad leaves a checkbox, Left/Right too (no caret to keep
-// them), and Down goes on past Data saver. Right isn't driven: every Settings
+// them), and Down goes on past Data saver and Measure connection speed. Right isn't driven: every Settings
 // checkbox ends its row, so Right has no target.
-test('Settings D-pad: off a checkbox, Down past Data saver to Raw @shell', async ({
+test('Settings D-pad: off a checkbox, Down past Data saver and Measure to Raw @shell', async ({
   browser,
 }) => {
   const p = await signedIn(browser, '/settings')
@@ -245,6 +250,9 @@ test('Settings D-pad: off a checkbox, Down past Data saver to Raw @shell', async
   await p.keyboard.press('ArrowDown')
   const saver = p.getByRole('group', { name: 'Data saver' })
   await expect(saver.getByRole('button', { name: 'Off' })).toBeFocused()
+  await p.keyboard.press('ArrowDown')
+  const speed = p.getByRole('group', { name: 'Measure connection speed' })
+  await expect(speed.getByRole('button', { name: 'Off' })).toBeFocused()
   await p.keyboard.press('ArrowDown')
   await expect(p.getByLabel('Raw quality option')).toBeFocused()
 })

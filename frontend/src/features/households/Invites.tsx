@@ -8,9 +8,12 @@ import { AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { arrowFocus } from '../../focus'
 import { event } from '../../diag'
-
-type Invite = { id: string; createdAt: string; expiresAt: string }
-type Preview = { householdId: string; name: string | null; member: boolean }
+import type {
+  Accepted,
+  Created,
+  Invite,
+  Preview,
+} from '../../generated/invites'
 
 // The token lives in the link's fragment (/join#<token>): never sent to a server
 // as a URL, so it can't land in access logs. The API gets it in a POST body.
@@ -40,7 +43,7 @@ export function Invites() {
 
   const creating = useMutation({
     mutationFn: () =>
-      authed<{ id: string; token: string; expiresAt: string }>('/invites', {
+      authed<Created>('/invites', {
         method: 'POST',
       }),
     onMutate: () => setErr(null),
@@ -170,7 +173,7 @@ export function Join() {
   async function join() {
     setBusy(true)
     try {
-      const r = await authed<{ householdId: string }>('/invites/accept', {
+      const r = await authed<Accepted>('/invites/accept', {
         method: 'POST',
         body: JSON.stringify({ token }),
       })

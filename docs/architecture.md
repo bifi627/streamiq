@@ -7,16 +7,15 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 ## Go API (`api/`, the port of `backend/`: #725)
 
-- Being ported slice by slice from the .NET API (`backend/`). In dev (`scripts/dev.ps1`)
-  and the e2e stack the Go API is the one API URL: it serves its slices (today `/healthz`,
-  `GET /api/me`, the broker's two sockets, `GET /api/gateways`, `GET /api/gateways/{id}/health`,
-  `DELETE /api/gateways/{id}`, `POST /api/gateways/enrollment-tokens`, `POST /api/gateways/enroll`,
-  `GET /api/tunnels`, `GET /api/tunnels/summary` and `PATCH /api/tunnels/{id}`) and proxies every other request, WebSocket upgrades included, to
-  the .NET API (`STREAMIQ_LEGACY_API_URL`) on the same database. It answers CORS for
-  both, as ASP.NET's policy did. Production still runs the .NET-only image (#732).
+- Ported from the .NET API (`backend/`). In dev (`scripts/dev.ps1`) and the e2e stack the
+  Go API is the one API URL and serves every `/api` route, the broker's two sockets
+  included; the .NET API serves none. Every other request still goes through its proxy
+  to the .NET API (`STREAMIQ_LEGACY_API_URL`, which answers only `/healthz`, the SPA
+  fallback and 404s) until #732 removes it. It answers CORS as ASP.NET's policy did.
+  Production still runs the .NET-only image (#732).
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
   `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
-  `gateways`, `onboarding`, `tunnels`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
+  `gateways`, `onboarding`, `tunnels`, `household`, `members`, `invites`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
   only imports between slices);
   `front` is `/healthz`, CORS and the proxy. `pgx` with hand-written SQL, no ORM;
   columns keep EF's quoted PascalCase until #744.
@@ -34,12 +33,17 @@ is not a status log: open work lives in `gh issue list`, history in git.
   claim in the same transaction). Lookups that run before the tenant is known are
   `SECURITY DEFINER` functions limited by their argument (`memberships_of(user)`,
   `gateway_by_credential(hash)` for the gateway socket, `claim_enrollment_token(hash)`
-  for enrollment, which also spends the token). The
+  for enrollment, which also spends the token, `invite_by_hash(hash)` for an invite's
+  preview, `claim_invite(hash)` for accept and `create_household(user)` for a new
+  household with its first membership, `0005_households_invites.sql`). `tenants` and
+  `users` have no policy yet (#748). Every timestamp scans as UTC (`db.Connect`), so
+  the JSON ends in `Z`. The
   .NET API connects as the owner, so RLS doesn't apply to it.
 - **Auth** (`api/internal/auth`): the Firebase Admin SDK verifies ID tokens, one call
   for the emulator and production; the emulator only with `STREAMIQ_ENV=development`.
   First sign-in adds the `users` row (`ON CONFLICT` settles concurrent ones); the
-  household rule is the .NET one below.
+  household rule is below. `auth.Profiles` reads aliases and emails from Firebase per
+  request (one call, at most 100 users), never stored.
 - Tests: `scripts/test-api.sh` starts one Postgres + emulator for the run; each package
   makes its own database (`apitest`), or starts its own pair when run alone. The
   isolation tests (`db`) run every rule against `streamiq_app` and, failing on purpose,
@@ -49,29 +53,28 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 - Firebase ID tokens verified by FirebaseAdmin, one code path in dev and prod (emulator in
   dev). Own `users.id`, `firebase_uid` as a column.
-- Tenant = **household**. In the .NET API, isolation is ONE EF global query filter on
-  `tenant_id`; in the Go API, row-level security (above).
+- Tenant = **household**; isolation is row-level security in the Go API (above).
 - `memberships` (tenant, user, role `admin`/`member`); a user can belong to several.
   Sign-up creates none: a user joins by invite or creates one (`POST /api/households`,
   becoming its admin). With none, only `/me`, invites and creating one work.
 - Each HTTP request acts in one household, named by the `X-StreamIQ-Household` header
-  (default: the oldest membership). `CurrentTenantId` is set only from the signed-in
-  user's own membership (`Auth/Households.cs`, the one cross-tenant membership lookup).
+  (default: the oldest membership). The tenant is set only from the signed-in user's own
+  membership (`auth.Handler` through `memberships_of`) or from a claim.
   A non-member gets `404` with header `X-StreamIQ-Not-Member` (same for a foreign or
   missing household).
-- The membership's role is the request's `Role` claim. Adding and removing gateways (Go
+- The membership's role is the request's `Caller.Role`. Adding and removing gateways (Go
   API) is admin-only, a member gets `403`; members list and open them.
-- **Invites** (`Features/Invites/`): an admin makes a single-use 7-day link
+- **Invites** (`api/internal/invites`): an admin makes a single-use 7-day link
   (`/join#<token>`, only the hash stored). Accepting adds the signed-in user as `member`;
-  the token picks the household.
-- **Members** (`Features/Members/`): anyone lists (aliases from Firebase per call:
+  the token picks the household. Unknown, revoked, used and expired are one `404`.
+- **Members** (`api/internal/members`): anyone lists (aliases from Firebase per call:
   `displayName` picked after sign-up, else the email; only your own email shown; members
   who show the same name get a short userId tag in the web app) and
   leaves; an admin removes and promotes/demotes. A household always keeps an admin
   (`409`; the check runs under a lock on the tenant row). A user left with no household
-  stays without one.
-- Tests: Testcontainers Postgres + Firebase Auth emulator, real tokens minted through
-  the prod verify path; Reqnroll for isolation/provisioning/auth-reject, xUnit for edges.
+  stays without one. Removing a member deletes their pending invites in the same
+  transaction. An admin names the household (`api/internal/household`).
+- Tests: the Go API's (above), real emulator tokens through the prod verify path.
 
 ## Gateway onboarding and pairing
 
@@ -106,8 +109,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   `tunnel.AdminOnly` answer a member `403`.
 - Rate limits: new sockets per client IP and minute, one budget with enrollment and
   enrollment tokens (`api/internal/iplimit`; `STREAMIQ_SIGNALING_PER_MINUTE`,
-  `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`; the .NET API limits its invite and
-  household calls with the same settings, a budget of its own), per-socket
+  `STREAMIQ_CLIENT_IP_HEADER` = Railway `X-Real-IP`; new invites and new households spend
+  it too), per-socket
   message buckets (`golang.org/x/time/rate`), 10 s auth deadline.
 - TURN (`api/internal/turn`): credentials minted per broker session in `ready` and revoked at its end; no
   standalone TURN endpoint. Cloudflare in prod; coturn in dev via TURN REST

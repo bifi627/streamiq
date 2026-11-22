@@ -5,7 +5,7 @@ import { ErrorView } from '../../ErrorView'
 import { memberLabel, shownTunnels, type SummaryRow } from './household'
 import { bytes } from './tunnels'
 
-import type { Member } from './useMembers'
+import type { Member } from '../../generated/members'
 
 export function MemberSelect(p: {
   value: string

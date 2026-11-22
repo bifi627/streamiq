@@ -5,14 +5,7 @@ import { switchHousehold, useHousehold } from './household'
 import { ADMIN_ONLY, AppError, toAppError } from '../../errors'
 import { ErrorView } from '../../ErrorView'
 import { emailLine, initial, memberNames, roleView } from './memberNames'
-
-type Member = {
-  userId: string
-  name: string | null // the alias, else the email; null: Firebase unreachable
-  email?: string // your own row only
-  role: 'admin' | 'member'
-  joinedAt: string
-}
+import type { Member } from '../../generated/members'
 
 // The API refuses (409) anything that would leave the household without an admin.
 const asMember = (e: unknown) => {

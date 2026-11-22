@@ -2,4 +2,3 @@
 # Checked by scripts/check-tenant-filter.sh. One file per line: <path>  # <reason>
 # Adding a line is a review trigger: tenant isolation is the crown-jewel invariant.
 backend/src/StreamIq.Api/Auth/Households.cs  # a user's memberships across households, always by user id; picks the tenant before the filter can apply
-backend/src/StreamIq.Api/Features/Invites/AcceptInvite.cs  # invite lookup by hash; the invite token establishes the household, accept only adds the signed-in user

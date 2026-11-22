@@ -38,7 +38,7 @@ section for an area before changing it.
 
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
-"browser device"; its key = client key); **API** = the control plane (`backend/`, being ported to `api/`,
+"browser device"; its key = client key); **API** = the control plane (`api/`; `backend/` until #732,
 `STREAMIQ_API_URL`); **broker** = the API's signaling endpoint (`/api/broker/ws` +
 `/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home
 LAN (code: `localpage`); **web gateway page** = the web app's view of a gateway;
@@ -66,8 +66,8 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 
 | Dir | What | Stack |
 |---|---|---|
-| `backend/` | Control plane: API + WebRTC signaling (one web app); the slices not ported to `api/` yet | .NET 10, EF Core, Postgres |
-| `api/` | The Go port of `backend/` (#725): serves its slices, proxies the rest to `backend/` in dev + e2e (`docs/architecture.md`) | Go, pgx, Postgres RLS, Firebase Admin SDK |
+| `backend/` | The .NET API, serving no `/api` route any more: EF migrations, `/healthz`, the SPA in the prod image; removed by #732 | .NET 10, EF Core, Postgres |
+| `api/` | Control plane: every `/api` route + WebRTC signaling (the Go port of `backend/`, #725); proxies the rest to `backend/` in dev + e2e (`docs/architecture.md`) | Go, pgx, Postgres RLS, Firebase Admin SDK |
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
 | `protocol/` | The broker's messages on both sockets, types only: used by the gateway (and the Go API); `scripts/gen-types.sh` (tygo) generates `frontend/src/generated/` from it and the ported REST slices | Go |
@@ -76,13 +76,6 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 | `dev/firebase/` | Auth emulator config for compose | — |
 
 **Vertical slices** (code organized by feature, not by layer):
-- API: `backend/src/StreamIq.Api/Features/<Slice>/<UseCase>.cs` — one static class per
-  use case with `Map(app)` + its handler, request/response types inline; mapped
-  explicitly in `Program.cs` (no MediatR, no assembly scanning). Shared kernel only:
-  `Data/` (DbContext, entities, migrations, tenant filter) and `Auth/`.
-- API tests mirror it: `tests/…/Features/<Slice>/` holds that slice's Reqnroll
-  `.feature` + steps and xUnit tests together; `Infrastructure/` = fixture/factory/
-  token minter; `Data/` = shared-kernel tests.
 - Go API: package per slice in `api/internal/<slice>/` (one file per use case, request/
   response types inline, colocated `_test.go` on `apitest`), shared kernel `db` (pool +
   `InTenant` / `InClaimedTenant`, the only places the tenant is set), `auth`, `apitest`,

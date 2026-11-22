@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Threading.RateLimiting;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authentication;
@@ -7,9 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using StreamIq.Api;
 using StreamIq.Api.Auth;
 using StreamIq.Api.Data;
-using StreamIq.Api.Features.Household;
-using StreamIq.Api.Features.Invites;
-using StreamIq.Api.Features.Members;
 
 // Wiring only: its branches are config switches, not decisions to test.
 [assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1502",
@@ -80,25 +76,6 @@ builder.Services.AddAuthentication("Firebase")
     .AddScheme<AuthenticationSchemeOptions, FirebaseAuthHandler>("Firebase", _ => { });
 builder.Services.AddAuthorization();
 
-// Invites and new households per client IP per minute (the Go API's budget for the
-// broker sockets, enrollments and enrollment tokens uses the same settings). Prod sets
-// STREAMIQ_CLIENT_IP_HEADER to Railway's X-Real-IP (Dockerfile). Never the raw
-// X-Forwarded-For header: the client writes its left entries; RemoteIpAddress is
-// its rightmost one, which Railway's proxy appends (ASPNETCORE_FORWARDEDHEADERS_ENABLED).
-// A flood shield, loose on purpose: users behind one carrier NAT share this budget.
-// ponytail: in-memory per instance, no per-user limit; key one on the verified user
-// if a single account ever abuses it.
-var clientIpHeader = builder.Configuration["STREAMIQ_CLIENT_IP_HEADER"];
-var signalingPerMinute = builder.Configuration.GetValue("STREAMIQ_SIGNALING_PER_MINUTE", 120);
-builder.Services.AddRateLimiter(o =>
-{
-    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    o.AddPolicy("signaling", ctx => RateLimitPartition.GetFixedWindowLimiter(
-        (clientIpHeader is { Length: > 0 } ? ctx.Request.Headers[clientIpHeader].ToString() : null) is { Length: > 0 } ip
-            ? ip : ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = signalingPerMinute, Window = TimeSpan.FromMinutes(1) }));
-});
-
 // Container hosts inject $PORT; locally launchSettings sets the URL.
 if (Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } port)
 {
@@ -144,21 +121,11 @@ app.Use((ctx, next) =>
     return next(ctx);
 });
 app.UseAuthorization();
-app.UseRateLimiter();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 // Everything but /healthz sits under /api, so SPA client routes own the rest of the path space.
 var api = app.MapGroup("/api");
-CreateInvite.Map(api);
-ListInvites.Map(api);
-RevokeInvite.Map(api);
-AcceptInvite.Map(api);
-ListMembers.Map(api);
-RemoveMember.Map(api);
-SetMemberRole.Map(api);
-RenameHousehold.Map(api);
-CreateHousehold.Map(api);
 
 // Unknown /api/* paths are a 404, never the SPA; any other path without a file
 // extension is a client route and gets index.html (404 if no SPA is built, e.g. dev).

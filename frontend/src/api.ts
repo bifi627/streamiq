@@ -3,6 +3,7 @@ import { clearArtThen } from './leave'
 import { AppError, httpError } from './errors'
 import { noop } from './noop'
 import type { Me } from './generated/me'
+import type { Created, Named } from './generated/household'
 
 // Prod: the API serves this bundle, so same origin. Dev: vite :5173, API :5028.
 // Every endpoint lives under /api (the rest of the path space is client routes).
@@ -97,11 +98,11 @@ export async function authed<T>(path: string, init?: RequestInit): Promise<T> {
 export type { Me }
 // Any signed-in user: a new household with them as its admin.
 export const createHousehold = () =>
-  authed<{ householdId: string }>('/households', { method: 'POST' })
+  authed<Created>('/households', { method: 'POST' })
 // Admin only; the stored (trimmed) name comes back. loaded keeps it too,
 // for a later "no longer a member of …" notice.
 export const renameHousehold = (name: string) =>
-  authed<{ name: string }>('/households/current/name', {
+  authed<Named>('/households/current/name', {
     method: 'PUT',
     body: JSON.stringify({ name }),
   }).then((r) => {

@@ -214,6 +214,10 @@ func TestClientProfile(t *testing.T) {
 		`{"probe":{"audio":["a","b","c","d","e","f","g","h","i"]}}`,
 		`{"probe":{"h264":{"profiles":[],"level":-1}}}`,
 		`{"probe":{"audio":[]}} {}`,
+		`{}`,
+		`{"probe":{}}`,
+		`{"probe":{"audio":null}}`,
+		`{"probe":{"audio":[],"h264":{"level":51}}}`,
 		`{"probe":{"audio":["` + strings.Repeat("a", maxProfile) + `"]}}`,
 	} {
 		if s, _ := call(tunnel.Member, "aa", "POST", ClientsProfilePath, body); s != http.StatusBadRequest {

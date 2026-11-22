@@ -138,7 +138,7 @@ func (s *Store) ServeProfile(w http.ResponseWriter, r *http.Request) {
 // lowercase words ("constrained baseline"), levels Jellyfin units.
 func (p Probe) valid() bool {
 	names := func(xs []string) bool {
-		return len(xs) <= 8 && !slices.ContainsFunc(xs, func(x string) bool {
+		return xs != nil && len(xs) <= 8 && !slices.ContainsFunc(xs, func(x string) bool {
 			return len(x) == 0 || len(x) > 24 || strings.Trim(x, "abcdefghijklmnopqrstuvwxyz0123456789 ") != ""
 		})
 	}

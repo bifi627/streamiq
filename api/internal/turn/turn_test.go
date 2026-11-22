@@ -32,7 +32,7 @@ func devCredentials(t *testing.T) {
 	expiry, _ := strconv.ParseInt(strings.Split(turn.Username, ":")[0], 10, 64)
 	mac := hmac.New(sha1.New, []byte("s3cret"))
 	mac.Write([]byte(turn.Username))
-	if expiry != time.Now().Add(TTL).Unix() || !strings.HasSuffix(turn.Username, ":user-1") ||
+	if expiry != time.Now().Add(4*time.Hour).Unix() || !strings.HasSuffix(turn.Username, ":user-1") ||
 		turn.Credential != base64.StdEncoding.EncodeToString(mac.Sum(nil)) || turn.URLs[0] != i.URLs[0] {
 		t.Fatalf("%+v", turn)
 	}

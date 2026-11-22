@@ -110,12 +110,10 @@ func sha(s string) string {
 func TestAnAdminMintsAToken128BitFor15MinutesStoredOnlyAsItsHash(t *testing.T) {
 	s := newDefault(t)
 	alice, home := s.member(t, "alice@home.test", "admin")
-	before := time.Now()
 	tok := s.token(t, alice)
-	after := time.Now()
-	// The API's clock, not the test's: real HTTP + Postgres, so synctest can't fake it.
-	if len(tok.Token) != 22 || tok.ExpiresAt.Before(before.Add(onboarding.TokenLifetime)) ||
-		tok.ExpiresAt.After(after.Add(onboarding.TokenLifetime)) {
+	stored := apitest.Scalar[time.Time](t, `SELECT expires_at FROM enrollment_tokens`)
+	lifetime := apitest.Scalar[bool](t, `SELECT expires_at - created_at = interval '15 minutes' FROM enrollment_tokens`)
+	if len(tok.Token) != 22 || !tok.ExpiresAt.Equal(stored) || !lifetime {
 		t.Fatal(tok)
 	}
 	row := apitest.Scalar[string](t, `SELECT concat_ws('|', tenant_id, token_hash, used_at) FROM enrollment_tokens`)

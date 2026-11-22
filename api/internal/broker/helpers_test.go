@@ -130,19 +130,23 @@ func (s *stack) dial(path string, h http.Header) (*websocket.Conn, *http.Respons
 	return c, rs, err
 }
 
-// heartbeat sends a heartbeat of the current protocol with extra fields and waits
-// until the broker stored it.
+// heartbeat sends a heartbeat of the current protocol with extra fields and returns once
+// the broker handled all of it, its health row included: the broker handles a socket's
+// messages in order, so a tunnel report for a marker row sent after it is stored after.
 func (s *stack) heartbeat(g *gw, extra map[string]any) {
 	s.t.Helper()
-	apitest.Exec(s.t, `UPDATE gateways SET "LastSeenAt" = NULL WHERE "Id" = $1`, g.id)
+	marker := apitest.Scalar[string](s.t, `INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "Relay", "Ipv6")
+		VALUES (uuidv7(), $1, $2, false, false) RETURNING "Id"::text`, g.tenant, g.id)
 	msg := map[string]any{"type": "heartbeat", "protocol": broker.MinGatewayProtocol}
 	for k, v := range extra {
 		msg[k] = v
 	}
 	sendJSON(s.t, g.conn, msg)
+	sendJSON(s.t, g.conn, map[string]any{"type": "tunnel", "session": marker, "bytesSent": 0, "bytesReceived": 0})
 	waitFor(s.t, func() bool {
-		return apitest.Scalar[bool](s.t, `SELECT "LastSeenAt" IS NOT NULL FROM gateways WHERE "Id" = $1`, g.id)
+		return apitest.Scalar[bool](s.t, `SELECT "BytesSent" IS NOT NULL FROM tunnels WHERE "Id" = $1`, marker)
 	})
+	apitest.Exec(s.t, `DELETE FROM tunnels WHERE "Id" = $1`, marker)
 }
 
 // browser is a browser socket of email after `ready`; email has a household of its own.

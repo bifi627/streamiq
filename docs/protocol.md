@@ -534,15 +534,19 @@ A gateway older than this answers `404`.
 `Content-Type: application/octet-stream`, `Content-Length: N`, then N generated
 bytes through the normal chunking and backpressure above. `size` defaults to
 4 MiB and is capped at 16 MiB; anything else (over the cap, negative, not a
-number) is `400`. Streaming pages (library, `/diagnostics`) time a
-`size=1048576` warm-up burst (dropped: mostly ramp-up, #259), then 3 bursts
-sized to last ~2 s at the previous read (1–16 MiB), in the background once
-up and again on a `navigator.connection` `change`, and keep the median (Mbps): the player's Auto
-quality caps `MaxStreamingBitrate` at 70 % of it (#162). The last value is a
-localStorage hint per gateway + direct/relay + connection type; the tunnel's
-own measurement goes to telemetry (`throughputKbps`). With the client's data
-saver on (#291) a run is just 3 `size=1048576` bursts (no warm-up, ~3 MB), not
-kept as the hint, and Auto stays at 480p.
+number) is `400`. The client times a `size=1048576` warm-up burst (dropped:
+mostly ramp-up), then 3 bursts sized to last ~2 s at the previous read
+(1–16 MiB), and keeps the median (Mbps): the player's Auto quality caps
+`MaxStreamingBitrate` at 70 % of it. It measures only when playback
+starts with Auto (never while browsing, never for Source, Raw or a rung) and
+again on a `navigator.connection` `change` that switched the connection type.
+Each reading is stored in localStorage with its time, per gateway +
+direct/relay + connection type; one younger than the per-device "Measure
+connection speed" setting (every 30 min / 2 h, the default / day) is used
+without bursts, and with the setting Off only `/diagnostics` "Test connection"
+measures (it always does, fresh). Only a fresh measurement goes to telemetry
+(`throughputKbps`). With the client's data saver on a run is just 3
+`size=1048576` bursts (no warm-up, ~3 MB), not stored, and Auto stays at 480p.
 
 ### Screens: phone as remote (`/streamiq/screen*`, #95, #179)
 

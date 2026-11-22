@@ -1,13 +1,15 @@
 // The player, on a paired browser with its own gateway (fixtures.ts
 // `paired`): the privacy badge, the profile line, the deep link + Back key,
-// the bar's controls, volume, quality, compatible mode, Auto on a slow link, data
-// saver, audio, auto audio, subtitles and next episode. Per-device settings
+// the bar's controls, volume, quality, compatible mode, Auto on a slow link, the
+// speed test's cache and Off setting, data saver, audio, auto audio, subtitles and next episode. Per-device settings
 // are arranged in localStorage before the app loads (the Settings toggles are
 // shell.spec's). Movies → clip → Play and the Resume spot are the golden path's;
 // Play on TV is the screen spec's, rung choice and decisions profile.test.ts's.
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
+  bursts,
+  countBursts,
   openDock,
   openLibrary,
   pitch,
@@ -355,6 +357,38 @@ test('data saver (#291): a small measurement, Auto at 480p @player', async ({
   await expect(
     page.getByRole('menuitem', { name: /^Quality.*Auto · 480p \(data saver/ }),
   ).toBeVisible()
+})
+
+test('Auto measures once per tunnel, then uses the cache @player', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await countBursts(page)
+  await arrange(page, DIAG)
+  await play(page)
+  await openDock(page)
+  await expect(page.getByText(/speed: ~[\d.]+ Mbps \(median of/)).toBeVisible()
+  expect(await bursts(page)).toBe(4) // warm-up + 3
+  await page.goBack()
+  await page.getByRole('button', { name: /^(Play|Resume)$/ }).click()
+  await expect(
+    page.getByText(/speed: ~[\d.]+ Mbps \(cached, \d+ min old; direct/),
+  ).toBeVisible()
+  expect(await bursts(page)).toBe(4)
+})
+
+test('Measure connection speed Off: Auto plays with no burst @player', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await countBursts(page)
+  await arrange(page, { ...DIAG, 'streamiq.settings.speedEvery': 'off' })
+  await play(page)
+  await openDock(page)
+  await expect(
+    page.getByText('speed: not measured (Measure connection speed: Off)'),
+  ).toBeVisible()
+  expect(await bursts(page)).toBe(0)
 })
 
 test('audio (#109): English first; German reloads at the playhead @player', async ({

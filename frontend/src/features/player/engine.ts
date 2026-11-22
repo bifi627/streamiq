@@ -245,7 +245,9 @@ export class Engine {
     const load = ++this.loads
     this.at0 = at
     const q = this.q
-    const mbps = await this.speed?.get(q === 'Auto' ? 3000 : 0)
+    const mbps = await (q === 'Auto'
+      ? this.speed?.auto(3000)
+      : this.speed?.known())
     if (this.gone || load !== this.loads) return
     const saver = dataSaverOn() // caps Auto only (effective)
     const bitrate = this.bitrate

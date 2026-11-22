@@ -67,7 +67,6 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
     session.then(
       (x) => {
         if (gone) return
-        x.speed() // measure on first use, once per session
         setSession(x)
       },
       (e) => setErr(toAppError(e)),

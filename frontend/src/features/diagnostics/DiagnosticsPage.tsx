@@ -74,8 +74,11 @@ export function DiagnosticsPage() {
       lines.push(pathLine(pairInfo(await s.pc.getStats())))
       show()
       step = 'throughput (gateway bursts)'
-      const speed = s.speed() // the session's own measurement (speed.ts)
-      await speed.get(60_000)
+      const speed = s.speed() // fresh: ignores the cache and the setting
+      await Promise.race([
+        speed.test(),
+        new Promise((r) => setTimeout(r, 60_000)),
+      ])
       const mbps = speed.fresh()
       if (!mbps) throw new Error(speed.error() ?? 'timed out')
       lines.push(throughputLine(mbps, dataSaverOn()))

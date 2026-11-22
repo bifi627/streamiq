@@ -258,6 +258,8 @@ func TestGatewayAPI(t *testing.T) {
 		n++
 		JSON(w, http.StatusOK, map[string]any{"transcoding": "nvenc", "user": SessionOf(r).User})
 	}))
+	const things = "/streamiq/things"
+	rt.API.Handle("POST "+things+"/{id}", http.NotFoundHandler())
 	raw, _ := json.Marshal(tunnelReq{Method: "GET", URL: StatusPath})
 	status, hdr, rc, err := run(rt, raw, Session{User: "u1"}) // built for the session's user (#242)
 	if err != nil {
@@ -278,8 +280,8 @@ func TestGatewayAPI(t *testing.T) {
 		{Method: "GET", URL: "/streamiq/../streamiq/status"},
 		{Method: "GET", URL: "/streamiq//status"},
 		{Method: "GET", URL: StatusPath + "/"},
-		{Method: "POST", URL: ScreensPath + "/"},
-		{Method: "POST", URL: ScreensPath + "/a/b"},
+		{Method: "POST", URL: things + "/"},
+		{Method: "POST", URL: things + "/a/b"},
 	} {
 		raw, _ := json.Marshal(rq)
 		if status, _, _, _ := run(rt, raw, Session{}); status != http.StatusNotFound {
@@ -291,8 +293,8 @@ func TestGatewayAPI(t *testing.T) {
 		{"HEAD", StatusPath, "GET"}, // never served, never in Allow (the tunnel writer doesn't drop bodies)
 		{"", StatusPath, "GET"},
 		{"DELETE", StatusPath, "GET"},
-		{"GET", ScreensPath + "/a", "POST"}, // a {id} pattern
-		{"HEAD", ScreensPath + "/a", "POST"},
+		{"GET", things + "/a", "POST"}, // a {id} pattern
+		{"HEAD", things + "/a", "POST"},
 	} {
 		raw, _ := json.Marshal(tunnelReq{Method: c.method, URL: c.url})
 		status, hdr, body, _ := run(rt, raw, Session{})
@@ -306,47 +308,15 @@ func TestGatewayAPI(t *testing.T) {
 	}
 }
 
-// pipeWriter streams a handler's reply into a pipe: the tunnel minus WebRTC.
-type pipeWriter struct {
-	hdr    http.Header
-	pw     *io.PipeWriter
-	head   chan struct{} // closed once status is set
-	status int
-}
-
-func (w *pipeWriter) Header() http.Header { return w.hdr }
-func (w *pipeWriter) Flush()              {}
-func (w *pipeWriter) WriteHeader(status int) {
-	if w.status == 0 {
-		w.status = status
-		close(w.head)
-	}
-}
-func (w *pipeWriter) Write(b []byte) (int, error) { w.WriteHeader(200); return w.pw.Write(b) }
-
-// run serves the request frame raw the way handleReq does, returning once the
-// head is set; the body streams from the reader (closing it ends the handler's
-// next Write; who.Closed is what ends its context). err is set for a refusal (4xx/5xx).
+// run serves the request frame raw the way handleReq does (stream), with err
+// set for a refusal (4xx/5xx).
 func run(rt *Root, raw []byte, who Session) (int, map[string]string, io.ReadCloser, error) {
-	pr, pw := io.Pipe()
-	w := &pipeWriter{hdr: http.Header{}, pw: pw, head: make(chan struct{})}
-	go func() {
-		defer func() {
-			if p := recover(); p != nil {
-				w.WriteHeader(http.StatusBadGateway)
-				pw.CloseWithError(fmt.Errorf("aborted: %v", p))
-				return
-			}
-			pw.Close()
-		}()
-		serve(w, rt, raw, &reqState{who: who})
-	}()
-	<-w.head
+	status, hdr, body := stream(rt, raw, who)
 	var err error
-	if w.status >= 400 {
-		err = fmt.Errorf("status %d", w.status)
+	if status >= 400 {
+		err = fmt.Errorf("status %d", status)
 	}
-	return w.status, firstValues(w.hdr), pr, err
+	return status, hdr, body, err
 }
 
 func do(t *testing.T, rt *Root, rq tunnelReq) (int, map[string]string, []byte) {
@@ -679,5 +649,16 @@ func TestFrameWriterCount(t *testing.T) {
 	w := &frameWriter{d: d, hdr: http.Header{}, wait: func() bool { return true }}
 	if n, err := w.Write(make([]byte, 2*ChunkSize+5)); n != 2*ChunkSize+5 || err != nil {
 		t.Fatalf("Write = %d, %v, want %d", n, err, 2*ChunkSize+5)
+	}
+}
+
+func TestRoute(t *testing.T) {
+	for who, want := range map[*Session]string{
+		{}:                                      `{"route":"direct"}`, // no tunnel
+		{Route: func() string { return "lan" }}: `{"route":"lan"}`,
+	} {
+		if s, _, reply, _ := Do(NewRouter(), *who, "GET", RoutePath, ""); s != 200 || reply != want {
+			t.Errorf("GET %s = %d %q, want 200 %q", RoutePath, s, reply, want)
+		}
 	}
 }

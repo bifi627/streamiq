@@ -2,7 +2,7 @@
 // (fixtures.ts `paired`): the entry, Play on…, the phone remote's commands, two
 // phones, closing. TV = the fixture's page; phones = more tabs of the same
 // paired browser (each its own tunnel session). Refusals, another user's screen
-// and the relay between sessions are Go tests (tunnel/screen_test.go,
+// and the relay between sessions are Go tests (screen/screen_test.go,
 // sessions_test.go); the TV mode toggle is shell.spec's, the player's own
 // controls player.spec's.
 import type { Page } from '@playwright/test'

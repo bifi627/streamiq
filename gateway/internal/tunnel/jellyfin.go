@@ -58,10 +58,13 @@ func (j *Jellyfin) current() cred {
 }
 
 const (
-	id      = `[0-9a-fA-F-]{32,36}`
-	MaxBody = 64 * 1024        // request bodies: small JSON only
-	maxText = 16 * 1024 * 1024 // buffered (redacted) text responses
+	JellyfinID = `[0-9a-fA-F-]{32,36}`
+	MaxBody    = 64 * 1024        // request bodies: small JSON only
+	maxText    = 16 * 1024 * 1024 // buffered (redacted) text responses
 )
+
+// readBody reads a gateway API request body (≤ MaxBody, checked by serve).
+func readBody(r *http.Request) []byte { b, _ := io.ReadAll(r.Body); return b }
 
 // allowed is the attack surface: add an endpoint here consciously. A refused
 // request is a 403 + a gateway log line.
@@ -73,17 +76,17 @@ var allowed = []struct {
 	{"GET", regexp.MustCompile(`^/UserViews$`)},
 	{"GET", regexp.MustCompile(`^/Items$`)},
 	{"GET", regexp.MustCompile(`^/UserItems/Resume$`)},
-	{"GET", regexp.MustCompile(`^/Items/` + id + `$`)},
-	{"GET", regexp.MustCompile(`^/Shows/` + id + `/(Seasons|Episodes)$`)},
-	{"GET", regexp.MustCompile(`^/Items/` + id + `/Images/[A-Za-z]+(/[0-9]+)?$`)},
-	{"POST", regexp.MustCompile(`^/Items/` + id + `/PlaybackInfo$`)},
-	{"POST", regexp.MustCompile(`^/UserItems/` + id + `/UserData$`)}, // resume position / played
+	{"GET", regexp.MustCompile(`^/Items/` + JellyfinID + `$`)},
+	{"GET", regexp.MustCompile(`^/Shows/` + JellyfinID + `/(Seasons|Episodes)$`)},
+	{"GET", regexp.MustCompile(`^/Items/` + JellyfinID + `/Images/[A-Za-z]+(/[0-9]+)?$`)},
+	{"POST", regexp.MustCompile(`^/Items/` + JellyfinID + `/PlaybackInfo$`)},
+	{"POST", regexp.MustCompile(`^/UserItems/` + JellyfinID + `/UserData$`)}, // resume position / played
 	{"GET", videoRead},
 }
 
 // videoRead: every GET under /Videos/{id}/ is a read: HLS playlists + segments, subtitles.
 // Case-insensitive like Jellyfin's routing: PlaybackInfo's TranscodingUrl says /videos/.
-var videoRead = regexp.MustCompile(`(?i)^/Videos/` + id + `/[A-Za-z0-9._/-]+$`)
+var videoRead = regexp.MustCompile(`(?i)^/Videos/` + JellyfinID + `/[A-Za-z0-9._/-]+$`)
 
 // allow reports whether method+path is on the allowlist. path must already be
 // clean: the caller rejects "..", "//" and percent-encoded paths.

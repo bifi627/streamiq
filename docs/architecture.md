@@ -162,6 +162,10 @@ and daily peaks per local day.
 - Go module `streamiq` at the repo root (`go.mod`, `go.sum`, `.golangci.yml`): the gateway is
   `gateway/cmd` + `gateway/internal/<slice>`. Go commands name their tree or run from
   `gateway/`: `./...` from the root walks `frontend/` and `e2e/`'s `node_modules`.
+- `tunnel` is the shared primitive: the data-channel request/response, the Jellyfin proxy
+  and the gateway API's `Router` (its own endpoints: burst, route). Each feature registers
+  its endpoints in `cmd/gateway` wiring: the screen relay (`screen`, docs/protocol.md
+  "Screens"), pairing, onboarding, update, telemetry.
 - Released on GitHub Releases: a merge changing what the gateway builds with (`gateway/**`, repo
   packages it imports, its modules or the `go`/`toolchain` line in `go.mod`; `docs/tools.md`) auto-versions a release after
   green CI (`!` in the subject = minor bump; major = a hand-pushed `gateway-v*` tag;

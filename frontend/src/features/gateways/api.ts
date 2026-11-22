@@ -10,12 +10,8 @@ import type { Name } from '../../generated/gateway-onboarding'
 import type { Client, ClientKey, ClientName } from '../../generated/pairing'
 import type { Status } from '../../generated/status'
 import type { Level } from '../../generated/telemetry'
-import type {
-  Route,
-  Screen,
-  ScreenCommand,
-  ScreenState,
-} from '../../generated/tunnel'
+import type { Route } from '../../generated/tunnel'
+import type { Screen, ScreenCommand, ScreenState } from '../../generated/screen'
 import type { Refused, Started } from '../../generated/update'
 
 export type { Gateway, Install }

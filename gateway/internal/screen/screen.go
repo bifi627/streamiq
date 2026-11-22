@@ -1,4 +1,4 @@
-package tunnel
+package screen
 
 // Screen relay (docs/protocol.md "Screens"): a TV in screen mode holds
 // GET /streamiq/screen open; phones on the same gateway list open screens and
@@ -16,6 +16,8 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+
+	"streamiq/gateway/internal/tunnel"
 )
 
 const (
@@ -23,18 +25,12 @@ const (
 	ScreensPath = "/streamiq/screens"
 )
 
-// Session is who sent a tunnel request: the broker session id, the client's
-// pairing name (looked up only when a screen opens), and a channel closed when
-// the request's data channel closes.
-type Session struct {
-	ID     string
-	User   string // the user's users.id, from the broker's offer: picks their Jellyfin viewer
-	Role   string // the user's role in this gateway's household, from the broker's offer: Admin | Member
-	Key    string // the client key fp the session authed with (which device)
-	Name   func() string
-	Route  func() string // relay | lan | direct, decided at call time; nil outside a tunnel
-	Closed <-chan struct{}
-	Use    *Usage // what the tunnel's requests were for; nil records nothing
+// Register adds the screen endpoints to the gateway API.
+func Register(rt *tunnel.Router) {
+	rt.Handle("GET "+ScreenPath, http.HandlerFunc(serveScreen))
+	rt.Handle("POST "+ScreenPath+"/state", http.HandlerFunc(serveScreenState))
+	rt.Handle("GET "+ScreensPath, http.HandlerFunc(serveScreens))
+	rt.Handle("POST "+ScreensPath+"/{id}", http.HandlerFunc(serveScreenCommand))
 }
 
 // screenCommand is any phone → TV command (types.go has each one), decoded flat so
@@ -49,7 +45,7 @@ type screenCommand struct {
 	Subtitle   *int   `json:"subtitle,omitempty"`
 }
 
-var itemID = regexp.MustCompile(`^` + id + `$`)
+var itemID = regexp.MustCompile(`^` + tunnel.JellyfinID + `$`)
 
 func (c screenCommand) valid() bool {
 	switch c.Type {
@@ -137,23 +133,23 @@ func screenOf(session string) *screen {
 	return nil
 }
 
-// readBody reads a gateway API request body (≤ MaxBody, checked by proxy).
-func readBody(r *http.Request) []byte { b, _ := io.ReadAll(r.Body); return b }
+// body reads a gateway API request body (≤ tunnel.MaxBody, checked by the tunnel).
+func body(r *http.Request) []byte { b, _ := io.ReadAll(r.Body); return b }
 
 // serveScreen holds the TV's screen open: each command is one NDJSON line,
 // until the request ends (r.Context(): the channel closed, or the reply can't be
 // sent on), which removes the screen.
 func serveScreen(w http.ResponseWriter, r *http.Request) {
-	who := SessionOf(r)
+	who := tunnel.SessionOf(r)
 	if who.ID == "" || who.Closed == nil || who.Name == nil {
-		Fail(w, http.StatusNotFound, fmt.Errorf("screen: no session"))
+		tunnel.Fail(w, http.StatusNotFound, fmt.Errorf("screen: no session"))
 		return
 	}
 	name := who.Name() // outside the lock: it reads the pairing store
 	screens.Lock()
 	if screenOf(who.ID) != nil {
 		screens.Unlock()
-		Fail(w, http.StatusConflict, fmt.Errorf("screen: session %s already holds a screen", who.ID))
+		tunnel.Fail(w, http.StatusConflict, fmt.Errorf("screen: session %s already holds a screen", who.ID))
 		return
 	}
 	s := &screen{
@@ -189,19 +185,19 @@ func serveScreen(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveScreenState(w http.ResponseWriter, r *http.Request) {
-	who := SessionOf(r)
+	who := tunnel.SessionOf(r)
 	screens.Lock()
 	s := screenOf(who.ID)
 	screens.Unlock()
 	if who.ID == "" || s == nil {
-		Fail(w, http.StatusNotFound, fmt.Errorf("screen: state from a session without a screen"))
+		tunnel.Fail(w, http.StatusNotFound, fmt.Errorf("screen: state from a session without a screen"))
 		return
 	}
 	var st ScreenState
-	if json.Unmarshal(readBody(r), &st) != nil || st.PositionTicks < 0 || st.DurationTicks < 0 ||
+	if json.Unmarshal(body(r), &st) != nil || st.PositionTicks < 0 || st.DurationTicks < 0 ||
 		(st.ItemID != "" && !itemID.MatchString(st.ItemID)) ||
 		(st.Audio != nil && *st.Audio < 0) || (st.Subtitle != nil && *st.Subtitle < -1) {
-		Fail(w, http.StatusBadRequest, fmt.Errorf("screen: bad state"))
+		tunnel.Fail(w, http.StatusBadRequest, fmt.Errorf("screen: bad state"))
 		return
 	}
 	s.mu.Lock()
@@ -222,7 +218,7 @@ func serveScreens(w http.ResponseWriter, r *http.Request) {
 	}
 	screens.Unlock()
 	slices.SortFunc(list, func(a, b Screen) int { return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID)) })
-	JSON(w, http.StatusOK, list)
+	tunnel.JSON(w, http.StatusOK, list)
 }
 
 func serveScreenCommand(w http.ResponseWriter, r *http.Request) {
@@ -230,12 +226,12 @@ func serveScreenCommand(w http.ResponseWriter, r *http.Request) {
 	s := screens.m[r.PathValue("id")]
 	screens.Unlock()
 	if s == nil || s.gone() {
-		Fail(w, http.StatusNotFound, fmt.Errorf("screen: no screen %s", r.URL.Path))
+		tunnel.Fail(w, http.StatusNotFound, fmt.Errorf("screen: no screen %s", r.URL.Path))
 		return
 	}
 	var c screenCommand
-	if json.Unmarshal(readBody(r), &c) != nil || !c.valid() {
-		Fail(w, http.StatusBadRequest, fmt.Errorf("screen: bad command"))
+	if json.Unmarshal(body(r), &c) != nil || !c.valid() {
+		tunnel.Fail(w, http.StatusBadRequest, fmt.Errorf("screen: bad command"))
 		return
 	}
 	line, _ := json.Marshal(c.wire())
@@ -252,7 +248,7 @@ func serveScreenCommand(w http.ResponseWriter, r *http.Request) {
 		break
 	}
 	if s.gone() { // closed while we queued
-		Fail(w, http.StatusNotFound, fmt.Errorf("screen: screen %s closed", s.id))
+		tunnel.Fail(w, http.StatusNotFound, fmt.Errorf("screen: screen %s closed", s.id))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

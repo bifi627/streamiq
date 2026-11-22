@@ -2,6 +2,7 @@ package tunnels_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"streamiq/api/internal/apitest"
@@ -34,7 +35,9 @@ func TestTheBrowserAddsItsMeasuredThroughputToItsOwnTunnel(t *testing.T) {
 			t.Errorf("%s: %d %v", body, status, v)
 		}
 	}
-	for _, body := range []string{``, `{"throughputKbps":"fast"}`, `{"throughputKbps":1.5}`} {
+	for _, body := range []string{
+		``, `{"throughputKbps":"fast"}`, `{"throughputKbps":1.5}`, `{"throughputKbps":1,"pad":"` + strings.Repeat("x", 4096) + `"}`,
+	} {
 		if status := patch(body); status != http.StatusBadRequest {
 			t.Errorf("%q: %d, want 400", body, status)
 		}

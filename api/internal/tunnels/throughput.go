@@ -23,7 +23,7 @@ func throughput(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB)
 	var rq struct {
 		ThroughputKbps *int32 `json:"throughputKbps"`
 	}
-	if json.NewDecoder(r.Body).Decode(&rq) != nil {
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&rq) != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

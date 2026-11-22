@@ -486,8 +486,10 @@ that command:
   the release, checks it against `SHA256SUMS` (a mismatch installs nothing),
   swaps the binary and restarts the `streamiq-gateway` task. Without the task it
   tells you to restart the gateway yourself.
-- Linux / macOS: `curl -fsSL https://github.com/bifi627/streamiq/releases/latest/download/install.sh | sh`
-  stops the running gateway, swaps the binary and starts it again.
+- Linux / macOS: `curl -fsSL https://github.com/bifi627/streamiq/releases/latest/download/install.sh | STREAMIQ_DIR='<install dir>' sh`
+  stops the running gateway, swaps the binary and starts it again. The printed command
+  names this gateway's install dir, so it updates only that one
+  ([a second gateway](#a-second-gateway-on-the-same-machine)).
 
 **From the web app (Windows, with the logon task):** a household admin whose browser is
 paired sees **Update to v…** on the gateway's card on the Gateways page. It runs the same

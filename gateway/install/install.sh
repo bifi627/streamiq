@@ -3,6 +3,7 @@
 # Gateways -> Add gateway shows the first-run command (it sets STREAMIQ_API_URL +
 # STREAMIQ_ENROLL_TOKEN); later, updating is just:
 #   curl -fsSL https://github.com/bifi627/streamiq/releases/latest/download/install.sh | sh
+# (another install dir: STREAMIQ_DIR=<dir> sh, as the gateway's update notice prints it)
 # The state dir (cert, credential, paired browsers) is never touched.
 set -eu
 umask 077 # state, gateway.env and the log are for this user only

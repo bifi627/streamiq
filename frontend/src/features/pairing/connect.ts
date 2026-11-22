@@ -24,6 +24,7 @@ import {
 import { sharer } from './shared'
 import { relayLine } from './relay'
 import type { BrowserMessage } from '../../generated/protocol'
+import type { ClientAuthMessage } from '../../generated/sessions'
 import {
   atOnce,
   ICE_FAILED_GRACE_MS,
@@ -80,7 +81,7 @@ export async function connect(
 
   return new Promise<Session>((resolve, reject) => {
     const ch = pc.createDataChannel('auth')
-    const say = (m: object) => ch.send(JSON.stringify(m))
+    const say = (m: ClientAuthMessage) => ch.send(JSON.stringify(m))
     let nB = '' // this browser's pairing nonce, revealed after the commit
     let grace: ReturnType<typeof setTimeout> | undefined
 

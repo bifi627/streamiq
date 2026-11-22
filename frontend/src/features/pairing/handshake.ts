@@ -11,6 +11,7 @@ import {
 import { answerCheck } from './crypto.ts'
 import { relayServers } from './relay.ts'
 import type { BrokerMessage } from '../../generated/protocol.ts'
+import type { GatewayAuthMessage } from '../../generated/sessions.ts'
 
 // quirk(#632): while connecting, Chrome reports 'failed' once every candidate
 // pair so far failed, and 'connecting' again on the gateway's next candidate.
@@ -18,8 +19,6 @@ import type { BrokerMessage } from '../../generated/protocol.ts'
 // this long; after a 'connected' it is a lost tunnel and ends it at once, so
 // the next request sees a closed pc, not a data channel that never opens.
 export const ICE_FAILED_GRACE_MS = 5000
-
-export type Msg = Record<string, string | undefined> & { type: string }
 
 export type Init = {
   gatewayId: string
@@ -172,7 +171,7 @@ function onBroker(s: State, m: BrokerMessage): Step {
   return same(s)
 }
 
-function onGateway(s: State, m: Msg): Step {
+function onGateway(s: State, m: GatewayAuthMessage): Step {
   switch (m.type) {
     case 'challenge':
       // No matching pin (new browser, or the gateway's cert changed): ask for
@@ -225,11 +224,15 @@ function onGateway(s: State, m: Msg): Step {
   return same(s)
 }
 
-const outOfOrder = (s: State, m: Msg) =>
+const outOfOrder = (s: State, m: GatewayAuthMessage) =>
   fail(s, 'gateway-refused', `gateway's ${m.type} out of order`)
 
 // The gateway's challenge and nonce messages carry one: without it, it's refused.
-function withNonce(s: State, m: Msg, fx: (n: string) => Effect): Step {
+function withNonce(
+  s: State,
+  m: { type: string; n: string },
+  fx: (n: string) => Effect,
+): Step {
   if (!m.n)
     return fail(s, 'gateway-refused', `gateway's ${m.type} has no nonce`)
   return { state: s, fx: [fx(m.n)] }

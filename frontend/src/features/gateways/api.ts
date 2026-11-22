@@ -3,57 +3,27 @@ import { authed } from '../../api'
 import { share } from '../pairing/connect'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../tunnel'
 import { httpError } from '../../errors'
-import { nextAsk, type HostLoad } from './host'
+import { nextAsk } from './host'
 import type { Gateway } from '../../generated/gateways'
 import type { EnrollmentToken as Install } from '../../generated/onboarding'
+import type { Name } from '../../generated/gateway-onboarding'
+import type { Client, ClientKey, ClientName } from '../../generated/pairing'
+import type { Status } from '../../generated/status'
+import type { Level } from '../../generated/telemetry'
+import type {
+  Route,
+  Screen,
+  ScreenCommand,
+  ScreenState,
+} from '../../generated/tunnel'
+import type { Refused, Started } from '../../generated/update'
 
 export type { Gateway, Install }
 
-// Gateway API GET /streamiq/status over the tunnel (docs/protocol.md). All
-// optional: older gateways send fewer fields.
-export type GatewayStatus = {
-  transcoding?: string
-  os?: string
-  arch?: string
-  startedAt?: string
-  pairedClients?: number
-  activeSessions?: number
-  jellyfin?: {
-    reachable?: boolean
-    version?: string
-    untested?: boolean
-    token?: 'ok' | 'missing'
-    offline?: 'enforced' | 'allowed' // absent = no compose Jellyfin
-  }
-  viewer?: { shared?: boolean; reason?: string } // this session's; reason: see guest.ts
-  remoteUpdate?: true | string // the update button works, or why not
-  host?: HostLoad // live only, never cached
-}
-
-// Screens: phone as remote (docs/protocol.md, "Screens"). Used by library/Screen.tsx.
-// POST /streamiq/screen/state body; GET /streamiq/screens item state.
-// Ticks are integers (Math.floor them).
-export type ScreenState = {
-  itemId: string // '' while nothing plays
-  positionTicks: number
-  durationTicks: number
-  paused: boolean
-  audio: number | null // Jellyfin stream index, null = not known
-  subtitle: number | null // -1 = off
-}
-
-// GET /streamiq/screens
-export type Screen = { id: string; name: string; state: ScreenState | null }
-
-// POST /streamiq/screens/{id} body; also each NDJSON line of GET /streamiq/screen
-// (in arrival order; the stream has no EOF frame, the TV closing it ends the screen).
-export type ScreenCommand =
-  | { type: 'play'; itemId: string; startTicks?: number }
-  | { type: 'pause' }
-  | { type: 'resume' }
-  | { type: 'stop' }
-  | { type: 'seek'; ticks: number }
-  | { type: 'tracks'; audio?: number; subtitle?: number } // at least one; subtitle -1 = off
+// The gateway API's bodies (docs/protocol.md, "Gateway API"), generated from the
+// gateway's Go types. Status: any field may be missing, older gateways send fewer.
+export type GatewayStatus = Partial<Status>
+export type { Client, Route, Screen, ScreenCommand, ScreenState }
 
 export const getGateways = () => authed<Gateway[]>('/gateways')
 
@@ -73,7 +43,7 @@ export async function renameGateway(id: string, name: string) {
   try {
     const x = await session
     return (
-      await tunnelJson<{ name: string }>(x.pc, '/streamiq/name', { name })
+      await tunnelJson<Name>(x.pc, '/streamiq/name', { name } satisfies Name)
     ).name
   } finally {
     release()
@@ -82,13 +52,6 @@ export async function renameGateway(id: string, name: string) {
 
 // Paired clients, gateway API over the shared session: the list and
 // the allowlist live on the gateway only, the API never sees them.
-export type Client = {
-  keyFp: string
-  name: string
-  addedAt: string
-  self: boolean
-}
-
 async function viaTunnel<T>(id: string, url: string, body?: unknown) {
   const { session, release } = share(id)
   try {
@@ -153,18 +116,18 @@ export const useGatewayStatus = (id: string, enabled: boolean) =>
 
 // Gateway API POST /streamiq/telemetry (admin-only): the gateway stores the level
 // and tells the API with an early heartbeat.
-export const setTelemetry = (id: string, level: 'off' | 'full') =>
-  viaTunnel<{ level: string }>(id, '/streamiq/telemetry', { level })
+export const setTelemetry = (id: string, level: Level['level']) =>
+  viaTunnel<Level>(id, '/streamiq/telemetry', { level } satisfies Level)
 
 export const removeClient = (id: string, keyFp: string) =>
-  viaTunnel(id, '/streamiq/clients/remove', { keyFp })
+  viaTunnel(id, '/streamiq/clients/remove', { keyFp } satisfies ClientKey)
 
 export const renameClient = async (id: string, keyFp: string, name: string) =>
   (
-    await viaTunnel<{ name: string }>(id, '/streamiq/clients/rename', {
+    await viaTunnel<ClientName>(id, '/streamiq/clients/rename', {
       keyFp,
       name,
-    })
+    } satisfies ClientKey)
   ).name
 
 export const createEnrollmentToken = () =>
@@ -174,7 +137,7 @@ export const createEnrollmentToken = () =>
 // the gateway goes down for the swap; 409 → why it won't (the reply's reason).
 export async function updateGateway(
   id: string,
-): Promise<{ version: string } | { reason: string }> {
+): Promise<Started | Refused> {
   const { session, release } = share(id)
   try {
     const r = await tunnelFetch((await session).pc, '/streamiq/update', {
@@ -201,7 +164,6 @@ export const clientsOn = (pc: PC) =>
 
 // GET /streamiq/route: 'lan' when the gateway sees this device on one of
 // its own subnets. Older gateways answer 404.
-export type Route = { route: string }
 export const routeOn = (pc: PC) => tunnelJson<Route>(pc, '/streamiq/route')
 
 // GET /streamiq/burst: the raw response, so the speed test times it.

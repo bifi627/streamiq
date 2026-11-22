@@ -251,7 +251,7 @@ const NamePath = "/streamiq/name"
 
 // ServeName is POST NamePath.
 func (s *State) ServeName(w http.ResponseWriter, r *http.Request) {
-	var in struct{ Name string }
+	var in Name
 	if b, _ := io.ReadAll(r.Body); json.Unmarshal(b, &in) != nil {
 		tunnel.Fail(w, http.StatusBadRequest, errors.New("gateway API: rename: bad body"))
 		return
@@ -263,6 +263,6 @@ func (s *State) ServeName(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		tunnel.Fail(w, http.StatusInternalServerError, fmt.Errorf("gateway API: rename: %w", err))
 	default:
-		tunnel.JSON(w, http.StatusOK, map[string]string{"name": name})
+		tunnel.JSON(w, http.StatusOK, Name{name})
 	}
 }

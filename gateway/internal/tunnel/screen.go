@@ -37,20 +37,10 @@ type Session struct {
 	Use    *Usage // what the tunnel's requests were for; nil records nothing
 }
 
-// ScreenState is the TV's playback state (POST /streamiq/screen/state). Audio /
-// Subtitle are Jellyfin stream indexes; null = none chosen.
-type ScreenState struct {
-	ItemID        string `json:"itemId"`
-	PositionTicks int64  `json:"positionTicks"`
-	DurationTicks int64  `json:"durationTicks"`
-	Paused        bool   `json:"paused"`
-	Audio         *int   `json:"audio"`
-	Subtitle      *int   `json:"subtitle"`
-}
-
-// ScreenCommand is one phone → TV command; the gateway re-encodes it, so only
-// these fields reach the TV.
-type ScreenCommand struct {
+// screenCommand is any phone → TV command (types.go has each one), decoded flat so
+// valid can refuse a field that belongs to another kind. The gateway re-encodes it
+// (wire), so only the command's own fields reach the TV.
+type screenCommand struct {
 	Type       string `json:"type"` // play | pause | resume | seek | stop | tracks
 	ItemID     string `json:"itemId,omitempty"`
 	StartTicks *int64 `json:"startTicks,omitempty"`
@@ -61,7 +51,7 @@ type ScreenCommand struct {
 
 var itemID = regexp.MustCompile(`^` + id + `$`)
 
-func (c ScreenCommand) valid() bool {
+func (c screenCommand) valid() bool {
 	switch c.Type {
 	case "pause", "resume", "stop":
 		return c.bare()
@@ -82,7 +72,24 @@ func (c ScreenCommand) valid() bool {
 }
 
 // bare: no field but Type is set. valid clears the fields a type takes, then asks.
-func (c ScreenCommand) bare() bool { return c == ScreenCommand{Type: c.Type} }
+func (c screenCommand) bare() bool { return c == screenCommand{Type: c.Type} }
+
+// wire is a valid c as its own command type.
+func (c screenCommand) wire() any {
+	switch c.Type {
+	case "play":
+		return PlayCommand{c.Type, c.ItemID, c.StartTicks}
+	case "pause":
+		return PauseCommand{c.Type}
+	case "resume":
+		return ResumeCommand{c.Type}
+	case "stop":
+		return StopCommand{c.Type}
+	case "seek":
+		return SeekCommand{c.Type, *c.Ticks}
+	}
+	return TracksCommand{c.Type, c.Audio, c.Subtitle}
+}
 
 // atLeast: unset, or set to least or more.
 func atLeast[T int | int64](p *T, least T) bool { return p == nil || *p >= least }
@@ -204,22 +211,17 @@ func serveScreenState(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveScreens(w http.ResponseWriter, r *http.Request) {
-	type item struct {
-		ID    string       `json:"id"`
-		Name  string       `json:"name"`
-		State *ScreenState `json:"state"`
-	}
-	list := []item{}
+	list := []Screen{}
 	screens.Lock()
 	for _, s := range screens.m {
 		if !s.gone() {
 			s.mu.Lock()
-			list = append(list, item{s.id, s.name, s.state})
+			list = append(list, Screen{s.id, s.name, s.state})
 			s.mu.Unlock()
 		}
 	}
 	screens.Unlock()
-	slices.SortFunc(list, func(a, b item) int { return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID)) })
+	slices.SortFunc(list, func(a, b Screen) int { return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID)) })
 	JSON(w, http.StatusOK, list)
 }
 
@@ -231,12 +233,12 @@ func serveScreenCommand(w http.ResponseWriter, r *http.Request) {
 		Fail(w, http.StatusNotFound, fmt.Errorf("screen: no screen %s", r.URL.Path))
 		return
 	}
-	var c ScreenCommand
+	var c screenCommand
 	if json.Unmarshal(readBody(r), &c) != nil || !c.valid() {
 		Fail(w, http.StatusBadRequest, fmt.Errorf("screen: bad command"))
 		return
 	}
-	line, _ := json.Marshal(c)
+	line, _ := json.Marshal(c.wire())
 	for line = append(line, '\n'); ; {
 		select {
 		case s.cmds <- line:

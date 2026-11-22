@@ -14,25 +14,6 @@ import (
 // average over the last Interval.
 const Interval = 10 * time.Second
 
-// Load is the status's `host` field. A field the platform can't measure is nil.
-type Load struct {
-	CPU    *float64 `json:"cpu,omitempty"` // busy %, 0–100
-	Memory *Memory  `json:"memory,omitempty"`
-	Disk   *Disk    `json:"disk,omitempty"`
-}
-
-// Memory is physical memory in bytes.
-type Memory struct {
-	Used  uint64 `json:"used"`
-	Total uint64 `json:"total"`
-}
-
-// Disk is the drive holding a folder, in bytes; Free is what this process may use.
-type Disk struct {
-	Free  uint64 `json:"free"`
-	Total uint64 `json:"total"`
-}
-
 // cpuTimes are cumulative CPU counters since boot, in any one unit.
 type cpuTimes struct{ idle, total uint64 }
 

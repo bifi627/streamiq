@@ -62,3 +62,54 @@ packages:
     optional_type: "null"
     type_mappings:
       time.Time: "string"
+  # The gateway ↔ browser contracts (over the tunnel): the auth channel and the gateway API.
+  - path: "streamiq/gateway/internal/sessions"
+    output_path: "frontend/src/generated/sessions.ts"
+    include_files: ["messages.go"]
+    frontmatter: |
+      /** What the gateway sends on the `auth` data channel. */
+      export type GatewayAuthMessage = Challenge | OK | Unpaired | Nonce | Approved | Rejected
+      /** What a client sends on the `auth` data channel. */
+      export type ClientAuthMessage = Auth | Commit | Reveal
+  - path: "streamiq/gateway/internal/tunnel"
+    output_path: "frontend/src/generated/tunnel.ts"
+    include_files: ["types.go"]
+    frontmatter: |
+      /** A phone → TV screen command. */
+      export type ScreenCommand =
+        | PlayCommand
+        | PauseCommand
+        | ResumeCommand
+        | StopCommand
+        | SeekCommand
+        | TracksCommand
+  - path: "streamiq/gateway/internal/pairing"
+    output_path: "frontend/src/generated/pairing.ts"
+    include_files: ["types.go"]
+    type_mappings:
+      time.Time: "string"
+  - path: "streamiq/gateway/internal/onboarding"
+    output_path: "frontend/src/generated/gateway-onboarding.ts"
+    include_files: ["types.go"]
+  - path: "streamiq/gateway/internal/telemetry"
+    output_path: "frontend/src/generated/telemetry.ts"
+    include_files: ["types.go"]
+  - path: "streamiq/gateway/internal/update"
+    output_path: "frontend/src/generated/update.ts"
+    include_files: ["types.go"]
+  - path: "streamiq/gateway/internal/host"
+    output_path: "frontend/src/generated/host.ts"
+    include_files: ["load.go"]
+  - path: "streamiq/gateway/internal/jellyfin"
+    output_path: "frontend/src/generated/jellyfin.ts"
+    include_files: ["viewer.go"]
+  - path: "streamiq/gateway/cmd/gateway"
+    output_path: "frontend/src/generated/status.ts"
+    include_files: ["status.go"]
+    type_mappings:
+      time.Time: "string"
+      host.Load: "host.Load"
+      jellyfin.ViewerStatus: "jellyfin.ViewerStatus"
+    frontmatter: |
+      import type * as host from './host'
+      import type * as jellyfin from './jellyfin'

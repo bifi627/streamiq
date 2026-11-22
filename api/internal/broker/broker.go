@@ -31,16 +31,23 @@ type Broker struct {
 	AuthTimeout time.Duration
 
 	ips      *iplimit.Limiter
+	stopping context.Context // cancelled by Shutdown: every socket's reads end
+	stop     context.CancelFunc
+	handlers sync.WaitGroup // the sockets' handlers, until their cleanup ran
 	mu       sync.Mutex
+	closed   bool                // Shutdown began: no new socket
 	gateways map[string]*link    // gateway id → its socket, once it sent a supported heartbeat
 	sessions map[string]*session // session id → the browser
 }
 
 // New is a broker whose sockets spend ips' per-client-IP budget.
 func New(d *db.DB, a *auth.Auth, t *turn.Issuer, ips *iplimit.Limiter) *Broker {
+	stopping, stop := context.WithCancel(context.Background())
 	return &Broker{
 		DB: d, Auth: a, TURN: t, AuthTimeout: 10 * time.Second,
 		ips:      ips,
+		stopping: stopping,
+		stop:     stop,
 		gateways: map[string]*link{},
 		sessions: map[string]*session{},
 	}
@@ -48,8 +55,45 @@ func New(d *db.DB, a *auth.Auth, t *turn.Issuer, ips *iplimit.Limiter) *Broker {
 
 // Routes: GET, the WebSocket handshake's method.
 func (b *Broker) Routes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/gateways/ws", b.ips.Wrap(b.gateway))
-	mux.HandleFunc("GET /api/broker/ws", b.ips.Wrap(b.browser))
+	mux.HandleFunc("GET /api/gateways/ws", b.ips.Wrap(b.tracked(b.gateway)))
+	mux.HandleFunc("GET /api/broker/ws", b.ips.Wrap(b.tracked(b.browser)))
+}
+
+// tracked runs h until Shutdown cancels its context. http.Server.Shutdown doesn't wait
+// for a hijacked (WebSocket) connection, so Shutdown here does.
+func (b *Broker) tracked(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		b.mu.Lock()
+		if b.closed {
+			b.mu.Unlock()
+			http.Error(w, "shutting down", http.StatusServiceUnavailable)
+			return
+		}
+		b.handlers.Add(1)
+		b.mu.Unlock()
+		defer b.handlers.Done()
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		defer context.AfterFunc(b.stopping, cancel)()
+		h(w, r.WithContext(ctx))
+	}
+}
+
+// Shutdown closes every socket the way a peer's close does (a tunnel's row gets its end,
+// its TURN credential is revoked) and waits for that cleanup, or until ctx is done.
+func (b *Broker) Shutdown(ctx context.Context) error {
+	b.mu.Lock()
+	b.closed = true
+	b.mu.Unlock()
+	b.stop()
+	done := make(chan struct{})
+	go func() { b.handlers.Wait(); close(done) }()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // link is one socket of the relay. coder/websocket allows concurrent writes, so many

@@ -30,7 +30,7 @@ func Open(ctx context.Context, ownerURL, appPassword string) (*DB, error) {
 	if err := migrations.Up(ctx, ownerURL); err != nil {
 		return nil, err
 	}
-	if err := setAppPassword(ctx, ownerURL, appPassword); err != nil {
+	if err := atStart(ctx, ownerURL, appPassword); err != nil {
 		return nil, err
 	}
 	cfg, err := pgxpool.ParseConfig(ownerURL)
@@ -64,14 +64,21 @@ func Connect(ctx context.Context, cfg *pgxpool.Config) (*DB, error) {
 	return &DB{pool}, nil
 }
 
-// setAppPassword: ALTER ROLE takes no parameters, hence the quoted literal.
-func setAppPassword(ctx context.Context, ownerURL, password string) error {
+// atStart runs as the owner, past row-level security: it gives AppRole its password
+// (ALTER ROLE takes no parameters, hence the quoted literal) and ends every tunnel row
+// still open. No socket can belong to one: one API instance runs (migrations.go), so the
+// process that held it died without its cleanup (a kill, a crash).
+func atStart(ctx context.Context, ownerURL, password string) error {
 	conn, err := pgx.Connect(ctx, ownerURL)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = conn.Close(ctx) }()
 	_, err = conn.Exec(ctx, `ALTER ROLE `+AppRole+` LOGIN PASSWORD '`+strings.ReplaceAll(password, `'`, `''`)+`'`)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Exec(ctx, `UPDATE tunnels SET "EndedAt" = now() WHERE "EndedAt" IS NULL`)
 	return err
 }
 

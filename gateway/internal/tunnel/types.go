@@ -17,8 +17,8 @@ type ScreenState struct {
 	PositionTicks int64  `json:"positionTicks"`
 	DurationTicks int64  `json:"durationTicks"`
 	Paused        bool   `json:"paused"`
-	Audio         *int   `json:"audio"    tstype:"number | null,required"`
-	Subtitle      *int   `json:"subtitle" tstype:"number | null,required"`
+	Audio         *int   `json:"audio"         tstype:"number | null,required"`
+	Subtitle      *int   `json:"subtitle"      tstype:"number | null,required"`
 }
 
 // Screen is one item of GET ScreensPath.

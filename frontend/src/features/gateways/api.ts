@@ -135,9 +135,7 @@ export const createEnrollmentToken = () =>
 
 // Gateway API POST /streamiq/update: 202 → the version it installs, then
 // the gateway goes down for the swap; 409 → why it won't (the reply's reason).
-export async function updateGateway(
-  id: string,
-): Promise<Started | Refused> {
+export async function updateGateway(id: string): Promise<Started | Refused> {
   const { session, release } = share(id)
   try {
     const r = await tunnelFetch((await session).pc, '/streamiq/update', {

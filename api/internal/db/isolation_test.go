@@ -232,24 +232,36 @@ func TestTheTenantDoesNotSurviveOnAPooledConnection(t *testing.T) {
 // A table with a tenant column and no policy fails here, before any data leaks.
 func TestEveryTenantColumnHasAPolicy(t *testing.T) {
 	rows, _ := apitest.Owner.Query(t.Context(), `
-		SELECT c.relname FROM pg_class c
-		JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'TenantId' AND NOT a.attisdropped
-		WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r' AND NOT (c.relrowsecurity AND EXISTS (
+		SELECT c.relname, c.relrowsecurity AND EXISTS (
 			SELECT FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = c.relname
 			AND p.roles @> ARRAY['streamiq_app'::name] AND p.cmd = 'ALL'
-			AND p.qual LIKE '%tenant_id = app_tenant()%' AND p.with_check LIKE '%tenant_id = app_tenant()%'))`)
-	missing, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil {
+			AND p.qual LIKE '%tenant_id = app_tenant()%' AND p.with_check LIKE '%tenant_id = app_tenant()%')
+		FROM pg_class c
+		JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped
+		WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'`)
+	var tables, missing []string
+	var covered bool
+	var table string
+	if _, err := pgx.ForEachRow(rows, []any{&table, &covered}, func() error {
+		tables = append(tables, table)
+		if !covered {
+			missing = append(missing, table)
+		}
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
+	if len(tables) != len(tenantOwned) { // a query that matches nothing would pass below
+		t.Fatalf("tables with a tenant_id column: %v, want the %d tenant-owned", tables, len(tenantOwned))
+	}
 	if len(missing) != 0 {
-		t.Fatalf("tenant-owned tables without a USING + WITH CHECK policy on TenantId: %v", missing)
+		t.Fatalf("tenant-owned tables without a USING + WITH CHECK policy on tenant_id: %v", missing)
 	}
 	if n := apitest.Scalar[int](t, `SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
 		AND roles @> ARRAY['streamiq_app'::name] AND (
 			tablename = 'tenants' AND cmd = 'ALL' AND qual LIKE '%id = app_tenant()%' AND with_check LIKE '%id = app_tenant()%'
 			OR tablename = 'users' AND cmd = 'SELECT' AND qual LIKE '%memberships%')`); n != 2 {
-		t.Fatalf("%d of the policies on tenants (its Id) and users (read only, its members), want 2", n)
+		t.Fatalf("%d of the policies on tenants (its id) and users (read only, its members), want 2", n)
 	}
 	if n := apitest.Scalar[int](
 		t,

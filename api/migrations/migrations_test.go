@@ -1,6 +1,7 @@
 package migrations_test
 
 import (
+	"context"
 	"os"
 	"slices"
 	"testing"
@@ -19,7 +20,7 @@ func connect(t *testing.T, url string) *pgx.Conn {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = conn.Close(t.Context()) })
+	t.Cleanup(func() { _ = conn.Close(context.Background()) })
 	return conn
 }
 

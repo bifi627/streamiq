@@ -4,7 +4,7 @@
 -- (`SET stats.weeks = 12;`), default 8. Each query repeats the small `t` CTE so it runs alone.
 -- A `-- # Title` line names the table below it (the .ps1 prints it).
 -- Rows (docs/protocol.md telemetry): reported = bytes_sent IS NOT NULL (the gateway's end
--- report arrived); only then do Relay/Failure mean anything. Failure null on a reported row = up.
+-- report arrived); only then do relay/failure mean anything. failure null on a reported row = up.
 -- Never output names, Firebase UIDs, user or tenant ids: counts only. One exception: the
 -- "top households by relayed GB" table shows tenant ids (no names), for cost outliers.
 

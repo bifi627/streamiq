@@ -61,7 +61,7 @@ waits for the next heartbeat); the counts and load alone add none. Each
 field is checked: versions ≤ 40 chars, `os` / `arch` / `transcoding` / `offline` ≤ 20,
 counts 0–10 000, `cpu` / `memory` 0–100, else null; other fields are ignored. `off` stores
 nothing new and keeps the rows (no retention yet). Each row also carries the heartbeat's
-`version` as `GatewayVersion` (#424; a change makes a row like the fields above; rows from
+`version` as `gateway_version` (#424; a change makes a row like the fields above; rows from
 before stay null). `GET /api/gateways` returns `telemetry` to every member.
 `GET /api/gateways/{id}/health` (#424, any member) returns that gateway's rows of the last
 7 days, oldest first, led by the latest row before them: `at`, `jellyfinReachable`,
@@ -236,8 +236,8 @@ offer the broker routes:
   offline/unknown, not a member) writes none. Best-effort: a failed insert is logged and the
   offer is routed anyway (that tunnel has no row; its report changes nothing). Deleting the
   user sets `user_id` null, the row stays.
-- **End**: the browser's broker socket closing (the `bye` path) stamps `EndedAt`; duration
-  = `EndedAt - CreatedAt`.
+- **End**: the browser's broker socket closing (the `bye` path) stamps `ended_at`; duration
+  = `ended_at - created_at`.
 - **Gateway report**: when a session's PeerConnection fails or closes (any path: ICE,
   `bye`, a removed client), the gateway sends once, read from pion before `pc.Close()`, on
 the control socket that is up then (not the offer's: held until the next one if none is):
@@ -252,7 +252,7 @@ never connected) = candidate fields absent. `failure`:
   (`"unpaired"`, a refusal reason) or `"ended before auth"` (incl. a browser that refused the
   gateway's pin: it hangs up before auth); null = the tunnel came up and passed auth. The
   broker applies it only to a row with that id **and** this gateway's id, only the first
-  report (`BytesSent` null until then), and also after the browser's socket closed. Strings
+  report (`bytes_sent` null until then), and also after the browser's socket closed. Strings
   are cut to 16 chars (`failure` 64). A gateway below protocol 2 sends none: its rows keep
   null route and bytes. A gateway crash mid-tunnel loses that tunnel's report.
 - **Use + active time** (#681, additive: older gateways leave both null). `use` = what the
@@ -262,18 +262,18 @@ never connected) = candidate fields absent. `failure`:
   (`/streamiq/burst`), `management` (any other `/streamiq/*`). An open word: the API stores
   any value (cut to 16 chars), so a new use is a gateway table row + this list + a web label,
   no protocol bump. `activeMs` = from the gateway receiving the offer to the end of the
-  tunnel's last request, on the gateway's clock (no skew against the API's `CreatedAt`; the
+  tunnel's last request, on the gateway's clock (no skew against the API's `created_at`; the
   shared tunnel's idle wait before it closes is not in it). Both absent when no request was
-  served. Stored on `tunnels` (`Use`, `ActiveMs`) under the first-report rule; returned by
+  served. Stored on `tunnels` (`use`, `active_ms`) under the first-report rule; returned by
   `GET /api/tunnels`.
 - **Browser**: only its measured throughput, `PATCH /api/tunnels/{id}` `{throughputKbps}`
   (the tunnel's last burst measurement, below; `id` from the `answer`), before it closes the
   socket. Only the caller's own tunnel (another user's or tenant's → `404`). A closed tab
   skips it.
 
-Rate queries: up = `"BytesSent" IS NOT NULL AND "Failure" IS NULL`; unreported (a gateway
-below protocol 2, a lost report, one that never answered the offer) = `"BytesSent" IS NULL`,
-whose `Relay`/`Failure` say nothing. `relay` = either selected candidate is a relay. The
+Rate queries: up = `bytes_sent IS NOT NULL AND failure IS NULL`; unreported (a gateway
+below protocol 2, a lost report, one that never answered the offer) = `bytes_sent IS NULL`,
+whose `relay`/`failure` say nothing. `relay` = either selected candidate is a relay. The
 browser's own reading of its pair (`getStats()`; Chrome can report a relayed local candidate
 as `prflx`, only relay candidates carry `relayProtocol`, so that counts too) drives the
 player's privacy indicator (polled every 2 s) and Diagnostics, not telemetry.

@@ -63,7 +63,7 @@ const (
 	maxText    = 16 * 1024 * 1024 // buffered (redacted) text responses
 )
 
-// readBody reads a gateway API request body (≤ MaxBody, checked by serve).
+// readBody reads a proxied request body (≤ MaxBody, checked by serve).
 func readBody(r *http.Request) []byte { b, _ := io.ReadAll(r.Body); return b }
 
 // allowed is the attack surface: add an endpoint here consciously. A refused

@@ -445,7 +445,7 @@ open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
 its feature, registered in `gateway/cmd/gateway/main.go`). The request and response
 bodies are Go types in a types-only file of the package that serves them, generated
-into `frontend/src/generated/`: `gateway/internal/{tunnel,pairing,onboarding,telemetry,update}/types.go`,
+into `frontend/src/generated/`: `gateway/internal/{tunnel,screen,pairing,onboarding,telemetry,update}/types.go`,
 and `/streamiq/status` in `gateway/cmd/gateway/status.go` (with `host/load.go`,
 `jellyfin/viewer.go`).
 

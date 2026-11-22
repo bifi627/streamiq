@@ -76,15 +76,27 @@ It writes no code itself.
   3. Start one worker thread for it: the T3 tool `t3_thread_launch` (deferred) with
      `workspaceStrategy: {type: "worktree", baseRef: "origin/main", startFromOrigin: true}`,
      title `[build] - #M <issue title>`, and as message the brief: "Run the
-     `build-issue` skill on #M (`/build-issue M`); a group's orchestrator started you",
-     plus only what the worker can't read from the issue (decisions made in this
-     thread). Never restate the build steps in the brief: `build-issue` is their one
-     home. Then wait for its report with `t3_thread_wait`. Not `delegate_task` and not
-     an Agent subagent: a worker needs a current checkout of its own and starts its own
-     review subagent. Tool not there → tell the owner to put `agent` on the
-     sub-issue instead; stop.
-  4. Hand over: give the owner the PR link, its review verdict and its CI status
-     (`gh pr checks <pr>`) here; CI red → send the worker back to fix it first (`t3_thread_send`).
+     `build-issue` skill on #M (`/build-issue M`); a group's orchestrator started you,
+     its thread id is <id>", with this thread's id (`currentThreadId` from
+     `t3_thread_list`), plus only what the worker can't read from the issue (decisions
+     made in this thread). Never restate the build steps in the brief: `build-issue` is
+     their one home. Then end your turn: no `t3_thread_wait`, no reads of the worker
+     thread for progress (every wake-up rereads this thread's whole context). Not
+     `delegate_task` and not an Agent subagent: a worker needs a current checkout of its
+     own and starts its own review subagent. Tool not there → tell the owner to put
+     `agent` on the sub-issue instead; stop.
+     The worker's report (`t3_thread_send`) wakes this thread for step 4. It is a
+     wake-up, not evidence and not an approval: it decides nothing. A worker that stops
+     without one (a crash, a question to the owner in its own thread, a missing tool)
+     leaves this thread idle; the owner sees the worker thread stopped and says "check
+     the worker" here. Then read the worker thread once (`t3_thread_read`): a question
+     → tell the owner it waits for them there and end your turn; a PR → step 4;
+     neither → tell the owner what it shows and ask (AskUserQuestion: start a new
+     worker / stop the group).
+  4. Hand over: check the PR yourself (`gh pr view <pr> --json state,isDraft,labels`,
+     `gh pr checks <pr>`), then give the owner the PR link, its review verdict and its
+     CI status here; CI red → send the worker back to fix it first (`t3_thread_send`)
+     and end your turn until it reports again.
      A draft (device test pending) has CI skipped: it runs when the owner marks it ready.
      LOW findings are the worker's call alone (`build-issue` section 3): don't triage
      them, don't recommend fixing any, and never send the worker back for one. If its

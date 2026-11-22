@@ -256,12 +256,16 @@ func TestScreenCommandValid(t *testing.T) {
 		`{"type":"tracks","audio":0,"startTicks":0}`:              false,
 		`{"type":"tracks","audio":0,"ticks":0}`:                   false,
 	} {
-		var c ScreenCommand
+		var c screenCommand
 		if err := json.Unmarshal([]byte(body), &c); err != nil {
 			t.Fatal(err)
 		}
 		if c.valid() != want {
 			t.Errorf("%s: valid = %v, want %v", body, !want, want)
+		}
+		// What reaches the TV is the command as sent, in its own type (types.go).
+		if b, _ := json.Marshal(c.wire()); want && string(b) != body {
+			t.Errorf("%s: re-encoded as %s", body, b)
 		}
 	}
 }

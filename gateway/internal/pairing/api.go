@@ -27,14 +27,10 @@ const (
 // ServeClients is GET ClientsPath.
 func (s *Store) ServeClients(w http.ResponseWriter, r *http.Request) {
 	who := tunnel.SessionOf(r)
-	type client struct {
-		Paired
-		Self bool `json:"self"`
-	}
-	out := []client{}
+	out := []Client{}
 	for _, p := range s.Paired() {
 		if self := p.KeyFp == who.Key; self || who.Role == tunnel.Admin {
-			out = append(out, client{p, self})
+			out = append(out, Client{p.KeyFp, p.Name, p.AddedAt, self})
 		}
 	}
 	tunnel.JSON(w, http.StatusOK, out)
@@ -44,7 +40,7 @@ func (s *Store) ServeClients(w http.ResponseWriter, r *http.Request) {
 // member only its own, refused before the lookup so it learns nothing about
 // other keys. ok = false: the request is answered.
 func keyIn(w http.ResponseWriter, r *http.Request, what string) (keyFp, name string, ok bool) {
-	var in struct{ KeyFp, Name string }
+	var in ClientKey
 	b, _ := io.ReadAll(r.Body)
 	if json.Unmarshal(b, &in) != nil || in.KeyFp == "" {
 		tunnel.Fail(w, http.StatusBadRequest, fmt.Errorf("gateway API: %s client: bad body", what))
@@ -105,6 +101,6 @@ func (s *Store) ServeRename(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		tunnel.Fail(w, http.StatusInternalServerError, fmt.Errorf("gateway API: rename client: %w", err))
 	default:
-		tunnel.JSON(w, http.StatusOK, map[string]string{"name": n})
+		tunnel.JSON(w, http.StatusOK, ClientName{n})
 	}
 }

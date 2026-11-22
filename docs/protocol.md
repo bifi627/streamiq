@@ -4,8 +4,11 @@ This file is the contract: onboarding, broker, pairing, tunnel. The broker's mes
 both sockets (`/api/gateways/ws`, `/api/broker/ws`) are Go types in `protocol/` (#727):
 the gateway and the Go API's broker (`api/internal/broker`) use them, the web app's TypeScript
 is generated from them (`bash scripts/gen-types.sh` → `frontend/src/generated/`). The
-rest is hand-mirrored in Go (`gateway/internal/{onboarding,pairing,tunnel}`) and TS
-(`frontend/src/features/pairing`, `frontend/src/tunnel.ts`).
+gateway ↔ browser contracts are Go types in the gateway slice that serves them, one
+types-only file each, generated the same way (#801): the `auth` channel
+(`gateway/internal/sessions/messages.go`, "Pairing") and the gateway API's bodies
+("Gateway API"). The tunnel framing is hand-mirrored in Go (`gateway/internal/tunnel`)
+and TS (`frontend/src/tunnel.ts`).
 
 **Paths.** Every API endpoint is under `/api` (#120); the rest of the path space
 belongs to the SPA's client routes (prod serves `index.html` for them, unknown
@@ -295,7 +298,9 @@ line repeated at session and media level counts as one); anything else is refuse
 like a mismatch.
 
 The browser opens a data channel labelled **`auth`** (JSON text frames). Until
-it is authorized, the gateway closes every other channel immediately.
+it is authorized, the gateway closes every other channel immediately. The messages
+are the Go types in `gateway/internal/sessions/messages.go`, generated as the
+`GatewayAuthMessage` and `ClientAuthMessage` unions.
 
 | # | direction | message |
 |---|---|---|
@@ -438,7 +443,11 @@ known to handlers. An endpoint can be marked **admin-only** (the route option
 `/streamiq/update` and `/streamiq/telemetry` so far; #89 decides per endpoint. `/streamiq/clients*` is
 open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
-its feature, registered in `gateway/cmd/gateway/main.go`).
+its feature, registered in `gateway/cmd/gateway/main.go`). The request and response
+bodies are Go types in a types-only file of the package that serves them, generated
+into `frontend/src/generated/`: `gateway/internal/{tunnel,pairing,onboarding,telemetry,update}/types.go`,
+and `/streamiq/status` in `gateway/cmd/gateway/status.go` (with `host/load.go`,
+`jellyfin/viewer.go`).
 
 **`GET /streamiq/status`** (#146, #140): `200`, JSON, built on each request.
 Fields are added over time; a client ignores ones it doesn't know.
@@ -540,7 +549,7 @@ kept as the hint, and Auto stays at 480p.
 A TV in screen mode is remote-controlled by a phone on the **same gateway**: the
 gateway relays the commands, so the API is not involved and what's watched never
 reaches the API. Both devices are paired clients with their own tunnel.
-Code: `gateway/internal/tunnel/screen.go`; TS types: `frontend/src/features/gateways/api.ts`.
+Code: `gateway/internal/tunnel/screen.go`; the commands and state: `gateway/internal/tunnel/types.go`.
 
 - **Opt-in is structural.** A screen exists only while a session holds its
   `GET /streamiq/screen` response open, and is removed the moment that channel

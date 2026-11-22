@@ -63,25 +63,18 @@ func (b *box) health(ctx context.Context) protocol.Health {
 func (b *box) status(started time.Time, store *pairing.Store, remote *update.Remote) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		v := b.setup.View()
-		jfs := map[string]any{
-			"reachable": v.Reachable,
-			"version":   v.Version,
-			"untested":  v.Untested,
-			"token":     v.Token(),
-		}
-		if o := jellyfin.Offline(b.compose); o != "" { // no compose Jellyfin: no field
-			jfs["offline"] = o
-		}
-		tunnel.JSON(w, http.StatusOK, map[string]any{
-			"transcoding": v.Transcoding(),
-			"os":          runtime.GOOS, "arch": runtime.GOARCH, "startedAt": started,
-			"jellyfin": jfs,
-			// Counts only: no client names (no PII).
-			"pairedClients": len(store.Paired()), "activeSessions": b.sess.Active(),
-			"viewer":       b.setup.ViewerState(tunnel.SessionOf(r).User),
-			"remoteUpdate": remoteUpdate(remote),
-			"host":         b.load.Load(b.compose),
-			"telemetry":    telemetry.Read(b.dir),
+		tunnel.JSON(w, http.StatusOK, Status{
+			Transcoding: v.Transcoding(),
+			OS:          runtime.GOOS, Arch: runtime.GOARCH, StartedAt: started,
+			Jellyfin: JellyfinStatus{
+				Reachable: v.Reachable, Version: v.Version, Untested: v.Untested, Token: v.Token(),
+				Offline: jellyfin.Offline(b.compose),
+			},
+			PairedClients: len(store.Paired()), ActiveSessions: b.sess.Active(),
+			Viewer:       b.setup.ViewerState(tunnel.SessionOf(r).User),
+			RemoteUpdate: remoteUpdate(remote),
+			Host:         b.load.Load(b.compose),
+			Telemetry:    telemetry.Read(b.dir),
 		})
 	})
 }

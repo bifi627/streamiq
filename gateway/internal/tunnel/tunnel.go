@@ -234,7 +234,7 @@ func serveRoute(w http.ResponseWriter, r *http.Request) {
 	if f := SessionOf(r).Route; f != nil {
 		rt = f()
 	}
-	JSON(w, http.StatusOK, map[string]string{"route": rt})
+	JSON(w, http.StatusOK, Route{rt})
 }
 
 // BurstPath is the throughput test: the gateway answers it itself with

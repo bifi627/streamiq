@@ -17,18 +17,6 @@ import (
 	"streamiq/gateway/internal/pairing"
 )
 
-// authMsg is every message on the `auth` channel (docs/protocol.md, "Pairing").
-type authMsg struct {
-	Type string `json:"type"`
-	N    string `json:"n,omitempty"`    // challenge / nonce / reveal
-	Spki []byte `json:"spki,omitempty"` // base64 in JSON
-	Sig  []byte `json:"sig,omitempty"`
-	H    string `json:"h,omitempty"` // commit
-	Name string `json:"name,omitempty"`
-	Pair bool   `json:"pair,omitempty"`   // auth: browser has no matching pin → force the code comparison
-	Why  string `json:"reason,omitempty"` // rejected
-}
-
 // serveAuth runs challenge → auth → (ok | unpaired → commit → nonce → reveal →
 // approved/rejected), once per connection (newPeer). Messages on one channel
 // arrive in order, one at a time; after a refusal none is handled.
@@ -42,7 +30,7 @@ func (s *Sessions) serveAuth(
 ) {
 	a := &authRun{s: s, id: id, user: user, pc: pc, d: d, pre: pre, authed: authed, why: why,
 		challenge: pairing.Nonce(), done: make(chan struct{})}
-	d.OnOpen(func() { a.say(authMsg{Type: "challenge", N: a.challenge}) })
+	d.OnOpen(func() { a.say(Challenge{Type: "challenge", N: a.challenge}) })
 	d.OnClose(a.end)
 	d.OnMessage(a.handle)
 }
@@ -86,14 +74,14 @@ type authRun struct {
 }
 
 // say: a failed send means the channel closed, and its OnClose ends the handshake.
-func (a *authRun) say(m authMsg) { b, _ := json.Marshal(m); _ = a.d.SendText(string(b)) }
+func (a *authRun) say(m any) { b, _ := json.Marshal(m); _ = a.d.SendText(string(b)) }
 
 func (a *authRun) end() { a.once.Do(func() { close(a.done) }) }
 
 func (a *authRun) fail(reason string) {
 	log.Printf("gateway: auth: %s", reason)
 	a.why.Store(reason)
-	a.say(authMsg{Type: "rejected", Why: reason})
+	a.say(Rejected{Type: "rejected", Reason: reason})
 	a.d.Close()
 	a.end()
 }
@@ -104,28 +92,41 @@ func (a *authRun) handle(raw webrtc.DataChannelMessage) {
 		return
 	default:
 	}
-	var m authMsg
-	if json.Unmarshal(raw.Data, &m) != nil {
+	var head struct{ Type string }
+	if json.Unmarshal(raw.Data, &head) != nil {
+		a.fail("bad message")
+		return
+	}
+	var m any // the message's own type, if a client may send it
+	switch head.Type {
+	case "auth":
+		m = &Auth{}
+	case "commit":
+		m = &Commit{}
+	case "reveal":
+		m = &Reveal{}
+	}
+	if m != nil && json.Unmarshal(raw.Data, m) != nil {
 		a.fail("bad message")
 		return
 	}
 	st := authState{keyed: a.keyFp != "", committed: a.reveal != nil, revealed: a.revealed, authed: a.authed.Load()}
-	if !st.accepts(m.Type) {
-		a.fail("unexpected " + m.Type)
+	if !st.accepts(head.Type) {
+		a.fail("unexpected " + head.Type)
 		return
 	}
-	switch m.Type {
-	case "auth":
-		a.auth(m)
-	case "commit":
-		a.commit(m)
-	case "reveal":
+	switch m := m.(type) {
+	case *Auth:
+		a.auth(*m)
+	case *Commit:
+		a.commit(*m)
+	case *Reveal:
 		a.revealed = true // one reveal per channel
 		a.reveal <- m.N
 	}
 }
 
-func (a *authRun) auth(m authMsg) {
+func (a *authRun) auth(m Auth) {
 	// The browser's DTLS cert as actually negotiated on this connection.
 	browserFp := identity.Fingerprint(a.pc.SCTP().Transport().GetRemoteCertificate())
 	fp, err := pairing.VerifyAuth(m.Spki, m.Sig, a.s.Fp, browserFp, a.challenge)
@@ -141,14 +142,14 @@ func (a *authRun) auth(m authMsg) {
 	}
 	if a.s.Store.Allowed(fp) && !m.Pair {
 		a.s.authorize(a.user, a.pre, a.authed)
-		a.say(authMsg{Type: "ok"})
+		a.say(OK{Type: "ok"})
 	} else {
 		a.why.Store("unpaired")
-		a.say(authMsg{Type: "unpaired"})
+		a.say(Unpaired{Type: "unpaired"})
 	}
 }
 
-func (a *authRun) commit(m authMsg) {
+func (a *authRun) commit(m Commit) {
 	// The slot is taken before the nonce goes out, so the nonces handed
 	// out are capped like the requests on the local page.
 	if err := a.s.Store.Reserve(a.user); err != nil {
@@ -163,10 +164,10 @@ func (a *authRun) commit(m authMsg) {
 		defer a.pre.pairing.Store(false)
 		a.s.pair(a.id, a.keyFp, m.H, trim(m.Name), nA, a.reveal, a.done, a.fail, func() {
 			a.s.authorize(a.user, a.pre, a.authed)
-			a.say(authMsg{Type: "approved"})
+			a.say(Approved{Type: "approved"})
 		})
 	}()
-	a.say(authMsg{Type: "nonce", N: nA})
+	a.say(Nonce{Type: "nonce", N: nA})
 }
 
 // pair is the exchange after an accepted commit; its caller holds the pairing

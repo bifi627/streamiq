@@ -103,7 +103,7 @@ func TestProgressRedrawsOnlyOnChange(t *testing.T) {
 		_, _ = p.Write(make([]byte, 20_000)) // 0.5 % each: one line per whole percent
 	}
 	_, _ = p.Write(make([]byte, 3_920_000))
-	if want := "  0%  0.0 / 4.0 MB  1%  0.0 / 4.0 MB  2%  0.1 / 4.0 MB100%  4.0 / 4.0 MB"; out.String() != want {
+	if want := "\r  0%  0.0 / 4.0 MB\r  1%  0.0 / 4.0 MB\r  2%  0.1 / 4.0 MB\r100%  4.0 / 4.0 MB"; out.String() != want {
 		t.Fatalf("got %q, want %q", out.String(), want)
 	}
 
@@ -112,7 +112,7 @@ func TestProgressRedrawsOnlyOnChange(t *testing.T) {
 	for range 3 {
 		_, _ = p.Write(make([]byte, 60_000))
 	}
-	if want := "0.1 MB0.2 MB"; out.String() != want {
+	if want := "\r0.1 MB\r0.2 MB"; out.String() != want {
 		t.Fatalf("no length: got %q, want %q", out.String(), want)
 	}
 }

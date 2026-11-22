@@ -189,7 +189,7 @@ func get(ctx context.Context, url string) (*http.Response, error) {
 }
 
 // progress draws " 42%  12.3 / 29.1 MB" on out as bytes pass, only when the
-// percent (or, with no Content-Length: total < 0, the shown tenth of a MB) changes.
+// percent (or, with no Content-Length: total <= 0, the shown tenth of a MB) changes.
 type progress struct {
 	out         io.Writer
 	done, total int64
@@ -202,13 +202,13 @@ func (p *progress) Write(b []byte) (int, error) {
 	if p.total <= 0 {
 		if step := (p.done + 50_000) / 100_000; step != p.last {
 			p.last = step
-			fmt.Fprintf(p.out, "%.1f MB", mb(p.done))
+			fmt.Fprintf(p.out, "\r%.1f MB", mb(p.done))
 		}
 		return len(b), nil
 	}
 	if pct := p.done * 100 / p.total; pct != p.last {
 		p.last = pct
-		fmt.Fprintf(p.out, "%3d%%  %.1f / %.1f MB", pct, mb(p.done), mb(p.total))
+		fmt.Fprintf(p.out, "\r%3d%%  %.1f / %.1f MB", pct, mb(p.done), mb(p.total))
 	}
 	return len(b), nil
 }

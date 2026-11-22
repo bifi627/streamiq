@@ -34,6 +34,10 @@ func TestSQLSource(t *testing.T) {
 			t.Error(p)
 		}
 	}
+	if t.Failed() {
+		t.Error("fix: SQL is a constant with $n placeholders; Query rows go to pgx.CollectRows / AppendRows /" +
+			" ForEachRow or a defer rows.Close(); an exception says why on a `// sqlcheck: <why>` line")
+	}
 }
 
 func TestSQLSourceCatches(t *testing.T) {

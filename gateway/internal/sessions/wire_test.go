@@ -9,7 +9,7 @@ import (
 	"streamiq/protocol"
 )
 
-// The gateway's messages to the broker, byte for byte: the .NET broker reads exactly this.
+// The gateway's messages to the broker, byte for byte: the broker reads exactly this.
 func TestWire(t *testing.T) {
 	var zero uint16
 	mid, failure, ms := "0", "ice failed", int64(1500)
@@ -48,7 +48,7 @@ func TestWire(t *testing.T) {
 	}
 }
 
-// The broker's offer, as the .NET broker sends it, reads into Msg.
+// The broker's offer, as the broker sends it, reads into Msg.
 func TestWireOffer(t *testing.T) {
 	var m Msg
 	raw := `{"type":"offer","session":"s1","user":"u1","role":"admin","sdp":{"type":"offer","sdp":"v=0"}}`

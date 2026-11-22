@@ -52,7 +52,7 @@ func TestOnlyTheCallersOwnTunnelsInTheRequestsHouseholdFromTheLast30Days(t *test
 	}
 }
 
-// The fields in .NET's order, and the ones not reported as null, not dropped.
+// The fields in their wire order, and the ones not reported as null, not dropped.
 func TestATunnelWithNothingReportedHasItsNullsInOrder(t *testing.T) {
 	s := newServer(t)
 	alice := s.admin(t, "alice@home.test")

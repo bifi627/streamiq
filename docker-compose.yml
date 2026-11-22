@@ -1,4 +1,4 @@
-# streamiq dev dependencies. Backend/frontend/gateway run natively (see CLAUDE.md).
+# streamiq dev dependencies. API/frontend/gateway run natively (see CLAUDE.md).
 # Usage: docker compose up -d
 #        docker compose --profile relay up -d   (adds local TURN)
 name: streamiq  # pins volumes to streamiq_* regardless of the clone folder name (scripts use it)

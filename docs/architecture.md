@@ -7,10 +7,9 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 ## Go API (`api/`: #725)
 
-- Ported from the .NET API (removed by #777). The Go API is the one
-  API in production, dev (`scripts/dev.ps1`) and the e2e stack: every `/api` route, the
+- The one API in production, dev (`scripts/dev.ps1`) and the e2e stack: every `/api` route, the
   broker's two sockets, `/healthz` and, with `STREAMIQ_WEB_DIR` set (the image), the
-  built web app. It answers CORS as ASP.NET's policy did.
+  built web app.
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
   `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
   `gateways`, `onboarding`, `tunnels`, `household`, `members`, `invites`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
@@ -98,7 +97,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 - Messages: Go types in `protocol/` (types only: no pion, no database), used by the gateway;
   `scripts/gen-types.sh` (tygo, `scripts/tygo.yaml`) generates the web app's TypeScript from them
-  and from the ported REST slices into `frontend/src/generated/`, committed; `check.sh` and CI
+  and from the API slices listed there into `frontend/src/generated/`, committed; `check.sh` and CI
   fail when it is stale. The SDP and candidate are type parameters: pion's types in the
   gateway, the browser's `RTCSessionDescriptionInit` / `RTCIceCandidateInit` in the generated TS.
 - Tenant-scoped broker in the Go API (`api/internal/broker`, `github.com/coder/websocket`):

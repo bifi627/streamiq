@@ -110,8 +110,7 @@ func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
 	}
 }
 
-// What ASP.NET Core's CORS policy answered (curl against the .NET API before the port);
-// a listed origin's preflight is approved, another gets no allow header, and
+// A listed origin's preflight is approved, another gets no allow header, and
 // the not-a-member header is exposed.
 func TestCORSAnswersAsThePortedPolicy(t *testing.T) {
 	base := serve(t, "app")

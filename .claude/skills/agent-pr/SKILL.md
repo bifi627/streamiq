@@ -110,7 +110,10 @@ dropped (BLOCKER) or LOW (SPEC): a posted finding blocks the merge and costs a r
   "Frontend decision logic lives in `.ts`"; render branching doesn't count).
 - **LOW**: everything else (style, naming, simplification, defensive checks for
   impossible states, speculative edge cases, nits, "consider…"), each with one category
-  of `style naming dead-code simplify defensive test docs other`: a record for a later
+  of `style naming dead-code simplify defensive test docs race error-handling drift ux
+  other` (`race`: async / timer / stale state; `error-handling`: an error swallowed or
+  misreported; `drift`: docs, comments or CLAUDE.md out of date with the code; `ux`: a
+  visible behaviour or edge case; `other` only when none fits): a record for a later
   decision on rule files (#490), not a judgement; don't verify a LOW to categorize it.
 - **Comments** the diff adds (CLAUDE.md "Comments say what the code can't"): history
   ("added in #N", "was X", an issue cited as a changelog entry) or commented-out code is

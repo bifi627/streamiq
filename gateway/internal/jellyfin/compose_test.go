@@ -1,11 +1,30 @@
 package jellyfin
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"os"
 	"strings"
 	"testing"
 )
+
+// A second gateway's file: its own project and port in both the online and
+// the offline (forwarder) port lines; the default gateway's file is unchanged.
+func TestInstance(t *testing.T) {
+	b, err := os.ReadFile("../../install/" + ComposeFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(Instance(b, "streamiq-jellyfin", "8096"), b) {
+		t.Error("the default instance changed the file")
+	}
+	got := string(Instance(b, "streamiq-jellyfin-kids", "8098"))
+	if !strings.Contains(got, "\nname: streamiq-jellyfin-kids\n") || strings.Contains(got, "8096:") ||
+		strings.Count(got, `"8098:8096"`) != 2 {
+		t.Errorf("Instance:\n%s", got)
+	}
+}
 
 // Only the image tag changes: comments, binds, CRLF and other services stay the user's.
 func TestPinRewritesOnlyTheJellyfinImage(t *testing.T) {

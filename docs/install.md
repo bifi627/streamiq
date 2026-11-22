@@ -15,9 +15,12 @@ shows a status section for each of them.
 Pick one:
 
 - **You already run Jellyfin:** keep it. It must be reachable on the same
-  machine at `http://localhost:8096`.
+  machine at `http://localhost:8096`. Add `STREAMIQ_ORIGIN=http://localhost:8096`
+  to the install command (step 2): the installer otherwise sees port 8096 taken and
+  points the gateway at the next free port instead.
 - **Native install:** install [Jellyfin](https://jellyfin.org/downloads), but
-  **skip its setup wizard**. The gateway completes it in step 3.
+  **skip its setup wizard**. The gateway completes it in step 3. Add
+  `STREAMIQ_ORIGIN=http://localhost:8096` to the install command, as above.
 - **Docker:** install the gateway first (step 2), then run `gateway jellyfin up`
   in its install dir. It downloads `jellyfin-compose.yml` there (checked against
   the release's `SHA256SUMS`) and starts it: just Jellyfin, pinned to the version
@@ -126,7 +129,8 @@ can take a while for big collections.
 
 The Jellyfin from `gateway jellyfin up` runs **offline by default**: it sits on a
 Docker network with no way out (`internal: true`), and a small forwarder
-container (`alpine/socat`) is the only way in, on port 8096 as before. Jellyfin
+container (`alpine/socat`) is the only way in, on the gateway's Jellyfin port
+(8096, or the one in its `STREAMIQ_ORIGIN`). Jellyfin
 can't send your titles or cast to TMDb, OMDb or anyone else, whatever its own
 settings say. Scanning and streaming work the same.
 
@@ -271,6 +275,32 @@ The level lives in `state/telemetry` (so `gateway backup` and rollback carry it)
 a running gateway uses a new level from its next heartbeat, no restart. The local
 gateway page shows it.
 
+## A second gateway on the same machine
+
+To keep libraries apart (say private media and shared media), install a second
+gateway with its own Jellyfin on the same machine: run a new install command
+(**Add gateway**) with `STREAMIQ_DIR` set to another folder, e.g.
+
+- Linux / macOS: `curl -fsSL …/install.sh | STREAMIQ_DIR=~/.local/share/streamiq-kids STREAMIQ_API_URL=… STREAMIQ_ENROLL_TOKEN=… sh`
+- Windows: `$env:STREAMIQ_DIR="$env:LOCALAPPDATA\streamiq-kids"; $env:STREAMIQ_API_URL='…'; …`
+
+Then, in that folder, `gateway jellyfin up` as in step 1 (its own
+`jellyfin-compose.yml`, media folders and `jellyfin-config`).
+
+The folder is the gateway's identity on the machine: everything run from it
+(`gateway update`, `rollback`, `backup`, `jellyfin …`, `service …`) acts on that
+gateway only. Its Windows logon task is `streamiq-gateway-<folder name>` and its
+Docker Compose project `streamiq-jellyfin-<folder name>` (the default folder,
+`streamiq`, keeps the plain names), so give each install a folder with its own
+name. On a fresh install the installer takes the first free pair of ports from
+8096/8097 on (Jellyfin, local gateway page; the second gateway usually gets
+8098/8099) and writes them into `gateway.env` as `STREAMIQ_ORIGIN` and
+`STREAMIQ_PAGE_PORT`; set either on the install command to choose it, or edit
+`gateway.env` later (`jellyfin-compose.yml` only takes the port when
+`gateway jellyfin up` first downloads it). Updates never change them.
+
+Each gateway pairs and shows up in the web app like a gateway on its own machine.
+
 ## Removing a gateway
 
 **Gateways → Remove** in the web app revokes the gateway's credential at once:
@@ -391,12 +421,12 @@ gateway) has its own backups: **Dashboard → Backups**.
 | Settings | `gateway.env` (yours, kept on updates) | same |
 | Identity, paired browsers, Jellyfin token, page token | `state\` (never touched by updates; [`gateway backup`](#back-up-and-restore-the-gateway) copies it) | `state/` |
 | Log | the gateway's console window (closing it stops the gateway) | `gateway.log` |
-| Autostart | scheduled task `streamiq-gateway` (`gateway service install`) | your crontab line |
+| Autostart | scheduled task `streamiq-gateway` (`gateway service install`; [another folder's](#a-second-gateway-on-the-same-machine): `streamiq-gateway-<folder name>`) | your crontab line |
 | Running gateway's process id (an update, `rollback` and `jellyfin gpu` stop the copy it names) | — | `gateway.pid` |
 | Previous binaries + their state, for [`gateway rollback`](#roll-back-an-update) | `backups\` (the last 3 updates) | `backups/` |
 
-`STREAMIQ_DIR` overrides the install dir. Set `STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` on
-the first install to change the gateway's name or page port. `STREAMIQ_NAME` sets only the
+`STREAMIQ_DIR` overrides the install dir ([a second gateway](#a-second-gateway-on-the-same-machine)). Set `STREAMIQ_NAME`, `STREAMIQ_ORIGIN` and `STREAMIQ_PAGE_PORT` on
+the first install to change the gateway's name, Jellyfin address or page port. `STREAMIQ_NAME` sets only the
 first name: later, a household admin renames the gateway on the web app's Gateways page
 (**Rename**, while it is online), and the gateway keeps that name in `state/gateway.json`.
 
@@ -404,8 +434,9 @@ first name: later, a household admin renames the gateway on the web app's Gatewa
 
 The gateway reads its settings from the environment, or from `gateway.env` next to the
 binary (or in the working dir); a real environment variable wins over the file. The
-installer writes `STREAMIQ_API_URL` and `STREAMIQ_STATE_DIR` there on the first install (plus
-`STREAMIQ_NAME` and `STREAMIQ_PAGE_PORT` when set on the install command).
+installer writes `STREAMIQ_API_URL`, `STREAMIQ_STATE_DIR`, `STREAMIQ_ORIGIN` and `STREAMIQ_PAGE_PORT`
+there on the first install (the ports: the first free pair from 8096/8097 on, unless set on
+the install command; plus `STREAMIQ_NAME` when set).
 Installer-only variables are set on the install command, not in `gateway.env`.
 
 | Variable | Default | What it does |
@@ -509,7 +540,8 @@ enrolled) or over the same release.
 ## Start on boot
 
 - Windows: the installer runs `gateway service install`, which creates the
-  scheduled task `streamiq-gateway`: the gateway starts at your logon in its own
+  scheduled task `streamiq-gateway` (another install folder's: `streamiq-gateway-<folder name>`):
+  the gateway starts at your logon in its own
   console window (closing it stops the gateway until the next logon). Start it
   again now with `schtasks /Run /TN streamiq-gateway`. `gateway service uninstall`
   stops it and removes the task; `state\` and `gateway.env` stay.

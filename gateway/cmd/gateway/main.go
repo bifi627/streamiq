@@ -94,7 +94,11 @@ func serviceInstall(ctx context.Context, exe string) error {
 	if err := service.Install(exe); err != nil {
 		return err
 	}
-	fmt.Printf("Gateway %q runs now and at every logon, in its own console window (task %s).\n", st.Name, service.Task)
+	fmt.Printf(
+		"Gateway %q runs now and at every logon, in its own console window (task %s).\n",
+		st.Name,
+		service.Task(exe),
+	)
 	return nil
 }
 
@@ -236,7 +240,8 @@ func jellyfinRestore(ctx context.Context, file, compose string) error {
 }
 
 // jellyfinUp downloads the release's compose file next to the binary unless the
-// user already has one (it's theirs from then on), then starts Jellyfin.
+// user already has one (it's theirs from then on), names it after this gateway
+// (instance), then starts Jellyfin.
 func jellyfinUp(ctx context.Context, file string) error {
 	if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) {
 		if err := update.Download(
@@ -248,6 +253,9 @@ func jellyfinUp(ctx context.Context, file string) error {
 		); err != nil {
 			return err
 		}
+		if err := instance(file); err != nil {
+			return err
+		}
 		// Its default bind; compose refuses a missing bind source.
 		if err := os.MkdirAll(filepath.Join(filepath.Dir(file), "media"), 0o755); err != nil {
 			return err
@@ -255,6 +263,21 @@ func jellyfinUp(ctx context.Context, file string) error {
 		fmt.Printf("Downloaded %s. Point its media folders at yours, then run `gateway jellyfin up` again.\n", file)
 	}
 	return jellyfin.Compose(ctx, file, "up", "-d")
+}
+
+// instance writes this install's compose project (service.Name of its dir) and
+// Jellyfin port (STREAMIQ_ORIGIN's) into the freshly downloaded compose file.
+func instance(file string) error {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	port := "8096"
+	if u, err := url.Parse(origin()); err == nil && u.Port() != "" {
+		port = u.Port()
+	}
+	b = jellyfin.Instance(b, service.Name("streamiq-jellyfin", filepath.Dir(file)), port)
+	return os.WriteFile(file, b, 0o644)
 }
 
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
@@ -361,8 +384,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	notice.Store(new(string))
 	newer.Store(new(string))
 	go checkUpdates(ctx, &notice, &newer)
-	remote := &update.Remote{Version: version, Supported: service.Supported(), Task: service.Installed,
-		Newer: func() string { return *newer.Load() }, Start: startUpdater}
+	remote := newRemote(&newer)
 	started := time.Now().UTC()
 	load := &host.Sampler{}
 	go load.Run(ctx)
@@ -405,6 +427,18 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			sess.Handle,
 		)
 	})
+}
+
+// newRemote is the web app's remote update for this binary; newer holds the latest release.
+func newRemote(newer *atomic.Pointer[string]) *update.Remote {
+	exe, _ := os.Executable()
+	return &update.Remote{
+		Version:   version,
+		Supported: service.Supported(),
+		Task:      func() bool { return service.Installed(exe) },
+		Newer:     func() string { return *newer.Load() },
+		Start:     startUpdater,
+	}
 }
 
 // forever reruns fn until ctx ends. The API sockets are long-lived and

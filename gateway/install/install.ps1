@@ -68,17 +68,23 @@ try {
 }
 
 if (-not (Test-Path $envFile)) {
-    $lines = @("STREAMIQ_API_URL=$env:STREAMIQ_API_URL", "STREAMIQ_STATE_DIR=$(Join-Path $dir 'state')")
+    # Ports: the first free pair (Jellyfin, local page) from 8096/8097 on, so an
+    # install in another STREAMIQ_DIR runs beside this one; a port set on the
+    # command is taken as it is.
+    $busy = { param($p) [bool](Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction SilentlyContinue) }
+    $p = 8096
+    while ((-not $env:STREAMIQ_ORIGIN -and (& $busy $p)) -or (-not $env:STREAMIQ_PAGE_PORT -and (& $busy ($p + 1)))) { $p += 2 }
+    $origin = if ($env:STREAMIQ_ORIGIN) { $env:STREAMIQ_ORIGIN } else { "http://localhost:$p" }
+    $page = if ($env:STREAMIQ_PAGE_PORT) { $env:STREAMIQ_PAGE_PORT } else { $p + 1 }
+    $lines = @("STREAMIQ_API_URL=$env:STREAMIQ_API_URL", "STREAMIQ_STATE_DIR=$(Join-Path $dir 'state')",
+        "STREAMIQ_ORIGIN=$origin", "STREAMIQ_PAGE_PORT=$page")
     # Optional first-install settings persist, so updates keep them.
-    foreach ($k in 'STREAMIQ_NAME', 'STREAMIQ_PAGE_PORT') {
-        $v = [Environment]::GetEnvironmentVariable($k)
-        if ($v) { $lines += "$k=$v" }
-    }
+    if ($env:STREAMIQ_NAME) { $lines += "STREAMIQ_NAME=$env:STREAMIQ_NAME" }
     Set-Content -Encoding ascii $envFile $lines
 }
 
 # Enrolls on the first install (the token is spent here, never stored), then
-# creates the logon task streamiq-gateway and starts it: its own console window
+# creates this install dir's logon task (gateway service install) and starts it: its own console window
 # is the log; closing it stops the gateway (no hidden start: AV heuristic, #69).
 Remove-Item (Join-Path $dir 'state\page-link') -ErrorAction SilentlyContinue # wait below for this start's fresh link
 # A backup onto this machine (#52): restored before the first start, so it doesn't enroll a new gateway.

@@ -18,7 +18,18 @@ const Image = "jellyfin/jellyfin:12.4.20261026-211555"
 // ComposeFile is the release asset `gateway jellyfin up` downloads.
 const ComposeFile = "jellyfin-compose.yml"
 
-var imageLine = regexp.MustCompile(`(?m)^(\s*image:\s*)jellyfin/jellyfin:\S+`)
+var (
+	imageLine      = regexp.MustCompile(`(?m)^(\s*image:\s*)jellyfin/jellyfin:\S+`)
+	defaultProject = regexp.MustCompile(`(?m)^name: streamiq-jellyfin\b`)
+)
+
+// Instance points the release's compose file at one gateway: its compose
+// project name and the host port Jellyfin (online) or its forwarder (offline)
+// publishes. For the release file as downloaded, not a user's edited one.
+func Instance(b []byte, project, port string) []byte {
+	b = defaultProject.ReplaceAll(b, []byte("name: "+project))
+	return bytes.ReplaceAll(b, []byte(`"8096:8096"`), []byte(`"`+port+`:8096"`))
+}
 
 // Pin points the jellyfin/jellyfin image line at Image and leaves every other
 // byte alone (the file is the user's). changed is false if it already matches.

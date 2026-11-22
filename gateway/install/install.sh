@@ -76,12 +76,21 @@ mv "$tmp/$bin" "$DIR/gateway" || {
 [ -d "$DIR/backups" ] && ls -1 "$DIR/backups" | sort -r | tail -n +4 | while read -r d; do rm -rf "${DIR:?}/backups/$d"; done
 
 if [ ! -f "$DIR/gateway.env" ]; then
+  # Ports: the first free pair (Jellyfin, local page) from 8096/8097 on, so an
+  # install in another STREAMIQ_DIR runs beside this one; a port set on the
+  # command is taken as it is. Without bash (/dev/tcp) every port looks free.
+  busy() { bash -c 'exec 3<>"/dev/tcp/127.0.0.1/$1"' _ "$1" 2>/dev/null; }
+  p=8096
+  while { [ -z "${STREAMIQ_ORIGIN:-}" ] && busy $p; } || { [ -z "${STREAMIQ_PAGE_PORT:-}" ] && busy $((p + 1)); }; do
+    p=$((p + 2))
+  done
   {
     echo "STREAMIQ_API_URL=$STREAMIQ_API_URL"
     echo "STREAMIQ_STATE_DIR=$DIR/state"
+    echo "STREAMIQ_ORIGIN=${STREAMIQ_ORIGIN:-http://localhost:$p}"
+    echo "STREAMIQ_PAGE_PORT=${STREAMIQ_PAGE_PORT:-$((p + 1))}"
     # Optional first-install settings persist, so updates keep them.
     [ -n "${STREAMIQ_NAME:-}" ] && echo "STREAMIQ_NAME=$STREAMIQ_NAME"
-    [ -n "${STREAMIQ_PAGE_PORT:-}" ] && echo "STREAMIQ_PAGE_PORT=$STREAMIQ_PAGE_PORT"
     true
   } > "$DIR/gateway.env"
 fi

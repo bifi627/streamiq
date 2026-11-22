@@ -51,3 +51,18 @@ func TestTaskXML(t *testing.T) {
 		}
 	}
 }
+
+func TestName(t *testing.T) {
+	for dir, want := range map[string]string{
+		`C:\Users\Jo\AppData\Local\streamiq`: "streamiq-gateway",
+		"/home/jo/.local/share/streamiq":     "streamiq-gateway",
+		"/home/jo/StreamIQ":                  "streamiq-gateway",
+		"/srv/Kids Media":                    "streamiq-gateway-kids-media",
+		"/srv/_x.":                           "streamiq-gateway-x",
+		"/srv/streamiq-2":                    "streamiq-gateway-streamiq-2",
+	} {
+		if got := Name("streamiq-gateway", dir); got != want {
+			t.Errorf("Name(%q) = %q, want %q", dir, got, want)
+		}
+	}
+}

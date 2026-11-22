@@ -128,6 +128,7 @@ Config: gateway.env next to the binary (see docs/install.md).`,
 
 // gatewayCmds are the "Gateway:" group.
 func gatewayCmds(ctx context.Context, exe string, runGateway func(*cobra.Command, []string)) []*cobra.Command {
+	task := service.Task(exe)
 	return []*cobra.Command{
 		{
 			Use: "run", GroupID: "gateway", Args: none, ValidArgsFunction: noFiles,
@@ -159,7 +160,7 @@ func gatewayCmds(ctx context.Context, exe string, runGateway func(*cobra.Command
 			Use:     "service",
 			GroupID: "gateway",
 			Short:   "Start the gateway at logon in its own window (Windows)",
-			Long:    "Start the gateway at logon in its own console window, as a Windows scheduled task (" + service.Task + ").",
+			Long:    "Start the gateway at logon in its own console window, as a Windows scheduled task (" + task + ").",
 		},
 			&cobra.Command{
 				Use: "install", Args: none, ValidArgsFunction: noFiles,

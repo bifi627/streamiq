@@ -294,6 +294,7 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	rt.Handle("GET "+pairing.ClientsPath, http.HandlerFunc(store.ServeClients))
 	rt.Handle("POST "+pairing.ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
 	rt.Handle("POST "+pairing.ClientsRenamePath, http.HandlerFunc(store.ServeRename))
+	rt.Handle("POST "+pairing.ClientsProfilePath, http.HandlerFunc(store.ServeProfile))
 	return rt
 }
 

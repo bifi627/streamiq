@@ -2,23 +2,16 @@
 // Client capability probe → Jellyfin DeviceProfile. Jellyfin decides
 // per playback, from this profile, whether video is remuxed or transcoded and
 // whether audio is copied; it says why in TranscodeReasons. Re-probed at each
-// playback start (milliseconds, no storage). TVs over-report, so the
+// playback start (milliseconds), which also stores it on the gateway for the
+// admin's paired clients list. TVs over-report, so the
 // player keeps its runtime fallbacks. mediaCapabilities.decodingInfo then
 // trims each video codec to what decodes smoothly. Pure except probe().
 
+import type { Probe } from '../../generated/pairing'
+
 /** hd = at most 1080p: 2160p is not smooth (decodingInfo) */
 type Hd = { hd?: boolean }
-export type Probe = {
-  /** H.264 profiles (Jellyfin names) + highest level, e.g. 51 = 5.1 */
-  h264: ({ profiles: string[]; level: number } & Hd) | null
-  /** HEVC Main; level in Jellyfin units (level × 30, e.g. 153 = 5.1) */
-  hevc: ({ level: number; main10: boolean } & Hd) | null
-  av1: ({ main10: boolean } & Hd) | null
-  /** Jellyfin audio codec names */
-  audio: string[]
-  /** 5.1 audio decodes (mediaCapabilities) */
-  surround: boolean
-}
+export type { Probe }
 
 const H264 = { high: '64', main: '4D', baseline: '42' }
 const H264_LEVELS = [52, 51, 50, 42, 41, 40, 32, 31, 30]

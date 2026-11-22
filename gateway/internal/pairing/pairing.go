@@ -100,11 +100,12 @@ type Store struct {
 	OnRemove func(keyFp string)
 	paired   []Paired
 	pending  []*Request
+	profiles *profiles
 	reserved map[string]int // user → slots taken by Reserve; at most MaxPending in all, MaxPendingPerUser each
 }
 
 func Open(dir string) (*Store, error) {
-	s := &Store{path: filepath.Join(dir, "allowlist.json")}
+	s := &Store{path: filepath.Join(dir, "allowlist.json"), profiles: openProfiles(dir)}
 	b, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -144,6 +145,7 @@ func (s *Store) Remove(keyFp string) error {
 	s.paired = slices.DeleteFunc(s.paired, func(p Paired) bool { return p.KeyFp == keyFp })
 	err := s.save()
 	s.mu.Unlock()
+	s.profiles.drop(keyFp)
 	if s.OnRemove != nil {
 		s.OnRemove(keyFp)
 	}

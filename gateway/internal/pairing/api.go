@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
+	"strings"
 
 	"streamiq/gateway/internal/tunnel"
 )
@@ -17,11 +19,13 @@ import (
 // allowlist lives on the gateway only. A member sees and removes only its own
 // client key: any other key → 403. ClientsRenamePath renames one:
 // POST {"keyFp", "name"} → 200 {"name": stored}, same access and 404 as remove, a
-// bad name 400.
+// bad name 400. ClientsProfilePath stores the calling session's own capability
+// probe: POST ProfileIn → 200 {}, a bad body 400.
 const (
-	ClientsPath       = "/streamiq/clients"
-	ClientsRemovePath = "/streamiq/clients/remove"
-	ClientsRenamePath = "/streamiq/clients/rename"
+	ClientsPath        = "/streamiq/clients"
+	ClientsRemovePath  = "/streamiq/clients/remove"
+	ClientsRenamePath  = "/streamiq/clients/rename"
+	ClientsProfilePath = "/streamiq/clients/profile"
 )
 
 // ServeClients is GET ClientsPath.
@@ -30,7 +34,7 @@ func (s *Store) ServeClients(w http.ResponseWriter, r *http.Request) {
 	out := []Client{}
 	for _, p := range s.Paired() {
 		if self := p.KeyFp == who.Key; self || who.Role == tunnel.Admin {
-			out = append(out, Client{p.KeyFp, p.Name, p.AddedAt, self})
+			out = append(out, Client{p.KeyFp, p.Name, p.AddedAt, self, s.profiles.of(p.KeyFp)})
 		}
 	}
 	tunnel.JSON(w, http.StatusOK, out)
@@ -103,4 +107,47 @@ func (s *Store) ServeRename(w http.ResponseWriter, r *http.Request) {
 	default:
 		tunnel.JSON(w, http.StatusOK, ClientName{n})
 	}
+}
+
+// maxProfile caps the body: a probe is a few hundred bytes, and it lands in
+// profiles.json.
+const maxProfile = 4 << 10
+
+// ServeProfile is POST ClientsProfilePath. The body names no key: a client
+// writes only its own profile. Unknown fields are ignored, not refused: a newer
+// web app must still store on an older gateway.
+func (s *Store) ServeProfile(w http.ResponseWriter, r *http.Request) {
+	var in ProfileIn
+	dec := json.NewDecoder(io.LimitReader(r.Body, maxProfile+1))
+	if err := dec.Decode(&in); err != nil || dec.More() || !in.Probe.valid() {
+		tunnel.Fail(w, http.StatusBadRequest, errors.New("gateway API: client profile: bad body"))
+		return
+	}
+	key := tunnel.SessionOf(r).Key
+	err := ErrNotPaired
+	if s.Allowed(key) {
+		err = s.profiles.set(key, in)
+	}
+	switch {
+	case errors.Is(err, ErrNotPaired):
+		tunnel.Fail(w, http.StatusNotFound, fmt.Errorf("gateway API: client profile: %w", err))
+	case err != nil:
+		tunnel.Fail(w, http.StatusInternalServerError, fmt.Errorf("gateway API: client profile: %w", err))
+	default:
+		tunnel.JSON(w, http.StatusOK, struct{}{})
+	}
+}
+
+// valid keeps stored names short and plain: codec and profile names are
+// lowercase words ("constrained baseline"), levels Jellyfin units.
+func (p Probe) valid() bool {
+	names := func(xs []string) bool {
+		return xs != nil && len(xs) <= 8 && !slices.ContainsFunc(xs, func(x string) bool {
+			return len(x) == 0 || len(x) > 24 || strings.Trim(x, "abcdefghijklmnopqrstuvwxyz0123456789 ") != ""
+		})
+	}
+	level := func(l int) bool { return l >= 0 && l <= 1000 }
+	return names(p.Audio) &&
+		(p.H264 == nil || names(p.H264.Profiles) && level(p.H264.Level)) &&
+		(p.Hevc == nil || level(p.Hevc.Level))
 }

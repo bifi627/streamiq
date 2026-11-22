@@ -76,11 +76,12 @@ func create(dir, path string) ([]byte, error) {
 }
 
 // Reset replaces the gateway identity (state dir or a backup of it may have
-// leaked): a new cert, and an empty allowlist (allowlist.json, see pairing) so
-// every browser pairs again against the new fingerprint. The gateway must not
+// leaked): a new cert, and an empty allowlist (allowlist.json and its clients'
+// profiles.json, see pairing) so every browser pairs again against the new
+// fingerprint. The gateway must not
 // be running: it holds both in memory.
 func Reset(dir string) (string, error) {
-	for _, f := range []string{"cert.pem", "allowlist.json"} {
+	for _, f := range []string{"cert.pem", "allowlist.json", "profiles.json"} {
 		if err := os.Remove(filepath.Join(dir, f)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return "", err
 		}

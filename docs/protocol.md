@@ -429,7 +429,7 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/update` and `/streamiq/telemetry`) matches an endpoint; an unknown, unclean or
+`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile`, `/streamiq/update` and `/streamiq/telemetry`) matches an endpoint; an unknown, unclean or
 percent-encoded path under the prefix is `404`; a known path with another method
 is `405` with an `Allow` header listing its methods, no body (#436; `HEAD` is never
 served, so a `GET` path answers it `405` with `Allow: GET`), checked before the
@@ -497,9 +497,9 @@ answers `404`; the web app then says to update it.
 the API sees the new level within a second. A gateway older than this endpoint answers `404`.
 
 **`GET /streamiq/clients`** (#311) → `200`
-`[{ "keyFp": "…", "name": "Pixel 8 · Chrome", "addedAt": "2026-11-01T10:00:00Z", "self": true }]`:
-the allowlist (`allowlist.json`); `self` = the calling session's client key. A
-member's list holds only its own entry (#341).
+`[{ "keyFp": "…", "name": "Pixel 8 · Chrome", "addedAt": "2026-11-01T10:00:00Z", "self": true, "profile": null }]`:
+the allowlist (`allowlist.json`); `self` = the calling session's client key; `profile` =
+its last stored probe (below) or `null`. A member's list holds only its own entry (#341).
 **`POST /streamiq/clients/remove`** (#311) `{ "keyFp": "…" }` → the Remove above, then
 `200 {}`; a member naming any key but its own `403` (#341), unknown key `404`, a failed save of `allowlist.json` `500`. The calling
 browser's own key is removed only once the reply is delivered (the browser closed the
@@ -514,6 +514,17 @@ with until it opens again. The web app offers it once right after pairing (prefi
 with the paired name, Skip keeps it) and on the Paired clients list; a gateway older
 than this answers `404`. Names and keys stay on
 the gateway: the API never sees or stores them.
+**`POST /streamiq/clients/profile`** (#792) `{ "probe": { "h264": {…} | null, "hevc": {…} | null,
+"av1": {…} | null, "audio": ["aac", …], "surround": true }, "compatible": false }` → `200 {}`:
+the web app's capability probe (`Probe` in `gateway/internal/pairing/types.go`) and its
+Compatible mode setting, stored for the **calling session's own client key** (any key in
+the body is ignored) in `profiles.json` with the gateway's `probedAt`; the latest replaces
+the last, and it goes with the client's Remove. `profiles.json` is apart from
+`allowlist.json` and written atomically: unreadable, it only empties the profiles. A body
+over 4 KiB, a missing `audio` list (or `h264` without `profiles`), or names that aren't
+short lowercase words (at most 8 per list) `400`; unknown fields are ignored, so a newer
+web app still stores on an older gateway. A failed save `500`. The web app posts it at
+each playback start and only logs a failure; a gateway older than this answers `404`.
 
 **`POST /streamiq/update`** (#312, admin-only, body ignored) → `202 { "version": "1.5.0" }`: the
 gateway started a detached `gateway update` (output in `update.log` next to the binary) for the

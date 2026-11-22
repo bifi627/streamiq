@@ -12,6 +12,7 @@ import {
   clientRenameMessage,
   clientsMessage,
   clientsNote,
+  profileLine,
   removeOutcome,
 } from './list'
 
@@ -121,6 +122,7 @@ export function PairedClients({
               <button type="button" className="link" onClick={() => remove(c)}>
                 Remove
               </button>
+              <small className="profile">{profileLine(c.profile)}</small>
             </li>
           ))}
         </ul>

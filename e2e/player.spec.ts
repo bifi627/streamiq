@@ -8,6 +8,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
+  appUrl,
   bursts,
   countBursts,
   openDock,
@@ -268,7 +269,7 @@ test('quality (#108, #161): Auto and Source only; Source reloads at the playhead
   ).toBeVisible() // remembered
 })
 
-test('compatible mode (#113): an H.264 + AAC file still remuxes @player', async ({
+test('compatible mode (#113, #792): an H.264 + AAC file still remuxes; the gateway keeps the profile @player', async ({
   paired,
 }) => {
   const { page } = paired
@@ -281,6 +282,12 @@ test('compatible mode (#113): an H.264 + AAC file still remuxes @player', async 
       /jellyfin: video remux \(h264\) · audio copy[\s\S]*compatible mode: on/,
     ),
   ).toBeVisible()
+  // The playback stored its probe on the gateway: this browser's paired client.
+  await page.goto(appUrl('/gateways'))
+  await page.getByText('Paired clients', { exact: true }).click()
+  await expect(
+    page.locator('.clients li').filter({ hasText: '(this browser)' }),
+  ).toContainText(/h264 .* · audio .* · Compatible mode · probed /)
 })
 
 test('a final playback error (#552): the load stops once, the stuck check stays quiet @player', async ({

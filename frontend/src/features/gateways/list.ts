@@ -6,6 +6,8 @@ import {
   renameMessage,
   type AppError,
 } from '../../shared/errors.ts'
+import { describe as describeProbe } from '../player/profile.ts'
+import type { Profile } from '../../generated/pairing.ts'
 
 // An action's error, tagged with the list's dataUpdatedAt at failure: shown
 // until the next successful poll, as the load error is. The load error wins.
@@ -69,3 +71,9 @@ export function removeOutcome(
 
 /** A gateway's name, or "gateway" before it has one. */
 export const gatewayName = (g: { name: string | null }) => g.name ?? 'gateway'
+
+// A paired client's last capability probe, as the diagnostics report words it.
+export const profileLine = (p: Profile | null) =>
+  p
+    ? `${describeProbe(p.probe)}${p.compatible ? ' · Compatible mode' : ''} · probed ${new Date(p.probedAt).toLocaleString()}`
+    : 'Not probed yet'

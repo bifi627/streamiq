@@ -27,11 +27,14 @@ func (s *Sessions) serveAuth(
 	authed *atomic.Bool,
 	why *atomic.Value,
 ) {
-	a := &authRun{s: s, id: id, user: user, pc: pc, d: d, authed: authed, why: why,
-		challenge: pairing.Nonce(), done: make(chan struct{})}
+	a := &authRun{s: s, id: id, user: user, send: d.SendText, close: d.Close, authed: authed, why: why,
+		challenge: pairing.Nonce(), done: make(chan struct{}),
+		// The browser's DTLS cert as actually negotiated on this connection.
+		peerFp: func() string { return identity.Fingerprint(pc.SCTP().Transport().GetRemoteCertificate()) },
+	}
 	d.OnOpen(func() { a.say(Challenge{Type: "challenge", N: a.challenge}) })
 	d.OnClose(a.end)
-	d.OnMessage(a.handle)
+	d.OnMessage(func(m webrtc.DataChannelMessage) { a.handle(m.Data) })
 }
 
 // authState is where an `auth` handshake stands.
@@ -59,8 +62,9 @@ func (st authState) accepts(typ string) bool {
 type authRun struct {
 	s         *Sessions
 	id, user  string
-	pc        *webrtc.PeerConnection
-	d         *webrtc.DataChannel
+	send      func(string) error // the channel's SendText
+	close     func() error       // the channel's Close
+	peerFp    func() string      // the browser's DTLS fingerprint on this connection
 	authed    *atomic.Bool
 	why       *atomic.Value
 	challenge string
@@ -72,7 +76,7 @@ type authRun struct {
 }
 
 // say: a failed send means the channel closed, and its OnClose ends the handshake.
-func (a *authRun) say(m any) { b, _ := json.Marshal(m); _ = a.d.SendText(string(b)) }
+func (a *authRun) say(m any) { b, _ := json.Marshal(m); _ = a.send(string(b)) }
 
 func (a *authRun) end() { a.once.Do(func() { close(a.done) }) }
 
@@ -80,18 +84,19 @@ func (a *authRun) fail(reason string) {
 	log.Printf("gateway: auth: %s", reason)
 	a.why.Store(reason)
 	a.say(Rejected{Type: "rejected", Reason: reason})
-	a.d.Close()
+	_ = a.close()
 	a.end()
 }
 
-func (a *authRun) handle(raw webrtc.DataChannelMessage) {
+// handle takes one message from the browser.
+func (a *authRun) handle(raw []byte) {
 	select {
 	case <-a.done:
 		return
 	default:
 	}
 	var head struct{ Type string }
-	if json.Unmarshal(raw.Data, &head) != nil {
+	if json.Unmarshal(raw, &head) != nil {
 		a.fail("bad message")
 		return
 	}
@@ -104,7 +109,7 @@ func (a *authRun) handle(raw webrtc.DataChannelMessage) {
 	case "reveal":
 		m = &Reveal{}
 	}
-	if m != nil && json.Unmarshal(raw.Data, m) != nil {
+	if m != nil && json.Unmarshal(raw, m) != nil {
 		a.fail("bad message")
 		return
 	}
@@ -125,9 +130,7 @@ func (a *authRun) handle(raw webrtc.DataChannelMessage) {
 }
 
 func (a *authRun) auth(m Auth) {
-	// The browser's DTLS cert as actually negotiated on this connection.
-	browserFp := identity.Fingerprint(a.pc.SCTP().Transport().GetRemoteCertificate())
-	fp, err := pairing.VerifyAuth(m.Spki, m.Sig, a.s.Fp, browserFp, a.challenge)
+	fp, err := pairing.VerifyAuth(m.Spki, m.Sig, a.s.Fp, a.peerFp(), a.challenge)
 	if err != nil {
 		a.fail(err.Error())
 		return

@@ -19,7 +19,8 @@ func quiet(f *testing.F) {
 }
 
 // FuzzServeFrame: a frame that isn't JSON or carries a body over MaxBody is
-// refused before any handler runs; any other reaches the handler as sent.
+// refused (400/413) before any handler runs; any other reaches the handler as
+// sent and, the handler writing nothing, answers 200. Either way: one status.
 func FuzzServeFrame(f *testing.F) {
 	for _, rq := range []tunnelReq{
 		{Method: "GET", URL: "/Videos/" + vid + "/hls1/main/0.ts", Headers: map[string]string{"Range": "bytes=0-99"}},
@@ -47,8 +48,11 @@ func FuzzServeFrame(f *testing.F) {
 					r.Method, r.RequestURI, len(b), rq.Method, rq.URL, len(rq.Body))
 			}
 		})
-		w := httptest.NewRecorder()
+		w := &heads{ResponseRecorder: httptest.NewRecorder()}
 		serve(w, h, raw, &reqState{})
+		if w.n != 1 {
+			t.Errorf("%d statuses written for %q", w.n, raw)
+		}
 		switch {
 		case refused && called:
 			t.Errorf("refused frame reached the handler: %q", raw)
@@ -56,9 +60,19 @@ func FuzzServeFrame(f *testing.F) {
 			t.Errorf("refused frame answered %d", w.Code)
 		case !refused && !called:
 			t.Errorf("frame never reached the handler (%d): %q", w.Code, raw)
+		case !refused && w.Code != http.StatusOK:
+			t.Errorf("silent handler answered %d", w.Code)
 		}
 	})
 }
+
+// heads counts WriteHeader calls: the recorder keeps only the first.
+type heads struct {
+	*httptest.ResponseRecorder
+	n int
+}
+
+func (w *heads) WriteHeader(code int) { w.n++; w.ResponseRecorder.WriteHeader(code) }
 
 // FuzzJellyfinPolicy: a request the policy lets through goes to Jellyfin only,
 // on a clean allowlisted path, with the gateway's token and none of the

@@ -28,7 +28,7 @@ func (s *Sessions) serveAuth(
 	authed *atomic.Bool,
 	why *atomic.Value,
 ) {
-	a := &authRun{s: s, id: id, user: user, send: d.SendText, close: d.Close, pre: pre, authed: authed, why: why,
+	a := &authRun{s: s, id: id, user: user, send: d.SendText, hangUp: d.Close, pre: pre, authed: authed, why: why,
 		challenge: pairing.Nonce(), done: make(chan struct{}),
 		// The browser's DTLS cert as actually negotiated on this connection.
 		peerFp: func() string { return identity.Fingerprint(pc.SCTP().Transport().GetRemoteCertificate()) },
@@ -64,7 +64,7 @@ type authRun struct {
 	s         *Sessions
 	id, user  string
 	send      func(string) error // the channel's SendText
-	close     func() error       // the channel's Close
+	hangUp    func() error       // the channel's Close
 	peerFp    func() string      // the browser's DTLS fingerprint on this connection
 	pre       *preAuth
 	authed    *atomic.Bool
@@ -86,7 +86,7 @@ func (a *authRun) fail(reason string) {
 	log.Printf("gateway: auth: %s", reason)
 	a.why.Store(reason)
 	a.say(Rejected{Type: "rejected", Reason: reason})
-	_ = a.close()
+	_ = a.hangUp()
 	a.end()
 }
 

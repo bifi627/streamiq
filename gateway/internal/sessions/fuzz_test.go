@@ -117,7 +117,7 @@ func runHandshake(t *testing.T, msgs [][]byte, paired, approve bool) []string {
 				sent = append(sent, head.Type)
 				return nil
 			},
-			close:  func() error { return nil },
+			hangUp: func() error { return nil },
 			peerFp: func() string { return fuzzPeerFp },
 		}
 		for _, m := range msgs {

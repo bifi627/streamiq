@@ -39,7 +39,7 @@ func main() {
 	var parse *pgconn.ParseConfigError
 	if errors.As(err, &parse) {
 		// pgx redacts the password from a URL it can't parse only on a best-effort basis.
-		log.Fatal("database: DATABASE_URL is not a valid postgres:// URL")
+		log.Fatal("database: DATABASE_URL does not parse (the URL itself, or its ssl* settings)")
 	}
 	if err != nil {
 		log.Fatalf("database: %v", err)

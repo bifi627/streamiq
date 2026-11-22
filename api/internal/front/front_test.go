@@ -1,49 +1,38 @@
 package front
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
-	"time"
-
-	"github.com/coder/websocket"
 )
 
-// A stand-in for the .NET API: answers any HTTP request with its path and its own CORS
-// header, and echoes one WebSocket message.
-func legacyAPI(t *testing.T) *url.URL {
-	t.Helper()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Upgrade") == "websocket" {
-			c, err := websocket.Accept(w, r, nil)
-			if err != nil {
-				return
-			}
-			defer func() { _ = c.CloseNow() }()
-			typ, b, err := c.Read(r.Context())
-			if err == nil {
-				_ = c.Write(r.Context(), typ, append([]byte("legacy:"), b...))
-			}
-			return
-		}
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		_, _ = io.WriteString(w, "legacy:"+r.Method+" "+r.URL.Path)
-	}))
-	t.Cleanup(ts.Close)
-	u, _ := url.Parse(ts.URL)
-	return u
-}
+const index = "<!doctype html>spa"
 
-func serve(t *testing.T) string {
+// serve runs Handler with one Go route; webDir "" = no web app (dev, tests), "app" = a
+// built one with index.html and one asset.
+func serve(t *testing.T, webDir string) string {
 	t.Helper()
+	if webDir == "app" {
+		webDir = t.TempDir()
+		must(t, os.WriteFile(filepath.Join(webDir, "index.html"), []byte(index), 0o600))
+		must(t, os.MkdirAll(filepath.Join(webDir, "assets"), 0o700))
+		must(t, os.WriteFile(filepath.Join(webDir, "assets", "app.js"), []byte("js"), 0o600))
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/me", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "go") })
-	ts := httptest.NewServer(Handler(mux, []string{"http://app.test", " http://tv.test"}, legacyAPI(t)))
+	ts := httptest.NewServer(Handler(mux, []string{"http://app.test", " http://tv.test"}, webDir))
 	t.Cleanup(ts.Close)
 	return ts.URL
+}
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func do(t *testing.T, method, url string, headers ...string) (*http.Response, string) {
@@ -61,44 +50,71 @@ func do(t *testing.T, method, url string, headers ...string) (*http.Response, st
 	return rs, string(b)
 }
 
-func TestRoutesGoServesAndTheRestIsProxied(t *testing.T) {
-	base := serve(t)
-	for path, want := range map[string]string{
-		"/api/me":       "go",
-		"/healthz":      `{"status":"ok"}` + "\n",
-		"/api/gateways": "legacy:GET /api/gateways",
-		"/somewhere":    "legacy:GET /somewhere",
+// SpaFallbackTests: client routes get index.html, files are served, unknown /api paths
+// and missing files stay a 404, /healthz stays JSON.
+func TestTheWebAppAndItsClientRoutes(t *testing.T) {
+	base := serve(t, "app")
+	for path, want := range map[string]struct {
+		status int
+		body   string
+	}{
+		"/":                       {http.StatusOK, index},
+		"/g/some-gateway":         {http.StatusOK, index},
+		"/g/some-gateway/i/item":  {http.StatusOK, index},
+		"/assets":                 {http.StatusOK, index},
+		"/assets/app.js":          {http.StatusOK, "js"},
+		"/assets/missing.js":      {http.StatusNotFound, ""},
+		"/api":                    {http.StatusNotFound, ""},
+		"/api/nope":               {http.StatusNotFound, ""},
+		"/api/members":            {http.StatusNotFound, ""},
+		"/api/me":                 {http.StatusOK, "go"},
+		"/healthz":                {http.StatusOK, `{"status":"ok"}` + "\n"},
+		"/../../etc/passwd":       {http.StatusOK, index},
+		"/assets/../../secret.js": {http.StatusNotFound, ""},
 	} {
-		if _, got := do(t, http.MethodGet, base+path); got != want {
-			t.Errorf("GET %s: %q, want %q", path, got, want)
+		rs, got := do(t, http.MethodGet, base+path)
+		if rs.StatusCode != want.status || (want.body != "" && got != want.body) {
+			t.Errorf("GET %s: %d %q, want %d %q", path, rs.StatusCode, got, want.status, want.body)
 		}
 	}
-	if _, got := do(t, http.MethodPost, base+"/api/me"); got != "legacy:POST /api/me" {
-		t.Errorf("POST /api/me: %q", got)
+}
+
+// Without a web app (dev, tests) every path no slice serves is a 404: there is no proxy.
+func TestWithoutAWebAppTheRestIs404(t *testing.T) {
+	base := serve(t, "")
+	for _, path := range []string{"/", "/g/x", "/api/gateways", "/index.html"} {
+		if rs, _ := do(t, http.MethodGet, base+path); rs.StatusCode != http.StatusNotFound {
+			t.Errorf("GET %s: %d, want 404", path, rs.StatusCode)
+		}
 	}
 }
 
-func TestWebSocketsAreProxied(t *testing.T) {
-	ws := "ws" + serve(t)[len("http"):]
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second) // a broken proxy fails, never hangs
-	defer cancel()
-	c, _, err := websocket.Dial(ctx, ws+"/api/broker/ws", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = c.CloseNow() }()
-	if werr := c.Write(ctx, websocket.MessageText, []byte("hi")); werr != nil {
-		t.Fatal(werr)
-	}
-	_, b, err := c.Read(ctx)
-	if err != nil || string(b) != "legacy:hi" {
-		t.Fatalf("got %q, %v", b, err)
+// HealthzTests: every response carries the security headers.
+func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
+	for _, webDir := range []string{"", "app"} {
+		base := serve(t, webDir)
+		for _, path := range []string{"/healthz", "/api/me", "/api/nope", "/some/client/route", "/assets/app.js", "/x.js"} {
+			for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodOptions} {
+				rs, _ := do(t, method, base+path, "Origin", "http://app.test", "Access-Control-Request-Method", "GET")
+				for k, v := range map[string]string{
+					"X-Content-Type-Options":  "nosniff",
+					"Content-Security-Policy": "frame-ancestors 'none'",
+					"Referrer-Policy":         "strict-origin-when-cross-origin",
+				} {
+					if got := rs.Header.Values(k); len(got) != 1 || got[0] != v {
+						t.Errorf("web %q, %s %s: %s %q, want %q", webDir, method, path, k, got, v)
+					}
+				}
+			}
+		}
 	}
 }
 
-// What ASP.NET Core's CORS policy answered (curl against the .NET API before the port).
+// What ASP.NET Core's CORS policy answered (curl against the .NET API before the port);
+// CorsTests: a listed origin's preflight is approved, another gets no allow header, and
+// the not-a-member header is exposed.
 func TestCORSAnswersAsDotNetDid(t *testing.T) {
-	base := serve(t)
+	base := serve(t, "app")
 	const allowHeaders = "Authorization,Content-Type,X-StreamIQ-Household"
 	cases := []struct {
 		name, method, path string
@@ -125,9 +141,9 @@ func TestCORSAnswersAsDotNetDid(t *testing.T) {
 			},
 		},
 		{
-			"preflight for a proxied route",
+			"preflight for an unknown route",
 			http.MethodOptions,
-			"/api/gateways",
+			"/api/nope",
 			[]string{"Origin", "http://app.test", "Access-Control-Request-Method", "GET"},
 			http.StatusNoContent,
 			map[string]string{
@@ -159,17 +175,17 @@ func TestCORSAnswersAsDotNetDid(t *testing.T) {
 			},
 		},
 		{
-			"a proxied one: the legacy API's own CORS header is dropped",
+			"a 404 from a listed origin",
 			http.MethodGet,
-			"/api/gateways",
+			"/api/nope",
 			[]string{"Origin", "http://app.test"},
-			http.StatusOK,
+			http.StatusNotFound,
 			map[string]string{
 				"Access-Control-Allow-Origin":   "http://app.test",
 				"Access-Control-Expose-Headers": "X-StreamIQ-Not-Member",
 			},
 		},
-		{"a request from another origin", http.MethodGet, "/api/gateways", []string{"Origin", "http://evil.test"},
+		{"a request from another origin", http.MethodGet, "/api/me", []string{"Origin", "http://evil.test"},
 			http.StatusOK, map[string]string{"Access-Control-Allow-Origin": "", "Access-Control-Expose-Headers": ""}},
 	}
 	for _, c := range cases {

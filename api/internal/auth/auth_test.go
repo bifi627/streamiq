@@ -202,6 +202,26 @@ func TestTheEmulatorNeedsDevelopment(t *testing.T) {
 	}
 }
 
+// Without the emulator, production refuses to start on a config that would reject
+// every real login, or accept tokens for the wrong project.
+func TestProductionRefusesAFirebaseConfigWithoutAProject(t *testing.T) {
+	t.Setenv("FIREBASE_AUTH_EMULATOR_HOST", "")
+	t.Setenv("STREAMIQ_ENV", "")
+	for name, c := range map[string]struct{ project, serviceAccount, want string }{
+		"no project":         {"", `{"type":"service_account"}`, "FIREBASE_PROJECT_ID is not set"},
+		"a demo project":     {"demo-streamiq", `{"type":"service_account"}`, "a demo project"},
+		"no service account": {"streamiq-prod", " ", "FIREBASE_SERVICE_ACCOUNT_JSON is empty"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("FIREBASE_PROJECT_ID", c.project)
+			t.Setenv("FIREBASE_SERVICE_ACCOUNT_JSON", c.serviceAccount)
+			if _, err := auth.NewVerifier(t.Context()); err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("got %v, want %q", err, c.want)
+			}
+		})
+	}
+}
+
 // A Google sign-in for an email signed up by password is the same user (Firebase: one
 // account per email), again on the next sign-in, and none of its profile claims is
 // stored (the users row has no column for them).

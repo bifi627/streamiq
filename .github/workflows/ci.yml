@@ -170,7 +170,7 @@ jobs:
           STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE: ${{ runner.temp }}/jellyfin-compose.yml
 
   # The e2e specs (golden path, multi-user, households, compat: the last gateway release), 3 workers on one stack (no sharding:
-  # e2e/playwright.config.ts). Containers via testcontainers-node, backend/Vite/gateway as
+  # e2e/playwright.config.ts). Containers via testcontainers-node, API/Vite/gateway as
   # real processes — see e2e/global-setup.ts.
   e2e:
     needs: draft
@@ -184,7 +184,6 @@ jobs:
       # comes first joins this pull.
       - run: |
           docker pull -q "$(sed -n 's/^ *image: \(jellyfin\/jellyfin:.*\)$/\1/p' docker-compose.yml)" > /dev/null 2>&1 &
-      - uses: actions/setup-dotnet@v6
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod

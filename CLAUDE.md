@@ -66,8 +66,8 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 
 | Dir | What | Stack |
 |---|---|---|
-| `backend/` | The .NET API, serving no `/api` route any more: EF migrations, `/healthz`, the SPA in the prod image; removed by #732 | .NET 10, EF Core, Postgres |
-| `api/` | Control plane: every `/api` route + WebRTC signaling (the Go port of `backend/`, #725); proxies the rest to `backend/` in dev + e2e (`docs/architecture.md`) | Go, pgx, Postgres RLS, Firebase Admin SDK |
+| `backend/` | The .NET API, run nowhere any more (production, dev and e2e are on `api/`); its tests still run in CI + `check.sh` until #777 removes it | .NET 10, EF Core, Postgres |
+| `api/` | Control plane: every `/api` route + WebRTC signaling (the Go port of `backend/`, #725), `/healthz`, and in the prod image the built web app (`docs/architecture.md`) | Go, pgx, Postgres RLS, Firebase Admin SDK |
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
 | `protocol/` | The broker's messages on both sockets, types only: used by the gateway (and the Go API); `scripts/gen-types.sh` (tygo) generates `frontend/src/generated/` from it and the ported REST slices | Go |
@@ -95,7 +95,7 @@ image). Hosting = Railway. TURN = Cloudflare (local coturn in dev).
 bash scripts/check.sh                   # GOLDEN PATH: all checks (mirrors CI). Run + read output before claiming done.
 E2E_GREP='@player|@library' bash scripts/check.sh  # same, e2e only for the area tags the change touched (a build's default)
 SKIP_E2E=1 bash scripts/check.sh        # same, no e2e stage: a change without e2e impact (CI still runs every spec)
-powershell -File scripts/dev.ps1        # run the app: emulator + Go API (:5028) in front of the .NET API (:5029) + frontend (:5173); Ctrl+C stops all
+powershell -File scripts/dev.ps1        # run the app: emulator + Go API (:5028) + frontend (:5173); Ctrl+C stops all
 powershell -File scripts/prune-worktrees.ps1 [-DryRun]  # remove worktrees + local branches already on main (merged PR / no commits); skips dirty ones
 bash scripts/issue-lint.sh              # open issues breaking a tracking rule (labels, needs-spec vs AC, board column); exit 1 on findings, fixes nothing
 bash scripts/gen-types.sh [--check]     # frontend/src/generated/ from protocol/ + the ported API slices (tygo); --check: fail when stale
@@ -104,10 +104,9 @@ docker compose up -d                    # deps: postgres, jellyfin, firebase aut
 docker compose --profile relay up -d    # + local coturn (force relay via iceTransportPolicy)
 bash scripts/gen-test-media.sh          # generate dev-media/ (movies) + dev-shows/ (a series) fixtures (needs ffmpeg)
 
-dotnet run --project backend/src/StreamIq.Api     # .NET API on :5029 (or: dotnet watch); the SPA needs the Go API in front (dev.ps1)
-go run ./api/cmd/api                              # Go API on :5028 (dev.ps1 sets its env: STREAMIQ_ENV=development, STREAMIQ_APP_DB_PASSWORD, FIREBASE_*, STREAMIQ_LEGACY_API_URL, STREAMIQ_API_ADDR)
+go run ./api/cmd/api                              # Go API on :5028 (dev.ps1 sets its env: STREAMIQ_ENV=development, STREAMIQ_APP_DB_PASSWORD, FIREBASE_*, STREAMIQ_API_ADDR, DATABASE_URL)
 bash scripts/test-api.sh [-race]                  # Go API tests: one Postgres + Firebase emulator for the run (Docker)
-dotnet test backend/StreamIq.slnx                 # backend tests (Testcontainers → needs Docker)
+dotnet test backend/StreamIq.slnx                 # .NET tests, until #777 (Testcontainers → needs Docker)
 npm run dev --prefix frontend                 # frontend
 npm run build --prefix frontend               # frontend build check
 go run ./cmd/gateway                          # gateway (from gateway/; reads gateway/gateway.env from setup-jellyfin.sh)
@@ -117,9 +116,9 @@ npm test --prefix e2e -- --grep @households   # one area only (tags: `allowedTag
 npm run preview --prefix e2e [-- status|down]  # this worktree's stack on the LAN (HTTPS) for phone/TV tests; owner: `/preview [tunnel]` / `/preview stop` (skill; docs/tools.md)
 ```
 
-Env: no `.env` needed — defaults line up (Go API `:5028` in front of .NET `:5029`, frontend → `:5028`, auth →
-emulator `:9099` in `vite dev`). DB comes from backend user-secrets
-(`ConnectionStrings:Default`, e.g. a Railway dev instance); unset → compose Postgres.
+Env: no `.env` needed — defaults line up (Go API `:5028`, frontend → `:5028`, auth →
+emulator `:9099` in `vite dev`). DB: `DATABASE_URL` (a `postgres://` URL, environment or
+`.env`, e.g. a Railway dev instance); unset → compose Postgres.
 Copy `.env.example` only to override.
 
 ## Machine notes

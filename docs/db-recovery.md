@@ -44,10 +44,10 @@ Same steps for "bad migration / wrong data, DB still up" and "DB lost":
 2. Actions → **Database restore** → Run workflow; `dump` = that file name (the summary of
    any run lists them), empty = the newest. The run restores into `<idle>/restore_<stamp>`,
    checks it, and keeps it. Its summary names the database and the `gh` command for step 4.
-3. **Cut over:** Railway → backend service → Variables → `DATABASE_URL` → point it at the
+3. **Cut over:** Railway → API service → Variables → `DATABASE_URL` → point it at the
    idle service and the new database, as a reference:
    `postgresql://${{<idle service>.PGUSER}}:${{<idle service>.PGPASSWORD}}@${{<idle service>.PGHOST}}:${{<idle service>.PGPORT}}/restore_<stamp>`.
-   Railway redeploys; the boot-time `MigrateAsync()` is a no-op (`__EFMigrationsHistory`
+   Railway redeploys; the API's migrations at start are a no-op (`schema_migrations`
    came with the dump).
 4. **Flip `DB_LIVE`** (the command from the run summary):
    `gh variable set DB_LIVE --env db-backup --body <idle>/restore_<stamp>`. From now on

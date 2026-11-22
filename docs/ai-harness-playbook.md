@@ -25,7 +25,8 @@ A lint rule / type / test / generator that produces the validation is a rule it 
 violate. Every rule moved from the instructions file into the toolchain is one fewer
 thing that depends on the model behaving.
 
-Graduation is a **move, not a copy**: when a rule becomes tooling, delete the prose.
+Graduation is a **move, not a copy**: when a rule becomes tooling, its prose shrinks to one
+line (the intent + the check's name); the details live in the check's message or config.
 Otherwise the instructions file accretes into exactly the giant rule file §7 warns about.
 
 **Reframe:** a good AI harness is the same thing that makes a codebase good for humans —
@@ -81,7 +82,7 @@ it honest — every mechanism has a characteristic failure mode; the guardrail n
 
 | Part | Concrete options | Guardrail |
 |---|---|---|
-| Always-on instructions file | One terse file at repo root (CLAUDE.md / AGENTS.md); per-directory overlays for subsystem-specific rules | Hard budget (~1–2 pages). Every line earns its place; graduated rules get deleted (§1). Updated in the same change that invalidates it. |
+| Always-on instructions file | One terse file at repo root (CLAUDE.md / AGENTS.md); per-directory overlays for subsystem-specific rules | Hard budget (~1–2 pages). Every line earns its place; graduated rules shrink to one line naming the check (§1). Updated in the same change that invalidates it. |
 | On-demand knowledge docs | `docs/` with an index the instructions file points to; one doc per feature/area; ADRs for decisions | Staleness — a wrong doc is worse than no doc. Update in the same PR that changes the area, or delete it. |
 | Canonical examples | A real, blessed source file referenced by path ("new features copy `features/x`") | Exemplar rot: when a convention changes, the exemplar changes first, same PR. |
 | Persistent memory | Gotcha log / memory dir the agent reads on start and appends to | Curation: dedupe, and expire entries once encoded as checks. An unbounded append-only log stops being read. |
@@ -240,12 +241,12 @@ probabilistic ──────────────────────
 ```
 
 Prose is a **waiting room, not a home** — each stage exists only because the next isn't
-justified *yet*. When it is, move the entry and delete it from the stage before (§1).
+justified *yet*. When it is, move the entry; the stage before keeps at most a one-line pointer (§1).
 
 ### Pruning
 
-Per milestone, or whenever the instructions file outgrows its budget: delete stale prose,
-dead docs, and rules now enforced by tooling; confirm the exemplar is still canonical.
+Per milestone, or whenever the instructions file outgrows its budget: delete stale prose and
+dead docs, shrink rules now enforced by tooling to their one-line pointer; confirm the exemplar is still canonical.
 Cheap audit sensor: end significant tasks by asking the agent *"what in the instructions
 or docs was missing, wrong, or unnecessary for this task?"* — it experiences the harness
 fresh every session, which makes it a good staleness detector.

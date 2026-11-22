@@ -44,11 +44,13 @@ linters:
         - pattern: ^time\.Sleep$
     gocyclo:
       # reports a function over 15, like oxlint's complexity and CA1502;
-      # split into pieces that take and return values. A //nolint:gocyclo needs a reason.
+      # split into pieces that take and return values. A //nolint:gocyclo names the issue that
+      # splits it or the reason it stays.
       min-complexity: 15
     funlen:
       # a function over 80 lines (about one screen), comments not counted; the frontend's
-      # limit is 150. A //nolint:funlen names the issue that splits it or the reason it stays.
+      # limit is 150. Split along a real seam, never Part1/Part2. A //nolint:funlen names the
+      # issue that splits it or the reason it stays.
       lines: 80
       statements: -1
       ignore-comments: true

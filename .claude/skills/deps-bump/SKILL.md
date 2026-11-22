@@ -4,7 +4,7 @@ description: >-
   Use when bumping dependencies in StreamIQ — npm (frontend/e2e:
   React / Vite / TypeScript), Go modules (gateway + API), pinned Docker images
   (compose: Jellyfin/Postgres/coturn), GitHub Actions, or devcontainer
-  features. Triggered by a Dependabot alert (Security tab), an explicit "update X" request, or a
+  features. Triggered by a Dependabot security PR or alert (Security tab), an explicit "update X" request, or a
   periodic outdated sweep. Do NOT use for adding a brand-new dependency or for
   code refactors that happen to touch package.json.
 ---

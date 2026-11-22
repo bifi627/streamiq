@@ -241,7 +241,10 @@ Copy `.env.example` only to override.
   the pseudonymous `firebase_uid`. Account deletion must stay "Firebase delete + `DELETE`
   the users row (cascades its memberships) + every household left without members"
   (every tenant-owned FK cascades from the tenant row). Rationale: #65, #92.
-- **CRUD stays boring** (plain SQL on pgx, no ORM, no repository ceremony). The
+- **CRUD stays boring** (plain SQL on pgx, no ORM, no repository ceremony). SQL is a
+  constant with `$n` placeholders, and every `Query`'s rows go to a `pgx.Collect*` /
+  `AppendRows` / `ForEachRow` or a `defer rows.Close()` (`api/internal/db/sqlsource_test.go`;
+  an exception says why on a `// sqlcheck: …` line). The
   cleverness budget goes to tunnel/signaling/gateway only. The owner works
   ponytail-style: laziest solution that works, stdlib first, shortest diff.
 - **Tunnel telemetry is a deliverable**: every tunnel

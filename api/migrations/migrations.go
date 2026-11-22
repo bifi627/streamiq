@@ -64,6 +64,7 @@ func apply(ctx context.Context, conn *pgx.Conn, name string) error {
 	return pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
 		if !adopt {
 			// The simple protocol: a file holds many statements and no parameters.
+			// sqlcheck: an embedded migration file, not built from input
 			if _, err := tx.Conn().PgConn().Exec(ctx, string(sql)).ReadAll(); err != nil {
 				return err
 			}

@@ -27,6 +27,7 @@ const (
 type preAuth struct {
 	leave   func()      // gives back its MaxUnauthed place; once, on auth or end
 	pairing atomic.Bool // a pairing exchange runs (accepted commit): the deadline waits for it
+	passed  atomic.Bool // ok or approved, set before the viewer is made (that can take a while)
 }
 
 // admit takes one of the MaxUnauthed places; nil = none free.
@@ -54,26 +55,24 @@ func (s *Sessions) refuse(id string, send func(any)) {
 
 // deadline closes the connection UnauthedFor after its offer unless it has
 // authenticated by then; a pairing exchange still running gets another round.
-func (s *Sessions) deadline(id string, pre *preAuth, authed *atomic.Bool, why *atomic.Value) {
+// ICE that never connected (connected false) ends as "ice failed": pion's own
+// failure comes only 30 s after checking starts, later than this.
+func (s *Sessions) deadline(id string, pre *preAuth, connected func() bool, why *atomic.Value) {
 	var check func()
 	check = func() {
-		if authed.Load() || !s.live(id) {
-			return
-		}
-		if pre.pairing.Load() {
+		s.mu.Lock()
+		end := s.ends[id]
+		s.mu.Unlock()
+		switch {
+		case end == nil || pre.passed.Load():
+		case pre.pairing.Load():
 			time.AfterFunc(UnauthedFor, check)
-			return
+		case !connected():
+			end(true)
+		default:
+			why.Store("not authenticated within " + UnauthedFor.String())
+			end(false)
 		}
-		why.Store("not authenticated within " + UnauthedFor.String())
-		s.end(id)
 	}
 	time.AfterFunc(UnauthedFor, check)
-}
-
-// live: the session hasn't ended.
-func (s *Sessions) live(id string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, ok := s.ends[id]
-	return ok
 }

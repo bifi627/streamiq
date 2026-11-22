@@ -223,7 +223,7 @@ func (s *Sessions) newPeer(id, user, role string, pre *preAuth, send func(any)) 
 	s.ends[id] = end
 	s.cands[id] = &cands
 	s.mu.Unlock()
-	s.deadline(id, pre, &authed, &why)
+	s.deadline(id, pre, func() bool { return pair.Load() != nil }, &why)
 
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c != nil {
@@ -327,6 +327,7 @@ func failure(iceFailed, authed bool, why string) *string {
 // has their own Jellyfin viewer, so their first request already plays as it.
 // The session leaves the pre-auth limits.
 func (s *Sessions) authorize(user string, pre *preAuth, authed *atomic.Bool) {
+	pre.passed.Store(true)
 	if s.Viewers != nil {
 		s.Viewers(user)
 	}

@@ -47,6 +47,14 @@ test('route: failure reasons in plain words, unknown ones as is', () => {
     route(row({ failure: 'ended before auth' })),
     'Failed: Closed before it connected',
   )
+  assert.equal(
+    route(row({ failure: 'gateway busy' })),
+    'Failed: The gateway was busy',
+  )
+  assert.equal(
+    route(row({ failure: 'not authenticated within 30s' })),
+    'Failed: Closed: no sign-in in time',
+  )
   assert.equal(route(row({ failure: 'boom' })), 'Failed: boom')
 })
 

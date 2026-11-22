@@ -253,7 +253,8 @@ the TURN server, like Docker in the e2e, hides the signaled relay address). No p
 never connected) = candidate fields absent. `failure`:
   `"ice failed"` (ICE failed before it ever connected; a later loss keeps the pair it had), else, when auth never succeeded, the gateway's last auth outcome
   (`"unpaired"`, a refusal reason) or `"ended before auth"` (incl. a browser that refused the
-  gateway's pin: it hangs up before auth); null = the tunnel came up and passed auth. The
+  gateway's pin: it hangs up before auth), `"not authenticated within 30s"` or `"gateway busy"`
+  ("Limits before auth" below); null = the tunnel came up and passed auth. The
   broker applies it only to a row with that id **and** this gateway's id, only the first
   report (`bytes_sent` null until then), and also after the browser's socket closed. Strings
   are cut to 16 chars (`failure` 64). A gateway below protocol 2 sends none: its rows keep
@@ -337,9 +338,10 @@ is *not authenticated* from its offer until `ok` or `approved`:
   shows "The gateway is busy … Try again in a moment." with Retry.
 - **30 s from the offer** (`UnauthedFor`). Still not authenticated then and no
   pairing exchange running (an accepted `commit`) → the gateway closes the
-  PeerConnection; the tunnel row's failure is `not authenticated within 30s`. A
-  running exchange keeps its 5-minute windows; one that ends without `approved`
-  gets another 30 s, then the same close. The browser sees the connection close.
+  PeerConnection; the tunnel row's failure is `not authenticated within 30s`, or
+  `ice failed` when ICE never connected. A running exchange keeps its 5-minute
+  windows; one that ends without `approved` is closed at the next 30-s check after
+  it. The browser sees the connection close.
 
 **Remove** (local gateway page, or `POST /streamiq/clients/remove` from the web
 app: an admin any client, #311; a member only its own, #341) drops the key from `allowlist.json` and closes

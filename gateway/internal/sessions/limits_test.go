@@ -66,61 +66,77 @@ func TestOfferOverMaxUnauthedRefused(t *testing.T) {
 }
 
 // deadline: closed at UnauthedFor unless authed; a pairing exchange postpones it
-// until the exchange ends.
+// until the exchange ends; ICE that never connected ends as an ICE failure.
 func TestUnauthedDeadline(t *testing.T) {
-	run := func(t *testing.T, f func(s *Sessions, pre *preAuth, authed *atomic.Bool, ended *atomic.Bool, why *atomic.Value)) {
+	type conn struct {
+		s         *Sessions
+		pre       *preAuth
+		connected atomic.Bool
+		ended     atomic.Value // the iceFailed it ended with; nil = still open
+		why       atomic.Value
+	}
+	run := func(t *testing.T, f func(c *conn)) {
 		synctest.Test(t, func(t *testing.T) {
-			s := &Sessions{ends: map[string]func(bool){}}
-			pre := s.admit()
-			var authed, ended atomic.Bool
-			var why atomic.Value
-			s.ends["s"] = func(bool) {
-				pre.leave()
-				ended.Store(true)
-				s.mu.Lock()
-				delete(s.ends, "s")
-				s.mu.Unlock()
+			c := &conn{s: &Sessions{ends: map[string]func(bool){}}}
+			c.pre = c.s.admit()
+			c.connected.Store(true)
+			c.s.ends["s"] = func(iceFailed bool) {
+				c.pre.leave()
+				c.ended.Store(iceFailed)
+				c.s.mu.Lock()
+				delete(c.s.ends, "s")
+				c.s.mu.Unlock()
 			}
-			s.deadline("s", pre, &authed, &why)
-			f(s, pre, &authed, &ended, &why)
+			c.s.deadline("s", c.pre, c.connected.Load, &c.why)
+			f(c)
 		})
 	}
 	t.Run("closed at the deadline", func(t *testing.T) {
-		run(t, func(s *Sessions, _ *preAuth, _, ended *atomic.Bool, why *atomic.Value) {
+		run(t, func(c *conn) {
 			<-time.After(UnauthedFor - time.Millisecond) // the bubble's fake clock
 			synctest.Wait()
-			if ended.Load() {
+			if c.ended.Load() != nil {
 				t.Fatal("closed before the deadline")
 			}
 			<-time.After(time.Millisecond)
 			synctest.Wait()
-			if !ended.Load() || why.Load() != "not authenticated within 30s" || s.unauthed != 0 {
-				t.Fatalf("at the deadline: ended %v, why %v, unauthed %d", ended.Load(), why.Load(), s.unauthed)
+			if c.ended.Load() != false || c.why.Load() != "not authenticated within 30s" || c.s.unauthed != 0 {
+				t.Fatalf("at the deadline: ended %v, why %v, unauthed %d", c.ended.Load(), c.why.Load(), c.s.unauthed)
+			}
+		})
+	})
+	t.Run("ICE never connected", func(t *testing.T) {
+		run(t, func(c *conn) {
+			c.connected.Store(false)
+			<-time.After(UnauthedFor)
+			synctest.Wait()
+			if c.ended.Load() != true || c.why.Load() != nil {
+				t.Fatalf("ended %v, why %v: want an ICE failure, no auth reason", c.ended.Load(), c.why.Load())
 			}
 		})
 	})
 	t.Run("authed in time", func(t *testing.T) {
-		run(t, func(_ *Sessions, _ *preAuth, authed, ended *atomic.Bool, _ *atomic.Value) {
-			authed.Store(true)
+		run(t, func(c *conn) {
+			c.pre.passed.Store(true)
 			<-time.After(2 * UnauthedFor)
 			synctest.Wait()
-			if ended.Load() {
+			if c.ended.Load() != nil {
 				t.Fatal("an authed session must stay")
 			}
 		})
 	})
 	t.Run("pairing postpones it", func(t *testing.T) {
-		run(t, func(_ *Sessions, pre *preAuth, _, ended *atomic.Bool, _ *atomic.Value) {
-			pre.pairing.Store(true)
+		run(t, func(c *conn) {
+			c.pre.pairing.Store(true)
 			<-time.After(3 * UnauthedFor)
 			synctest.Wait()
-			if ended.Load() {
+			if c.ended.Load() != nil {
 				t.Fatal("closed during a pairing exchange")
 			}
-			pre.pairing.Store(false) // rejected: still not authenticated
+			c.pre.pairing.Store(false) // rejected: still not authenticated
 			<-time.After(UnauthedFor)
 			synctest.Wait()
-			if !ended.Load() {
+			if c.ended.Load() == nil {
 				t.Fatal("still open a round after the exchange ended unapproved")
 			}
 		})

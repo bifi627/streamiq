@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AppError, describe } from '../../errors.ts'
+import { AppError, describe } from '../../shared/errors.ts'
 import { startOutcome, tracked, updated, updateState } from './update.ts'
 
 test('a remote update is done once online on another version (#312)', () => {

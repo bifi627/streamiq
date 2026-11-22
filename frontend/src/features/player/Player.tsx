@@ -3,18 +3,18 @@
 // the Engine's (engine.ts); `remote` feeds it a phone's commands and
 // `onState` gets the playback state about once a second and on every change.
 import { useEffect, useRef, useState } from 'react'
-import { ErrorView } from '../../ErrorView'
-import { compatibleOn, quality, rawOn, setQuality } from '../../settings'
-import type { Speed } from '../../speed'
+import { ErrorView } from '../../shared/ErrorView'
+import { compatibleOn, quality, rawOn, setQuality } from '../../shared/settings'
+import type { Speed } from '../../shared/speed'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
-import { useTunnel } from './art'
+import { useTunnel } from '../library/art'
 import { Controls } from './Controls'
 import { Privacy } from './Privacy'
-import { useNext } from './queries'
+import { useNext } from '../library/queries'
 import { Engine, START_VIEW, type View } from './engine'
 import { qualityOptions } from './quality'
 import type { Quality } from './profile'
-import { TICKS_PER_SECOND, type Item } from './items'
+import { TICKS_PER_SECOND, type Item } from '../library/items'
 
 // oxlint-disable-next-line complexity -- render branching
 export function Player({

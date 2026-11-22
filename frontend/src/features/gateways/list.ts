@@ -1,6 +1,6 @@
 // The gateways page's decisions, kept out of the .tsx so
 // node:test can drive them.
-import { describe, isKind, renameMessage, type AppError } from '../../errors.ts'
+import { describe, isKind, renameMessage, type AppError } from '../../shared/errors.ts'
 
 // An action's error, tagged with the list's dataUpdatedAt at failure: shown
 // until the next successful poll, as the load error is. The load error wins.

@@ -11,7 +11,7 @@ import (
 
 const index = "<!doctype html>spa"
 
-// policy is what a build writes into csp.txt (frontend/src/csp.ts), shortened.
+// policy is what a build writes into csp.txt (frontend/src/shared/csp.ts), shortened.
 const policy = "default-src 'self'; script-src 'self' https://apis.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
 // serve runs Handler with one Go route; webDir "" = no web app (dev, tests), "app" = a

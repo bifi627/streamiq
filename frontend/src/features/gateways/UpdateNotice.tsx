@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getStatus, updateGateway, type Gateway } from './api'
-import { toAppError } from '../../errors'
+import { toAppError } from '../../shared/errors'
 import {
   startOutcome,
   tracked,
@@ -10,7 +10,7 @@ import {
   type Started,
 } from './update'
 import { gatewayName } from './list'
-import { event } from '../../diag'
+import { event } from '../../shared/diag'
 
 // How long the card waits for the gateway to come back on the new version
 // before it says the update didn't finish.

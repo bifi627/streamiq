@@ -13,12 +13,12 @@ import {
 } from '@tanstack/react-router'
 import { share, type Session } from '../pairing/connect'
 import { Pairing } from '../pairing/Pairing'
-import { AppError, toAppError } from '../../errors'
-import { ErrorView, State } from '../../ErrorView'
+import { AppError, toAppError } from '../../shared/errors'
+import { ErrorView, State } from '../../shared/ErrorView'
 import * as jf from './jellyfin'
 import { useHousehold } from '../households/household'
 import { guestNotice } from './guest'
-import { Player } from './Player'
+import { Player } from '../player/Player'
 import {
   clock,
   inProgress,
@@ -31,11 +31,11 @@ import {
   upNext,
   type Item,
 } from './items'
-import { Privacy } from './Privacy'
+import { Privacy } from '../player/Privacy'
 import { useGuestStatus } from './queries'
-import { PlayOn } from './Screen'
-import { arrowFocus } from '../../focus'
-import { tvOn } from '../../settings'
+import { PlayOn } from '../screen/Screen'
+import { arrowFocus } from '../../shared/focus'
+import { tvOn } from '../../shared/settings'
 import {
   Tunnel,
   backdrop,

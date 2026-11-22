@@ -7,7 +7,7 @@ import {
   brokerError,
   toAppError,
   type Kind,
-} from '../../errors.ts'
+} from '../../shared/errors.ts'
 import { answerCheck } from './crypto.ts'
 import { relayServers } from './relay.ts'
 import type { BrokerMessage } from '../../generated/protocol.ts'

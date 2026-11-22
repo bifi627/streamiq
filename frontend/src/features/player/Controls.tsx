@@ -43,7 +43,7 @@ import {
   type Refs,
   type Ui,
 } from './handlers'
-import { clock } from './items'
+import { clock } from '../library/items'
 import { SKIP } from './keys'
 import './Player.css'
 import { ICON } from './icons'

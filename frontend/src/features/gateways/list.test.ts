@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AppError } from '../../errors.ts'
+import { AppError } from '../../shared/errors.ts'
 import {
   canManage,
   clientRenameMessage,

@@ -5,11 +5,11 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { signOut } from '@firebase/auth'
-import { auth } from '../../firebase'
-import { TvToggle } from '../../TvMode'
-import { arrowFocus } from '../../focus'
-import { AliasSetting } from '../../Alias'
-import { DiagnosticsToggle } from '../../Diagnostics'
+import { auth } from '../../shared/firebase'
+import { TvToggle } from '../tv/TvMode'
+import { arrowFocus } from '../../shared/focus'
+import { AliasSetting } from '../../shared/Alias'
+import { DiagnosticsToggle } from '../diagnostics/Diagnostics'
 import { Playback } from './Playback'
 
 // Per-device settings, in sections. Back goes back in history;

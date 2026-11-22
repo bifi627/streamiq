@@ -1,9 +1,9 @@
 // Connect to a gateway through the tenant broker, enforce the pin, prove this
 // browser's client key, and (when pairing) run commit/reveal for the
 // comparison code. docs/protocol.md, "Broker" + "Pairing".
-import { auth } from '../../firebase'
-import { API } from '../../api'
-import { diag, event, pcState, relayOn, relayTlsOn } from '../../diag'
+import { auth } from '../../shared/firebase'
+import { API } from '../../shared/api'
+import { diag, event, pcState, relayOn, relayTlsOn } from '../../shared/diag'
 import {
   authMessage,
   b64,
@@ -23,7 +23,7 @@ import {
 } from './store'
 import { sharer } from './shared'
 import { relayLine } from './relay'
-import { AppError } from '../../errors'
+import { AppError } from '../../shared/errors'
 import type { BrowserMessage } from '../../generated/protocol'
 import type { ClientAuthMessage } from '../../generated/sessions'
 import {

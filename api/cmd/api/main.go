@@ -77,9 +77,13 @@ func main() {
 		Dev:       os.Getenv("STREAMIQ_ENV") == "development",
 	})
 	web := os.Getenv("STREAMIQ_WEB_DIR") // the built web app: the image sets it; in dev Vite serves it
+	h, err := front.Handler(mux, strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ","), web)
+	if err != nil {
+		log.Fatal(err)
+	}
 	srv := &http.Server{
 		Addr:              env("STREAMIQ_API_ADDR", ":"+env("PORT", "5028")), // PORT: what container hosts inject
-		Handler:           front.Handler(mux, strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ","), web),
+		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	serve(ctx, srv, b)

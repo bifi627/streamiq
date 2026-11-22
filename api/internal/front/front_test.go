@@ -11,6 +11,9 @@ import (
 
 const index = "<!doctype html>spa"
 
+// policy is what a build writes into csp.txt (frontend/src/csp.ts), shortened.
+const policy = "default-src 'self'; script-src 'self' https://apis.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
 // serve runs Handler with one Go route; webDir "" = no web app (dev, tests), "app" = a
 // built one with index.html and one asset.
 func serve(t *testing.T, webDir string) string {
@@ -20,10 +23,13 @@ func serve(t *testing.T, webDir string) string {
 		must(t, os.WriteFile(filepath.Join(webDir, "index.html"), []byte(index), 0o600))
 		must(t, os.MkdirAll(filepath.Join(webDir, "assets"), 0o700))
 		must(t, os.WriteFile(filepath.Join(webDir, "assets", "app.js"), []byte("js"), 0o600))
+		must(t, os.WriteFile(filepath.Join(webDir, "csp.txt"), []byte(policy+"\n"), 0o600))
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/me", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "go") })
-	ts := httptest.NewServer(Handler(mux, []string{"http://app.test", " http://tv.test"}, webDir))
+	h, err := Handler(mux, []string{"http://app.test", " http://tv.test"}, webDir)
+	must(t, err)
+	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
 	return ts.URL
 }
@@ -89,16 +95,17 @@ func TestWithoutAWebAppTheRestIs404(t *testing.T) {
 	}
 }
 
-// HealthzTests: every response carries the security headers.
+// Every response carries the security headers: with a web app its build's policy, without
+// one a policy that only forbids framing.
 func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
-	for _, webDir := range []string{"", "app"} {
+	for webDir, csp := range map[string]string{"": "frame-ancestors 'none'", "app": policy} {
 		base := serve(t, webDir)
 		for _, path := range []string{"/healthz", "/api/me", "/api/nope", "/some/client/route", "/assets/app.js", "/x.js"} {
 			for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodOptions} {
 				rs, _ := do(t, method, base+path, "Origin", "http://app.test", "Access-Control-Request-Method", "GET")
 				for k, v := range map[string]string{
 					"X-Content-Type-Options":  "nosniff",
-					"Content-Security-Policy": "frame-ancestors 'none'",
+					"Content-Security-Policy": csp,
 					"Referrer-Policy":         "strict-origin-when-cross-origin",
 				} {
 					if got := rs.Header.Values(k); len(got) != 1 || got[0] != v {
@@ -199,5 +206,12 @@ func TestCORSAnswersAsThePortedPolicy(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A web app without its policy file doesn't start: it would be served without a CSP.
+func TestAWebAppWithoutItsPolicyFails(t *testing.T) {
+	if _, err := Handler(http.NewServeMux(), nil, t.TempDir()); err == nil {
+		t.Fatal("no error without csp.txt")
 	}
 }

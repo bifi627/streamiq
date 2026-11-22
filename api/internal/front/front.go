@@ -4,7 +4,9 @@ package front
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -17,20 +19,27 @@ import (
 var allowedHeaders = "Authorization,Content-Type," + auth.HouseholdHeader
 
 // Handler serves mux behind CORS for origins, every response with the security headers.
-// With webDir set, mux also serves the built web app from it; without (dev, tests),
-// a path no slice serves is a 404.
-func Handler(mux *http.ServeMux, origins []string, webDir string) http.Handler {
+// With webDir set, mux also serves the built web app from it, and every response carries
+// the build's Content-Security-Policy (csp.txt, from frontend/src/csp.ts); without (dev,
+// tests), a path no slice serves is a 404 and the policy only forbids framing.
+func Handler(mux *http.ServeMux, origins []string, webDir string) (http.Handler, error) {
+	policy := "frame-ancestors 'none'"
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 	if webDir != "" {
+		b, err := os.ReadFile(filepath.Join(webDir, "csp.txt"))
+		if err != nil {
+			return nil, fmt.Errorf("the web app's policy: %w", err)
+		}
+		policy = strings.TrimSpace(string(b))
 		mux.Handle("GET /", web(webDir))
 	}
 	for i := range origins {
 		origins[i] = strings.TrimSpace(origins[i])
 	}
-	return secure(cors(origins, mux))
+	return secure(policy, cors(origins, mux)), nil
 }
 
 // web serves dir's files. A path without a file extension that names no file is a
@@ -61,13 +70,11 @@ func isFile(fs http.FileSystem, name string) bool {
 }
 
 // secure sets the security headers on every response, the web app's files included.
-// ponytail: no script/connect CSP (Firebase sign-in, hls.js workers and blob URLs need
-// a tested allowlist first).
-func secure(next http.Handler) http.Handler {
+func secure(policy string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Content-Security-Policy", "frame-ancestors 'none'")
+		h.Set("Content-Security-Policy", policy)
 		// Origin only, never the path. Not no-referrer: the Firebase web API key is
 		// restricted by HTTP referrer, and sign-in fails without one.
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")

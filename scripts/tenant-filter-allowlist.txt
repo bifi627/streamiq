@@ -1,4 +1,0 @@
-# Files in backend/src allowed to bypass the tenant query filter (IgnoreQueryFilters / raw SQL).
-# Checked by scripts/check-tenant-filter.sh. One file per line: <path>  # <reason>
-# Adding a line is a review trigger: tenant isolation is the crown-jewel invariant.
-backend/src/StreamIq.Api/Auth/Households.cs  # a user's memberships across households, always by user id; picks the tenant before the filter can apply

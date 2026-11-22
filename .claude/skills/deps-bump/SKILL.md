@@ -1,8 +1,8 @@
 ---
 name: deps-bump
 description: >-
-  Use when bumping dependencies in StreamIQ — NuGet (backend), npm (frontend/e2e:
-  React / Vite / TypeScript), Go modules (gateway), pinned Docker images
+  Use when bumping dependencies in StreamIQ — npm (frontend/e2e:
+  React / Vite / TypeScript), Go modules (gateway + API), pinned Docker images
   (compose: Jellyfin/Postgres/coturn), GitHub Actions, or devcontainer
   features. Triggered by Dependabot PRs, an explicit "update X" request, or a
   periodic outdated sweep. Do NOT use for adding a brand-new dependency or for
@@ -22,7 +22,6 @@ burn it per package.
 This skill stores no pending-bump state — derive the candidate set at runtime:
 
 ```bash
-dotnet list backend/StreamIq.slnx package --outdated
 npm outdated --prefix frontend            # and any other package dirs (e2e/)
 cd gateway && go list -m -u all             # Go modules
 # plus: image pins in docker-compose.yml, .devcontainer/devcontainer.json
@@ -34,7 +33,7 @@ Then:
 1. **Patches + safe minors, all stacks together** — one wave, one verify.
 2. **Majors, one at a time**, ordered least → most blast radius: CI/build
    tooling < test infra < build chain (Vite/TS/Go toolchain) < frameworks
-   (ASP.NET/EF/React/Pion). Pause and confirm before starting each major (AskUserQuestion: start it / skip /
+   (React/Pion). Pause and confirm before starting each major (AskUserQuestion: start it / skip /
    stop).
    Workflow pattern: user says "continue with X" → do X → summarize → wait.
 
@@ -42,7 +41,6 @@ Then:
 
 | Group | Members |
 |---|---|
-| EF Core | all `Microsoft.EntityFrameworkCore*` packages |
 | Vite | `vite` + `@vitejs/plugin-react` (check peers first: `npm view <pkg> peerDependencies`) |
 | TypeScript | `typescript` + any ts-coupled lint tooling (its peer range caps the TS version) |
 | React | `react` + `react-dom` + `@types/react` + `@types/react-dom` |
@@ -68,13 +66,6 @@ Never a full local e2e run (a Jellyfin per worker) unless the owner asks.
 
 Integration tests are NOT "expensive" — include by default. Docker daemon
 down → prompt the user to start Desktop, don't skip.
-
-## NuGet specifics
-
-- Check whether `Directory.Packages.props` exists (Central Package
-  Management). If yes, all versions live there — edit once. If not (current
-  state), versions live in the `.csproj` files. No lock files — a plain
-  `dotnet restore` is enough.
 
 ## npm specifics
 
@@ -162,6 +153,6 @@ widening one back to `^`, check the entry and confirm with the user (AskUserQues
 ## Tool reminders
 
 - Library docs: `mcp__context7__resolve-library-id` → `query-docs`. Not
-  WebFetch, not DLL inspection.
+  WebFetch.
 - Shell: Bash tool (Git Bash). PowerShell needs per-execution approval.
-- Don't read user-secrets or `.env`; override via env vars for verify runs.
+- Don't read `.env`; override via env vars for verify runs.

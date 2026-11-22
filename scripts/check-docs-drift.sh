@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fails when a STREAMIQ_* env var or a gateway API route in code is missing from the docs (#488):
 #   gateway/ (Go + install scripts)  -> a row of the gateway.env table in docs/install.md
-#   api/, backend/src, scripts/      -> named somewhere in docs/ (docs/superpowers is history: not counted)
+#   api/, scripts/                   -> named somewhere in docs/ (docs/superpowers is history: not counted)
 #   "/streamiq/..." in gateway Go    -> docs/protocol.md
 # Tracked files only (git grep), so a local gateway.env, state dir or draft can't make check.sh and CI disagree.
 # Test-only code (_test.go, testdata/) is skipped; test/dev-only names go on scripts/docs-drift-allowlist.txt.
@@ -26,14 +26,14 @@ names() {
 }
 
 fail=0
-gw=$(names gateway); other=$(names api backend/src scripts) # assignments, so a grep error aborts (set -e)
+gw=$(names gateway); other=$(names api scripts) # assignments, so a grep error aborts (set -e)
 # shellcheck disable=SC2016 # the backticks are literal markdown, not a command substitution
 table=$(grep -oE '^\| `STREAMIQ_[A-Z0-9_]+`' docs/install.md | tr -d '|` ' || true)
 for n in $gw; do
   grep -qxF "$n" <<<"$table" || { echo "  $n: read under gateway/, no row in the gateway.env table (docs/install.md)" >&2; fail=1; }
 done
 for n in $other; do
-  git grep -qw "$n" -- docs ':!docs/superpowers' || { echo "  $n: read in api/, backend/src or scripts/, named nowhere in docs/" >&2; fail=1; }
+  git grep -qw "$n" -- docs ':!docs/superpowers' || { echo "  $n: read in api/ or scripts/, named nowhere in docs/" >&2; fail=1; }
 done
 
 rc=0; routes=$(git grep -hoE '"/streamiq/[^"]+"' -- 'gateway/*.go' ':!*_test.go' ':!*/testdata/*' | tr -d '"' | sort -u) || rc=$?

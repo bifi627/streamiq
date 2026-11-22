@@ -1,5 +1,5 @@
 # Same checks as scripts/check.sh — if they disagree, that's a harness bug. CI is authoritative.
-# Job names backend / frontend / gateway-linux / gateway-windows / gateway-jellyfin / e2e are required checks in
+# Job names api / frontend / gateway-linux / gateway-windows / gateway-jellyfin / e2e are required checks in
 # the "main: merge gate" ruleset: renaming, removing or matrix-splitting one (or a workflow-level `paths:` filter)
 # leaves PRs waiting forever. Update the ruleset in the same PR. Skip with job `if:` only.
 name: ci
@@ -40,18 +40,13 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: echo "draft=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft || echo false)" >> "$GITHUB_OUTPUT"
 
-  backend:
+  api:
     needs: draft
     if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6 # reads global.json
-      - run: bash scripts/check-tenant-filter.sh # #175: IgnoreQueryFilters / raw SQL only in allowlisted files
-      - run: dotnet format backend/StreamIq.slnx --verify-no-changes
-      - run: dotnet test backend/StreamIq.slnx --nologo
-      # The Go API: the gateway jobs lint and test gateway/ only. After dotnet test, which
-      # built the Firebase emulator image test-api.sh runs under the same tag.
+      # The gateway jobs lint and test gateway/ only.
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -105,7 +100,7 @@ jobs:
           go-version-file: go.mod
       - run: bash scripts/next-gateway-version.sh --test # #274: release-gateway's version bump
       - run: bash scripts/check-docs-drift.sh # #488: STREAMIQ_* env vars + gateway routes documented
-      - run: bash scripts/check-file-size.sh # #600: no source file over 500 code lines (all three stacks) outside the allowlist
+      - run: bash scripts/check-file-size.sh # #600: no source file over 500 code lines (frontend + Go) outside the allowlist
       - run: bash scripts/check-comments.sh
       - run: bash scripts/gen-types.sh --check # frontend/src/generated matches the Go wire types (Go + the frontend tree)
       # #581: actionlint (+ shellcheck on run: blocks) and shellcheck scripts/*.sh + the installer, pinned like scripts/check.sh
@@ -260,7 +255,7 @@ jobs:
   # #274: a gateway change on main releases itself, but only once every check passed.
   # Add any new check job to `needs`, or it won't gate the release.
   release-gateway:
-    needs: [changes, backend, frontend, gateway-linux, gateway-windows, gateway-jellyfin, e2e]
+    needs: [changes, api, frontend, gateway-linux, gateway-windows, gateway-jellyfin, e2e]
     if: needs.changes.outputs.release == 'true'
     permissions:
       contents: write

@@ -38,7 +38,7 @@ section for an area before changing it.
 
 **Glossary** (renamed 2026-11-02, migration #3): **gateway** = the home box that
 tunnels Jellyfin (was "agent" / `Device`); **client** = a paired browser (was
-"browser device"; its key = client key); **API** = the control plane (`api/`; `backend/` until #732,
+"browser device"; its key = client key); **API** = the control plane (`api/`,
 `STREAMIQ_API_URL`); **broker** = the API's signaling endpoint (`/api/broker/ws` +
 `/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home
 LAN (code: `localpage`); **web gateway page** = the web app's view of a gateway;
@@ -58,7 +58,7 @@ stereo AAC in .ts, at most 1080p; Source and Raw are off while it's on (#113).
 stays at 480p and the throughput test is 3 × 1 MiB (#291).
 Docs under `docs/superpowers/` keep the old words.
 **Project name:** StreamIQ (was "r8er" until 2026-11-06). Code forms: `streamiq` (paths,
-module, DB, binaries), `StreamIq` (.NET namespaces/types), `STREAMIQ_` (env vars); "StreamIQ"
+module, DB, binaries), `STREAMIQ_` (env vars); "StreamIQ"
 in user-visible text. Don't reintroduce the old name (historical records such as
 `docs/poc-connectivity-spike.md` keep it: those URLs/env vars really were `r8er`).
 
@@ -66,8 +66,7 @@ in user-visible text. Don't reintroduce the old name (historical records such as
 
 | Dir | What | Stack |
 |---|---|---|
-| `backend/` | The .NET API, run nowhere any more (production, dev and e2e are on `api/`); its tests still run in CI + `check.sh` until #777 removes it | .NET 10, EF Core, Postgres |
-| `api/` | Control plane: every `/api` route + WebRTC signaling (the Go port of `backend/`, #725), `/healthz`, and in the prod image the built web app (`docs/architecture.md`) | Go, pgx, Postgres RLS, Firebase Admin SDK |
+| `api/` | Control plane: every `/api` route + WebRTC signaling, `/healthz`, and in the prod image the built web app (`docs/architecture.md`) | Go, pgx, Postgres RLS, Firebase Admin SDK |
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
 | `protocol/` | The broker's messages on both sockets, types only: used by the gateway (and the Go API); `scripts/gen-types.sh` (tygo) generates `frontend/src/generated/` from it and the ported REST slices | Go |
@@ -106,7 +105,6 @@ bash scripts/gen-test-media.sh          # generate dev-media/ (movies) + dev-sho
 
 go run ./api/cmd/api                              # Go API on :5028 (dev.ps1 sets its env: STREAMIQ_ENV=development, STREAMIQ_APP_DB_PASSWORD, FIREBASE_*, STREAMIQ_API_ADDR, DATABASE_URL)
 bash scripts/test-api.sh [-race]                  # Go API tests: one Postgres + Firebase emulator for the run (Docker)
-dotnet test backend/StreamIq.slnx                 # .NET tests, until #777 (Testcontainers → needs Docker)
 npm run dev --prefix frontend                 # frontend
 npm run build --prefix frontend               # frontend build check
 go run ./cmd/gateway                          # gateway (from gateway/; reads gateway/gateway.env from setup-jellyfin.sh)
@@ -124,15 +122,14 @@ Copy `.env.example` only to override.
 ## Machine notes
 
 - Primary dev machine is Windows 10 + Git Bash + Docker Desktop (WSL2).
-  Go 1.27, .NET 10 SDK, Node 26, Docker are present — gateway work runs locally
+  Go 1.27, Node 26, Docker are present — gateway work runs locally
   now (the devcontainer remains for CI parity / clean-room builds).
-- **Worktrees:** tests are isolated — `check.sh` / backend tests / e2e run concurrently
+- **Worktrees:** tests are isolated — `check.sh` / API tests / e2e run concurrently
   across worktrees (random ports, per-checkout `e2e/.bin`; the test Firebase emulator image is
   shared, tagged by a hash of `dev/firebase`). The *dev* stack is not:
   compose (`name: streamiq`, fixed ports) and `dev.ps1` (:5028/:5173) are one per machine,
   shared by all worktrees (emulator users live in the `streamiq_firebase-data` volume,
   not in a checkout). Fresh worktree: `check.sh` runs `npm ci` itself.
-- `.slnx` (not `.sln`) — .NET 10's solution format.
 - `frontend/.npmrc` hardens npm: `ignore-scripts=true`, `min-release-age=7`.
   Keep this in every new package dir (e2e/ etc.). If `npm install` fails
   with `vite@undefined`-style ERESOLVE, a pinned version is younger than
@@ -230,12 +227,11 @@ Copy `.env.example` only to override.
 
 ## Non-negotiable conventions
 
-- **`tenant_id` on every tenant-owned table**, enforced via one EF global
-  query filter in the .NET API and by Postgres row-level security in the Go API
+- **`tenant_id` on every tenant-owned table**, enforced by Postgres row-level security
   (`docs/architecture.md`; `api/internal/db` isolation tests). Tenant isolation is the product's crown-jewel invariant;
-  the signaling isolation tests matter more than any feature. Bypasses
-  (`IgnoreQueryFilters`, raw SQL) only in files on `scripts/tenant-filter-allowlist.txt`
-  (enforced by `check.sh`).
+  the signaling isolation tests matter more than any feature. The tenant is set only in
+  `db.InTenant` / `db.InClaimedTenant`; a lookup before it is known is a `SECURITY DEFINER`
+  function limited by its argument.
 - **No dev-mode auth bypass, ever.** Same token-verification code path in
   dev and prod; only the issuer differs (Firebase emulator).
 - **Never `latest`** for the Jellyfin image; update the pin deliberately.
@@ -245,7 +241,7 @@ Copy `.env.example` only to override.
   the pseudonymous `firebase_uid`. Account deletion must stay "Firebase delete + `DELETE`
   the users row (cascades its memberships) + every household left without members"
   (every tenant-owned FK cascades from the tenant row). Rationale: #65, #92.
-- **CRUD stays boring** (plain EF Core, no repository ceremony). The
+- **CRUD stays boring** (plain SQL on pgx, no ORM, no repository ceremony). The
   cleverness budget goes to tunnel/signaling/gateway only. The owner works
   ponytail-style: laziest solution that works, stdlib first, shortest diff.
 - **Tunnel telemetry is a deliverable**: every tunnel
@@ -277,7 +273,7 @@ Copy `.env.example` only to override.
   `nolint` / `oxlint-disable` line, or `quirk(#N): …`. TS: oxlint `streamiq/no-low-value-comments`
   (`frontend/lint/streamiq.js`) catches issue refs, banners, name-restating, the usual
   commented-out shapes and comments over 6 lines outside the file header; CSS, Go (gateway, Go API, every
-  Go file), C# and scripts: `scripts/check-comments.sh` against `scripts/comment-baseline.txt` (issue refs,
+  Go file) and scripts: `scripts/check-comments.sh` against `scripts/comment-baseline.txt` (issue refs,
   > 30 % comments); Go commented-out code: golangci-lint gocritic `commentedOutCode`. The rest
   needs reading.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

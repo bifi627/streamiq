@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Fails a source file over 500 code lines (blank and comment-only lines skipped) in frontend/src,
-# backend/src and every Go file (scripts/go-sources.sh), unless scripts/file-size-allowlist.txt names
-# it (#600). Tests, migrations and generated files don't count. An allowlisted file back under the
+# Fails a source file over 500 code lines (blank and comment-only lines skipped) in frontend/src
+# and every Go file (scripts/go-sources.sh), unless scripts/file-size-allowlist.txt names it (#600).
+# Tests, migrations and generated files don't count. An allowlisted file back under the
 # limit fails too: drop its line.
 # ponytail: line-based comment detection; a string line starting with // or /* counts as a comment.
 set -euo pipefail
@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 max=500
 allowlist=scripts/file-size-allowlist.txt
 # Fail closed: a missing input must not read as "no offenders".
-for p in "$allowlist" frontend/src gateway api backend/src; do
+for p in "$allowlist" frontend/src gateway api; do
   [ -e "$p" ] || { echo "check-file-size: $p missing" >&2; exit 2; }
 done
 
@@ -18,8 +18,6 @@ go=$(bash scripts/go-sources.sh)
 files=$( {
   echo "$go"
   find frontend/src -name '*.ts' -o -name '*.tsx' | grep -vE '\.test\.tsx?$' | bash scripts/drop-generated.sh
-  find backend/src -name '*.cs' -not -path '*/obj/*' -not -path '*/bin/*' -not -path '*/Migrations/*' \
-    -not -name '*.Designer.cs' -not -name '*.g.cs'
 } | sort)
 
 # "<code lines> <path>" per file

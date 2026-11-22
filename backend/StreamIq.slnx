@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/StreamIq.Api/StreamIq.Api.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/StreamIq.Api.Tests/StreamIq.Api.Tests.csproj" />
-  </Folder>
-</Solution>

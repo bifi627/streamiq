@@ -5,7 +5,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -32,7 +31,7 @@ func main() {
 	d, err := db.Open(
 		ctx,
 		env("DATABASE_URL", "postgres://streamiq:dev@localhost:5432/streamiq"),
-		need("STREAMIQ_APP_DB_PASSWORD"),
+		os.Getenv("STREAMIQ_APP_DB_PASSWORD"),
 	)
 	if err != nil {
 		log.Fatalf("database: %v", err)
@@ -40,12 +39,6 @@ func main() {
 	verifier, err := auth.NewVerifier(ctx)
 	if err != nil {
 		log.Fatal(err)
-	}
-	var legacy *url.URL
-	if v := os.Getenv("STREAMIQ_LEGACY_API_URL"); v != "" {
-		if legacy, err = url.Parse(v); err != nil {
-			log.Fatal(err)
-		}
 	}
 	a := auth.New(verifier, d)
 	mux := http.NewServeMux()
@@ -68,9 +61,10 @@ func main() {
 		PublicURL: os.Getenv("STREAMIQ_PUBLIC_URL"),
 		Dev:       os.Getenv("STREAMIQ_ENV") == "development",
 	})
+	web := os.Getenv("STREAMIQ_WEB_DIR") // the built web app: the image sets it; in dev Vite serves it
 	srv := &http.Server{
 		Addr:              env("STREAMIQ_API_ADDR", ":"+env("PORT", "5028")), // PORT: what container hosts inject
-		Handler:           front.Handler(mux, strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ","), legacy),
+		Handler:           front.Handler(mux, strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ","), web),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	log.Printf("api: listening on %s", srv.Addr)
@@ -82,12 +76,4 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func need(key string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		log.Fatalf("%s is not set", key)
-	}
-	return v
 }

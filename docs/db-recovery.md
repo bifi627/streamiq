@@ -15,12 +15,13 @@ Credentials for everything below: `docs/tools.md`.
   `blue/railway`.
 - **Backups are self-hosted.** Railway's scheduled backups need the Pro plan. Instead
   `.github/workflows/db-backup.yml` dumps the `DB_LIVE` database daily at 02:00 UTC (and
-  on manual dispatch: run it before a risky migration) with `pg_dump -Fc --no-owner
-  --no-privileges` in the `postgres:18` image and uploads it to
+  on manual dispatch: run it before a risky migration) with `pg_dump -Fc --no-owner`
+  (privileges kept: the dump carries `streamiq_app`'s grants) in the `postgres:18` image and uploads it to
   `gs://streamiq/production/streamiq-production-<UTCstamp>.dump`.
 - **Restores run in GitHub too.** `.github/workflows/db-restore.yml` downloads a dump (input
   `dump`, empty = the newest) and restores it into a **new** database `restore_<UTC stamp>`
-  on the **idle** server, then fails unless `tenants` and `gateways` have rows. It never
+  on the **idle** server (first creating the role `streamiq_app` there if it's missing:
+  roles are per server, and the dump's policies and grants name it), then fails unless `tenants` and `gateways` have rows. It never
   writes into an existing database, so even a wrong `DB_LIVE` can't overwrite live data.
   Its run summary lists the dumps in the bucket.
 - **Retention:** a 30-day delete rule on the bucket (a GCS lifecycle rule, not a script).
@@ -44,11 +45,12 @@ Same steps for "bad migration / wrong data, DB still up" and "DB lost":
 2. Actions → **Database restore** → Run workflow; `dump` = that file name (the summary of
    any run lists them), empty = the newest. The run restores into `<idle>/restore_<stamp>`,
    checks it, and keeps it. Its summary names the database and the `gh` command for step 4.
-3. **Cut over:** Railway → backend service → Variables → `DATABASE_URL` → point it at the
+3. **Cut over:** Railway → API service → Variables → `DATABASE_URL` → point it at the
    idle service and the new database, as a reference:
    `postgresql://${{<idle service>.PGUSER}}:${{<idle service>.PGPASSWORD}}@${{<idle service>.PGHOST}}:${{<idle service>.PGPORT}}/restore_<stamp>`.
-   Railway redeploys; the boot-time `MigrateAsync()` is a no-op (`__EFMigrationsHistory`
-   came with the dump).
+   Railway redeploys; the API's migrations at start are a no-op (`schema_migrations`
+   came with the dump), and it sets `streamiq_app`'s password (`STREAMIQ_APP_DB_PASSWORD`)
+   on the idle server's role, whose grants came with the dump.
 4. **Flip `DB_LIVE`** (the command from the run summary):
    `gh variable set DB_LIVE --env db-backup --body <idle>/restore_<stamp>`. From now on
    the backup dumps the new live database and restores go to the other server. Then run

@@ -7,23 +7,24 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 ## Go API (`api/`, the port of `backend/`: #725)
 
-- Ported from the .NET API (`backend/`). In dev (`scripts/dev.ps1`) and the e2e stack the
-  Go API is the one API URL and serves every `/api` route, the broker's two sockets
-  included; the .NET API serves none. Every other request still goes through its proxy
-  to the .NET API (`STREAMIQ_LEGACY_API_URL`, which answers only `/healthz`, the SPA
-  fallback and 404s) until #732 removes it. It answers CORS as ASP.NET's policy did.
-  Production still runs the .NET-only image (#732).
+- Ported from the .NET API (`backend/`, unused, removed by #777). The Go API is the one
+  API in production, dev (`scripts/dev.ps1`) and the e2e stack: every `/api` route, the
+  broker's two sockets, `/healthz` and, with `STREAMIQ_WEB_DIR` set (the image), the
+  built web app. It answers CORS as ASP.NET's policy did.
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
   `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
   `gateways`, `onboarding`, `tunnels`, `household`, `members`, `invites`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
   only imports between slices);
-  `front` is `/healthz`, CORS and the proxy. `pgx` with hand-written SQL, no ORM;
+  `front` is `/healthz`, CORS, the security headers (`nosniff`, `frame-ancestors 'none'`,
+  `strict-origin-when-cross-origin`, on every response) and the web app (a file that
+  exists, else `index.html` for a path without an extension; `/api/*` stays a 404). `pgx` with hand-written SQL, no ORM;
   columns keep EF's quoted PascalCase until #744.
 - **Migrations**: `api/migrations` runs each file once, in name order, each in its own
   transaction, as the tables' owner (`DATABASE_URL`), recorded in `schema_migrations`.
   `0001_baseline.sql` is the EF schema as `pg_dump` wrote it, with EF's history rows; on
-  a database EF already migrated it is recorded, not run. .NET still migrates with EF
-  first (dev and e2e start it first); no new EF migration lands during the port.
+  a database EF already migrated it is recorded, not run. Nothing runs EF any more; no
+  new EF migration lands. `__EFMigrationsHistory` stays until #744 (the rollback to the
+  .NET image needs it).
 - **Tenant isolation is Postgres row-level security** (`0002_rls.sql`): every
   tenant-owned table has a policy `TenantId = app_tenant()` (`USING` + `WITH CHECK`) for
   the role `streamiq_app`, which owns no table; `app_tenant()` reads `app.tenant_id`,
@@ -39,8 +40,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
   finds or adds the user, `0006_rls_tenants_users.sql`). `tenants` has the same policy on
   its own `Id`, and `streamiq_app` may not insert or delete one; `users` is read only:
   the members of the transaction's tenant, written only by `sign_in`. Every timestamp scans as UTC (`db.Connect`), so
-  the JSON ends in `Z`. The
-  .NET API connects as the owner, so RLS doesn't apply to it.
+  the JSON ends in `Z`.
 - **Auth** (`api/internal/auth`): the Firebase Admin SDK verifies ID tokens, one call
   for the emulator and production; the emulator only with `STREAMIQ_ENV=development`.
   First sign-in adds the `users` row (`sign_in`; `ON CONFLICT` settles concurrent ones); the
@@ -224,8 +224,8 @@ and daily peaks per local day.
 
 ## Hosting and operations
 
-- The root `Dockerfile` builds the SPA into the API image (`wwwroot`, same origin, no CORS
-  in prod). Railway Root Directory = repo root.
+- The root `Dockerfile` builds the SPA and the Go API into one distroless image, run as
+  non-root (`/web`, same origin, no CORS in prod). Railway Root Directory = repo root.
 - Postgres is a blue/green pair on Railway (`DB_LIVE` names the live one): daily `pg_dump`
   of the live one → GCS (`db-backup.yml`), restores into the idle one (`db-restore.yml`,
   weekly as the drill); runbook `docs/db-recovery.md`.

@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 // The whole stack (testcontainers for Postgres, Firebase Auth emulator, coturn,
-// Jellyfin; backend, Vite and the gateway as processes) starts in global-setup.ts,
+// Jellyfin; the API, Vite and the gateway as processes) starts in global-setup.ts,
 // not `webServer`: it needs the containers' random ports. Jellyfin: one per worker
 // (fixtures.ts). Tests run in parallel on that stack, each with its own accounts
 // (uniqueEmail) and gateway. Area tags: `npm test -- --grep @households`

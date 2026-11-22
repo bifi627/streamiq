@@ -5,6 +5,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -23,6 +24,9 @@ type DB struct{ pool *pgxpool.Pool }
 // Open migrates the database as its owner (ownerURL), gives AppRole appPassword and
 // connects as AppRole to the same database.
 func Open(ctx context.Context, ownerURL, appPassword string) (*DB, error) {
+	if appPassword == "" {
+		return nil, errors.New("STREAMIQ_APP_DB_PASSWORD is not set")
+	}
 	if err := migrations.Up(ctx, ownerURL); err != nil {
 		return nil, err
 	}

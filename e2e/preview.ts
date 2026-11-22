@@ -57,7 +57,7 @@ type State = {
   tunnel?: string
   jellyfin?: string
   nvenc?: boolean
-  pids?: number[] // backend, vite, gateway: down kills them even if serve died
+  pids?: number[] // API, vite, gateway: down kills them even if serve died
   ports?: number[]
 }
 

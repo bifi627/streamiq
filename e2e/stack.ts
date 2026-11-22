@@ -231,7 +231,7 @@ const pin = (name: string) =>
   )[1]
 
 export type StackOptions = {
-  /** Build output (backend + gateway binary), per checkout and per user (e2e,
+  /** Build output (API + gateway binary), per checkout and per user (e2e,
    *  preview): on Windows a running copy locks its files. */
   dir: string
   /** Serve the app over HTTPS on all interfaces with the API + auth emulator
@@ -473,7 +473,6 @@ export async function startStack(o: StackOptions) {
   const labeled = (c: GenericContainer) =>
     o.label ? c.withLabels({ 'streamiq.preview': o.label }) : c
 
-  const apiOut = path.join(o.dir, 'api')
   const goApiBin = path.join(
     o.dir,
     `streamiq-e2e-api${process.platform === 'win32' ? '.exe' : ''}`,
@@ -534,14 +533,6 @@ export async function startStack(o: StackOptions) {
     timed('coturn', startCoturn(labeled)),
     // Build while the containers boot.
     timed(
-      'dotnet build',
-      run(
-        'dotnet',
-        ['build', 'src/StreamIq.Api', '--nologo', '-v', 'q', '-o', apiOut],
-        path.join(root, 'backend'),
-      ),
-    ),
-    timed(
       'go build',
       (async () => {
         const exe = process.platform === 'win32' ? '.exe' : ''
@@ -560,12 +551,9 @@ export async function startStack(o: StackOptions) {
 
   process.env.E2E_TURN_PORT = String(turnPort) // stack.ts: Docker-gateway mode
   const emulator = `http://${firebase.getHost()}:${firebase.getMappedPort(9099)}`
-  // The Go API is the one API URL; it proxies what it doesn't serve yet to the .NET
-  // API on the same database (TODO(#732): the .NET one goes).
   const apiPort = await freePort()
   const api = `http://127.0.0.1:${apiPort}`
-  const dotnet = `http://127.0.0.1:${await freePort()}`
-  // Picked before the backend starts: it's the backend's CORS allowlist entry.
+  // Picked before the API starts: it's the API's CORS allowlist entry.
   // (LAN: the proxy drops Origin — a same-origin app — so CORS never applies.)
   const appPort = o.lan?.port ?? (await freePort())
   const app = o.lan
@@ -580,49 +568,25 @@ export async function startStack(o: StackOptions) {
   process.env.E2E_EMULATOR_URL = emulator
   process.env.E2E_PG_CONTAINER = pg.getId() // helpers.ts psql: tunnelRow, seedTunnel
   const db = { host: pg.getHost(), port: pg.getMappedPort(5432) }
-  const backend = start(
-    'backend',
-    'dotnet',
-    [path.join(apiOut, 'StreamIq.Api.dll')],
-    {
-      cwd: path.join(root, 'backend', 'src', 'StreamIq.Api'),
-      env: {
-        ASPNETCORE_ENVIRONMENT: 'Development',
-        ASPNETCORE_URLS: dotnet,
-        ConnectionStrings__Default: `Host=${db.host};Port=${db.port};Database=streamiq;Username=streamiq;Password=dev`,
-        FIREBASE_AUTH_EMULATOR_HOST: new URL(emulator).host,
-        FIREBASE_PROJECT_ID: 'demo-streamiq',
-        CORS_ORIGINS: `${app},${built}`,
-      },
+  const apiProc = start('api', goApiBin, [], {
+    cwd: root,
+    env: {
+      STREAMIQ_API_ADDR: `127.0.0.1:${apiPort}`,
+      DATABASE_URL: `postgres://streamiq:dev@${db.host}:${db.port}/streamiq`,
+      STREAMIQ_APP_DB_PASSWORD: 'e2e',
+      STREAMIQ_ENV: 'development',
+      FIREBASE_AUTH_EMULATOR_HOST: new URL(emulator).host,
+      FIREBASE_PROJECT_ID: 'demo-streamiq',
+      CORS_ORIGINS: `${app},${built}`,
+      // The broker mints per-session creds from these (dev path; prod: Cloudflare).
+      STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
+      STREAMIQ_TURN_SECRET: 'e2e',
+      // Every test signals, enrolls and makes households and invites from
+      // 127.0.0.1, all workers on one per-IP budget: a 429'd broker socket hangs a test.
+      STREAMIQ_SIGNALING_PER_MINUTE: '100000',
     },
-  )
-
-  // After .NET's EF migrations: the Go API adopts that schema (api/migrations).
-  const goApi = timed('backend', waitHttp(`${dotnet}/healthz`, backend)).then(
-    async () => {
-      const p = start('api', goApiBin, [], {
-        cwd: root,
-        env: {
-          STREAMIQ_API_ADDR: `127.0.0.1:${apiPort}`,
-          DATABASE_URL: `postgres://streamiq:dev@${db.host}:${db.port}/streamiq`,
-          STREAMIQ_APP_DB_PASSWORD: 'e2e',
-          STREAMIQ_LEGACY_API_URL: dotnet,
-          STREAMIQ_ENV: 'development',
-          FIREBASE_AUTH_EMULATOR_HOST: new URL(emulator).host,
-          FIREBASE_PROJECT_ID: 'demo-streamiq',
-          CORS_ORIGINS: `${app},${built}`,
-          // The broker mints per-session creds from these (dev path; prod: Cloudflare).
-          STREAMIQ_TURN_URLS: `turn:127.0.0.1:${turnPort}?transport=udp`,
-          STREAMIQ_TURN_SECRET: 'e2e',
-          // Every test signals, enrolls and makes households and invites from
-          // 127.0.0.1, all workers on one per-IP budget: a 429'd broker socket hangs a test.
-          STREAMIQ_SIGNALING_PER_MINUTE: '100000',
-        },
-      })
-      await timed('api', waitHttp(`${api}/healthz`, p))
-      return p
-    },
-  )
+  })
+  const goApi = timed('api', waitHttp(`${api}/healthz`, apiProc))
   goApi.catch(() => {}) // rejects at its await below
 
   const vite = start(
@@ -652,7 +616,7 @@ export async function startStack(o: StackOptions) {
     },
   )
 
-  const [js, apiProc] = await Promise.all([
+  const [js] = await Promise.all([
     timed('jellyfins', jellyfins), // their start ran alongside everything above
     goApi,
     // 127.0.0.1: Vite listens on IPv4 only. LAN: the caller trusts the
@@ -665,9 +629,9 @@ export async function startStack(o: StackOptions) {
     app,
     api,
     emulator,
-    procs: [apiProc, backend, vite],
+    procs: [apiProc, vite],
     async stop() {
-      await Promise.all([apiProc.stop(), backend.stop(), vite.stop()])
+      await Promise.all([apiProc.stop(), vite.stop()])
       // Ryuk reaps the containers even if this never runs (crash, Ctrl+C).
       await Promise.all([
         pg.stop(),

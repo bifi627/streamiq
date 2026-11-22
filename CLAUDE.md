@@ -109,6 +109,7 @@ npm run dev --prefix frontend                 # frontend
 npm run build --prefix frontend               # frontend build check
 go run ./cmd/gateway                          # gateway (from gateway/; reads gateway/gateway.env from setup-jellyfin.sh)
 go test ./...                                 # gateway tests (from gateway/; the module's go.mod is at the repo root)
+go test ./gateway/internal/tunnel -run '^$' -fuzz '^FuzzJellyfinPolicy$' -fuzztime 5m -parallel 2 -fuzzminimizetime 2s  # fuzz one target, from the repo root (also FuzzServeFrame; sessions: FuzzAuthHandshake); findings land in testdata/fuzz/: commit each with its fix (a security-relevant one: tell the owner first, not on GitHub). Without -fuzzminimizetime it spends minutes shrinking inputs (0 execs/sec)
 npm test --prefix e2e                         # E2E specs (Playwright + Chrome, Docker; 4 workers locally, `-- --workers N` overrides)
 npm test --prefix e2e -- --grep @households   # one area only (tags: `allowedTags` in e2e/.oxlintrc.json); no Jellyfin unless the area needs it
 npm run preview --prefix e2e [-- status|down]  # this worktree's stack on the LAN (HTTPS) for phone/TV tests; owner: `/preview [tunnel]` / `/preview stop` (skill; docs/tools.md)

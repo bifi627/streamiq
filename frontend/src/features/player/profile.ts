@@ -2,8 +2,8 @@
 // Client capability probe → Jellyfin DeviceProfile. Jellyfin decides
 // per playback, from this profile, whether video is remuxed or transcoded and
 // whether audio is copied; it says why in TranscodeReasons. Re-probed at each
-// playback start (milliseconds); each tunnel open also stores it on the
-// gateway for the admin's paired clients list (reportProfile). TVs over-report, so the
+// playback start (milliseconds), which also stores it on the gateway for the
+// admin's paired clients list. TVs over-report, so the
 // player keeps its runtime fallbacks. mediaCapabilities.decodingInfo then
 // trims each video codec to what decodes smoothly. Pure except probe().
 

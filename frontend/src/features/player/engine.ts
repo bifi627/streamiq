@@ -13,6 +13,7 @@ import { tunnelJson } from '../../shared/tunnel'
 import { event, failLoads, watchVideo } from '../../shared/diag'
 import { compatibleOn, dataSaverOn, quality } from '../../shared/settings'
 import type { Speed } from '../../shared/speed'
+import type { ProfileIn } from '../../generated/pairing'
 import type { ScreenCommand, ScreenState } from '../gateways/api'
 import { TUNNEL_ORIGIN } from './loader'
 import * as jf from '../library/jellyfin'
@@ -193,6 +194,12 @@ export class Engine {
     const caps = await probe()
     this.caps = caps
     event(`probe: ${describe(caps)}`)
+    // Stored on the gateway for its admin's paired clients list; an older
+    // gateway's 404 or any failure never touches playback.
+    void tunnelJson(this.pc, '/streamiq/clients/profile', {
+      probe: caps,
+      compatible: compatibleOn(),
+    } satisfies ProfileIn).catch((e) => event(`profile: not stored: ${e}`))
     deviceProfile(caps, false, this.compatible) // throws without H.264, before anything loads
     const fresh = await tunnelJson<Item>(this.pc, jf.item(this.itemId))
     if (this.gone) return

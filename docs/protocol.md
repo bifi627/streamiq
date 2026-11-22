@@ -517,12 +517,14 @@ the gateway: the API never sees or stores them.
 **`POST /streamiq/clients/profile`** (#792) `{ "probe": { "h264": {…} | null, "hevc": {…} | null,
 "av1": {…} | null, "audio": ["aac", …], "surround": true }, "compatible": false }` → `200 {}`:
 the web app's capability probe (`Probe` in `gateway/internal/pairing/types.go`) and its
-Compatible mode setting, stored for the **calling session's own client key** (the body
-names none) in `allowlist.json` with the gateway's `probedAt`; the latest replaces the
-last, and it goes with the client's Remove. A body over 4 KiB, an unknown field, or names
-that aren't short lowercase words (at most 8 per list) `400`; a failed save `500`. The web
-app posts it once per tunnel open and only logs a failure; a gateway older than this
-answers `404`.
+Compatible mode setting, stored for the **calling session's own client key** (any key in
+the body is ignored) in `profiles.json` with the gateway's `probedAt`; the latest replaces
+the last, and it goes with the client's Remove. `profiles.json` is apart from
+`allowlist.json` and written atomically: unreadable, it only empties the profiles. A body
+over 4 KiB, a missing `audio` list (or `h264` without `profiles`), or names that aren't
+short lowercase words (at most 8 per list) `400`; unknown fields are ignored, so a newer
+web app still stores on an older gateway. A failed save `500`. The web app posts it at
+each playback start and only logs a failure; a gateway older than this answers `404`.
 
 **`POST /streamiq/update`** (#312, admin-only, body ignored) → `202 { "version": "1.5.0" }`: the
 gateway started a detached `gateway update` (output in `update.log` next to the binary) for the

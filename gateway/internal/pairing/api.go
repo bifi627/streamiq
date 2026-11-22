@@ -34,7 +34,7 @@ func (s *Store) ServeClients(w http.ResponseWriter, r *http.Request) {
 	out := []Client{}
 	for _, p := range s.Paired() {
 		if self := p.KeyFp == who.Key; self || who.Role == tunnel.Admin {
-			out = append(out, Client{p.KeyFp, p.Name, p.AddedAt, self, p.Profile})
+			out = append(out, Client{p.KeyFp, p.Name, p.AddedAt, self, s.profiles.of(p.KeyFp)})
 		}
 	}
 	tunnel.JSON(w, http.StatusOK, out)
@@ -110,20 +110,24 @@ func (s *Store) ServeRename(w http.ResponseWriter, r *http.Request) {
 }
 
 // maxProfile caps the body: a probe is a few hundred bytes, and it lands in
-// allowlist.json.
+// profiles.json.
 const maxProfile = 4 << 10
 
 // ServeProfile is POST ClientsProfilePath. The body names no key: a client
-// writes only its own profile.
+// writes only its own profile. Unknown fields are ignored, not refused: a newer
+// web app must still store on an older gateway.
 func (s *Store) ServeProfile(w http.ResponseWriter, r *http.Request) {
 	var in ProfileIn
 	dec := json.NewDecoder(io.LimitReader(r.Body, maxProfile+1))
-	dec.DisallowUnknownFields()
 	if err := dec.Decode(&in); err != nil || dec.More() || !in.Probe.valid() {
 		tunnel.Fail(w, http.StatusBadRequest, errors.New("gateway API: client profile: bad body"))
 		return
 	}
-	err := s.SetProfile(tunnel.SessionOf(r).Key, in)
+	key := tunnel.SessionOf(r).Key
+	var err error = ErrNotPaired
+	if s.Allowed(key) {
+		err = s.profiles.set(key, in)
+	}
 	switch {
 	case errors.Is(err, ErrNotPaired):
 		tunnel.Fail(w, http.StatusNotFound, fmt.Errorf("gateway API: client profile: %w", err))

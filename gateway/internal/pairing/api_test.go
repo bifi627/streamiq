@@ -208,7 +208,6 @@ func TestClientProfile(t *testing.T) {
 		`"av1":{"main10":true,"hd":true},"audio":["aac","ac3"],"surround":true}`
 	for _, body := range []string{
 		`nope`,
-		`{"probe":` + probe + `,"compatible":true,"keyFp":"bb"}`,
 		`{"probe":{"audio":["AAC"]}}`,
 		`{"probe":{"audio":["` + strings.Repeat("a", 25) + `"]}}`,
 		`{"probe":{"audio":["a","b","c","d","e","f","g","h","i"]}}`,
@@ -238,13 +237,14 @@ func TestClientProfile(t *testing.T) {
 		"aa",
 		"POST",
 		ClientsProfilePath,
-		`{"probe":`+probe+`,"compatible":true}`,
+		// A key in the body is ignored like any unknown field: stored for the session's own.
+		`{"probe":`+probe+`,"compatible":true,"keyFp":"bb","future":1}`,
 	); s != 200 {
 		t.Fatalf("store: %d", s)
 	}
-	got := store.Paired()
-	if got[1].Profile != nil || got[0].Profile == nil || !got[0].Profile.Compatible ||
-		got[0].Profile.Probe.H264.Level != 51 || got[0].Profile.ProbedAt.IsZero() {
+	got := store.profiles.of("aa")
+	if store.profiles.of("bb") != nil || got == nil || !got.Compatible ||
+		got.Probe.H264.Level != 51 || got.ProbedAt.IsZero() {
 		t.Fatalf("stored: %+v", got)
 	}
 	_, list := call(tunnel.Member, "aa", "GET", ClientsPath, "")
@@ -259,13 +259,24 @@ func TestClientProfile(t *testing.T) {
 		t.Fatalf("admin list: %s", list)
 	}
 	again, err := Open(dir)
-	if err != nil || again.Paired()[0].Profile == nil || *again.Paired()[0].Profile.Probe.Av1 != (Av1{true, true}) {
-		t.Fatalf("not saved: %v %+v", err, again.Paired())
+	if p := again.profiles.of("aa"); err != nil || p == nil || *p.Probe.Av1 != (Av1{true, true}) {
+		t.Fatalf("not saved: %v %+v", err, p)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "allowlist.json")); strings.Contains(string(b), "probe") {
+		t.Fatalf("profile in allowlist.json: %s", b)
 	}
 	if err := store.Remove("aa"); err != nil {
 		t.Fatal(err)
 	}
-	if b, _ := os.ReadFile(filepath.Join(dir, "allowlist.json")); strings.Contains(string(b), "probe") {
+	if b, _ := os.ReadFile(filepath.Join(dir, "profiles.json")); strings.Contains(string(b), `"aa"`) {
 		t.Fatalf("profile outlived its client: %s", b)
+	}
+	// A torn profiles.json loses the profiles, never the start.
+	if err := os.WriteFile(filepath.Join(dir, "profiles.json"), []byte(`{"bb":{"pro`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	torn, err := Open(dir)
+	if err != nil || torn.profiles.of("bb") != nil || !torn.Allowed("bb") {
+		t.Fatalf("torn profiles.json: %v", err)
 	}
 }

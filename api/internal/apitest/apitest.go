@@ -208,11 +208,15 @@ func Reset(t *testing.T) {
 }
 
 // WaitForLocks returns once n sessions of this package's database wait on a lock: a
-// race test's requests, all queued behind a lock the test holds.
+// race test's requests, all queued behind a lock the test holds. Fails after 10 s.
 func WaitForLocks(t *testing.T, n int) {
 	t.Helper()
-	for Scalar[int](t, `SELECT count(*) FROM pg_stat_activity
-		WHERE datname = current_database() AND wait_event_type = 'Lock'`) < n {
+	for deadline := time.Now().Add(10 * time.Second); Scalar[int](t, `SELECT count(*) FROM pg_stat_activity
+		WHERE datname = current_database() AND wait_event_type = 'Lock'`) < n; {
+		if time.Now().After(deadline) {
+			t.Fatalf("fewer than %d requests wait on the lock", n)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

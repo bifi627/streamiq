@@ -53,7 +53,8 @@ func JSON[T any](t *testing.T, a Answer) T {
 }
 
 // Do sends method path as token's user ("" = signed out), acting in household ("" =
-// none named), with body as its JSON ("" = none) and header's pairs.
+// none named), with body as its JSON ("" = none) and header's pairs. A request that
+// fails is a test error and a zero Answer: Do also runs off the test's goroutine.
 func (c *Client) Do(t *testing.T, method, path, token, household, body string, header ...string) Answer {
 	t.Helper()
 	rq, _ := http.NewRequestWithContext(t.Context(), method, c.URL+path, strings.NewReader(body))
@@ -68,7 +69,8 @@ func (c *Client) Do(t *testing.T, method, path, token, household, body string, h
 	}
 	rs, err := http.DefaultClient.Do(rq)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return Answer{}
 	}
 	defer func() { _ = rs.Body.Close() }()
 	b, _ := io.ReadAll(rs.Body)

@@ -35,12 +35,13 @@ func target(r *http.Request) (string, bool) {
 	return id.String(), err == nil
 }
 
-// lock runs in the household's transaction: it locks the household's row, so membership
+// lock runs in the household's transaction: it locks the household's row (NO KEY: the
+// foreign-key checks of inserts into the household's tables don't wait on it), so membership
 // changes in one household run one at a time (two admins demoting each other can't both
 // pass the check), then whether the member (errNotFound: not in this household) is
 // its only admin.
 func lock(ctx context.Context, tx pgx.Tx, tenant, user string) (lastAdmin bool, err error) {
-	if _, err = tx.Exec(ctx, `SELECT FROM tenants WHERE "Id" = $1 FOR UPDATE`, tenant); err != nil {
+	if _, err = tx.Exec(ctx, `SELECT FROM tenants WHERE "Id" = $1 FOR NO KEY UPDATE`, tenant); err != nil {
 		return false, err
 	}
 	err = tx.QueryRow(ctx, `SELECT "Role" = 'admin' AND

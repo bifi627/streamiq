@@ -14,9 +14,14 @@ is not a status log: open work lives in `gh issue list`, history in git.
   `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
   `gateways`, `onboarding`, `tunnels`, `household`, `members`, `invites`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
   only imports between slices);
-  `front` is `/healthz`, CORS, the security headers (`nosniff`, `frame-ancestors 'none'`,
-  `strict-origin-when-cross-origin`, on every response) and the web app (a file that
-  exists, else `index.html` for a path without an extension; `/api/*` stays a 404). `pgx` with hand-written SQL, no ORM;
+  `front` is `/healthz`, CORS, the security headers (`nosniff`, `strict-origin-when-cross-origin`
+  and a Content-Security-Policy, on every response) and the web app (a file that
+  exists, else `index.html` for a path without an extension; `/api/*` stays a 404). The policy
+  comes from `frontend/src/csp.ts` (own origin, Firebase sign-in, `blob:` media/workers/posters,
+  nothing inline): Vite sends it from `vite dev` (wider: inline scripts and styles, the HMR
+  socket) and `vite preview`, and writes the build's into `csp.txt`, which `front` sends with
+  the web app (the API won't start without it); without a web app it is
+  `frame-ancestors 'none'`. E2E fails a test on a CSP violation in its browsers. `pgx` with hand-written SQL, no ORM;
   names are snake_case and unquoted.
 - **Migrations**: `api/migrations` runs each file once, in name order, each in its own
   transaction, as the tables' owner (`DATABASE_URL`), recorded in `schema_migrations`.

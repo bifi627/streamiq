@@ -5,8 +5,14 @@
 // - paired: a signed-in browser paired with its own fresh gateway.
 // A serial lane, if one is ever needed: Playwright's own `{ lock: 'jellyfin' }`
 // in the test details (no harness code).
-import { test as base, type BrowserContext, type Page } from '@playwright/test'
 import {
+  test as base,
+  expect,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test'
+import {
+  cspViolations,
   newContext,
   onboardGateway,
   pair,
@@ -24,7 +30,19 @@ type Paired = {
   gatewayCtx: BrowserContext // where the local gateway page opens (pair())
 }
 
-export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
+export const test = base.extend<
+  { paired: Paired; csp: void },
+  { jellyfin: string }
+>({
+  // Every test fails on a Content-Security-Policy violation in its browsers.
+  csp: [
+    async ({}, use) => {
+      cspViolations.length = 0
+      await use()
+      expect(cspViolations, 'CSP violations').toEqual([])
+    },
+    { auto: true },
+  ],
   jellyfin: [
     async ({}, use, { parallelIndex }) => {
       // CI: global setup started one per worker; a worker restarted
@@ -82,4 +100,4 @@ export const test = base.extend<{ paired: Paired }, { jellyfin: string }>({
     }
   },
 })
-export { expect } from '@playwright/test'
+export { expect }

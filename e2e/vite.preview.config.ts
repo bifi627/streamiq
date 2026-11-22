@@ -59,6 +59,7 @@ export default {
     'import.meta.env.VITE_FIREBASE_AUTH_EMULATOR': 'location.origin',
   },
   server: {
+    headers: base.server?.headers,
     // HTTP skips Vite's host check over HTTPS; the HMR socket doesn't.
     allowedHosts: ['.trycloudflare.com'],
     https: {

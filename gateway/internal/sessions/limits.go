@@ -20,7 +20,7 @@ const (
 	// outside a pairing exchange before the gateway closes it.
 	UnauthedFor = 30 * time.Second
 	// busy is the refused offer's error and tunnel failure (the browser reads it).
-	busy = "gateway busy"
+	busy = protocol.GatewayBusy
 )
 
 // preAuth is one connection's standing against the limits until it authenticates.

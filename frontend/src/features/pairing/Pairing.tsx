@@ -54,15 +54,21 @@ export function Pairing({
     if (keep.current && lost) testBtn.current?.focus()
     if (s.step === 'done' || s.step === 'failed') keep.current = false
   }, [s])
+  // Leaving the page ends a running attempt: the gateway frees the pairing slot
+  // now, not after its 5-minute expiry.
+  const attempt = useRef<AbortController>(undefined)
+  useEffect(() => () => attempt.current?.abort(), [])
   const busy = s.step === 'connecting' || s.step === 'code'
   async function run(pair: boolean) {
     if (busy) return
     keep.current = !!root.current?.contains(document.activeElement)
     setS({ step: 'connecting', pair })
+    attempt.current = new AbortController()
     try {
       const x = await connect(
         gatewayId,
         pair ? (code) => setS({ step: 'code', code }) : undefined,
+        attempt.current.signal,
       )
       if (pair) setPinned(true)
       try {

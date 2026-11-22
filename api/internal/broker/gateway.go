@@ -110,7 +110,8 @@ func (b *Broker) serveGateway(ctx context.Context, me *link, hash string) {
 // relayToBrowser forwards only into sessions opened for this gateway: a gateway can't
 // inject signaling into another gateway's (or household's) session. Only the fields the
 // protocol defines; the answer tells the browser its tunnel id, for its throughput PATCH.
-// An error is the gateway refusing the offer (busy): the browser shows it, ICE never starts.
+// An error is the gateway refusing the offer: only GatewayBusy, so a gateway can't put its
+// own text into the browser's error path.
 func (b *Broker) relayToBrowser(me *link, t string, m Fields) {
 	sid := id(m, "session")
 	b.mu.Lock()
@@ -125,8 +126,9 @@ func (b *Broker) relayToBrowser(me *link, t string, m Fields) {
 	case "ice":
 		send(s.conn, protocol.Ice[json.RawMessage]{Type: t, Candidate: ptr[json.RawMessage](m, "candidate")})
 	case "error":
-		e := str(m, "error")
-		send(s.conn, protocol.ErrorMsg{Type: t, Error: e[:min(len(e), 200)]})
+		if str(m, "error") == protocol.GatewayBusy {
+			send(s.conn, protocol.ErrorMsg{Type: t, Error: protocol.GatewayBusy})
+		}
 	}
 }
 

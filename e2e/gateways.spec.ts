@@ -285,6 +285,22 @@ test('reject on the local gateway page: refused, stays unpaired @gateways', asyn
   ).toBeVisible()
 })
 
+test('leaving the page mid-pairing frees the slot: pairing again gets a code @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const { user } = paired
+  const b = await second(browser, user)
+  const pairBtn = card(b).getByRole('button', { name: 'Pair this browser' })
+  await pairBtn.click()
+  await expect(b.getByLabel('Comparison code')).toBeVisible()
+  await b.getByRole('link', { name: 'Settings' }).click()
+  await b.getByRole('link', { name: 'Gateways', exact: true }).click()
+  // One pairing slot per user: a slot still held would make this one "busy".
+  await pairBtn.click()
+  await expect(b.getByLabel('Comparison code')).toBeVisible()
+})
+
 test('a refused broker socket shows an error, not "loading…" (#403) @gateways', async ({
   paired,
 }) => {

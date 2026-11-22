@@ -327,15 +327,18 @@ holds that to one guess per connection:
   logged.
 - **One slot per user** (`offer.user`, `pairing.MaxPendingPerUser`): a second
   `commit` from a user whose exchange still runs gets `rejected` (`this user is
-  already pairing a browser`), so one account can't hold every slot.
+  already pairing a browser`), so one account can't hold every slot. The browser
+  shows both full-queue rejections as busy ("Try again in a moment"), not as a
+  refusal, and ends its attempt when the pairing view unmounts, which frees the slot.
 
 **Limits before auth** (#758, `gateway/internal/sessions/limits.go`). A connection
 is *not authenticated* from its offer until `ok` or `approved`:
 
 - **At most 8 at once** (`MaxUnauthed`). An offer over it builds no PeerConnection:
   the gateway sends the broker `{type:"error", session, error:"gateway busy"}` and a
-  `tunnel` report with that failure; the browser gets the broker's `error` frame and
-  shows "The gateway is busy … Try again in a moment." with Retry.
+  `tunnel` report with that failure; the broker relays only this one reason
+  (`protocol.GatewayBusy`; any other gateway `error` is dropped), and the browser
+  shows "The gateway is busy. Try again in a moment." with Retry.
 - **30 s from the offer** (`UnauthedFor`). Still not authenticated then and no
   pairing exchange running (an accepted `commit`) → the gateway closes the
   PeerConnection; the tunnel row's failure is `not authenticated within 30s`, or

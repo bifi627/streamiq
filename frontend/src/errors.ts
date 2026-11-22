@@ -7,7 +7,7 @@ export type Kind =
   | 'broker-unreachable' // broker socket closed before it opened: offline or rate-limited (a 429 is invisible to JS)
   | 'broker-lost' // broker socket dropped after it opened
   | 'gateway-offline'
-  | 'gateway-busy' // the gateway refused the offer: too many connections not authenticated yet
+  | 'gateway-busy' // the gateway refused for now: too many unauthenticated connections, or its pairing slots are taken
   | 'ice-failed'
   | 'not-paired'
   | 'pin-mismatch'
@@ -131,8 +131,7 @@ export function describe(e: AppError): {
       }
     case 'gateway-busy':
       return {
-        message:
-          'The gateway is busy with other connections. Try again in a moment.',
+        message: 'The gateway is busy. Try again in a moment.',
         actions: ['retry'],
       }
     case 'ice-failed':

@@ -39,11 +39,11 @@ function psql(sql: string): string {
   return r.stdout.trim()
 }
 
-/** One `tunnels` row as JSON (EF column names: Relay, BytesSent, EndedAt, …),
+/** One `tunnels` row as JSON (keys are its columns: relay, bytes_sent, ended_at, …),
  * read from the stack's Postgres with its own psql: e2e has no DB client. null = no row. */
 export function tunnelRow(id: string): Record<string, any> | null {
   if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error(`not a tunnel id: ${id}`)
-  const out = psql(`select row_to_json(t) from tunnels t where "Id" = '${id}'`)
+  const out = psql(`select row_to_json(t) from tunnels t where id = '${id}'`)
   return out ? JSON.parse(out) : null
 }
 
@@ -62,8 +62,8 @@ export function seedTunnel(
     throw new Error(`not a name: ${gatewayName}`)
   const [gateway, tunnel] = [randomUUID(), randomUUID()]
   psql(
-    `insert into gateways ("Id", "TenantId", "Name", "CreatedAt") values ('${gateway}', '${tenantId}', '${gatewayName}', now());` +
-      `insert into tunnels ("Id", "TenantId", "GatewayId", "UserId", "Relay", "Ipv6", "CreatedAt", "EndedAt", "BytesSent", "BytesReceived", "Use")` +
+    `insert into gateways (id, tenant_id, name, created_at) values ('${gateway}', '${tenantId}', '${gatewayName}', now());` +
+      `insert into tunnels (id, tenant_id, gateway_id, user_id, relay, ipv6, created_at, ended_at, bytes_sent, bytes_received, use)` +
       ` values ('${tunnel}', '${tenantId}', '${gateway}', '${userId}', true, false, now() - interval '5 minutes', now(), 2000000, 1000, 'playback')`,
   )
 }
@@ -91,7 +91,7 @@ export function seedHealth(
       `'${r.jellyfin.replace(/'/g, '')}', '${r.gateway.replace(/'/g, '')}', ${Number(r.tunnels)}, ${Number(r.cpu)})`,
   )
   psql(
-    `insert into gateway_health ("Id", "TenantId", "GatewayId", "At", "Level", "JellyfinReachable", "JellyfinVersion", "GatewayVersion", "Tunnels", "Cpu") values ${values.join(', ')}`,
+    `insert into gateway_health (id, tenant_id, gateway_id, at, level, jellyfin_reachable, jellyfin_version, gateway_version, tunnels, cpu) values ${values.join(', ')}`,
   )
 }
 

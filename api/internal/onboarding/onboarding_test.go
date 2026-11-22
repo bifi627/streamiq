@@ -115,7 +115,7 @@ func TestAnAdminMintsAToken128BitFor15MinutesStoredOnlyAsItsHash(t *testing.T) {
 		time.Until(tok.ExpiresAt) < 14*time.Minute {
 		t.Fatal(tok)
 	}
-	row := apitest.Scalar[string](t, `SELECT concat_ws('|', "TenantId", "TokenHash", "UsedAt") FROM enrollment_tokens`)
+	row := apitest.Scalar[string](t, `SELECT concat_ws('|', tenant_id, token_hash, used_at) FROM enrollment_tokens`)
 	if row != home+"|"+sha(tok.Token) {
 		t.Fatal(row)
 	}
@@ -181,8 +181,8 @@ func TestATokenEnrollsOneGatewayIntoItsOwnHouseholdOnce(t *testing.T) {
 	if status != http.StatusOK || len(g.Credential) != 43 {
 		t.Fatal(status, g)
 	}
-	row := apitest.Scalar[string](t, `SELECT concat_ws('|', "TenantId", "Name", "DtlsFingerprint", "CredentialHash")
-		FROM gateways WHERE "Id" = $1`, g.GatewayID)
+	row := apitest.Scalar[string](t, `SELECT concat_ws('|', tenant_id, name, dtls_fingerprint, credential_hash)
+		FROM gateways WHERE id = $1`, g.GatewayID)
 	if row != home+"|nas|"+fingerprint+"|"+sha(g.Credential) {
 		t.Fatal(row)
 	}
@@ -190,7 +190,7 @@ func TestATokenEnrollsOneGatewayIntoItsOwnHouseholdOnce(t *testing.T) {
 		t.Fatal(status)
 	}
 	_, g2 := s.enroll(t, other.Token, "")
-	if got := apitest.Scalar[string](t, `SELECT "TenantId"::text || '|' || "Name" FROM gateways WHERE "Id" = $1`,
+	if got := apitest.Scalar[string](t, `SELECT tenant_id::text || '|' || name FROM gateways WHERE id = $1`,
 		g2.GatewayID); got != cabin+"|gateway" {
 		t.Fatal(got)
 	}
@@ -203,7 +203,7 @@ func TestAnExpiredOrUnknownTokenIsRejected(t *testing.T) {
 	s := newDefault(t)
 	alice, _ := s.member(t, "alice@home.test", "admin")
 	tok := s.token(t, alice)
-	apitest.Exec(t, `UPDATE enrollment_tokens SET "ExpiresAt" = now() - interval '1 second'`)
+	apitest.Exec(t, `UPDATE enrollment_tokens SET expires_at = now() - interval '1 second'`)
 	for _, token := range []string{tok.Token, "unknown"} {
 		if status, _ := s.enroll(t, token, "nas"); status != http.StatusUnauthorized {
 			t.Fatal(token, status)
@@ -237,7 +237,7 @@ func TestTheNameIsCutTo100UTF16Units(t *testing.T) {
 		{"a" + strings.Repeat("😀", 60), "a" + strings.Repeat("😀", 49)}, // an emoji counts 2, never split
 	} {
 		_, g := s.enroll(t, s.token(t, alice).Token, c.sent)
-		if n := apitest.Scalar[string](t, `SELECT "Name" FROM gateways WHERE "Id" = $1`, g.GatewayID); n != c.want {
+		if n := apitest.Scalar[string](t, `SELECT name FROM gateways WHERE id = $1`, g.GatewayID); n != c.want {
 			t.Fatal(n)
 		}
 	}

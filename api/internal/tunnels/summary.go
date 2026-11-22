@@ -30,12 +30,12 @@ func summary(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	}
 	out := []Summary{}
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		rows, _ := tx.Query(r.Context(), `SELECT "UserId"::text, count(*),
-			count(*) FILTER (WHERE "Use" IN ('management', 'diagnostics') AND "Failure" IS NULL),
-			count(*) FILTER (WHERE "Failure" IS NOT NULL),
-			coalesce(sum(coalesce("BytesSent", 0) + coalesce("BytesReceived", 0)) FILTER (WHERE "Relay"), 0)
-			FROM tunnels WHERE "CreatedAt" > now() - $1::interval
-			GROUP BY "UserId" ORDER BY count(*) DESC`, Window)
+		rows, _ := tx.Query(r.Context(), `SELECT user_id::text, count(*),
+			count(*) FILTER (WHERE use IN ('management', 'diagnostics') AND failure IS NULL),
+			count(*) FILTER (WHERE failure IS NOT NULL),
+			coalesce(sum(coalesce(bytes_sent, 0) + coalesce(bytes_received, 0)) FILTER (WHERE relay), 0)
+			FROM tunnels WHERE created_at > now() - $1::interval
+			GROUP BY user_id ORDER BY count(*) DESC`, Window)
 		var err error
 		out, err = pgx.AppendRows(out, rows, func(row pgx.CollectableRow) (s Summary, err error) {
 			err = row.Scan(&s.UserID, &s.Tunnels, &s.Hidden, &s.Failed, &s.RelayedBytes)

@@ -32,15 +32,15 @@ func TestCreatingAHouseholdMakesTheCallerItsAdminWithOrWithoutOneAlready(t *test
 	if first.Status != http.StatusOK || len(created) != 1 || id == "" {
 		t.Fatalf("%d %s", first.Status, first.Body)
 	}
-	if role, name := apitest.Scalar[string](t, `SELECT "Role" FROM memberships WHERE "TenantId" = $1 AND "UserId" = $2`,
-		id, user), apitest.Scalar[*string](t, `SELECT "Name" FROM tenants WHERE "Id" = $1`, id); role != "admin" ||
+	if role, name := apitest.Scalar[string](t, `SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2`,
+		id, user), apitest.Scalar[*string](t, `SELECT name FROM tenants WHERE id = $1`, id); role != "admin" ||
 		name != nil {
 		t.Fatalf("role %s, name %v; want admin of an unnamed household", role, name)
 	}
 	if second := s.Do(t, http.MethodPost, "/api/households", token, "", ""); second.Status != http.StatusOK {
 		t.Fatal(second.Status)
 	}
-	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE "UserId" = $1 AND "Role" = 'admin'`,
+	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE user_id = $1 AND role = 'admin'`,
 		user); n != 2 {
 		t.Fatalf("admin of %d households, want 2", n)
 	}
@@ -82,7 +82,7 @@ func TestOnlyAnAdminNamesTheHouseholdTrimmed(t *testing.T) {
 	alice, bob := apitest.Token(t, "alice@home.test"), apitest.Token(t, "bob@home.test")
 	home := apitest.Household(t, s.User(t, alice), "admin")
 	apitest.Join(t, s.User(t, bob), home, "member")
-	name := func() string { return apitest.Scalar[string](t, `SELECT "Name" FROM tenants WHERE "Id" = $1`, home) }
+	name := func() string { return apitest.Scalar[string](t, `SELECT name FROM tenants WHERE id = $1`, home) }
 
 	a := s.Do(t, http.MethodPut, "/api/households/current/name", alice, "", `{"name":"  The Smiths  "}`)
 	if a.Status != http.StatusOK || string(a.Body) != `{"name":"The Smiths"}` || name() != "The Smiths" {
@@ -123,7 +123,7 @@ func TestNamingTouchesOnlyTheRequestsHousehold(t *testing.T) {
 	alice, dave := apitest.Token(t, "alice@home.test"), apitest.Token(t, "dave@home.test")
 	home := apitest.Household(t, s.User(t, alice), "admin")
 	cabin := apitest.Household(t, s.User(t, dave), "admin")
-	apitest.Exec(t, `UPDATE tenants SET "Name" = NULL`)
+	apitest.Exec(t, `UPDATE tenants SET name = NULL`)
 
 	a := s.Do(t, http.MethodPut, "/api/households/current/name", alice, cabin, `{"name":"Mine now"}`)
 	if a.Status != http.StatusNotFound || a.Header.Get(auth.NotMemberHeader) != "1" {
@@ -133,7 +133,7 @@ func TestNamingTouchesOnlyTheRequestsHousehold(t *testing.T) {
 		http.StatusOK {
 		t.Fatal(a.Status)
 	}
-	if n := apitest.Scalar[*string](t, `SELECT "Name" FROM tenants WHERE "Id" = $1`, cabin); n != nil {
+	if n := apitest.Scalar[*string](t, `SELECT name FROM tenants WHERE id = $1`, cabin); n != nil {
 		t.Fatalf("dave's household is named %q", *n)
 	}
 	if a := s.Do(t, http.MethodPut, "/api/households/current/name", apitest.Token(t, "nohome@home.test"), "",

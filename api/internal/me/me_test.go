@@ -62,7 +62,7 @@ func TestMe(t *testing.T) {
 
 	home := apitest.Household(t, user, "admin")
 	cabin := apitest.Household(t, user, "member")
-	apitest.Exec(t, `UPDATE tenants SET "Name" = NULL WHERE "Id" = $1`, cabin)
+	apitest.Exec(t, `UPDATE tenants SET name = NULL WHERE id = $1`, cabin)
 	want := map[string]any{"userId": user, "tenantId": home, "memberships": []any{
 		map[string]any{"id": home, "name": "home", "role": "admin"},
 		map[string]any{"id": cabin, "name": nil, "role": "member"},

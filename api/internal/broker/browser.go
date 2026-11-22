@@ -115,7 +115,7 @@ func (b *Broker) offer(ctx context.Context, conn *websocket.Conn, user string, m
 	sid := uuid.NewString()
 	// The row exists before the gateway hears of the session, so its report finds it.
 	// Best effort: a failed write costs this tunnel its telemetry, never the tunnel.
-	b.tenant(ctx, gw.tenant, `INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "UserId", "Relay", "Ipv6")
+	b.tenant(ctx, gw.tenant, `INSERT INTO tunnels (id, tenant_id, gateway_id, user_id, relay, ipv6)
 		VALUES ($1, app_tenant(), $2, $3, false, false)`, sid, gw.gateID, user)
 	b.mu.Lock()
 	b.sessions[sid] = &session{conn: conn, via: gw}
@@ -137,7 +137,7 @@ func (b *Broker) role(ctx context.Context, user string, gw *link) string {
 	live := false
 	if err == nil && role != "" {
 		err = b.DB.InTenant(ctx, gw.tenant, func(tx pgx.Tx) error {
-			return tx.QueryRow(ctx, `SELECT EXISTS (SELECT FROM gateways WHERE "Id" = $1 AND "CredentialHash" IS NOT NULL)`,
+			return tx.QueryRow(ctx, `SELECT EXISTS (SELECT FROM gateways WHERE id = $1 AND credential_hash IS NOT NULL)`,
 				gw.gateID).
 				Scan(&live)
 		})
@@ -166,5 +166,5 @@ func (b *Broker) endSession(sid string, gw *link) {
 	send(gw.conn, rawMsg{Type: "bye", Session: sid})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	b.tenant(ctx, gw.tenant, `UPDATE tunnels SET "EndedAt" = now() WHERE "Id" = $1`, sid)
+	b.tenant(ctx, gw.tenant, `UPDATE tunnels SET ended_at = now() WHERE id = $1`, sid)
 }

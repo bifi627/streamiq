@@ -22,7 +22,7 @@ func withVersion(m map[string]any, v string) map[string]any { m["version"] = v; 
 
 func healthRows(t *testing.T, g *gw) int {
 	t.Helper()
-	return apitest.Scalar[int](t, `SELECT count(*) FROM gateway_health WHERE "GatewayId" = $1`, g.id)
+	return apitest.Scalar[int](t, `SELECT count(*) FROM gateway_health WHERE gateway_id = $1`, g.id)
 }
 
 // latest is the latest row's Jellyfin version, tunnels and gateway version.
@@ -30,24 +30,24 @@ func latest(t *testing.T, g *gw) string {
 	t.Helper()
 	return apitest.Scalar[string](
 		t,
-		`SELECT concat_ws('|', "JellyfinVersion", "Tunnels", coalesce("GatewayVersion", 'none'))
-		FROM gateway_health WHERE "GatewayId" = $1 ORDER BY "At" DESC LIMIT 1`,
+		`SELECT concat_ws('|', jellyfin_version, tunnels, coalesce(gateway_version, 'none'))
+		FROM gateway_health WHERE gateway_id = $1 ORDER BY at DESC LIMIT 1`,
 		g.id,
 	)
 }
 
 func age(t *testing.T, g *gw, interval string) {
 	t.Helper()
-	apitest.Exec(t, `UPDATE gateway_health SET "At" = "At" - $2::interval WHERE "GatewayId" = $1`, g.id, interval)
+	apitest.Exec(t, `UPDATE gateway_health SET at = at - $2::interval WHERE gateway_id = $1`, g.id, interval)
 }
 
 func TestAFullHeartbeatStoresTheLevelAndAHealthRow(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
 	s.heartbeat(nas, full("10.11.2", 1))
-	row := apitest.Scalar[string](t, `SELECT concat_ws('|', "TenantId", "Level", "JellyfinReachable", "Os", "Arch",
-		"Transcoding", "Cpu", "Memory") FROM gateway_health WHERE "GatewayId" = $1`, nas.id)
-	if got := gatewayCols(t, nas, `"Telemetry"`); got != "full" || healthRows(t, nas) != 1 ||
+	row := apitest.Scalar[string](t, `SELECT concat_ws('|', tenant_id, level, jellyfin_reachable, os, arch,
+		transcoding, cpu, memory) FROM gateway_health WHERE gateway_id = $1`, nas.id)
+	if got := gatewayCols(t, nas, `telemetry`); got != "full" || healthRows(t, nas) != 1 ||
 		latest(t, nas) != "10.11.2|1|none" || row != nas.tenant+"|full|t|linux|amd64|none|12.5|40" {
 		t.Fatalf("%s, %d rows, %s, %s", got, healthRows(t, nas), latest(t, nas), row)
 	}
@@ -105,7 +105,7 @@ func TestOffOrAnUnknownLevelStoresNothingNewAndKeepsTheRows(t *testing.T) {
 		m := full("10.11.3", 1)
 		m["telemetry"] = level
 		s.heartbeat(nas, m)
-		if got := gatewayCols(t, nas, `"Telemetry"`); got != "off" || healthRows(t, nas) != 1 {
+		if got := gatewayCols(t, nas, `telemetry`); got != "off" || healthRows(t, nas) != 1 {
 			t.Fatalf("%v: %s, %d rows", level, got, healthRows(t, nas))
 		}
 	}
@@ -115,7 +115,7 @@ func TestAGatewayTooOldToSendALevelHasNoneAndStoresNothing(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
 	s.heartbeat(nas, map[string]any{"telemetry": nil, "health": full("10.11.2", 1)["health"]})
-	if got := gatewayCols(t, nas, `coalesce("Telemetry", 'none')`); got != "none" || healthRows(t, nas) != 0 {
+	if got := gatewayCols(t, nas, `coalesce(telemetry, 'none')`); got != "none" || healthRows(t, nas) != 0 {
 		t.Fatalf("%s, %d rows", got, healthRows(t, nas))
 	}
 }
@@ -125,8 +125,8 @@ func TestAGatewayTooOldToSendALevelHasNoneAndStoresNothing(t *testing.T) {
 func TestAnotherHouseholdsHealthRowsAreNeverRead(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
-	apitest.Exec(t, `INSERT INTO gateway_health ("Id", "TenantId", "GatewayId", "At", "Level", "JellyfinReachable",
-		"JellyfinVersion", "Os", "Arch", "Transcoding") VALUES (uuidv7(), $1, $2, now(), 'full', true, '10.11.2', 'linux',
+	apitest.Exec(t, `INSERT INTO gateway_health (id, tenant_id, gateway_id, at, level, jellyfin_reachable,
+		jellyfin_version, os, arch, transcoding) VALUES (uuidv7(), $1, $2, now(), 'full', true, '10.11.2', 'linux',
 		'amd64', 'none')`, s.household("eve@home.test"), nas.id)
 	s.heartbeat(nas, full("10.11.2", 1))
 	if healthRows(t, nas) != 2 {
@@ -135,7 +135,7 @@ func TestAnotherHouseholdsHealthRowsAreNeverRead(t *testing.T) {
 	s.heartbeat(nas, map[string]any{"telemetry": "off"})
 	if n := apitest.Scalar[int](
 		t,
-		`SELECT count(*) FROM gateway_health WHERE "TenantId" = $1`,
+		`SELECT count(*) FROM gateway_health WHERE tenant_id = $1`,
 		s.household("eve@home.test"),
 	); n != 1 {
 		t.Fatal("eve's row is gone")

@@ -84,7 +84,7 @@ func (b *Broker) serveGateway(ctx context.Context, me *link, hash string) {
 				// The protocol before anything else, so whatever else an old gateway sends
 				// can't keep it from being listed as "update required".
 				if p := protocolOf(m); p < MinGatewayProtocol {
-					b.tenant(ctx, me.tenant, `UPDATE gateways SET "Protocol" = $2 WHERE "Id" = $1`, me.gateID, p)
+					b.tenant(ctx, me.tenant, `UPDATE gateways SET protocol = $2 WHERE id = $1`, me.gateID, p)
 					kill(me.conn, "upgrade required")
 					return
 				}
@@ -132,9 +132,9 @@ func (b *Broker) beat(ctx context.Context, me *link, hash string, m Fields) bool
 	h := parseHeartbeat(m)
 	live := true
 	err := b.DB.InTenant(ctx, me.tenant, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `UPDATE gateways SET "LastSeenAt" = now(), "LanUrl" = $3, "Version" = $4,
-			"Protocol" = $5, "Update" = $6, "Telemetry" = $7, "Name" = coalesce($8, "Name")
-			WHERE "Id" = $1 AND "CredentialHash" = $2`,
+		tag, err := tx.Exec(ctx, `UPDATE gateways SET last_seen_at = now(), lan_url = $3, version = $4,
+			protocol = $5, update = $6, telemetry = $7, name = coalesce($8, name)
+			WHERE id = $1 AND credential_hash = $2`,
 			me.gateID, hash, h.LanURL, h.Version, h.Protocol, h.Update, h.Tel, h.Name)
 		live = err != nil || tag.RowsAffected() > 0 // a failed write isn't a revoke
 		return err
@@ -155,16 +155,16 @@ func (b *Broker) beat(ctx context.Context, me *link, hash string, m Fields) bool
 // 30 s, so a gateway can't add rows faster than its schedule. Live counts and load
 // alone don't make one. Only this household's rows are read (the tenant transaction).
 func storeHealth(ctx context.Context, tx pgx.Tx, gatewayID string, h health) error {
-	_, err := tx.Exec(ctx, `INSERT INTO gateway_health ("Id", "TenantId", "GatewayId", "At", "Level",
-			"JellyfinReachable", "JellyfinVersion", "GatewayVersion", "Os", "Arch", "Transcoding", "Offline",
-			"Tunnels", "Transcodes", "Cpu", "Memory")
+	_, err := tx.Exec(ctx, `INSERT INTO gateway_health (id, tenant_id, gateway_id, at, level,
+			jellyfin_reachable, jellyfin_version, gateway_version, os, arch, transcoding, offline,
+			tunnels, transcodes, cpu, memory)
 		SELECT uuidv7(), app_tenant(), $1, now(), 'full', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 		WHERE NOT EXISTS (
-			SELECT FROM (SELECT * FROM gateway_health WHERE "GatewayId" = $1 ORDER BY "At" DESC LIMIT 1) l
-			WHERE now() - l."At" < interval '25 seconds'
-				OR now() - l."At" < interval '5 minutes'
-				AND (l."JellyfinReachable", l."JellyfinVersion", l."GatewayVersion", l."Os", l."Arch",
-					l."Transcoding", l."Offline")
+			SELECT FROM (SELECT * FROM gateway_health WHERE gateway_id = $1 ORDER BY at DESC LIMIT 1) l
+			WHERE now() - l.at < interval '25 seconds'
+				OR now() - l.at < interval '5 minutes'
+				AND (l.jellyfin_reachable, l.jellyfin_version, l.gateway_version, l.os, l.arch,
+					l.transcoding, l.offline)
 				IS NOT DISTINCT FROM ($2::boolean, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text))`,
 		gatewayID, h.JellyfinReachable, h.JellyfinVersion, h.GatewayV, h.Os, h.Arch, h.Transcoding, h.Offline,
 		h.Tunnels, h.Transcodes, h.CPU, h.Memory)
@@ -178,10 +178,10 @@ func (b *Broker) storeReport(ctx context.Context, me *link, r *report) {
 	b.tenant(
 		ctx,
 		me.tenant,
-		`UPDATE tunnels SET "Relay" = $3, "Ipv6" = $4, "LocalCandidateType" = $5,
-		"RemoteCandidateType" = $6, "Protocol" = $7, "BytesSent" = $8, "BytesReceived" = $9, "Failure" = $10,
-		"Use" = $11, "ActiveMs" = $12
-		WHERE "Id" = $1 AND "GatewayId" = $2 AND "BytesSent" IS NULL`,
+		`UPDATE tunnels SET relay = $3, ipv6 = $4, local_candidate_type = $5,
+		remote_candidate_type = $6, protocol = $7, bytes_sent = $8, bytes_received = $9, failure = $10,
+		use = $11, active_ms = $12
+		WHERE id = $1 AND gateway_id = $2 AND bytes_sent IS NULL`,
 		r.Session,
 		me.gateID,
 		r.Relay,

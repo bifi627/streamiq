@@ -48,8 +48,9 @@ Same steps for "bad migration / wrong data, DB still up" and "DB lost":
 3. **Cut over:** Railway → API service → Variables → `DATABASE_URL` → point it at the
    idle service and the new database, as a reference:
    `postgresql://${{<idle service>.PGUSER}}:${{<idle service>.PGPASSWORD}}@${{<idle service>.PGHOST}}:${{<idle service>.PGPORT}}/restore_<stamp>`.
-   Railway redeploys; the API's migrations at start are a no-op (`schema_migrations`
-   came with the dump), and it sets `streamiq_app`'s password (`STREAMIQ_APP_DB_PASSWORD`)
+   Railway redeploys; the API's migrations at start run only what the dump lacks
+   (`schema_migrations` came with it; a dump from before #744 gets the snake_case
+   rename), and it sets `streamiq_app`'s password (`STREAMIQ_APP_DB_PASSWORD`)
    on the idle server's role, whose grants came with the dump.
 4. **Flip `DB_LIVE`** (the command from the run summary):
    `gh variable set DB_LIVE --env db-backup --body <idle>/restore_<stamp>`. From now on

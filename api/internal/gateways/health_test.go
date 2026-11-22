@@ -12,7 +12,7 @@ import (
 // healthRow is a row daysOld days old; its Tunnels column says how old, to read the order back.
 func healthRow(t *testing.T, household, gateway string, daysOld int) {
 	t.Helper()
-	apitest.Exec(t, `INSERT INTO gateway_health ("Id", "TenantId", "GatewayId", "At", "Level", "Tunnels")
+	apitest.Exec(t, `INSERT INTO gateway_health (id, tenant_id, gateway_id, at, level, tunnels)
 		VALUES (uuidv7(), $1, $2, now() - make_interval(days => $3), 'full', $3)`, household, gateway, daysOld)
 }
 

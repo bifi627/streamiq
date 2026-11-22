@@ -22,8 +22,8 @@ func TestOpenNeedsTheAppPassword(t *testing.T) {
 func TestOpenEndsTheTunnelsAKilledProcessLeftOpen(t *testing.T) {
 	apitest.Reset(t)
 	h := seed(t)
-	apitest.Exec(t, `INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "Relay", "Ipv6", "EndedAt")
-		SELECT uuidv7(), "TenantId", "GatewayId", false, false, '2026-01-01Z' FROM tunnels WHERE "TenantId" = $1`, h)
+	apitest.Exec(t, `INSERT INTO tunnels (id, tenant_id, gateway_id, relay, ipv6, ended_at)
+		SELECT uuidv7(), tenant_id, gateway_id, false, false, '2026-01-01Z' FROM tunnels WHERE tenant_id = $1`, h)
 	start := apitest.Scalar[time.Time](t, `SELECT now()`)
 	d, err := apitest.Open(t.Context())
 	if err != nil {
@@ -31,7 +31,7 @@ func TestOpenEndsTheTunnelsAKilledProcessLeftOpen(t *testing.T) {
 	}
 	d.Close()
 	got := apitest.Scalar[string](t, `SELECT string_agg(
-		("EndedAt" >= $1)::text || ("EndedAt" = '2026-01-01Z')::text, ',' ORDER BY "EndedAt") FROM tunnels`, start)
+		(ended_at >= $1)::text || (ended_at = '2026-01-01Z')::text, ',' ORDER BY ended_at) FROM tunnels`, start)
 	if got != "falsetrue,truefalse" {
 		t.Fatal(got)
 	}

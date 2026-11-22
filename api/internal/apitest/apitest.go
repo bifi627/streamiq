@@ -265,7 +265,7 @@ func Token(t *testing.T, email string) string {
 // Household adds a household with userID as its role ("admin" or "member") and returns its id.
 func Household(t *testing.T, userID, role string) string {
 	t.Helper()
-	id := Scalar[string](t, `INSERT INTO tenants ("Id", "Name") VALUES (uuidv7(), 'home') RETURNING "Id"::text`)
+	id := Scalar[string](t, `INSERT INTO tenants (id, name) VALUES (uuidv7(), 'home') RETURNING id::text`)
 	Join(t, userID, id, role)
 	return id
 }
@@ -273,5 +273,5 @@ func Household(t *testing.T, userID, role string) string {
 // Join makes userID a member of household.
 func Join(t *testing.T, userID, household, role string) {
 	t.Helper()
-	Exec(t, `INSERT INTO memberships ("TenantId", "UserId", "Role") VALUES ($1, $2, $3)`, household, userID, role)
+	Exec(t, `INSERT INTO memberships (tenant_id, user_id, role) VALUES ($1, $2, $3)`, household, userID, role)
 }

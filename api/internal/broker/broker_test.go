@@ -100,7 +100,7 @@ func TestARemovedMembershipLosesAccessRightAway(t *testing.T) {
 	c := s.browser("bob@home.test") // authenticated while still a member
 	apitest.Exec(
 		t,
-		`DELETE FROM memberships WHERE "UserId" = $1 AND "TenantId" = $2`,
+		`DELETE FROM memberships WHERE user_id = $1 AND tenant_id = $2`,
 		bob,
 		s.household("alice@home.test"),
 	)
@@ -211,7 +211,7 @@ func TestAMessageOverTheSizeLimitIsDropped(t *testing.T) {
 func TestARevokedGatewayWithItsSocketOpenGetsNoSessionsAndIsClosedAtItsNextHeartbeat(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
-	apitest.Exec(t, `UPDATE gateways SET "CredentialHash" = NULL WHERE "Id" = $1`, nas.id)
+	apitest.Exec(t, `UPDATE gateways SET credential_hash = NULL WHERE id = $1`, nas.id)
 	if !s.b.Online(nas.id) {
 		t.Fatal("not routable before the check")
 	}

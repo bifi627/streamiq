@@ -8,7 +8,7 @@ import (
 
 func gatewayCols(t *testing.T, g *gw, cols string) string {
 	t.Helper()
-	return apitest.Scalar[string](t, `SELECT concat_ws('|', `+cols+`) FROM gateways WHERE "Id" = $1`, g.id)
+	return apitest.Scalar[string](t, `SELECT concat_ws('|', `+cols+`) FROM gateways WHERE id = $1`, g.id)
 }
 
 // A credential the way enrollment hands it out opens the socket.
@@ -29,14 +29,14 @@ func TestAHeartbeatUpdatesOnlyTheSendingGatewaysRow(t *testing.T) {
 	if got := gatewayCols(
 		t,
 		nas,
-		`"LanUrl", "Version", "Update", "Protocol"`,
+		`lan_url, version, update, protocol`,
 	); got != "http://192.168.1.20:8097/|1.4.0|1.6.0|1" {
 		t.Fatal(got)
 	}
 	if got := gatewayCols(
 		t,
 		pc,
-		`coalesce("LastSeenAt"::text, 'never'), coalesce("Version", 'none')`,
+		`coalesce(last_seen_at::text, 'never'), coalesce(version, 'none')`,
 	); got != "never|none" {
 		t.Fatal(got)
 	}
@@ -55,7 +55,7 @@ func TestAHeartbeatsNameRenamesTheGateway(t *testing.T) {
 			extra["name"] = c.sent
 		}
 		s.heartbeat(nas, extra)
-		if got := gatewayCols(t, nas, `"Name"`); got != c.want {
+		if got := gatewayCols(t, nas, `name`); got != c.want {
 			t.Fatalf("%q: %q", c.sent, got)
 		}
 	}
@@ -75,7 +75,7 @@ func TestAGatewayBelowTheMinimumProtocolIsRefusedAndStoredAsSuch(t *testing.T) {
 		if got := gatewayCols(
 			t,
 			nas,
-			`"Protocol", coalesce("LastSeenAt"::text, 'never')`,
+			`protocol, coalesce(last_seen_at::text, 'never')`,
 		); got != "0|never" ||
 			s.b.Online(nas.id) {
 			t.Fatalf("%v: %s", p, got)
@@ -86,7 +86,7 @@ func TestAGatewayBelowTheMinimumProtocolIsRefusedAndStoredAsSuch(t *testing.T) {
 func TestAGatewayAtTheCurrentProtocolIsAcceptedAndStaysOpen(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
-	if got := gatewayCols(t, nas, `"Protocol"`); got != "1" || !s.b.Online(nas.id) {
+	if got := gatewayCols(t, nas, `protocol`); got != "1" || !s.b.Online(nas.id) {
 		t.Fatal(got)
 	}
 	s.heartbeat(nas, nil) // still open

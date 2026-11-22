@@ -32,7 +32,7 @@ func throughput(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB)
 	}
 	var n int64
 	err = d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		tag, e := tx.Exec(r.Context(), `UPDATE tunnels SET "ThroughputKbps" = $1 WHERE "Id" = $2 AND "UserId" = $3`,
+		tag, e := tx.Exec(r.Context(), `UPDATE tunnels SET throughput_kbps = $1 WHERE id = $2 AND user_id = $3`,
 			rq.ThroughputKbps, id, c.User)
 		n = tag.RowsAffected()
 		return e

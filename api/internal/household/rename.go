@@ -36,7 +36,7 @@ func rename(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 		return
 	}
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		_, err := tx.Exec(r.Context(), `UPDATE tenants SET "Name" = $2 WHERE "Id" = $1`, c.Tenant, name)
+		_, err := tx.Exec(r.Context(), `UPDATE tenants SET name = $2 WHERE id = $1`, c.Tenant, name)
 		return err
 	})
 	writeJSON(w, Named{name}, err)

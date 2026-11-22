@@ -71,8 +71,8 @@ func (s *server) get(t *testing.T, token, household, path string) (int, string) 
 
 func gateway(t *testing.T, household, name string) string {
 	t.Helper()
-	return apitest.Scalar[string](t, `INSERT INTO gateways ("Id", "TenantId", "Name", "CredentialHash")
-		VALUES (uuidv7(), $1, $2, gen_random_uuid()::text) RETURNING "Id"::text`, household, name)
+	return apitest.Scalar[string](t, `INSERT INTO gateways (id, tenant_id, name, credential_hash)
+		VALUES (uuidv7(), $1, $2, gen_random_uuid()::text) RETURNING id::text`, household, name)
 }
 
 func names(t *testing.T, body string) string {
@@ -113,13 +113,13 @@ func TestTheListIsOldestFirstWithoutRevokedOnesAndSaysOnlineAndUpgradeRequired(t
 	for _, n := range []string{"b-new", "a-old", "revoked"} {
 		gateway(t, home, n)
 	}
-	apitest.Exec(t, `UPDATE gateways SET "CreatedAt" = now() - interval '1 day' WHERE "Name" = 'a-old'`)
-	apitest.Exec(t, `UPDATE gateways SET "CredentialHash" = NULL WHERE "Name" = 'revoked'`)
-	apitest.Exec(t, `UPDATE gateways SET "LastSeenAt" = now() - interval '89 seconds', "Protocol" = $1,
-		"LanUrl" = 'http://nas.lan:8097', "Version" = '1.2.0', "Update" = '1.3.0', "Telemetry" = 'full'
-		WHERE "Name" = 'a-old'`, broker.MinGatewayProtocol-1)
-	apitest.Exec(t, `UPDATE gateways SET "LastSeenAt" = now() - interval '91 seconds', "Protocol" = $1
-		WHERE "Name" = 'b-new'`, broker.MinGatewayProtocol)
+	apitest.Exec(t, `UPDATE gateways SET created_at = now() - interval '1 day' WHERE name = 'a-old'`)
+	apitest.Exec(t, `UPDATE gateways SET credential_hash = NULL WHERE name = 'revoked'`)
+	apitest.Exec(t, `UPDATE gateways SET last_seen_at = now() - interval '89 seconds', protocol = $1,
+		lan_url = 'http://nas.lan:8097', version = '1.2.0', update = '1.3.0', telemetry = 'full'
+		WHERE name = 'a-old'`, broker.MinGatewayProtocol-1)
+	apitest.Exec(t, `UPDATE gateways SET last_seen_at = now() - interval '91 seconds', protocol = $1
+		WHERE name = 'b-new'`, broker.MinGatewayProtocol)
 	_, body := s.get(t, alice, "", "/api/gateways")
 	var raw []map[string]any
 	if err := json.Unmarshal([]byte(body), &raw); err != nil || len(raw) != 2 ||
@@ -135,7 +135,7 @@ func TestTheListIsOldestFirstWithoutRevokedOnesAndSaysOnlineAndUpgradeRequired(t
 		t.Fatal(body)
 	}
 	// Never seen, no protocol: nulls (sent, not dropped), offline, no upgrade required.
-	apitest.Exec(t, `UPDATE gateways SET "LastSeenAt" = NULL, "Protocol" = NULL WHERE "Name" = 'b-new'`)
+	apitest.Exec(t, `UPDATE gateways SET last_seen_at = NULL, protocol = NULL WHERE name = 'b-new'`)
 	_, body = s.get(t, alice, "", "/api/gateways")
 	want := `{"id":"` + nw["id"].(string) + `","name":"b-new","lastSeenAt":null,"lanUrl":null,"version":null,` +
 		`"update":null,"telemetry":null,"online":false,"upgradeRequired":false}]`

@@ -204,16 +204,16 @@ func TestRemovingAMemberDeletesTheirPendingInvitesDemotingKeepsThem(t *testing.T
 	h := newHome(t)
 	status(t, h.role(t, h.alice, h.bobID, "admin"), http.StatusNoContent)
 	invite := func(by, hash string) {
-		apitest.Exec(t, `INSERT INTO invites ("Id", "TenantId", "TokenHash", "CreatedBy", "ExpiresAt")
+		apitest.Exec(t, `INSERT INTO invites (id, tenant_id, token_hash, created_by, expires_at)
 			VALUES (uuidv7(), $1, $2, $3, now() + interval '7 days')`, h.id, hash, by)
 	}
 	invite(h.bobID, "bob's")
 	invite(h.aliceID, "alice's")
 	other := apitest.Household(t, h.bobID, "admin")
-	apitest.Exec(t, `INSERT INTO invites ("Id", "TenantId", "TokenHash", "CreatedBy", "ExpiresAt")
+	apitest.Exec(t, `INSERT INTO invites (id, tenant_id, token_hash, created_by, expires_at)
 		VALUES (uuidv7(), $1, 'bob''s elsewhere', $2, now() + interval '7 days')`, other, h.bobID)
 	pending := func() string {
-		return apitest.Scalar[string](t, `SELECT string_agg("TokenHash", ',' ORDER BY "TokenHash") FROM invites`)
+		return apitest.Scalar[string](t, `SELECT string_agg(token_hash, ',' ORDER BY token_hash) FROM invites`)
 	}
 
 	status(t, h.role(t, h.alice, h.bobID, "member"), http.StatusNoContent)
@@ -246,7 +246,7 @@ func TestTwoAdminsDemotingEachOtherAtOnceLeaveOneAdmin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(t.Context(), `SELECT FROM tenants WHERE "Id" = $1 FOR UPDATE`, h.id); err != nil {
+	if _, err := tx.Exec(t.Context(), `SELECT FROM tenants WHERE id = $1 FOR UPDATE`, h.id); err != nil {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
@@ -260,7 +260,7 @@ func TestTwoAdminsDemotingEachOtherAtOnceLeaveOneAdmin(t *testing.T) {
 	if slices.Sort(got); !slices.Equal(got, []int{204, 409}) {
 		t.Fatalf("%v, want one 204 and one 409", got)
 	}
-	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE "TenantId" = $1 AND "Role" = 'admin'`,
+	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE tenant_id = $1 AND role = 'admin'`,
 		h.id); n != 1 {
 		t.Fatalf("%d admins", n)
 	}
@@ -297,7 +297,7 @@ func TestAnotherHouseholdsMembersAreOutOfReach(t *testing.T) {
 			t.Error(a.Status)
 		}
 	}
-	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE "TenantId" = $1`, cabin); n != 3 {
+	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE tenant_id = $1`, cabin); n != 3 {
 		t.Errorf("dave's household has %d members, want 3", n)
 	}
 }
@@ -308,7 +308,7 @@ func TestLeavingTheLastHouseholdLeavesTheUserInNone(t *testing.T) {
 	apitest.Join(t, h.aliceID, own, "admin")
 	status(t, h.s.Do(t, http.MethodDelete, "/api/members/"+h.bobID, h.bob, own, ""), http.StatusNoContent)
 	status(t, h.remove(t, h.bob, h.bobID), http.StatusNoContent)
-	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE "UserId" = $1`, h.bobID); n != 0 {
+	if n := apitest.Scalar[int](t, `SELECT count(*) FROM memberships WHERE user_id = $1`, h.bobID); n != 0 {
 		t.Fatal(n)
 	}
 	if a := h.s.Do(t, http.MethodGet, "/api/members", h.bob, "", ""); a.Status != http.StatusNotFound ||

@@ -51,8 +51,8 @@ async function testConnection(page: Page) {
   await expect
     .poll(() => tunnelRow(id), { timeout: 15_000 })
     .toMatchObject({
-      EndedAt: expect.any(String),
-      BytesSent: expect.any(Number),
+      ended_at: expect.any(String),
+      bytes_sent: expect.any(Number),
     })
   return { patch, row: must(tunnelRow(id), `tunnels row ${id}`) }
 }
@@ -100,12 +100,12 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
   await expect(report(page)).toContainText('paired: yes')
   await expect(report(page)).toContainText(/path: direct .* RTT \d+ ms/)
   expect(row, JSON.stringify(row)).toMatchObject({
-    Relay: false,
-    Failure: null,
-    ThroughputKbps: expect.any(Number),
+    relay: false,
+    failure: null,
+    throughput_kbps: expect.any(Number),
   })
-  expect(row.BytesSent).toBeGreaterThan(0)
-  expect(row.BytesReceived).toBeGreaterThan(0)
+  expect(row.bytes_sent).toBeGreaterThan(0)
+  expect(row.bytes_received).toBeGreaterThan(0)
   expect(posts).toBe(0)
   await expect(report(page)).not.toContainText(user.email)
   // Activity hides the test's Diagnostics tunnel until the box is ticked, then remembers it.
@@ -130,7 +130,7 @@ test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({
     // over udp: the e2e coturn is UDP-only; the prod smoke checks `over tls`
     /relay forced: yes[\s\S]*relay: available[\s\S]*path: relayed \(TURN\) over udp/,
   )
-  expect(row, JSON.stringify(row)).toMatchObject({ Relay: true, Failure: null })
+  expect(row, JSON.stringify(row)).toMatchObject({ relay: true, failure: null })
 })
 
 test('Copy report: the clipboard holds the report @diagnostics', async ({

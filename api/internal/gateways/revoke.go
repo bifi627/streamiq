@@ -29,7 +29,7 @@ func revoke(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB, b *
 	// Another household's gateway is no row in this one's transaction: 404.
 	err = d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
 		tag, e := tx.Exec(r.Context(),
-			`UPDATE gateways SET "CredentialHash" = NULL WHERE "Id" = $1 AND "CredentialHash" IS NOT NULL`, id)
+			`UPDATE gateways SET credential_hash = NULL WHERE id = $1 AND credential_hash IS NOT NULL`, id)
 		n = tag.RowsAffected()
 		return e
 	})

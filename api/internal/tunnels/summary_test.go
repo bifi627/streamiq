@@ -15,13 +15,13 @@ func TestTheSummaryCountsEveryRowOfTheWindowBeyond200PerUser(t *testing.T) {
 	tunnelsAgo(t, alice.home, nas, alice.id, tunnels.Limit+50)
 	with := func(user, set string) {
 		id := tunnel(t, alice.home, nas, user, "1 hour")
-		apitest.Exec(t, `UPDATE tunnels SET `+set+` WHERE "Id" = $1`, id)
+		apitest.Exec(t, `UPDATE tunnels SET `+set+` WHERE id = $1`, id)
 	}
-	with(bob.id, `"Use" = 'playback', "Relay" = true, "BytesSent" = 1000, "BytesReceived" = 24`)
-	with(bob.id, `"Use" = 'management', "Relay" = true, "BytesSent" = 100`) // hidden, its relay bytes count
-	with(bob.id, `"Use" = 'diagnostics'`)                                   // hidden
-	with(bob.id, `"Use" = 'management', "Failure" = 'ice failed'`)          // failed: not hidden
-	with("", `"Use" = 'browsing'`)                                          // a deleted account
+	with(bob.id, `use = 'playback', relay = true, bytes_sent = 1000, bytes_received = 24`)
+	with(bob.id, `use = 'management', relay = true, bytes_sent = 100`) // hidden, its relay bytes count
+	with(bob.id, `use = 'diagnostics'`)                                // hidden
+	with(bob.id, `use = 'management', failure = 'ice failed'`)         // failed: not hidden
+	with("", `use = 'browsing'`)                                       // a deleted account
 	tunnel(t, alice.home, nas, bob.id, "31 days")
 
 	status, body := s.get(t, alice, alice.home, "/api/tunnels/summary")

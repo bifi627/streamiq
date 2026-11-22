@@ -10,7 +10,7 @@ import (
 
 func kbps(t *testing.T, id string) *int32 {
 	t.Helper()
-	return apitest.Scalar[*int32](t, `SELECT "ThroughputKbps" FROM tunnels WHERE "Id" = $1`, id)
+	return apitest.Scalar[*int32](t, `SELECT throughput_kbps FROM tunnels WHERE id = $1`, id)
 }
 
 func TestTheBrowserAddsItsMeasuredThroughputToItsOwnTunnel(t *testing.T) {
@@ -30,7 +30,7 @@ func TestTheBrowserAddsItsMeasuredThroughputToItsOwnTunnel(t *testing.T) {
 	}
 	// Missing, zero or negative stores null.
 	for _, body := range []string{`{"throughputKbps":0}`, `{"throughputKbps":-5}`, `{}`, `{"throughputKbps":null}`} {
-		apitest.Exec(t, `UPDATE tunnels SET "ThroughputKbps" = 1 WHERE "Id" = $1`, id)
+		apitest.Exec(t, `UPDATE tunnels SET throughput_kbps = 1 WHERE id = $1`, id)
 		if status, v := patch(body), kbps(t, id); status != http.StatusNoContent || v != nil {
 			t.Errorf("%s: %d %v", body, status, v)
 		}

@@ -33,9 +33,9 @@ type Gateway struct {
 func list(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	out := []Gateway{}
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		rows, _ := tx.Query(r.Context(), `SELECT "Id"::text, "Name", "LastSeenAt", "LanUrl", "Version", "Update",
-			"Telemetry", coalesce("LastSeenAt" > now() - $1::interval, false), coalesce("Protocol" < $2, false)
-			FROM gateways WHERE "CredentialHash" IS NOT NULL ORDER BY "CreatedAt"`,
+		rows, _ := tx.Query(r.Context(), `SELECT id::text, name, last_seen_at, lan_url, version, update,
+			telemetry, coalesce(last_seen_at > now() - $1::interval, false), coalesce(protocol < $2, false)
+			FROM gateways WHERE credential_hash IS NOT NULL ORDER BY created_at`,
 			OnlineWindow, broker.MinGatewayProtocol)
 		var err error
 		out, err = pgx.AppendRows(out, rows, func(row pgx.CollectableRow) (g Gateway, err error) {

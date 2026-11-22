@@ -81,8 +81,8 @@ func adminAndMember(t *testing.T, s *server) (alice, bob user) {
 
 func gateway(t *testing.T, household, name string) string {
 	t.Helper()
-	return apitest.Scalar[string](t, `INSERT INTO gateways ("Id", "TenantId", "Name", "CredentialHash")
-		VALUES (uuidv7(), $1, $2, gen_random_uuid()::text) RETURNING "Id"::text`, household, name)
+	return apitest.Scalar[string](t, `INSERT INTO gateways (id, tenant_id, name, credential_hash)
+		VALUES (uuidv7(), $1, $2, gen_random_uuid()::text) RETURNING id::text`, household, name)
 }
 
 // tunnel adds a row of user ("" = a deleted account) through gw, age old (a Postgres interval).
@@ -90,8 +90,8 @@ func tunnel(t *testing.T, household, gw, user, age string) string {
 	t.Helper()
 	return apitest.Scalar[string](
 		t,
-		`INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "UserId", "Relay", "Ipv6", "CreatedAt")
-		VALUES (uuidv7(), $1, $2, nullif($3, '')::uuid, false, false, now() - $4::interval) RETURNING "Id"::text`,
+		`INSERT INTO tunnels (id, tenant_id, gateway_id, user_id, relay, ipv6, created_at)
+		VALUES (uuidv7(), $1, $2, nullif($3, '')::uuid, false, false, now() - $4::interval) RETURNING id::text`,
 		household,
 		gw,
 		user,
@@ -102,7 +102,7 @@ func tunnel(t *testing.T, household, gw, user, age string) string {
 // tunnelsAgo adds n rows of user, 1..n minutes old.
 func tunnelsAgo(t *testing.T, household, gw, user string, n int) {
 	t.Helper()
-	apitest.Exec(t, `INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "UserId", "Relay", "Ipv6", "CreatedAt")
+	apitest.Exec(t, `INSERT INTO tunnels (id, tenant_id, gateway_id, user_id, relay, ipv6, created_at)
 		SELECT uuidv7(), $1, $2, $3, false, false, now() - i * interval '1 minute'
 		FROM generate_series(1, $4::int) i`, household, gw, user, n)
 }

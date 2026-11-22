@@ -27,8 +27,8 @@ func list(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB, a *au
 	out := []Member{}
 	var uids []string
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		rows, _ := tx.Query(r.Context(), `SELECT m."UserId"::text, u."FirebaseUid", m."Role", m."CreatedAt"
-			FROM memberships m JOIN users u ON u."Id" = m."UserId" ORDER BY m."CreatedAt", m."UserId"`)
+		rows, _ := tx.Query(r.Context(), `SELECT m.user_id::text, u.firebase_uid, m.role, m.created_at
+			FROM memberships m JOIN users u ON u.id = m.user_id ORDER BY m.created_at, m.user_id`)
 		var err error
 		out, err = pgx.AppendRows(out, rows, func(row pgx.CollectableRow) (m Member, err error) {
 			var uid string

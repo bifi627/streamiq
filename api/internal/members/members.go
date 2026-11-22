@@ -41,12 +41,12 @@ func target(r *http.Request) (string, bool) {
 // pass the check), then whether the member (errNotFound: not in this household) is
 // its only admin.
 func lock(ctx context.Context, tx pgx.Tx, tenant, user string) (lastAdmin bool, err error) {
-	if _, err = tx.Exec(ctx, `SELECT FROM tenants WHERE "Id" = $1 FOR NO KEY UPDATE`, tenant); err != nil {
+	if _, err = tx.Exec(ctx, `SELECT FROM tenants WHERE id = $1 FOR NO KEY UPDATE`, tenant); err != nil {
 		return false, err
 	}
-	err = tx.QueryRow(ctx, `SELECT "Role" = 'admin' AND
-		(SELECT count(*) FROM memberships WHERE "Role" = 'admin') = 1
-		FROM memberships WHERE "UserId" = $1`, user).Scan(&lastAdmin)
+	err = tx.QueryRow(ctx, `SELECT role = 'admin' AND
+		(SELECT count(*) FROM memberships WHERE role = 'admin') = 1
+		FROM memberships WHERE user_id = $1`, user).Scan(&lastAdmin)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, errNotFound
 	}

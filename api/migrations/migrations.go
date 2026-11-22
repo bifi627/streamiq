@@ -16,11 +16,14 @@ var files embed.FS
 const baseline = "0001_baseline.sql"
 
 // Up runs every file not applied yet, as the role in url, which owns the tables. On a
-// database EF Core already migrated (its history table exists), the baseline is
-// recorded instead of run. Its own connection, closed after, so nothing a file sets
-// for its session reaches the API's pool.
+// database EF Core migrated (its history table exists: a backup from before the cutover),
+// the baseline is recorded instead of run, and 0007 drops that table. Its own connection,
+// closed after, so nothing a file sets for its session reaches the API's pool.
 // ponytail: one API instance migrates; a second needs pg_advisory_lock around this.
-func Up(ctx context.Context, url string) error {
+func Up(ctx context.Context, url string) error { return upTo(ctx, url, "") }
+
+// upTo stops after the file named last ("" = none).
+func upTo(ctx context.Context, url, last string) error {
 	conn, err := pgx.Connect(ctx, url)
 	if err != nil {
 		return err
@@ -39,6 +42,9 @@ func Up(ctx context.Context, url string) error {
 	for _, e := range entries {
 		if err = apply(ctx, conn, e.Name()); err != nil {
 			return fmt.Errorf("migration %s: %w", e.Name(), err)
+		}
+		if e.Name() == last {
+			break
 		}
 	}
 	return nil

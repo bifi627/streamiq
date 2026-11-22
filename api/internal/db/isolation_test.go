@@ -30,33 +30,33 @@ func seed(t *testing.T) string {
 	t.Helper()
 	user := apitest.Scalar[string](
 		t,
-		`INSERT INTO users ("Id", "FirebaseUid") VALUES (uuidv7(), uuidv7()::text) RETURNING "Id"::text`,
+		`INSERT INTO users (id, firebase_uid) VALUES (uuidv7(), uuidv7()::text) RETURNING id::text`,
 	)
 	h := apitest.Household(t, user, "admin")
 	gw := apitest.Scalar[string](
 		t,
-		`INSERT INTO gateways ("Id", "TenantId", "Name") VALUES (uuidv7(), $1, 'nas') RETURNING "Id"::text`,
+		`INSERT INTO gateways (id, tenant_id, name) VALUES (uuidv7(), $1, 'nas') RETURNING id::text`,
 		h,
 	)
 	apitest.Exec(
 		t,
-		`INSERT INTO enrollment_tokens ("Id", "TenantId", "TokenHash", "ExpiresAt") VALUES (uuidv7(), $1, uuidv7()::text, now())`,
+		`INSERT INTO enrollment_tokens (id, tenant_id, token_hash, expires_at) VALUES (uuidv7(), $1, uuidv7()::text, now())`,
 		h,
 	)
 	apitest.Exec(
 		t,
-		`INSERT INTO invites ("Id", "TenantId", "TokenHash", "ExpiresAt") VALUES (uuidv7(), $1, uuidv7()::text, now())`,
+		`INSERT INTO invites (id, tenant_id, token_hash, expires_at) VALUES (uuidv7(), $1, uuidv7()::text, now())`,
 		h,
 	)
 	apitest.Exec(
 		t,
-		`INSERT INTO tunnels ("Id", "TenantId", "GatewayId", "Relay", "Ipv6") VALUES (uuidv7(), $1, $2, false, false)`,
+		`INSERT INTO tunnels (id, tenant_id, gateway_id, relay, ipv6) VALUES (uuidv7(), $1, $2, false, false)`,
 		h,
 		gw,
 	)
 	apitest.Exec(
 		t,
-		`INSERT INTO gateway_health ("Id", "TenantId", "GatewayId", "At", "Level") VALUES (uuidv7(), $1, $2, now(), 'ok')`,
+		`INSERT INTO gateway_health (id, tenant_id, gateway_id, at, level) VALUES (uuidv7(), $1, $2, now(), 'ok')`,
 		h,
 		gw,
 	)
@@ -106,21 +106,21 @@ func breaches(ctx context.Context, d *db.DB, a, b string) (out []string) {
 			return nil
 		})
 		for verb, sql := range map[string]string{
-			"update": q(`UPDATE {t} SET "TenantId" = "TenantId" WHERE "TenantId" = $1`),
-			"delete": q(`DELETE FROM {t} WHERE "TenantId" = $1`),
+			"update": q(`UPDATE {t} SET tenant_id = tenant_id WHERE tenant_id = $1`),
+			"delete": q(`DELETE FROM {t} WHERE tenant_id = $1`),
 		} {
 			if n, err := inTenant(ctx, d, a, sql, b); n != 0 || err != nil {
 				out = append(out, fmt.Sprintf("%s: a can %s b's rows (%d, %v)", table, verb, n, err))
 			}
 		}
-		if _, err := inTenant(ctx, d, a, q(`UPDATE {t} SET "TenantId" = $1`), b); err == nil {
+		if _, err := inTenant(ctx, d, a, q(`UPDATE {t} SET tenant_id = $1`), b); err == nil {
 			out = append(out, table+": a can move its row into b")
 		}
 		if _, err := inTenant(ctx, d, a, q(`ALTER TABLE {t} DISABLE ROW LEVEL SECURITY`)); err == nil {
 			out = append(out, table+": a can switch row-level security off")
 		}
 	}
-	if _, err := inTenant(ctx, d, a, `INSERT INTO gateways ("Id", "TenantId") VALUES (uuidv7(), $1)`, b); err == nil {
+	if _, err := inTenant(ctx, d, a, `INSERT INTO gateways (id, tenant_id) VALUES (uuidv7(), $1)`, b); err == nil {
 		out = append(out, "a can insert a row for b")
 	}
 	return append(out, householdBreaches(ctx, d, a, b)...)
@@ -144,28 +144,28 @@ func householdBreaches(ctx context.Context, d *db.DB, a, b string) (out []string
 		return nil
 	})
 	for what, sql := range map[string]string{
-		"read b's household":   `SELECT FROM tenants WHERE "Id" = $1`,
-		"rename b's household": `UPDATE tenants SET "Name" = 'x' WHERE "Id" = $1`,
-		"lock b's household":   `SELECT FROM tenants WHERE "Id" = $1 FOR NO KEY UPDATE`,
+		"read b's household":   `SELECT FROM tenants WHERE id = $1`,
+		"rename b's household": `UPDATE tenants SET name = 'x' WHERE id = $1`,
+		"lock b's household":   `SELECT FROM tenants WHERE id = $1 FOR NO KEY UPDATE`,
 	} {
 		if n, err := inTenant(ctx, d, a, sql, b); n != 0 || err != nil {
 			out = append(out, fmt.Sprintf("a can %s (%d, %v)", what, n, err))
 		}
 	}
 	var bUser string
-	err := apitest.Owner.QueryRow(ctx, `SELECT "UserId" FROM memberships WHERE "TenantId" = $1`, b).Scan(&bUser)
+	err := apitest.Owner.QueryRow(ctx, `SELECT user_id FROM memberships WHERE tenant_id = $1`, b).Scan(&bUser)
 	if err != nil {
 		return append(out, err.Error())
 	}
-	if n, err := inTenant(ctx, d, a, `SELECT FROM users WHERE "Id" = $1`, bUser); n != 0 || err != nil {
+	if n, err := inTenant(ctx, d, a, `SELECT FROM users WHERE id = $1`, bUser); n != 0 || err != nil {
 		out = append(out, fmt.Sprintf("a can read b's member (%d, %v)", n, err))
 	}
 	for what, sql := range map[string]string{
-		"insert a household":   `INSERT INTO tenants ("Id") VALUES (uuidv7())`,
-		"delete its household": `DELETE FROM tenants WHERE "Id" = $1`,
-		"insert a user":        `INSERT INTO users ("Id", "FirebaseUid") VALUES (uuidv7(), uuidv7()::text)`,
-		"rename a user":        `UPDATE users SET "FirebaseUid" = uuidv7()::text WHERE "Id" IN (SELECT "UserId" FROM memberships WHERE "TenantId" = $1)`,
-		"delete a user":        `DELETE FROM users WHERE "Id" IN (SELECT "UserId" FROM memberships WHERE "TenantId" = $1)`,
+		"insert a household":   `INSERT INTO tenants (id) VALUES (uuidv7())`,
+		"delete its household": `DELETE FROM tenants WHERE id = $1`,
+		"insert a user":        `INSERT INTO users (id, firebase_uid) VALUES (uuidv7(), uuidv7()::text)`,
+		"rename a user":        `UPDATE users SET firebase_uid = uuidv7()::text WHERE id IN (SELECT user_id FROM memberships WHERE tenant_id = $1)`,
+		"delete a user":        `DELETE FROM users WHERE id IN (SELECT user_id FROM memberships WHERE tenant_id = $1)`,
 	} {
 		args := []any{a}
 		if !strings.Contains(sql, "$1") {
@@ -232,24 +232,36 @@ func TestTheTenantDoesNotSurviveOnAPooledConnection(t *testing.T) {
 // A table with a tenant column and no policy fails here, before any data leaks.
 func TestEveryTenantColumnHasAPolicy(t *testing.T) {
 	rows, _ := apitest.Owner.Query(t.Context(), `
-		SELECT c.relname FROM pg_class c
-		JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'TenantId' AND NOT a.attisdropped
-		WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r' AND NOT (c.relrowsecurity AND EXISTS (
+		SELECT c.relname, c.relrowsecurity AND EXISTS (
 			SELECT FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = c.relname
 			AND p.roles @> ARRAY['streamiq_app'::name] AND p.cmd = 'ALL'
-			AND p.qual LIKE '%"TenantId" = app_tenant()%' AND p.with_check LIKE '%"TenantId" = app_tenant()%'))`)
-	missing, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil {
+			AND p.qual LIKE '%tenant_id = app_tenant()%' AND p.with_check LIKE '%tenant_id = app_tenant()%')
+		FROM pg_class c
+		JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped
+		WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'`)
+	var tables, missing []string
+	var covered bool
+	var table string
+	if _, err := pgx.ForEachRow(rows, []any{&table, &covered}, func() error {
+		tables = append(tables, table)
+		if !covered {
+			missing = append(missing, table)
+		}
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
+	if len(tables) != len(tenantOwned) { // a query that matches nothing would pass below
+		t.Fatalf("tables with a tenant_id column: %v, want the %d tenant-owned", tables, len(tenantOwned))
+	}
 	if len(missing) != 0 {
-		t.Fatalf("tenant-owned tables without a USING + WITH CHECK policy on TenantId: %v", missing)
+		t.Fatalf("tenant-owned tables without a USING + WITH CHECK policy on tenant_id: %v", missing)
 	}
 	if n := apitest.Scalar[int](t, `SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
 		AND roles @> ARRAY['streamiq_app'::name] AND (
-			tablename = 'tenants' AND cmd = 'ALL' AND qual LIKE '%"Id" = app_tenant()%' AND with_check LIKE '%"Id" = app_tenant()%'
+			tablename = 'tenants' AND cmd = 'ALL' AND qual LIKE '%id = app_tenant()%' AND with_check LIKE '%id = app_tenant()%'
 			OR tablename = 'users' AND cmd = 'SELECT' AND qual LIKE '%memberships%')`); n != 2 {
-		t.Fatalf("%d of the policies on tenants (its Id) and users (read only, its members), want 2", n)
+		t.Fatalf("%d of the policies on tenants (its id) and users (read only, its members), want 2", n)
 	}
 	if n := apitest.Scalar[int](
 		t,
@@ -266,7 +278,7 @@ func TestMembershipsOfReturnsOnlyTheUsersOwn(t *testing.T) {
 	apitest.Reset(t)
 	seed(t)
 	seed(t)
-	user := apitest.Scalar[string](t, `SELECT "UserId"::text FROM memberships LIMIT 1`)
+	user := apitest.Scalar[string](t, `SELECT user_id::text FROM memberships LIMIT 1`)
 	if n := count(t.Context(), apitest.DB.NoTenant(), `SELECT count(*) FROM memberships_of($1)`, user); n != 1 {
 		t.Fatalf("memberships_of returned %d rows, want the user's 1", n)
 	}

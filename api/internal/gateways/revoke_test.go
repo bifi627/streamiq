@@ -39,8 +39,8 @@ func TestOnlyAnAdminRemovesAGatewayOfTheHouseholdTheRequestActsIn(t *testing.T) 
 	}
 	home := apitest.Household(t, id(alice), "admin")
 	cabin := apitest.Household(t, id(bob), "admin")
-	nas := apitest.Scalar[string](t, `INSERT INTO gateways ("Id", "TenantId", "Name", "CredentialHash")
-		VALUES (uuidv7(), $1, 'nas', 'h') RETURNING "Id"::text`, home)
+	nas := apitest.Scalar[string](t, `INSERT INTO gateways (id, tenant_id, name, credential_hash)
+		VALUES (uuidv7(), $1, 'nas', 'h') RETURNING id::text`, home)
 	remove := func(token, household, gateway string) *http.Response {
 		rq, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, ts.URL+"/api/gateways/"+gateway, nil)
 		rq.Header.Set("Authorization", "Bearer "+token)

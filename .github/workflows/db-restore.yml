@@ -71,7 +71,10 @@ jobs:
           if [ "$DRILL" = true ]; then # the drill leaves nothing behind, also when it fails
             trap 'pg psql "$admin" -c "drop database if exists ${db}"; echo "Drill: dropped ${idle}/${db}"' EXIT
           fi
-          pg pg_restore --no-owner --no-privileges --exit-on-error -d "$target" /d/restore.dump
+          # Roles are per server, not in the dump: the grants and policies it restores name
+          # streamiq_app (api/migrations/0002_rls.sql). The API gives it a password at start.
+          pg psql "$admin" -v ON_ERROR_STOP=1 -c "do \$\$ begin create role streamiq_app nologin; exception when duplicate_object then null; end \$\$"
+          pg pg_restore --no-owner --exit-on-error -d "$target" /d/restore.dump
           counts=$(pg psql "$target" -v ON_ERROR_STOP=1 -At -F ' ' \
             -c "select (select count(*) from tenants), (select count(*) from gateways)")
           read -r tenants gateways <<<"$counts"
@@ -84,7 +87,7 @@ jobs:
           if [ "$DRILL" != true ]; then
             {
               echo "### Restored into \`${idle}/${db}\` (kept)"
-              echo "Cutover (docs/db-recovery.md): point the backend's DATABASE_URL at it, then"
+              echo "Cutover (docs/db-recovery.md): point the API's DATABASE_URL at it, then"
               echo "\`gh variable set DB_LIVE --env db-backup --body ${idle}/${db}\`"
             } >> "$GITHUB_STEP_SUMMARY"
           fi

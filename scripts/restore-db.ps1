@@ -40,9 +40,13 @@ Write-Host "  mode   : $(if ($Clean) { '--clean (drops existing objects first)' 
 if ((Read-Host "Type 'restore' to proceed") -ne 'restore') { Write-Host 'Aborted.'; return }
 
 $cleanArgs = if ($Clean) { @('--clean', '--if-exists') } else { @() }
+# Roles are per server, not in the dump: its grants and policies name streamiq_app.
+docker run --rm postgres:18 psql -d $TargetUrl -v ON_ERROR_STOP=1 `
+    -c 'do $$ begin create role streamiq_app nologin; exception when duplicate_object then null; end $$'
+if ($LASTEXITCODE -ne 0) { throw "creating the role streamiq_app failed (exit $LASTEXITCODE)" }
 Write-Host 'Restoring ...'
 docker run --rm -v "${dir}:/d" postgres:18 `
-    pg_restore --no-owner --no-privileges @cleanArgs -d $TargetUrl "/d/$file"
+    pg_restore --no-owner @cleanArgs -d $TargetUrl "/d/$file"
 if ($LASTEXITCODE -ne 0) { throw "pg_restore failed (exit $LASTEXITCODE)" }
 
 Write-Host 'Restored. Tables now in target:' -ForegroundColor Green

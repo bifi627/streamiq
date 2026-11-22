@@ -43,11 +43,12 @@ jobs:
 
           FILE="streamiq-${ENV_NAME}-$(date -u +%Y%m%dT%H%M%SZ).dump"
 
-          # -Fc: compressed custom format for pg_restore.
+          # -Fc: compressed custom format for pg_restore. Privileges kept: the dump carries
+          # streamiq_app's grants (api/migrations), which a restore can't rebuild.
           # ponytail: client from the postgres:18 image (= Railway's major), not the runner's
           # preinstalled older pg_dump. Bump with the server.
           docker run --rm -e DB_URL -v "$PWD:/out" postgres:18 \
-            pg_dump --no-owner --no-privileges -Fc "$DB_URL" -f "/out/$FILE"
+            pg_dump --no-owner -Fc "$DB_URL" -f "/out/$FILE"
 
           printf '%s' "$SA_KEY" > "$RUNNER_TEMP/gcs.json"
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/gcs.json"

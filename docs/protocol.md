@@ -175,13 +175,16 @@ gateway survives ends it too: rare, and the next open makes a fresh session.
 | broker → browser | `{type:"ready", iceServers}` — this session's ICE servers (below) |
 | browser → broker | `{type:"offer", gatewayId, sdp}` — browser is the offerer |
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |
+| broker → browser | `{type:"error", error:"gateway busy"}` — relayed from the gateway: it refused the offer ("Limits before auth" below); a retry may get through |
 | browser → broker | `{type:"ice", candidate}` |
 | broker → browser | `{type:"answer", sdp, tunnel}` (`tunnel` = this tunnel's id, for the throughput PATCH below) · `{type:"ice", candidate}` |
 | browser → broker | `{type:"ping"}` — every 25 s while the socket is open, ignored by the broker: keeps an idle session's socket from being dropped by a proxy (#178, #180) |
 
 **Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, user, role, sdp}`,
 `{type:"ice", session, candidate}`, `{type:"bye", session}`; gateway → broker
-`{type:"answer"|"ice", session, …}` and, when a session's PeerConnection ends,
+`{type:"answer"|"ice", session, …}`, `{type:"error", session, error}` (the offer
+refused, "Limits before auth" below: the broker relays it to that browser as its
+`error` frame) and, when a session's PeerConnection ends,
 `{type:"tunnel", session, …}` (telemetry, below). The broker only routes a gateway's message
 into a session opened *for that gateway*. The gateway keeps one PeerConnection
 per session (several browsers at once).
@@ -321,6 +324,22 @@ holds that to one guess per connection:
   or the channel or connection closing. A request whose connection closed leaves
   the local gateway page. An exchange that ends between `commit` and `reveal` is
   logged.
+- **One slot per user** (`offer.user`, `pairing.MaxPendingPerUser`): a second
+  `commit` from a user whose exchange still runs gets `rejected` (`this user is
+  already pairing a browser`), so one account can't hold every slot.
+
+**Limits before auth** (#758, `gateway/internal/sessions/limits.go`). A connection
+is *not authenticated* from its offer until `ok` or `approved`:
+
+- **At most 8 at once** (`MaxUnauthed`). An offer over it builds no PeerConnection:
+  the gateway sends the broker `{type:"error", session, error:"gateway busy"}` and a
+  `tunnel` report with that failure; the browser gets the broker's `error` frame and
+  shows "The gateway is busy … Try again in a moment." with Retry.
+- **30 s from the offer** (`UnauthedFor`). Still not authenticated then and no
+  pairing exchange running (an accepted `commit`) → the gateway closes the
+  PeerConnection; the tunnel row's failure is `not authenticated within 30s`. A
+  running exchange keeps its 5-minute windows; one that ends without `approved`
+  gets another 30 s, then the same close. The browser sees the connection close.
 
 **Remove** (local gateway page, or `POST /streamiq/clients/remove` from the web
 app: an admin any client, #311; a member only its own, #341) drops the key from `allowlist.json` and closes

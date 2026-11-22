@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -102,6 +103,11 @@ func TestPairThenTunnel(t *testing.T) {
 	other, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if connect(t, gateway, "s3", other, false).say(nil)["type"] != "unpaired" {
 		t.Fatal("a different key must not inherit the pairing")
+	}
+	gateway.mu.Lock()
+	defer gateway.mu.Unlock()
+	if gateway.unauthed != 2 { // s2b, s3: approved s1 and ok s2 left the pre-auth count
+		t.Fatalf("%d connections counted as not authenticated, want 2", gateway.unauthed)
 	}
 }
 
@@ -239,11 +245,11 @@ func slotsFree(t *testing.T, store *pairing.Store) {
 	t.Helper()
 	testwait.Until(t, 10*time.Second, func() bool {
 		got := 0
-		for got < pairing.MaxPending && store.Reserve() == nil {
+		for got < pairing.MaxPending && store.Reserve(fmt.Sprint("probe", got)) == nil {
 			got++
 		}
-		for range got {
-			store.Release()
+		for i := range got {
+			store.Release(fmt.Sprint("probe", i))
 		}
 		return got == pairing.MaxPending
 	}, "not all %d pairing slots free", pairing.MaxPending)

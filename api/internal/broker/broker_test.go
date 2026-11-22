@@ -47,6 +47,16 @@ func TestOfferReachesTheGatewayAndTheAnswerComesBack(t *testing.T) {
 	}
 }
 
+func TestAGatewaysRefusalReachesTheBrowser(t *testing.T) {
+	s := newBroker(t)
+	nas := s.online("alice@home.test", "nas")
+	browser := s.offer("alice@home.test", nas)
+	sendJSON(t, nas.conn, map[string]any{"type": "error", "session": session(t, nas), "error": "gateway busy"})
+	if m := recv(t, browser); m["type"] != "error" || m["error"] != "gateway busy" || len(m) != 2 {
+		t.Fatalf("browser got %v", m)
+	}
+}
+
 func must(b []byte, err error) []byte {
 	if err != nil {
 		panic(err)
@@ -121,6 +131,7 @@ func TestAGatewayCannotAnswerAnotherGatewaysSession(t *testing.T) {
 		evil.conn,
 		map[string]any{"type": "ice", "session": sid, "candidate": map[string]any{"candidate": "evil"}},
 	)
+	sendJSON(t, evil.conn, map[string]any{"type": "error", "session": sid, "error": "evil"})
 	nothing(t, browser)
 }
 

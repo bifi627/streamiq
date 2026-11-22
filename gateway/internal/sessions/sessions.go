@@ -42,8 +42,9 @@ type Sessions struct {
 	cands map[string]*signaled            // session id → the kinds of candidate the browser signaled
 	API   *webrtc.API                     // from NewAPI; nil = Pion defaults
 
-	ctl     func(any)         // the control socket that is up (RunControl's handle(nil, send)); nil = none
-	backlog []protocol.Report // tunnel reports made while none was up, sent on the next one
+	ctl      func(any)         // the control socket that is up (RunControl's handle(nil, send)); nil = none
+	backlog  []protocol.Report // tunnel reports made while none was up, sent on the next one
+	unauthed int               // connections not authenticated yet, at most MaxUnauthed (admit)
 }
 
 // NewAPI builds the one WebRTC API all sessions share. Native runs need
@@ -159,9 +160,15 @@ func (s *Sessions) offer(m Msg, live bool, send func(any)) {
 		log.Printf("gateway: session %s: offer without user or known role (%q) refused", m.Session, m.Role)
 		return
 	}
+	pre := s.admit()
+	if pre == nil {
+		s.refuse(m.Session, send)
+		return
+	}
 	log.Printf("gateway: session %s: user %s (%s)", m.Session, m.User, m.Role)
-	pc, err := s.newPeer(m.Session, m.User, m.Role, send)
+	pc, err := s.newPeer(m.Session, m.User, m.Role, pre, send)
 	if err != nil {
+		pre.leave()
 		log.Printf("gateway: session %s: %v", m.Session, err)
 		return
 	}
@@ -189,7 +196,7 @@ func (s *Sessions) User(session string) string {
 	return s.users[session]
 }
 
-func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerConnection, error) {
+func (s *Sessions) newPeer(id, user, role string, pre *preAuth, send func(any)) (*webrtc.PeerConnection, error) {
 	api := s.API
 	if api == nil {
 		api = webrtc.NewAPI()
@@ -208,13 +215,15 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	// and the tunnel row keeps the route of a tunnel that came up.
 	var pair atomic.Pointer[webrtc.ICECandidatePair]
 	use := tunnel.NewUsage(time.Now())
-	end := s.ender(id, pc, &cands, &pair, &authed, &why, use)
+	ended := s.ender(id, pc, &cands, &pair, &authed, &why, use)
+	end := func(iceFailed bool) { pre.leave(); ended(iceFailed) }
 	s.mu.Lock()
 	s.pcs[id] = pc
 	s.users[id] = user
 	s.ends[id] = end
 	s.cands[id] = &cands
 	s.mu.Unlock()
+	s.deadline(id, pre, &authed, &why)
 
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c != nil {
@@ -236,7 +245,7 @@ func (s *Sessions) newPeer(id, user, role string, send func(any)) (*webrtc.PeerC
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
 		switch {
 		case d.Label() == "auth" && !authSeen.Swap(true): // one handshake per connection
-			s.serveAuth(id, user, pc, d, &authed, &why)
+			s.serveAuth(id, user, pc, d, pre, &authed, &why)
 		case d.Label() != "auth" && authed.Load():
 			tunnel.Serve(
 				d,
@@ -316,11 +325,13 @@ func failure(iceFailed, authed bool, why string) *string {
 
 // authorize opens the tunnel to a paired session, after making sure its user
 // has their own Jellyfin viewer, so their first request already plays as it.
-func (s *Sessions) authorize(user string, authed *atomic.Bool) {
+// The session leaves the pre-auth limits.
+func (s *Sessions) authorize(user string, pre *preAuth, authed *atomic.Bool) {
 	if s.Viewers != nil {
 		s.Viewers(user)
 	}
 	authed.Store(true)
+	pre.leave()
 }
 
 // record notes the client key fp of a live session; false if its ender already

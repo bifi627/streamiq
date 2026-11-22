@@ -4,7 +4,7 @@ description: >-
   Use when bumping dependencies in StreamIQ — npm (frontend/e2e:
   React / Vite / TypeScript), Go modules (gateway + API), pinned Docker images
   (compose: Jellyfin/Postgres/coturn), GitHub Actions, or devcontainer
-  features. Triggered by Dependabot PRs, an explicit "update X" request, or a
+  features. Triggered by a Dependabot alert (Security tab), an explicit "update X" request, or a
   periodic outdated sweep. Do NOT use for adding a brand-new dependency or for
   code refactors that happen to touch package.json.
 ---
@@ -24,6 +24,7 @@ This skill stores no pending-bump state — derive the candidate set at runtime:
 ```bash
 npm outdated --prefix frontend            # and any other package dirs (e2e/)
 go list -m -u all                          # Go modules (one go.mod at the root: api/ + gateway/)
+gh api repos/bifi627/streamiq/dependabot/alerts?state=open --jq '.[] | "\(.number) \(.dependency.manifest_path) \(.security_vulnerability.package.name) → \(.security_vulnerability.first_patched_version.identifier)"'  # open alerts: bump each to at least its patched version, or dismiss it in the Security tab with a reason (docs/tools.md)
 # plus: image pins in docker-compose.yml, .devcontainer/devcontainer.json
 #       features, and action versions in .github/workflows/*.yml
 ```

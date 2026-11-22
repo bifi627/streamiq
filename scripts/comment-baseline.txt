@@ -1,6 +1,6 @@
 # <path> <refs|ratio> <count>: lower or drop a line, never raise one.
 .editorconfig refs 1
-.github/workflows/ci.yml refs 16
+.github/workflows/ci.yml refs 15
 .github/workflows/db-restore.yml refs 1
 .github/workflows/prod-smoke.yml refs 1
 .github/workflows/release-gateway.yml refs 2

@@ -130,21 +130,10 @@ func (a *Auth) Households(ctx context.Context, user string) ([]Household, error)
 	})
 }
 
-// provision returns the users row of a Firebase UID, adding it on first sign-in. No
-// household comes with it. Concurrent first requests: the unique FirebaseUid lets
-// one insert win and the others read its row.
-func (a *Auth) provision(ctx context.Context, uid string) (string, error) {
-	const find = `SELECT "Id" FROM users WHERE "FirebaseUid" = $1`
-	var id string
-	err := a.db.NoTenant().QueryRow(ctx, find, uid).Scan(&id)
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return id, err
-	}
-	if _, err := a.db.NoTenant().Exec(ctx,
-		`INSERT INTO users ("Id", "FirebaseUid") VALUES (uuidv7(), $1) ON CONFLICT ("FirebaseUid") DO NOTHING`, uid); err != nil {
-		return "", err
-	}
-	return id, a.db.NoTenant().QueryRow(ctx, find, uid).Scan(&id)
+// provision returns the users row of a Firebase UID, adding it on first sign-in
+// (sign_in, api/migrations/0006_rls_tenants_users.sql). No household comes with it.
+func (a *Auth) provision(ctx context.Context, uid string) (id string, err error) {
+	return id, a.db.NoTenant().QueryRow(ctx, `SELECT sign_in($1)`, uid).Scan(&id)
 }
 
 // pick is the membership named (none named: the oldest); nil = not a member. A

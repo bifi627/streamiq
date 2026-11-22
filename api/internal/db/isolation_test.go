@@ -117,6 +117,58 @@ func breaches(ctx context.Context, d *db.DB, a, b string) (out []string) {
 	if _, err := inTenant(ctx, d, a, `INSERT INTO gateways ("Id", "TenantId") VALUES (uuidv7(), $1)`, b); err == nil {
 		out = append(out, "a can insert a row for b")
 	}
+	return append(out, householdBreaches(ctx, d, a, b)...)
+}
+
+// householdBreaches is every rule on tenants and users d breaks: a household sees and
+// changes its own tenants row and reads its members, nothing more, and writes no user.
+func householdBreaches(ctx context.Context, d *db.DB, a, b string) (out []string) {
+	for _, table := range []string{"tenants", "users"} {
+		if n := count(ctx, d.NoTenant(), `SELECT count(*) FROM public.`+table); n != 0 {
+			out = append(out, fmt.Sprintf("%s: %d rows with no tenant set", table, n))
+		}
+	}
+	_ = d.InTenant(ctx, a, func(tx pgx.Tx) error {
+		if n := count(ctx, tx, `SELECT count(*) FROM tenants`); n != 1 {
+			out = append(out, fmt.Sprintf("tenants: a sees %d rows, want its 1", n))
+		}
+		if n := count(ctx, tx, `SELECT count(*) FROM users`); n != 1 {
+			out = append(out, fmt.Sprintf("users: a sees %d rows, want its 1 member", n))
+		}
+		return nil
+	})
+	for what, sql := range map[string]string{
+		"read b's household":   `SELECT FROM tenants WHERE "Id" = $1`,
+		"rename b's household": `UPDATE tenants SET "Name" = 'x' WHERE "Id" = $1`,
+		"lock b's household":   `SELECT FROM tenants WHERE "Id" = $1 FOR NO KEY UPDATE`,
+	} {
+		if n, err := inTenant(ctx, d, a, sql, b); n != 0 || err != nil {
+			out = append(out, fmt.Sprintf("a can %s (%d, %v)", what, n, err))
+		}
+	}
+	var bUser string
+	err := apitest.Owner.QueryRow(ctx, `SELECT "UserId" FROM memberships WHERE "TenantId" = $1`, b).Scan(&bUser)
+	if err != nil {
+		return append(out, err.Error())
+	}
+	if n, err := inTenant(ctx, d, a, `SELECT FROM users WHERE "Id" = $1`, bUser); n != 0 || err != nil {
+		out = append(out, fmt.Sprintf("a can read b's member (%d, %v)", n, err))
+	}
+	for what, sql := range map[string]string{
+		"insert a household":   `INSERT INTO tenants ("Id") VALUES (uuidv7())`,
+		"delete its household": `DELETE FROM tenants WHERE "Id" = $1`,
+		"insert a user":        `INSERT INTO users ("Id", "FirebaseUid") VALUES (uuidv7(), uuidv7()::text)`,
+		"rename a user":        `UPDATE users SET "FirebaseUid" = uuidv7()::text WHERE "Id" IN (SELECT "UserId" FROM memberships WHERE "TenantId" = $1)`,
+		"delete a user":        `DELETE FROM users WHERE "Id" IN (SELECT "UserId" FROM memberships WHERE "TenantId" = $1)`,
+	} {
+		args := []any{a}
+		if !strings.Contains(sql, "$1") {
+			args = nil
+		}
+		if _, err := inTenant(ctx, d, a, sql, args...); err == nil {
+			out = append(out, "a can "+what)
+		}
+	}
 	return out
 }
 
@@ -187,13 +239,19 @@ func TestEveryTenantColumnHasAPolicy(t *testing.T) {
 	if len(missing) != 0 {
 		t.Fatalf("tenant-owned tables without a USING + WITH CHECK policy on TenantId: %v", missing)
 	}
+	if n := apitest.Scalar[int](t, `SELECT count(*) FROM pg_policies WHERE schemaname = 'public'
+		AND roles @> ARRAY['streamiq_app'::name] AND (
+			tablename = 'tenants' AND cmd = 'ALL' AND qual LIKE '%"Id" = app_tenant()%' AND with_check LIKE '%"Id" = app_tenant()%'
+			OR tablename = 'users' AND cmd = 'SELECT' AND qual LIKE '%memberships%')`); n != 2 {
+		t.Fatalf("%d of the policies on tenants (its Id) and users (read only, its members), want 2", n)
+	}
 	if n := apitest.Scalar[int](
 		t,
 		`SELECT count(*) FROM pg_class WHERE relrowsecurity AND relnamespace = 'public'::regnamespace`,
 	); n != len(
 		tenantOwned,
-	) {
-		t.Fatalf("%d tables with row-level security, want %d", n, len(tenantOwned))
+	)+2 {
+		t.Fatalf("%d tables with row-level security, want %d (+ tenants, users)", n, len(tenantOwned))
 	}
 }
 

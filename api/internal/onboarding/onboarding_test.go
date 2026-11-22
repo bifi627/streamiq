@@ -111,8 +111,9 @@ func TestAnAdminMintsAToken128BitFor15MinutesStoredOnlyAsItsHash(t *testing.T) {
 	s := newDefault(t)
 	alice, home := s.member(t, "alice@home.test", "admin")
 	tok := s.token(t, alice)
-	if len(tok.Token) != 22 || time.Until(tok.ExpiresAt) > 15*time.Minute ||
-		time.Until(tok.ExpiresAt) < 14*time.Minute {
+	stored := apitest.Scalar[time.Time](t, `SELECT expires_at FROM enrollment_tokens`)
+	lifetime := apitest.Scalar[bool](t, `SELECT expires_at - created_at = interval '15 minutes' FROM enrollment_tokens`)
+	if len(tok.Token) != 22 || !tok.ExpiresAt.Equal(stored) || !lifetime {
 		t.Fatal(tok)
 	}
 	row := apitest.Scalar[string](t, `SELECT concat_ws('|', tenant_id, token_hash, used_at) FROM enrollment_tokens`)

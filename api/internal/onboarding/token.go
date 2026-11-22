@@ -29,12 +29,13 @@ func createToken(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	t := EnrollmentToken{Token: newSecret(16), ExpiresAt: time.Now().Add(TokenLifetime).UTC()} // 128 bit
+	t := EnrollmentToken{Token: newSecret(16)} // 128 bit
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
-		_, err := tx.Exec(r.Context(), `INSERT INTO enrollment_tokens (id, tenant_id, token_hash, expires_at)
-			VALUES (uuidv7(), $1, $2, $3)`, c.Tenant, hash(t.Token), t.ExpiresAt)
-		return err
+		return tx.QueryRow(r.Context(), `INSERT INTO enrollment_tokens (id, tenant_id, token_hash, expires_at)
+			VALUES (uuidv7(), $1, $2, now() + $3::interval) RETURNING expires_at`,
+			c.Tenant, hash(t.Token), TokenLifetime).Scan(&t.ExpiresAt)
 	})
+	t.ExpiresAt = t.ExpiresAt.UTC()
 	if err != nil {
 		http.Error(w, "", http.StatusInternalServerError)
 		return

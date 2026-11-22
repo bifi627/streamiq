@@ -359,7 +359,7 @@ test('data saver (#291): a small measurement, Auto at 480p @player', async ({
   ).toBeVisible()
 })
 
-test('Auto measures once per tunnel, then uses the cache (#813) @player', async ({
+test('Auto measures once per tunnel, then uses the cache @player', async ({
   paired,
 }) => {
   const { page } = paired
@@ -377,7 +377,7 @@ test('Auto measures once per tunnel, then uses the cache (#813) @player', async 
   expect(await bursts(page)).toBe(4)
 })
 
-test('Measure connection speed Off (#813): Auto plays with no burst @player', async ({
+test('Measure connection speed Off: Auto plays with no burst @player', async ({
   paired,
 }) => {
   const { page } = paired

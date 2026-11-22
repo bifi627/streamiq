@@ -242,9 +242,7 @@ test('watched marks: a finished episode reads Watched, a part-played one its tim
   ).toBeVisible()
 })
 
-test('browsing sends no speed test burst (#813) @library', async ({
-  paired,
-}) => {
+test('browsing sends no speed test burst @library', async ({ paired }) => {
   const { page } = paired
   await countBursts(page)
   await page.reload()

@@ -179,10 +179,11 @@ Railway dev instance); unset → compose Postgres. Copy `.env.example` only to o
 - **Current state above and `docs/architecture.md` are not a status log** (per-PR progress was
   the merge-conflict hotspot; open work lives in issues). Edit them only when a lasting fact
   changes (new area complete, new architecture piece in `docs/architecture.md`).
-- **Done means:** `scripts/check.sh` ran and its output was read (e2e narrowed with `E2E_GREP`
-  or `SKIP_E2E=1`; the full local e2e run, a Jellyfin per worker, only when the owner asks);
-  the changed flow was actually driven (curl / UI / test output shown); docs invalidated by the
-  change updated in the same diff. "It should work" is not evidence.
+- **Done means:** `scripts/check.sh` ran and its output was read (e2e narrowed to the touched
+  areas with `E2E_GREP`, or `SKIP_E2E=1` without e2e impact; the full local e2e run, a Jellyfin
+  per worker, only when the owner asks); the changed flow was actually driven (curl / UI / test
+  output shown); docs invalidated by the change updated in the same diff. "It should work" is
+  not evidence.
 - **Questions to the owner go through `AskUserQuestion`** (2–4 options, your pick first), not a
   question at the end of a chat message; context in chat before it. Plain chat only without the tool.
 - **Unit of work:** one reviewable PR, not session capacity. No drive-by fixes: unrelated
@@ -222,8 +223,8 @@ Railway dev instance); unset → compose Postgres. Copy `.env.example` only to o
 - Data-channel payloads are **chunked (~16–64KB) with backpressure** (`bufferedAmount` both
   ends): never whole segments as one message.
 - **English-only UI** (#97): user-visible strings stay inline (no message map, no i18n library).
-  Dates, times and numbers go through `Intl` / `toLocale*()`, never a hardcoded format (oxlint
-  `streamiq/no-hardcoded-locale`). A second language: #110.
+  Dates, times and numbers go through `Intl` / `toLocale*()` with the browser's default locale,
+  never a hardcoded format (oxlint `streamiq/no-hardcoded-locale`). A second language: #110.
 - **Frontend decision logic lives in `.ts`** (#532): a choice over state, an error, time or
   ordering goes in a plain `.ts` beside the component with a `node --test`; the `.tsx` only wires
   it (render branching stays; oxlint `complexity` on `.tsx` enforces part of it).
@@ -232,6 +233,6 @@ Railway dev instance); unset → compose Postgres. Copy `.env.example` only to o
 - **Comments say what the code can't**; try a better name or an extracted function first. Keep a
   non-obvious *why*: external quirk, invariant, security reason, units/protocol facts,
   `ponytail:` ceiling, lint exemption, short Go doc comments. Cut restating, history ("was X"),
-  copies of `docs/`. Checks: oxlint `streamiq/no-low-value-comments`, `scripts/check-comments.sh`,
-  gocritic `commentedOutCode`; the rest needs reading.
+  commented-out code, copies of `docs/`, banners. Checks: oxlint `streamiq/no-low-value-comments`,
+  `scripts/check-comments.sh`, gocritic `commentedOutCode`; the rest needs reading.
 - Deploys/publishing are human-approved; no real secrets exist in the repo.

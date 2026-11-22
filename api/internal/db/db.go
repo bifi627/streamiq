@@ -118,5 +118,5 @@ func (d *DB) InClaimedTenant(
 }
 
 // NoTenant is the pool itself, for the SECURITY DEFINER functions that run before the
-// tenant is known (sign-in, the lookups that find it). Every table reads as empty through it.
+// tenant is known (sign-in, the lookups that find it). Every table the API reads is empty through it.
 func (d *DB) NoTenant() *pgxpool.Pool { return d.pool }

@@ -55,10 +55,6 @@ func list(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 		out, err = pgx.AppendRows(out, rows, func(row pgx.CollectableRow) (t Tunnel, err error) {
 			err = row.Scan(&t.ID, &t.CreatedAt, &t.EndedAt, &t.GatewayID, &t.GatewayName, &t.Relay, &t.IPv6,
 				&t.BytesSent, &t.BytesReceived, &t.ThroughputKbps, &t.Failure, &t.Use, &t.ActiveMs, &t.UserID)
-			t.CreatedAt = t.CreatedAt.UTC()
-			if t.EndedAt != nil {
-				*t.EndedAt = t.EndedAt.UTC()
-			}
 			return t, err
 		})
 		return err

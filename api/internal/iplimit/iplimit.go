@@ -1,6 +1,7 @@
-// Package iplimit is the per-client-IP request budget the broker's sockets, enrollment
-// and enrollment tokens share: one budget, as one flood shield. Loose on purpose: users
-// behind one carrier NAT share it. ponytail: in memory, one API instance, no per-user limit.
+// Package iplimit is the per-client-IP request budget the broker's sockets, enrollment,
+// enrollment tokens, new households and new invites share: one budget, as one flood
+// shield. Loose on purpose: users behind one carrier NAT share it.
+// ponytail: in memory, one API instance, no per-user limit.
 package iplimit
 
 import (

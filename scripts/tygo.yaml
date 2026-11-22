@@ -46,3 +46,19 @@ packages:
     optional_type: "null"
     type_mappings:
       time.Time: "string"
+  - path: "streamiq/api/internal/household"
+    output_path: "frontend/src/generated/household.ts"
+    include_files: ["create.go", "rename.go"]
+    optional_type: "null"
+  - path: "streamiq/api/internal/members"
+    output_path: "frontend/src/generated/members.ts"
+    include_files: ["list.go"]
+    optional_type: "null"
+    type_mappings:
+      time.Time: "string"
+  - path: "streamiq/api/internal/invites"
+    output_path: "frontend/src/generated/invites.ts"
+    include_files: ["create.go", "list.go", "preview.go", "accept.go"]
+    optional_type: "null"
+    type_mappings:
+      time.Time: "string"

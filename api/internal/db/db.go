@@ -6,8 +6,10 @@ package db
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"streamiq/api/migrations"
@@ -36,7 +38,17 @@ func Open(ctx context.Context, ownerURL, appPassword string) (*DB, error) {
 }
 
 // Connect opens a pool with cfg as it is: tests connect as another role or with one connection.
+// Every timestamptz scans as UTC, so the JSON the API sends ends in Z whatever the
+// server's time zone (pgx's default is time.Local).
 func Connect(ctx context.Context, cfg *pgxpool.Config) (*DB, error) {
+	cfg.AfterConnect = func(_ context.Context, c *pgx.Conn) error {
+		c.TypeMap().RegisterType(&pgtype.Type{
+			Name:  "timestamptz",
+			OID:   pgtype.TimestamptzOID,
+			Codec: &pgtype.TimestamptzCodec{ScanLocation: time.UTC},
+		})
+		return nil
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -80,6 +92,10 @@ type Claim struct{ sql string }
 // EnrollmentToken spends an unused, unexpired enrollment token by its hash
 // (api/migrations/0004_claim_enrollment_token.sql).
 var EnrollmentToken = Claim{`SELECT t::text FROM claim_enrollment_token($1) t WHERE t IS NOT NULL`}
+
+// Invite spends an unused, unexpired invite by its token's hash
+// (api/migrations/0005_households_invites.sql).
+var Invite = Claim{`SELECT t::text FROM claim_invite($1) t WHERE t IS NOT NULL`}
 
 // InClaimedTenant is InTenant for a request whose tenant claim finds: no row is
 // pgx.ErrNoRows and fn doesn't run. The claim is rolled back with fn's error.

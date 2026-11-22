@@ -16,8 +16,11 @@ import (
 	"streamiq/api/internal/db"
 	"streamiq/api/internal/front"
 	"streamiq/api/internal/gateways"
+	"streamiq/api/internal/household"
+	"streamiq/api/internal/invites"
 	"streamiq/api/internal/iplimit"
 	"streamiq/api/internal/me"
+	"streamiq/api/internal/members"
 	"streamiq/api/internal/onboarding"
 	"streamiq/api/internal/tunnels"
 	"streamiq/api/internal/turn"
@@ -51,12 +54,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("STREAMIQ_SIGNALING_PER_MINUTE: %v", err)
 	}
-	// One per-IP budget for the broker sockets, enrollment and enrollment tokens.
+	// One per-IP budget for the broker sockets, enrollment, enrollment tokens, new
+	// households and new invites.
 	ips := iplimit.New(perMinute, os.Getenv("STREAMIQ_CLIENT_IP_HEADER"))
 	b := broker.New(d, a, turn.FromEnv(), ips)
 	b.Routes(mux)
 	gateways.Routes(mux, a, d, b)
 	tunnels.Routes(mux, a, d)
+	household.Routes(mux, a, d, ips)
+	members.Routes(mux, a, d)
+	invites.Routes(mux, a, d, ips)
 	onboarding.Routes(mux, a, d, ips, onboarding.Install{
 		PublicURL: os.Getenv("STREAMIQ_PUBLIC_URL"),
 		Dev:       os.Getenv("STREAMIQ_ENV") == "development",

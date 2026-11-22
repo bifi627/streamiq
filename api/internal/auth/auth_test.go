@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -198,5 +199,25 @@ func TestTheEmulatorNeedsDevelopment(t *testing.T) {
 	t.Setenv("STREAMIQ_ENV", "development")
 	if _, err := auth.NewVerifier(t.Context()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A Google sign-in for an email signed up by password is the same user (Firebase: one
+// account per email), again on the next sign-in, and none of its profile claims is
+// stored (the users row has no column for them).
+func TestAGoogleSignInIsOneUserAlsoWithAPasswordForItsEmail(t *testing.T) {
+	apitest.Reset(t)
+	base := server(t)
+	email := "google-" + strings.ToLower(rand.Text()[:8]) + "@home.test"
+	_, password := get(t, base+"/optional", apitest.Token(t, email))
+	google := apitest.GoogleToken(t, "g-"+rand.Text(), email)
+	_, first := get(t, base+"/optional", google)
+	_, again := get(t, base+"/optional", google)
+	if password.User == "" || first.User != password.User || again.User != password.User {
+		t.Fatalf("users %q, %q, %q; want one", password.User, first.User, again.User)
+	}
+	if users, tenants := apitest.Scalar[int](t, `SELECT count(*) FROM users`),
+		apitest.Scalar[int](t, `SELECT count(*) FROM tenants`); users != 1 || tenants != 0 {
+		t.Fatalf("%d users and %d households, want 1 and 0", users, tenants)
 	}
 }

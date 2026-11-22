@@ -76,7 +76,7 @@ asks for, do on the running stack with the `api:` / `auth emulator:` URLs that
 
 - **Token:** `POST <emulator>/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key`
   with `{email, password, returnSecureToken: true}` → `idToken`; then
-  `Authorization: Bearer <idToken>` on `<api>/api/...` (endpoints: `backend/src/StreamIq.Api/Features/`).
+  `Authorization: Bearer <idToken>` on `<api>/api/...` (endpoints: the slices in `api/internal/`).
   Another household than the user's oldest: header `X-StreamIQ-Household: <tenant id>` (from `GET /api/me`).
 - **More people:** `accounts:signUp` (same body) as `preview2@streamiq.test`,
   `preview3@…`, password `preview-password`; they start in no household (#387): `POST /api/households` gives them their own, or accept an invite.

@@ -24,7 +24,10 @@ This skill stores no pending-bump state — derive the candidate set at runtime:
 ```bash
 npm outdated --prefix frontend            # and any other package dirs (e2e/)
 go list -m -u all                          # Go modules (one go.mod at the root: api/ + gateway/)
-gh api repos/bifi627/streamiq/dependabot/alerts?state=open --jq '.[] | "\(.number) \(.dependency.manifest_path) \(.security_vulnerability.package.name) → \(.security_vulnerability.first_patched_version.identifier)"'  # open alerts: bump each to at least its patched version, or dismiss it in the Security tab with a reason (docs/tools.md)
+gh api --paginate 'repos/bifi627/streamiq/dependabot/alerts?state=open' --jq '.[] | "\(.number) \(.dependency.manifest_path) \(.security_vulnerability.package.name) → \(.security_vulnerability.first_patched_version.identifier // "no fix yet")"'
+# open alerts: bump each to at least its patched version once that clears min-release-age
+# (npm, below); younger: take Dependabot's security PR, or wait. Or dismiss it in the
+# Security tab with a reason (docs/tools.md)
 # plus: image pins in docker-compose.yml, .devcontainer/devcontainer.json
 #       features, and action versions in .github/workflows/*.yml
 ```

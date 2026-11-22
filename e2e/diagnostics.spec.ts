@@ -119,7 +119,7 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
   await expect(diag).toHaveCount(1)
 })
 
-test('report, forced relay: relayed (TURN), Relay row @diagnostics', async ({
+test('report, forced relay: relayed (TURN), relay row @diagnostics', async ({
   paired,
 }) => {
   const { page } = paired

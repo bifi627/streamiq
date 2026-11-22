@@ -1,5 +1,5 @@
 # TypeScript for the web app from the Go types that are the wire contract
-# (bash scripts/gen-types.sh). A ported REST slice adds its package here.
+# (bash scripts/gen-types.sh). A REST slice whose types the web app uses adds its package here.
 packages:
   - path: "streamiq/protocol"
     output_path: "frontend/src/generated/protocol.ts"

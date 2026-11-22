@@ -23,7 +23,7 @@ This skill stores no pending-bump state — derive the candidate set at runtime:
 
 ```bash
 npm outdated --prefix frontend            # and any other package dirs (e2e/)
-cd gateway && go list -m -u all             # Go modules
+go list -m -u all                          # Go modules (one go.mod at the root: api/ + gateway/)
 # plus: image pins in docker-compose.yml, .devcontainer/devcontainer.json
 #       features, and action versions in .github/workflows/*.yml
 ```
@@ -108,7 +108,7 @@ down → prompt the user to start Desktop, don't skip.
 ## Go specifics
 
 - `go get <module>@<version>` per module (or `go get -u ./...` for a full
-  minor sweep), run from `gateway/`, then `go mod tidy`. Commit `go.mod` + `go.sum`
+  minor sweep), run from the repo root (it covers `api/` and `gateway/`), then `go mod tidy`. Commit `go.mod` + `go.sum`
   (at the repo root) together.
 - Pion moves as a family — don't hand-pin one pion module against its
   siblings; let the resolver pick the coherent set.

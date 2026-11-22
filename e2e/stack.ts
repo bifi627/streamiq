@@ -368,7 +368,7 @@ const NO_VOLUMES = {
 }
 
 /**
- * Firebase emulator image (dev/firebase, same as the backend test harness, which
+ * Firebase emulator image (dev/firebase, same as the Go API tests, scripts/test-api.sh, which
  * tags it the same way): tagged with a hash of its inputs and built only when
  * that tag is missing, so runs reuse it instead of leaving a dangling 825 MB
  * build behind each time. Never deleted, so concurrent runs can share it.

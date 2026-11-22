@@ -7,7 +7,7 @@ import (
 	"streamiq/protocol"
 )
 
-// The heartbeat at telemetry full, byte for byte: the .NET broker reads exactly this.
+// The heartbeat at telemetry full, byte for byte: the broker reads exactly this.
 func TestWireHeartbeat(t *testing.T) {
 	n, cpu, mem := 0, 12.5, 47.3
 	hb := protocol.Heartbeat{

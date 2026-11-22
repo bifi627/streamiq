@@ -35,7 +35,7 @@ func getMe(t *testing.T, base, token string) map[string]any {
 	return v
 }
 
-// The same response as the .NET Me slice's: userId, tenantId (null without a
+// The response: userId, tenantId (null without a
 // household) and memberships oldest first, each {id, name, role}.
 func TestMe(t *testing.T) {
 	apitest.Reset(t)

@@ -4,7 +4,7 @@
 // household of one's own, the alias, the switcher, and a membership
 // lost while the app is open, an admin's household Activity (tunnel
 // rows seeded in Postgres). Permission and edge cases (member refused, last admin, single-use,
-// expired) are the backend's Members / Invites / Provisioning features.
+// expired) are the Go API tests (members, invites, household).
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {

@@ -4,7 +4,7 @@
 // local gateway page, a refused broker socket and TV mode.
 // Onboarding, Approve, Test connection and the removes that end sessions are
 // the golden path's; the offline dot (90 s), rejection edge cases and a
-// member's own client list are backend / Go / multi-user.
+// member's own client list are the Go API tests and multi-user.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {

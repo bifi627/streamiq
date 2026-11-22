@@ -43,7 +43,7 @@ the same. Background: `docs/tools.md` (Preview env + cloudflared rows).
    - Running and the mode fits (needs a tunnel → a `tunnel:` line is printed) →
      reuse it, go to step 3.
    - Running in the wrong mode, or the checkout changed in a way Vite can't
-     hot-reload (backend, gateway, `e2e/`) → `down`, then step 2.
+     hot-reload (API, gateway, `e2e/`) → `down`, then step 2.
 2. `npm run preview --prefix e2e -- up [--tunnel]`
    - Exit ≠ 0: `up` already printed the log tail and ran `down`. Read
      `e2e/.preview/logs/<service>.log` for the failing piece, report it with the

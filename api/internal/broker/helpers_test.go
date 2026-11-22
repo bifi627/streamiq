@@ -83,8 +83,8 @@ type gw struct {
 	conn                   *websocket.Conn
 }
 
-// enrolled adds a gateway to email's household as the .NET enrollment writes it: a
-// random credential stored as its SHA-256 hex (Secrets.Hash).
+// enrolled adds a gateway to email's household as onboarding enrolls one: a
+// random credential stored as its SHA-256 hex.
 func (s *stack) enrolled(email, name string) *gw {
 	s.t.Helper()
 	g := &gw{tenant: s.household(email), credential: rand.Text()}

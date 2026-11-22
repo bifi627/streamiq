@@ -75,8 +75,8 @@ func secure(next http.Handler) http.Handler {
 	})
 }
 
-// cors answers as ASP.NET Core's policy did (WithOrigins + WithHeaders + AllowAnyMethod
-// + WithExposedHeaders): a preflight is a 204 whatever the outcome, with the allow
+// cors allows the listed origins, the request headers the app sends, any method, and
+// exposes the not-a-member header: a preflight is a 204 whatever the outcome, with the allow
 // headers only for a listed origin; the browser compares the headers it asked for.
 // WebSockets ignore CORS (the broker authenticates in-band).
 func cors(origins []string, next http.Handler) http.Handler {

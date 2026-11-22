@@ -33,6 +33,7 @@ func want(t *testing.T, got []string) {
 	if !slices.Equal(got, []string{"0001_baseline.sql", "0002_rls.sql", "0003_gateway_by_credential.sql",
 		"0004_claim_enrollment_token.sql",
 		"0005_households_invites.sql",
+		"0006_rls_tenants_users.sql",
 	}) {
 		t.Fatalf("applied %v", got)
 	}

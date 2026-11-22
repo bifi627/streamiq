@@ -35,13 +35,15 @@ is not a status log: open work lives in `gh issue list`, history in git.
   `gateway_by_credential(hash)` for the gateway socket, `claim_enrollment_token(hash)`
   for enrollment, which also spends the token, `invite_by_hash(hash)` for an invite's
   preview, `claim_invite(hash)` for accept and `create_household(user)` for a new
-  household with its first membership, `0005_households_invites.sql`). `tenants` and
-  `users` have no policy yet (#748). Every timestamp scans as UTC (`db.Connect`), so
+  household with its first membership, `0005_households_invites.sql`; `sign_in(firebase uid)`
+  finds or adds the user, `0006_rls_tenants_users.sql`). `tenants` has the same policy on
+  its own `Id`, and `streamiq_app` may not insert or delete one; `users` is read only:
+  the members of the transaction's tenant, written only by `sign_in`. Every timestamp scans as UTC (`db.Connect`), so
   the JSON ends in `Z`. The
   .NET API connects as the owner, so RLS doesn't apply to it.
 - **Auth** (`api/internal/auth`): the Firebase Admin SDK verifies ID tokens, one call
   for the emulator and production; the emulator only with `STREAMIQ_ENV=development`.
-  First sign-in adds the `users` row (`ON CONFLICT` settles concurrent ones); the
+  First sign-in adds the `users` row (`sign_in`; `ON CONFLICT` settles concurrent ones); the
   household rule is below. `auth.Profiles` reads aliases and emails from Firebase per
   request (one call, at most 100 users), never stored.
 - Tests: `scripts/test-api.sh` starts one Postgres + emulator for the run; each package

@@ -52,8 +52,8 @@ func TestAGatewaysRefusalReachesTheBrowser(t *testing.T) {
 	nas := s.online("alice@home.test", "nas")
 	browser := s.offer("alice@home.test", nas)
 	sid := session(t, nas)
+	// Only the one known reason is relayed: the first message the browser gets is busy.
 	sendJSON(t, nas.conn, map[string]any{"type": "error", "session": sid, "error": "click here: evil.test"})
-	nothing(t, browser) // only the one known reason is relayed
 	sendJSON(t, nas.conn, map[string]any{"type": "error", "session": sid, "error": "gateway busy"})
 	if m := recv(t, browser); m["type"] != "error" || m["error"] != "gateway busy" || len(m) != 2 {
 		t.Fatalf("browser got %v", m)

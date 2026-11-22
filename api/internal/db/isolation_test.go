@@ -147,7 +147,8 @@ func householdBreaches(ctx context.Context, d *db.DB, a, b string) (out []string
 		}
 	}
 	var bUser string
-	if err := apitest.Owner.QueryRow(ctx, `SELECT "UserId" FROM memberships WHERE "TenantId" = $1`, b).Scan(&bUser); err != nil {
+	err := apitest.Owner.QueryRow(ctx, `SELECT "UserId" FROM memberships WHERE "TenantId" = $1`, b).Scan(&bUser)
+	if err != nil {
 		return append(out, err.Error())
 	}
 	if n, err := inTenant(ctx, d, a, `SELECT FROM users WHERE "Id" = $1`, bUser); n != 0 || err != nil {

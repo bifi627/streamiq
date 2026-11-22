@@ -245,8 +245,8 @@ justified *yet*. When it is, move the entry; the stage before keeps at most a on
 
 ### Pruning
 
-Per milestone, or whenever the instructions file outgrows its budget: delete stale prose,
-dead docs, and rules now enforced by tooling; confirm the exemplar is still canonical.
+Per milestone, or whenever the instructions file outgrows its budget: delete stale prose and
+dead docs, shrink rules now enforced by tooling to their one-line pointer; confirm the exemplar is still canonical.
 Cheap audit sensor: end significant tasks by asking the agent *"what in the instructions
 or docs was missing, wrong, or unnecessary for this task?"* — it experiences the harness
 fresh every session, which makes it a good staleness detector.

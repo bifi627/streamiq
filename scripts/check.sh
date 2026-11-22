@@ -13,6 +13,9 @@ bash scripts/check-file-size.sh
 echo "== comments: no file above its baseline (issue refs, comment ratio) =="
 bash scripts/check-comments.sh
 
+echo "== migrations: squawk on the ones not applied yet =="
+bash scripts/check-migrations.sh
+
 echo "== workflows + bash: actionlint (shellcheck on run: blocks) + shellcheck scripts/*.sh + the installer =="
 # #581: one pinned image holds both; Docker is already needed below. MSYS_NO_PATHCONV keeps Git Bash off /repo
 docker_lint=(env MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/repo" -w /repo)

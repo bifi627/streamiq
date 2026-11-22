@@ -1,0 +1,7 @@
+# squawk lints new api/migrations/*.sql via scripts/check-migrations.sh
+pg_version = "18.0"
+# api/migrations/migrations.go runs each file in its own transaction
+assume_in_transaction = true
+# CREATE INDEX CONCURRENTLY can't run in a transaction; the tables are small.
+# ponytail: add a no-transaction opt-out to the runner when a large table needs one
+excluded_rules = ["require-concurrent-index-creation"]

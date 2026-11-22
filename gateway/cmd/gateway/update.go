@@ -40,6 +40,7 @@ func selfUpdate(ctx context.Context, exe string) error {
 		env("STREAMIQ_DOWNLOAD", update.DownloadURL),
 		update.Asset(),
 		exe+".new",
+		terminal(os.Stdout),
 	); err != nil {
 		return err
 	}
@@ -53,6 +54,15 @@ func selfUpdate(ctx context.Context, exe string) error {
 		return err
 	}
 	fmt.Print(updated(version, latest, keep, task))
+	return nil
+}
+
+// terminal is f when it's a console, else nil: a remote update's update.log
+// gets no progress line.
+func terminal(f *os.File) io.Writer {
+	if fi, err := f.Stat(); err == nil && fi.Mode()&os.ModeCharDevice != 0 {
+		return f
+	}
 	return nil
 }
 

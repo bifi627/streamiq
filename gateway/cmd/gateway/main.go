@@ -243,6 +243,7 @@ func jellyfinUp(ctx context.Context, file string) error {
 			env("STREAMIQ_DOWNLOAD", update.DownloadURL),
 			jellyfin.ComposeFile,
 			file,
+			nil,
 		); err != nil {
 			return err
 		}

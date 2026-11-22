@@ -116,25 +116,31 @@ func Asset() string {
 }
 
 // Download fetches dl/asset to dst and checks it against dl/SHA256SUMS, as the
-// installers do. On a mismatch dst is removed and nothing else changes.
+// installers do. On a mismatch dst is removed and nothing else changes. A
+// non-nil bar gets a progress line, redrawn in place (a terminal's).
 // ponytail: SHA256SUMS comes from the same release, so it catches corruption,
 // not a compromised release; code signing would.
-func Download(ctx context.Context, dl, asset, dst string) error {
+func Download(ctx context.Context, dl, asset, dst string, bar io.Writer) error {
 	want, err := sum(ctx, dl+"/SHA256SUMS", asset)
 	if err != nil {
 		return err
 	}
-	body, err := get(ctx, dl+"/"+asset)
+	res, err := get(ctx, dl+"/"+asset)
 	if err != nil {
 		return err
 	}
-	defer body.Close()
+	defer res.Body.Close()
 	f, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	h := sha256.New()
-	_, err = io.Copy(io.MultiWriter(f, h), body)
+	w := io.MultiWriter(f, h)
+	if bar != nil {
+		w = io.MultiWriter(w, &progress{out: bar, total: res.ContentLength, last: -1})
+		defer fmt.Fprintln(bar)
+	}
+	_, err = io.Copy(w, res.Body)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
@@ -148,12 +154,12 @@ func Download(ctx context.Context, dl, asset, dst string) error {
 }
 
 func sum(ctx context.Context, url, asset string) (string, error) {
-	body, err := get(ctx, url)
+	res, err := get(ctx, url)
 	if err != nil {
 		return "", err
 	}
-	defer body.Close()
-	sc := bufio.NewScanner(body)
+	defer res.Body.Close()
+	sc := bufio.NewScanner(res.Body)
 	for sc.Scan() { // sha256sum format: "<hex>  <name>" (or "<hex> *<name>")
 		f := strings.Fields(sc.Text())
 		if len(f) == 2 && strings.TrimPrefix(f[1], "*") == asset {
@@ -166,7 +172,7 @@ func sum(ctx context.Context, url, asset string) (string, error) {
 	return "", fmt.Errorf("%s not in SHA256SUMS", asset)
 }
 
-func get(ctx context.Context, url string) (io.ReadCloser, error) {
+func get(ctx context.Context, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -179,7 +185,32 @@ func get(ctx context.Context, url string) (io.ReadCloser, error) {
 		res.Body.Close()
 		return nil, fmt.Errorf("download %s: HTTP %d", url, res.StatusCode)
 	}
-	return res.Body, nil
+	return res, nil
+}
+
+// progress draws " 42%  12.3 / 29.1 MB" on out as bytes pass, only when the
+// percent (or, with no Content-Length: total <= 0, the shown tenth of a MB) changes.
+type progress struct {
+	out         io.Writer
+	done, total int64
+	last        int64
+}
+
+func (p *progress) Write(b []byte) (int, error) {
+	p.done += int64(len(b))
+	mb := func(n int64) float64 { return float64(n) / 1e6 }
+	if p.total <= 0 {
+		if step := (p.done + 50_000) / 100_000; step != p.last {
+			p.last = step
+			fmt.Fprintf(p.out, "\r%.1f MB", mb(p.done))
+		}
+		return len(b), nil
+	}
+	if pct := p.done * 100 / p.total; pct != p.last {
+		p.last = pct
+		fmt.Fprintf(p.out, "\r%3d%%  %.1f / %.1f MB", pct, mb(p.done), mb(p.total))
+	}
+	return len(b), nil
 }
 
 // Swap puts in at exe and moves exe to out (replacing a file there). Windows

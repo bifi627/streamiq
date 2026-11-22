@@ -222,6 +222,22 @@ func TestProductionRefusesAFirebaseConfigWithoutAProject(t *testing.T) {
 	}
 }
 
+// A key the SDK rejects stops the start with the fixed message only: the SDK's error
+// can quote the key. The key below is made up.
+func TestAMalformedServiceAccountStopsTheStartWithoutItsContent(t *testing.T) {
+	t.Setenv("FIREBASE_AUTH_EMULATOR_HOST", "")
+	t.Setenv("STREAMIQ_ENV", "")
+	t.Setenv("FIREBASE_PROJECT_ID", "streamiq-prod")
+	t.Setenv("FIREBASE_SERVICE_ACCOUNT_JSON", `{"type":"service_account","project_id":"streamiq-prod",`+
+		`"private_key":"-----BEGIN PRIVATE KEY-----
+MADEUPKEY
+-----END PRIVATE KEY-----"}`)
+	_, err := auth.NewVerifier(t.Context())
+	if err == nil || err.Error() != auth.ErrServiceAccount.Error() {
+		t.Fatalf("got %v, want only %q", err, auth.ErrServiceAccount)
+	}
+}
+
 // A Google sign-in for an email signed up by password is the same user (Firebase: one
 // account per email), again on the next sign-in, and none of its profile claims is
 // stored (the users row has no column for them).

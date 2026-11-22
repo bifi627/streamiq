@@ -3,12 +3,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"streamiq/api/internal/auth"
 	"streamiq/api/internal/broker"
@@ -27,12 +30,17 @@ import (
 
 func main() {
 	ctx := context.Background()
+	url, err := databaseURL()
+	if err != nil {
+		log.Fatal(err)
+	}
 	// DATABASE_URL is the tables' owner: it migrates and sets the app role's password.
-	d, err := db.Open(
-		ctx,
-		env("DATABASE_URL", "postgres://streamiq:dev@localhost:5432/streamiq"),
-		os.Getenv("STREAMIQ_APP_DB_PASSWORD"),
-	)
+	d, err := db.Open(ctx, url, os.Getenv("STREAMIQ_APP_DB_PASSWORD"))
+	var parse *pgconn.ParseConfigError
+	if errors.As(err, &parse) {
+		// pgx redacts the password from a URL it can't parse only on a best-effort basis.
+		log.Fatal("database: DATABASE_URL is not a valid postgres:// URL")
+	}
 	if err != nil {
 		log.Fatalf("database: %v", err)
 	}
@@ -69,6 +77,18 @@ func main() {
 	}
 	log.Printf("api: listening on %s", srv.Addr)
 	log.Fatal(srv.ListenAndServe())
+}
+
+// databaseURL falls back to the compose Postgres in development only, so a production
+// start without DATABASE_URL fails here instead of dialling localhost.
+func databaseURL() (string, error) {
+	if url := os.Getenv("DATABASE_URL"); url != "" {
+		return url, nil
+	}
+	if os.Getenv("STREAMIQ_ENV") != "development" {
+		return "", errors.New("DATABASE_URL is not set (only STREAMIQ_ENV=development falls back to the compose Postgres)")
+	}
+	return "postgres://streamiq:dev@localhost:5432/streamiq", nil
 }
 
 func env(key, fallback string) string {

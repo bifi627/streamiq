@@ -48,6 +48,19 @@ func NewVerifier(ctx context.Context) (*fbauth.Client, error) {
 	if !emulator {
 		opts = append(opts, option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(serviceAccount)))
 	}
+	client, err := newClient(ctx, project, opts)
+	if err != nil && !emulator {
+		// The SDK's error can quote the key it failed to parse, so it never reaches the log.
+		return nil, ErrServiceAccount
+	}
+	return client, err
+}
+
+// ErrServiceAccount is the whole start error for a key the SDK rejects.
+var ErrServiceAccount = errors.New(`FIREBASE_SERVICE_ACCOUNT_JSON is not a valid service account key: ` +
+	`set it to the key file's JSON on one line, with each line break inside "private_key" written as \n`)
+
+func newClient(ctx context.Context, project string, opts []option.ClientOption) (*fbauth.Client, error) {
 	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: project}, opts...)
 	if err != nil {
 		return nil, err

@@ -23,7 +23,13 @@ import {
 } from './features/library/Library'
 import { RemotePage, ScreenPage } from './features/screen/Screen'
 import { Diagnostics } from './features/diagnostics/Diagnostics'
-import { askTv, lastGateway, setLastGateway, TV_EVENT, tvOn } from './shared/settings'
+import {
+  askTv,
+  lastGateway,
+  setLastGateway,
+  TV_EVENT,
+  tvOn,
+} from './shared/settings'
 import { TvAsk } from './features/tv/TvMode'
 import { handoffHome, shellPage, tvRoute } from './features/tv/tvRoute'
 import { Handoff } from './features/tv/Handoff'

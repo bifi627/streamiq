@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Fails when a STREAMIQ_* env var or a gateway API route in code is missing from the docs (#488):
+# Fails when a STREAMIQ_* env var, a gateway API route or a message type in code is missing from the docs (#488):
 #   gateway/ (Go + install scripts)  -> a row of the gateway.env table in docs/install.md
 #   api/, scripts/                   -> named somewhere in docs/ (docs/superpowers is history: not counted)
 #   "/streamiq/..." in gateway Go    -> docs/protocol.md
+#   message `type`s (tstype) in protocol/, gateway/internal/sessions, gateway/internal/screen -> docs/protocol.md, both ways
 # Tracked files only (git grep), so a local gateway.env, state dir or draft can't make check.sh and CI disagree.
 # Test-only code (_test.go, testdata/) is skipped; test/dev-only names go on scripts/docs-drift-allowlist.txt.
 # ponytail: grep sees names, not meaning; whether the doc is right stays the review's job.
@@ -44,9 +45,31 @@ for r in $routes; do
   grep -qE "${r}([^A-Za-z0-9/_*.-]|$)" docs/protocol.md || { echo "  $r: gateway route missing from docs/protocol.md" >&2; fail=1; }
 done
 
+# Message types: the tstype literals on `json:"type"` fields vs the types docs/protocol.md shows, per set.
+# The doc side: the handshake = its step table, screen commands = their table, broker = the rest of the doc.
+code_types() {
+  local rc=0 hits
+  hits=$(git grep -h 'json:"type".*tstype:' -- "$1" ':!*_test.go') || rc=$?
+  [ "$rc" -le 1 ] || exit "$rc"
+  printf '%s\n' "$hits" | grep -oE "tstype:\"[^\"]*\"" | grep -oE "'[a-z]+'" | tr -d "'" | sort -u || true
+}
+doc_types() { grep -oE '"?type"?: ?"[a-z]+"(\|"[a-z]+")*' | grep -oE '"[a-z]+"' | grep -vx '"type"' | tr -d '"' | sort -u || true; }
+handshake_row='^\| [0-9]+ \| (gateway|browser) → '
+screen_row='^\| `\{"type"'
+# compare <set> <code dir> <doc types>
+compare() {
+  local code; code=$(code_types "$2")
+  [ -n "$code" ] || { echo "check-docs-drift: no message types found in $2" >&2; exit 2; }
+  while read -r t; do [ -n "$t" ] || continue; echo "  $1 message type \"$t\": in $2, not in docs/protocol.md" >&2; fail=1; done < <(comm -23 <(echo "$code") <(echo "$3"))
+  while read -r t; do [ -n "$t" ] || continue; echo "  $1 message type \"$t\": in docs/protocol.md, not in $2" >&2; fail=1; done < <(comm -13 <(echo "$code") <(echo "$3"))
+}
+compare broker protocol "$(grep -vE "$handshake_row|$screen_row" docs/protocol.md | doc_types)"
+compare handshake gateway/internal/sessions "$(grep -E "$handshake_row" docs/protocol.md | doc_types)"
+compare screen gateway/internal/screen "$(grep -E "$screen_row" docs/protocol.md | doc_types)"
+
 if [ "$fail" -ne 0 ]; then
   echo "Docs drift: document the above in the same diff, or, for a test/dev-only env var, add it to" >&2
   echo "$allowlist with a reason (a review trigger: call it out in the PR)." >&2
   exit 1
 fi
-echo "docs drift: every STREAMIQ_* env var and gateway route is documented"
+echo "docs drift: every STREAMIQ_* env var, gateway route and message type is documented"

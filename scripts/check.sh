@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "== docs drift: STREAMIQ_* env vars + gateway routes documented =="
+echo "== docs drift: STREAMIQ_* env vars, gateway routes, message types documented =="
 bash scripts/check-docs-drift.sh
 
 echo "== file size: no source file over 500 code lines outside the allowlist =="

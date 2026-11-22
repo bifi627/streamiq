@@ -49,7 +49,7 @@ done
 # The doc side: the handshake = its step table, screen commands = their table, broker = the rest of the doc.
 code_types() {
   local rc=0 hits
-  hits=$(git grep -h 'json:"type".*tstype:' -- "$1" ':!*_test.go') || rc=$?
+  hits=$(git grep -h 'json:"type".*tstype:' -- "$1" ':!*_test.go' ':!*/testdata/*') || rc=$?
   [ "$rc" -le 1 ] || exit "$rc"
   printf '%s\n' "$hits" | grep -oE "tstype:\"[^\"]*\"" | grep -oE "'[a-z]+'" | tr -d "'" | sort -u || true
 }
@@ -68,7 +68,7 @@ compare handshake gateway/internal/sessions "$(grep -E "$handshake_row" docs/pro
 compare screen gateway/internal/screen "$(grep -E "$screen_row" docs/protocol.md | doc_types)"
 
 if [ "$fail" -ne 0 ]; then
-  echo "Docs drift: document the above in the same diff, or, for a test/dev-only env var, add it to" >&2
+  echo "Docs drift: fix the doc (or the code) in the same diff, or, for a test/dev-only env var, add it to" >&2
   echo "$allowlist with a reason (a review trigger: call it out in the PR)." >&2
   exit 1
 fi

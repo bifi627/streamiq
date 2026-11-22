@@ -29,10 +29,10 @@ type ClientName struct {
 // Probe is what a client's browser decodes (the web app's capability probe).
 // Hd = at most 1080p: 2160p is not smooth.
 type Probe struct {
-	H264 *H264 `json:"h264"     tstype:"H264 | null,required"`
+	H264 *H264 `json:"h264" tstype:"H264 | null,required"`
 	// Hevc is HEVC Main.
-	Hevc *Hevc `json:"hevc"     tstype:"Hevc | null,required"`
-	Av1  *Av1  `json:"av1"      tstype:"Av1 | null,required"`
+	Hevc *Hevc `json:"hevc" tstype:"Hevc | null,required"`
+	Av1  *Av1  `json:"av1"  tstype:"Av1 | null,required"`
 	// Audio holds Jellyfin audio codec names.
 	Audio []string `json:"audio"`
 	// Surround: 5.1 audio decodes.

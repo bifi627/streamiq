@@ -220,10 +220,22 @@ func TestClientProfile(t *testing.T) {
 			t.Errorf("bad body %.60s: %d, want 400", body, s)
 		}
 	}
-	if s, _ := call(tunnel.Member, "zz", "POST", ClientsProfilePath, `{"probe":{"audio":[]}}`); s != http.StatusNotFound {
+	if s, _ := call(
+		tunnel.Member,
+		"zz",
+		"POST",
+		ClientsProfilePath,
+		`{"probe":{"audio":[]}}`,
+	); s != http.StatusNotFound {
 		t.Errorf("unpaired key: %d, want 404", s)
 	}
-	if s, _ := call(tunnel.Member, "aa", "POST", ClientsProfilePath, `{"probe":`+probe+`,"compatible":true}`); s != 200 {
+	if s, _ := call(
+		tunnel.Member,
+		"aa",
+		"POST",
+		ClientsProfilePath,
+		`{"probe":`+probe+`,"compatible":true}`,
+	); s != 200 {
 		t.Fatalf("store: %d", s)
 	}
 	got := store.Paired()

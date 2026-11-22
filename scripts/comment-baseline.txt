@@ -7,7 +7,6 @@
 scripts/check-docs-drift.sh refs 1
 scripts/check-file-size.sh refs 1
 scripts/check-jellyfin-paths.sh refs 1
-scripts/check-tenant-filter.sh refs 1
 scripts/check.sh refs 5
 scripts/gen-test-media.sh refs 2
 scripts/next-gateway-version.sh refs 1

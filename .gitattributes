@@ -1,5 +1,5 @@
-# Normalize line endings to LF for all text files. The formatters (dotnet format,
-# Prettier, gofmt) emit LF, so pinning LF keeps the format gate stable across
+# Normalize line endings to LF for all text files. The formatters (Prettier,
+# gofmt) emit LF, so pinning LF keeps the format gate stable across
 # Windows and Linux/CI. Binary files are auto-detected and left untouched.
 * text=auto eol=lf
 

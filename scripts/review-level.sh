@@ -27,8 +27,6 @@ set -euo pipefail
 # not topics: CONTENT below catches the topics outside them. The broker's tests are
 # here too: they are the tenant-isolation proof (CLAUDE.md).
 XHIGH='
-backend/src/StreamIq.Api/Data/
-backend/src/StreamIq.Api/Auth/
 api/internal/onboarding/
 api/internal/db/
 api/internal/auth/
@@ -45,12 +43,8 @@ gateway/install/install.ps1
 .github/workflows/
 '
 # xhigh + mid: an added line contains one of these (fixed strings), in any file:
-# tenant-filter bypasses (as scripts/check-tenant-filter.sh) and the workflow settings that widen CI's power.
-CONTENT='IgnoreQueryFilters
-FromSql
-ExecuteSql
-SqlQuery
-pull_request_target
+# the workflow settings that widen CI's power.
+CONTENT='pull_request_target
 secrets.
 permissions:'
 # low level: docs only (docs/ and *.md; the agent's own rules, CLAUDE.md and .claude/,

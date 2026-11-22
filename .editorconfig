@@ -1,5 +1,5 @@
-# Shared formatting rules. `dotnet format` reads this for C#; Prettier reads it
-# for frontend/ + e2e/ (overridden by their .prettierrc.json where they differ).
+# Shared formatting rules. Prettier reads it for frontend/ + e2e/
+# (overridden by their .prettierrc.json where they differ).
 root = true
 
 [*]
@@ -21,36 +21,3 @@ indent_style = tab
 # Markdown: trailing whitespace can be a hard line break.
 [*.md]
 trim_trailing_whitespace = false
-
-# C# style — kept light to match existing code (file-scoped namespaces, usings
-# outside the namespace, System usings first). Broader rules can tighten later.
-[*.cs]
-dotnet_sort_system_directives_first = true
-csharp_using_directive_placement = outside_namespace:warning
-csharp_style_namespace_declarations = file_scoped:warning
-
-# Braces + one statement per line (review nits 2026-11-01). Not
-# csharp_preserve_single_line_blocks = false: it also explodes `{ get; set; }`.
-csharp_prefer_braces = true:warning
-csharp_style_allow_embedded_statements_on_same_line_experimental = false:warning
-csharp_preserve_single_line_statements = false
-# Block bodies for methods and local functions; `=>` stays fine for properties and lambdas.
-csharp_style_expression_bodied_methods = false:warning
-csharp_style_expression_bodied_local_functions = false:warning
-dotnet_diagnostic.IDE0011.severity = warning
-dotnet_diagnostic.IDE0022.severity = warning
-dotnet_diagnostic.IDE0061.severity = warning
-dotnet_diagnostic.IDE2001.severity = warning
-
-# Null-forgiving `!` (Nullable.Extended.Analyzer, backend/Directory.Build.props):
-# fix the nullability instead; if `!` is truly needed, justify it with a
-# `// ! <why>` comment on the line above. Errors so they fail the build.
-dotnet_diagnostic.NX0001.severity = error
-dotnet_diagnostic.NX0002.severity = error
-dotnet_diagnostic.NX0003.severity = error
-dotnet_diagnostic.NX0004.severity = error
-
-# Cyclomatic complexity (#540): an API method over the limit in backend/src/StreamIq.Api/
-# CodeMetricsConfig.txt fails the build (other projects: the default, 25). Split the
-# decisions out into a tested function.
-dotnet_diagnostic.CA1502.severity = warning

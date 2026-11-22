@@ -5,9 +5,9 @@ area needs. Terms are in the `CLAUDE.md` glossary; the wire protocol is in
 `docs/protocol.md`. Update the section a change touches when a lasting fact changes. This
 is not a status log: open work lives in `gh issue list`, history in git.
 
-## Go API (`api/`, the port of `backend/`: #725)
+## Go API (`api/`: #725)
 
-- Ported from the .NET API (`backend/`, unused, removed by #777). The Go API is the one
+- Ported from the .NET API (removed by #777). The Go API is the one
   API in production, dev (`scripts/dev.ps1`) and the e2e stack: every `/api` route, the
   broker's two sockets, `/healthz` and, with `STREAMIQ_WEB_DIR` set (the image), the
   built web app. It answers CORS as ASP.NET's policy did.
@@ -23,8 +23,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
   transaction, as the tables' owner (`DATABASE_URL`), recorded in `schema_migrations`.
   `0001_baseline.sql` is the EF schema as `pg_dump` wrote it, with EF's history rows; on
   a database EF already migrated it is recorded, not run. Nothing runs EF any more; no
-  new EF migration lands. `__EFMigrationsHistory` stays until #744 (the rollback to the
-  .NET image needs it).
+  new EF migration lands. `__EFMigrationsHistory` stays until #744.
 - **Tenant isolation is Postgres row-level security** (`0002_rls.sql`): every
   tenant-owned table has a policy `TenantId = app_tenant()` (`USING` + `WITH CHECK`) for
   the role `streamiq_app`, which owns no table; `app_tenant()` reads `app.tenant_id`,

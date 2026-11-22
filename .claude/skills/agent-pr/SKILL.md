@@ -98,7 +98,7 @@ dropped (BLOCKER) or LOW (SPEC): a posted finding blocks the merge and costs a r
   credential/PII, weakens auth/pinning, breaks the protocol between deployed gateways
   and the API (including deploy/release ordering), or makes a test pass by weakening
   it. Ends with `lint: <linter>: <rule or option>` when a rule of a linter we already
-  have (oxlint with our plugin `frontend/lint/streamiq.js`, the .NET analyzers,
+  have (oxlint with our plugin `frontend/lint/streamiq.js`,
   golangci-lint, actionlint, shellcheck, the e2e `tsc`) would have caught it, else
   `lint: no (<why, a few words>)` (#556).
 - **SPEC**: an acceptance criterion not met; out-of-scope work / a drive-by fix in the
@@ -134,7 +134,7 @@ needs a read, not a manual run). One label:
 |---|---|---|
 | `risk:low` | CI drives the changed behavior | merges |
 | `risk:mid` | tests drive it, but it is crown-jewel, security or design code where a human read catches what tests don't (an isolation hole is a missing test), or what the gateway's auto-release ships | reads the diff |
-| `risk:high` | CI can't check part of it: no e2e / Reqnroll / xUnit / Go test drives the changed behavior, it is visual / UX, or it depends on the real world (Firebase, TURN, a network) | does the named manual check |
+| `risk:high` | CI can't check part of it: no e2e / Go / frontend unit test drives the changed behavior, it is visual / UX, or it depends on the real world (Firebase, TURN, a network) | does the named manual check |
 | `risk:critical` | hard to undo: a migration that drops or rewrites data, a protocol / `gateway.env` / state dir / CLI change that reaches installed gateways | merges when they can watch the release |
 
 What decides it: which test drives the changed behavior? Name it, or the label is at

@@ -125,7 +125,7 @@ func postgresPin(repo string) string {
 	return string(m[1])
 }
 
-// emulatorImage builds dev/firebase under the tag the e2e stack and the .NET tests use
+// emulatorImage builds dev/firebase under the tag the e2e stack and scripts/test-api.sh use
 // (a hash of its inputs), only when it's missing.
 func emulatorImage(dir string) string {
 	h := sha256.New()

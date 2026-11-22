@@ -20,11 +20,6 @@ img=rhysd/actionlint:1.7.12
 "${docker_lint[@]}" "$img" -no-color
 "${docker_lint[@]}" --entrypoint shellcheck "$img" scripts/*.sh gateway/install/install.sh
 
-echo "== backend: tenant-filter bypasses + format + build + test =="
-bash scripts/check-tenant-filter.sh
-dotnet format backend/StreamIq.slnx --verify-no-changes
-dotnet test backend/StreamIq.slnx --nologo
-
 # Fresh worktrees have no node_modules (gitignored); an interrupted install leaves one without .bin. Install from the lockfile.
 for d in frontend e2e; do [ -d "$d/node_modules/.bin" ] || npm ci --prefix "$d"; done
 

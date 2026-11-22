@@ -19,6 +19,18 @@ type Msg[S, C any] struct {
 	Candidate *C     `json:"candidate,omitempty"`               // ice
 }
 
+// GatewayBusy is the one GatewayError the broker relays: the gateway holds as many
+// unauthenticated connections as it takes; a retry may get through.
+const GatewayBusy = "gateway busy"
+
+// GatewayError is the gateway's refusal of a session's offer (on /api/gateways/ws); the
+// broker relays it to that session's browser as an ErrorMsg, only with GatewayBusy.
+type GatewayError struct {
+	Type    string `json:"type"    tstype:"'error'"`
+	Session string `json:"session"`
+	Error   string `json:"error"`
+}
+
 // Report is the gateway's account of a tunnel, sent once when its PeerConnection
 // ends ("Telemetry"): the broker fills that tunnel's row with it.
 // local = the gateway's side of the selected pair, remote = the browser's; bytes as

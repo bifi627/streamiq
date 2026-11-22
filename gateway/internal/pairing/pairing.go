@@ -30,6 +30,8 @@ import (
 const (
 	PendingFor = 5 * time.Minute
 	MaxPending = 3
+	// MaxPendingPerUser: one account can't hold every slot; the rest stay free for the household.
+	MaxPendingPerUser = 1
 )
 
 // AuthMessage is what the browser signs (docs/protocol.md, "Connection auth"):
@@ -98,7 +100,7 @@ type Store struct {
 	OnRemove func(keyFp string)
 	paired   []Paired
 	pending  []*Request
-	reserved int // slots taken by Reserve, at most MaxPending
+	reserved map[string]int // user → slots taken by Reserve; at most MaxPending in all, MaxPendingPerUser each
 }
 
 func Open(dir string) (*Store, error) {
@@ -187,24 +189,36 @@ func (s *Store) Rename(keyFp, name string) (string, error) {
 	return name, nil
 }
 
-// Reserve takes one of the MaxPending pairing slots. A pairing exchange holds
-// its slot from the accepted `commit` until it ends, whatever the outcome, and
-// then gives it back with Release.
-func (s *Store) Reserve() error {
+// Reserve takes one of the MaxPending pairing slots for user. A pairing exchange
+// holds its slot from the accepted `commit` until it ends, whatever the outcome,
+// and then gives it back with Release.
+func (s *Store) Reserve(user string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.reserved >= MaxPending {
-		return errors.New("too many pending pairing requests")
+	total := 0
+	for _, n := range s.reserved {
+		total += n
 	}
-	s.reserved++
+	switch {
+	case total >= MaxPending:
+		return errors.New("too many pending pairing requests")
+	case s.reserved[user] >= MaxPendingPerUser:
+		return errors.New("this user is already pairing a browser")
+	}
+	if s.reserved == nil {
+		s.reserved = map[string]int{}
+	}
+	s.reserved[user]++
 	return nil
 }
 
-// Release gives back a slot taken with Reserve.
-func (s *Store) Release() {
+// Release gives back a slot taken with Reserve(user).
+func (s *Store) Release(user string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.reserved--
+	if s.reserved[user]--; s.reserved[user] <= 0 {
+		delete(s.reserved, user)
+	}
 }
 
 // Ask queues a request and blocks until the local page decides, it expires, or

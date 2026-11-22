@@ -18,6 +18,8 @@ const REASONS: Record<string, string> = {
   'ice failed': "Couldn't connect: the network blocked it",
   unpaired: "This browser isn't paired",
   'ended before auth': 'Closed before it connected',
+  'gateway busy': 'The gateway was busy',
+  'not authenticated within 30s': 'Closed: no sign-in in time',
 }
 
 export function route(t: TunnelRow): string {

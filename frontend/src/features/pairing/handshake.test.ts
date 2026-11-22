@@ -181,6 +181,16 @@ test('rejected', () => {
   )
   assert.equal(failure(r.fx)?.kind, 'gateway-refused')
   assert.equal(failure(r.fx)?.message, 'gateway refused: denied on the gateway')
+  for (const reason of [
+    'too many pending pairing requests',
+    'this user is already pairing a browser',
+  ]) {
+    const full = run(
+      answered({ pairing: true }),
+      gateway({ type: 'rejected', reason }),
+    )
+    assert.equal(failure(full.fx)?.kind, 'gateway-busy', reason)
+  }
 })
 
 test('pairing: commit, reveal, approved → pin and resolve', () => {

@@ -45,7 +45,7 @@ func TestClientsAPI(t *testing.T) {
 		ClientsPath,
 		"",
 	); s != 200 ||
-		list != `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true}]` {
+		list != `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true,"profile":null}]` {
 		t.Fatalf("member list: %d %s", s, list)
 	}
 	for _, fp := range []string{"bb", "zz"} {
@@ -60,7 +60,7 @@ func TestClientsAPI(t *testing.T) {
 		}
 	}
 	code, list, _ := call(tunnel.Admin, "GET", ClientsPath, "")
-	want := `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true},{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z","self":false}]`
+	want := `[{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z","self":true,"profile":null},{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z","self":false,"profile":null}]`
 	if code != 200 || list != want {
 		t.Fatalf("list: %d %s", code, list)
 	}
@@ -180,5 +180,76 @@ func TestRemoveSelfLogsFailedSave(t *testing.T) {
 	remove("bb")
 	if !strings.Contains(buf.String(), "gateway: remove client:") || store.Allowed("bb") {
 		t.Fatalf("failed save: allowed=%v, logged %q", store.Allowed("bb"), buf.String())
+	}
+}
+
+// POST /streamiq/clients/profile: stored for the session's own key only, a bad
+// body refused, shown by GET with the list's visibility, kept on reload, gone
+// with the client.
+func TestClientProfile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "allowlist.json"), []byte(`[
+		{"keyFp":"aa","name":"Phone","addedAt":"2026-11-01T10:00:00Z"},
+		{"keyFp":"bb","name":"TV","addedAt":"2026-11-02T10:00:00Z"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := tunnel.NewRouter()
+	api.Handle("GET "+ClientsPath, http.HandlerFunc(store.ServeClients))
+	api.Handle("POST "+ClientsProfilePath, http.HandlerFunc(store.ServeProfile))
+	call := func(role, key, method, path, body string) (int, string) {
+		s, _, reply, _ := tunnel.Do(api, tunnel.Session{Role: role, Key: key}, method, path, body)
+		return s, reply
+	}
+	probe := `{"h264":{"profiles":["high","constrained baseline"],"level":51},"hevc":null,` +
+		`"av1":{"main10":true,"hd":true},"audio":["aac","ac3"],"surround":true}`
+	for _, body := range []string{
+		`nope`,
+		`{"probe":` + probe + `,"compatible":true,"keyFp":"bb"}`,
+		`{"probe":{"audio":["AAC"]}}`,
+		`{"probe":{"audio":["` + strings.Repeat("a", 25) + `"]}}`,
+		`{"probe":{"audio":["a","b","c","d","e","f","g","h","i"]}}`,
+		`{"probe":{"h264":{"profiles":[],"level":-1}}}`,
+		`{"probe":{"audio":[]}} {}`,
+		`{"probe":{"audio":["` + strings.Repeat("a", maxProfile) + `"]}}`,
+	} {
+		if s, _ := call(tunnel.Member, "aa", "POST", ClientsProfilePath, body); s != http.StatusBadRequest {
+			t.Errorf("bad body %.60s: %d, want 400", body, s)
+		}
+	}
+	if s, _ := call(tunnel.Member, "zz", "POST", ClientsProfilePath, `{"probe":{"audio":[]}}`); s != http.StatusNotFound {
+		t.Errorf("unpaired key: %d, want 404", s)
+	}
+	if s, _ := call(tunnel.Member, "aa", "POST", ClientsProfilePath, `{"probe":`+probe+`,"compatible":true}`); s != 200 {
+		t.Fatalf("store: %d", s)
+	}
+	got := store.Paired()
+	if got[1].Profile != nil || got[0].Profile == nil || !got[0].Profile.Compatible ||
+		got[0].Profile.Probe.H264.Level != 51 || got[0].Profile.ProbedAt.IsZero() {
+		t.Fatalf("stored: %+v", got)
+	}
+	_, list := call(tunnel.Member, "aa", "GET", ClientsPath, "")
+	if !strings.Contains(list, `"profile":{"probe":`+probe+`,"compatible":true,"probedAt":"`) {
+		t.Fatalf("member list: %s", list)
+	}
+	if _, list := call(tunnel.Member, "bb", "GET", ClientsPath, ""); strings.Contains(list, `"aa"`) {
+		t.Fatalf("another member sees aa: %s", list)
+	}
+	if _, list := call(tunnel.Admin, "bb", "GET", ClientsPath, ""); !strings.Contains(list, `"compatible":true`) ||
+		!strings.Contains(list, `"self":true,"profile":null`) {
+		t.Fatalf("admin list: %s", list)
+	}
+	again, err := Open(dir)
+	if err != nil || again.Paired()[0].Profile == nil || *again.Paired()[0].Profile.Probe.Av1 != (Av1{true, true}) {
+		t.Fatalf("not saved: %v %+v", err, again.Paired())
+	}
+	if err := store.Remove("aa"); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "allowlist.json")); strings.Contains(string(b), "probe") {
+		t.Fatalf("profile outlived its client: %s", b)
 	}
 }

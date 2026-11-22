@@ -81,6 +81,7 @@ type Paired struct {
 	KeyFp   string    `json:"keyFp"`
 	Name    string    `json:"name"`
 	AddedAt time.Time `json:"addedAt"`
+	Profile *Profile  `json:"profile,omitempty"`
 }
 
 // Request is a pairing request waiting for Approve on the local page.
@@ -187,6 +188,24 @@ func (s *Store) Rename(keyFp, name string) (string, error) {
 		return "", err
 	}
 	return name, nil
+}
+
+// SetProfile stores p as keyFp's profile, stamped now, and saves the
+// allowlist; a failed save keeps the old one.
+func (s *Store) SetProfile(keyFp string, p ProfileIn) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := slices.IndexFunc(s.paired, func(c Paired) bool { return c.KeyFp == keyFp })
+	if i < 0 {
+		return ErrNotPaired
+	}
+	old := s.paired[i].Profile
+	s.paired[i].Profile = &Profile{p.Probe, p.Compatible, time.Now().UTC().Truncate(time.Second)}
+	if err := s.save(); err != nil {
+		s.paired[i].Profile = old
+		return err
+	}
+	return nil
 }
 
 // Reserve takes one of the MaxPending pairing slots for user. A pairing exchange

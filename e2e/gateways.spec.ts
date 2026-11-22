@@ -109,7 +109,7 @@ test("status dot: a gateway route's nav chip shows its name, online (#206) @gate
   await expect(chip.getByRole('img', { name: 'online' })).toBeVisible()
 })
 
-test('paired clients: name, list, rename own, remove other (stream stops), remove self (#311, #365) @gateways', async ({
+test('paired clients: name, list, rename own, remove other (stream stops), remove self, a stored profile (#311, #365, #792) @gateways', async ({
   browser,
   paired,
 }) => {
@@ -135,7 +135,11 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   await expect(self).toContainText(
     `paired ${await a.evaluate(() => new Date().toLocaleDateString())}`,
   )
-  await expect(clients.filter({ hasText: "B's phone" })).toHaveCount(1)
+  // B's tunnel stored its capability probe. A's own may still be on
+  // its way: its post races this list on the same tunnel open.
+  await expect(clients.filter({ hasText: "B's phone" })).toContainText(
+    /h264 .* · audio .* · probed /,
+  )
 
   // Rename the own row. The form replaces the row's text (and its
   // "(this browser)"): find it by label.

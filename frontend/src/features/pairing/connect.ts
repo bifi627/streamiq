@@ -26,6 +26,10 @@ import { relayLine } from './relay'
 import { AppError } from '../../shared/errors'
 import type { BrowserMessage } from '../../generated/protocol'
 import type { ClientAuthMessage } from '../../generated/sessions'
+import type { ProfileIn } from '../../generated/pairing'
+import { tunnelJson } from '../../shared/tunnel'
+import { compatibleOn } from '../../shared/settings'
+import { probe } from '../player/profile'
 import {
   atOnce,
   ICE_FAILED_GRACE_MS,
@@ -145,9 +149,9 @@ export async function connect(
             event(`storage: persist failed: ${e}`),
           )
           shared.drop(gatewayId) // its session belongs to the old certificate
-          return resolve(up())
+          return resolve(reportProfile(up()))
         case 'resolve':
-          return resolve(up())
+          return resolve(reportProfile(up()))
         case 'grace':
           clearTimeout(grace)
           if (f.arm)
@@ -193,6 +197,21 @@ export async function connect(
     ch.onclose = () => dispatch({ on: 'channelClose' })
     ch.onmessage = (e) => dispatch({ on: 'gateway', data: e.data })
   })
+}
+
+/** Each tunnel open stores this browser's capability probe on the gateway (the
+ * paired clients list). Never fails the session: an older gateway's 404 or any
+ * error is only logged. */
+function reportProfile(s: Session) {
+  probe()
+    .then((p) =>
+      tunnelJson(s.pc, '/streamiq/clients/profile', {
+        probe: p,
+        compatible: compatibleOn(),
+      } satisfies ProfileIn),
+    )
+    .catch((e) => event(`profile: not stored: ${e}`))
+  return s
 }
 
 /** The library and the gateway details share one session per gateway;

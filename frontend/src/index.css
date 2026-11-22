@@ -536,6 +536,9 @@ html.tv .no-tv {
   justify-content: space-between;
   gap: var(--sp-2);
 }
+.card .clients .profile {
+  flex-basis: 100%;
+}
 .install {
   align-items: stretch;
   margin-bottom: var(--sp-5);

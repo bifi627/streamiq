@@ -8,6 +8,7 @@ import {
   clientsNote,
   detailsMessage,
   gatewayName,
+  profileLine,
   removeOutcome,
   shownError,
 } from './list.ts'
@@ -68,4 +69,23 @@ test("a Remove that works clears an earlier failed one's line (#637)", () => {
 test('gatewayName: "gateway" before it has a name', () => {
   assert.equal(gatewayName({ name: 'NAS' }), 'NAS')
   assert.equal(gatewayName({ name: null }), 'gateway')
+})
+
+test('profileLine: the probe, Compatible mode, when; none yet', () => {
+  assert.equal(profileLine(null), 'Not probed yet')
+  const at = '2026-11-22T10:00:00Z'
+  assert.equal(
+    profileLine({
+      probe: {
+        h264: { profiles: ['high', 'main'], level: 51 },
+        hevc: { level: 153, main10: true, hd: true },
+        av1: null,
+        audio: ['aac', 'ac3'],
+        surround: true,
+      },
+      compatible: true,
+      probedAt: at,
+    }),
+    `h264 high/main L5.1 · hevc L5.1 10bit ≤1080p · av1 no · audio aac,ac3 · 5.1 · Compatible mode · probed ${new Date(at).toLocaleString()}`,
+  )
 })

@@ -11,6 +11,7 @@ export interface Client {
   name: string;
   addedAt: string;
   self: boolean;
+  profile: Profile | null;
 }
 /**
  * ClientKey is the body of POST ClientsRemovePath (KeyFp only) and
@@ -25,4 +26,62 @@ export interface ClientKey {
  */
 export interface ClientName {
   name: string;
+}
+/**
+ * Probe is what a client's browser decodes (the web app's capability probe).
+ * Hd = at most 1080p: 2160p is not smooth.
+ */
+export interface Probe {
+  h264: H264 | null;
+  /**
+   * Hevc is HEVC Main.
+   */
+  hevc: Hevc | null;
+  av1: Av1 | null;
+  /**
+   * Audio holds Jellyfin audio codec names.
+   */
+  audio: string[];
+  /**
+   * Surround: 5.1 audio decodes.
+   */
+  surround: boolean;
+}
+export interface H264 {
+  /**
+   * Profiles holds Jellyfin names ("high", "constrained baseline").
+   */
+  profiles: string[];
+  /**
+   * Level is the highest, e.g. 51 = 5.1.
+   */
+  level: number /* int */;
+  hd?: boolean;
+}
+export interface Hevc {
+  /**
+   * Level in Jellyfin units: level × 30, e.g. 153 = 5.1.
+   */
+  level: number /* int */;
+  main10: boolean;
+  hd?: boolean;
+}
+export interface Av1 {
+  main10: boolean;
+  hd?: boolean;
+}
+/**
+ * ProfileIn is the body of POST ClientsProfilePath.
+ */
+export interface ProfileIn {
+  probe: Probe;
+  compatible: boolean;
+}
+/**
+ * Profile is a client's last ProfileIn, stamped with the gateway's clock.
+ */
+export interface Profile {
+  probe: Probe;
+  compatible: boolean;
+  probedAt: string;
 }

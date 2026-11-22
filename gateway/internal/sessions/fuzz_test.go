@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -84,13 +85,17 @@ func FuzzAuthHandshake(f *testing.F) {
 	f.Cleanup(func() { log.SetOutput(orig) })
 	f.Fuzz(func(t *testing.T, in []byte, paired, approve bool) {
 		msgs := bytes.Split(in, []byte("\n"))
-		sent := runHandshake(t, msgs, paired, approve)
+		sent, authed := runHandshake(t, msgs, paired, approve)
+		if authed != (slices.Contains(sent, "ok") || slices.Contains(sent, "approved")) {
+			t.Errorf("authed %v, sent %v", authed, sent)
+		}
 		checkHandshake(t, msgs, sent, paired, approve)
 	})
 }
 
-// runHandshake runs msgs through one handshake and returns the types the gateway sent.
-func runHandshake(t *testing.T, msgs [][]byte, paired, approve bool) []string {
+// runHandshake runs msgs through one handshake and returns the types the gateway
+// sent and whether it authorized the connection.
+func runHandshake(t *testing.T, msgs [][]byte, paired, approve bool) ([]string, bool) {
 	dir := t.TempDir()
 	if paired {
 		b, _ := json.Marshal([]pairing.Paired{{KeyFp: identity.Fingerprint(spki(fuzzKey)), Name: "x"}})
@@ -104,10 +109,11 @@ func runHandshake(t *testing.T, msgs [][]byte, paired, approve bool) []string {
 	}
 	var mu sync.Mutex
 	var sent []string
+	authed := new(atomic.Bool)
 	synctest.Test(t, func(t *testing.T) {
 		s := &Sessions{Fp: fuzzGatewayFp, Store: store, keys: map[string]string{},
 			ends: map[string]func(bool){"s": func(bool) {}}}
-		a := &authRun{s: s, id: "s", user: "u", pre: s.admit(), authed: new(atomic.Bool), why: new(atomic.Value),
+		a := &authRun{s: s, id: "s", user: "u", pre: s.admit(), authed: authed, why: new(atomic.Value),
 			challenge: fuzzChallenge, done: make(chan struct{}),
 			send: func(m string) error {
 				var head struct{ Type string }
@@ -122,6 +128,7 @@ func runHandshake(t *testing.T, msgs [][]byte, paired, approve bool) []string {
 		}
 		for _, m := range msgs {
 			a.handle(m)
+			synctest.Wait() // one message at a time, as on the channel: reproducible
 		}
 		synctest.Wait()
 		if p := store.Pending(); len(p) > 0 { // the owner on the local page
@@ -132,7 +139,7 @@ func runHandshake(t *testing.T, msgs [][]byte, paired, approve bool) []string {
 		}
 		a.end()
 	})
-	return sent
+	return sent, authed.Load()
 }
 
 // checkHandshake is the oracle: what msgs allow the gateway to have sent.

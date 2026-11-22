@@ -209,9 +209,14 @@ func TestCORSAnswersAsThePortedPolicy(t *testing.T) {
 	}
 }
 
-// A web app without its policy file doesn't start: it would be served without a CSP.
+// A web app without its policy (no file, or an empty one) doesn't start: it would be served without a CSP.
 func TestAWebAppWithoutItsPolicyFails(t *testing.T) {
 	if _, err := Handler(http.NewServeMux(), nil, t.TempDir()); err == nil {
 		t.Fatal("no error without csp.txt")
+	}
+	empty := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(empty, "csp.txt"), []byte("\n"), 0o600))
+	if _, err := Handler(http.NewServeMux(), nil, empty); err == nil {
+		t.Fatal("no error with an empty csp.txt")
 	}
 }

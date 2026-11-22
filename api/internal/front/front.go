@@ -4,6 +4,7 @@ package front
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -30,10 +31,13 @@ func Handler(mux *http.ServeMux, origins []string, webDir string) (http.Handler,
 	})
 	if webDir != "" {
 		b, err := os.ReadFile(filepath.Join(webDir, "csp.txt"))
+		policy = strings.TrimSpace(string(b))
+		if err == nil && policy == "" {
+			err = errors.New("csp.txt is empty")
+		}
 		if err != nil {
 			return nil, fmt.Errorf("the web app's policy: %w", err)
 		}
-		policy = strings.TrimSpace(string(b))
 		mux.Handle("GET /", web(webDir))
 	}
 	for i := range origins {

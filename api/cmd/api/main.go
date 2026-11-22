@@ -19,6 +19,7 @@ import (
 	"streamiq/api/internal/iplimit"
 	"streamiq/api/internal/me"
 	"streamiq/api/internal/onboarding"
+	"streamiq/api/internal/tunnels"
 	"streamiq/api/internal/turn"
 )
 
@@ -55,6 +56,7 @@ func main() {
 	b := broker.New(d, a, turn.FromEnv(), ips)
 	b.Routes(mux)
 	gateways.Routes(mux, a, d, b)
+	tunnels.Routes(mux, a, d)
 	onboarding.Routes(mux, a, d, ips, onboarding.Install{
 		PublicURL: os.Getenv("STREAMIQ_PUBLIC_URL"),
 		Dev:       os.Getenv("STREAMIQ_ENV") == "development",

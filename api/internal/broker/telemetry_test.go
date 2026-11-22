@@ -11,7 +11,7 @@ import (
 // The broker and the gateway record each tunnel, not the browser: a routed offer inserts
 // the row (id = the session), the browser's socket closing stamps its end, and the
 // gateway's report fills in route, bytes, failure, use and active time, only for its own
-// rows. The browser's throughput is EndTunnel's (.NET until #731).
+// rows.
 
 func tunnelRow(t *testing.T, sid, cols string) string {
 	t.Helper()

@@ -40,3 +40,9 @@ packages:
     optional_type: "null"
     type_mappings:
       time.Time: "string"
+  - path: "streamiq/api/internal/tunnels"
+    output_path: "frontend/src/generated/tunnels.ts"
+    include_files: ["list.go", "summary.go"]
+    optional_type: "null"
+    type_mappings:
+      time.Time: "string"

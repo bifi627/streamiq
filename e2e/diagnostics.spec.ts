@@ -3,7 +3,7 @@
 // its connection test (direct, forced relay), Copy report, a never-paired
 // browser's report. The panel flag is arranged in localStorage (its Settings
 // toggle is shell.spec's); relay fallback itself stays in the golden path;
-// telemetry edge cases are backend TunnelTelemetry.feature.
+// telemetry edge cases are api/internal/tunnels and api/internal/broker.
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {

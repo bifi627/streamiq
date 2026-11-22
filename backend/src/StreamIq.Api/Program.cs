@@ -10,7 +10,6 @@ using StreamIq.Api.Data;
 using StreamIq.Api.Features.Household;
 using StreamIq.Api.Features.Invites;
 using StreamIq.Api.Features.Members;
-using StreamIq.Api.Features.Tunnels;
 
 // Wiring only: its branches are config switches, not decisions to test.
 [assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1502",
@@ -151,9 +150,6 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 // Everything but /healthz sits under /api, so SPA client routes own the rest of the path space.
 var api = app.MapGroup("/api");
-EndTunnel.Map(api);
-ListTunnels.Map(api);
-TunnelSummary.Map(api);
 CreateInvite.Map(api);
 ListInvites.Map(api);
 RevokeInvite.Map(api);

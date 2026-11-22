@@ -1,13 +1,7 @@
+import type { Summary as SummaryRow } from '../../generated/tunnels'
 import type { TunnelRow } from './tunnels'
 
-// GET /api/tunnels/summary (admin): per user, the last 30 days, every row.
-export type SummaryRow = {
-  userId: string | null // null = deleted accounts
-  tunnels: number
-  hidden: number // management / diagnostics that didn't fail: byUse's hidden rows
-  failed: number
-  relayedBytes: number
-}
+export type { SummaryRow }
 
 /** names: memberNames() of the members endpoint; undefined while it loads. */
 export function memberLabel(

@@ -1,21 +1,8 @@
-// GET /api/tunnels: the signed-in user's own tunnels in this household
-// (`?scope=household`: every member's, with userId).
-export type TunnelRow = {
-  id: string
-  createdAt: string
-  endedAt: string | null // null = still open
-  gatewayId: string
-  gatewayName: string | null
-  relay: boolean
-  ipv6: boolean
-  bytesSent: number | null // null = no gateway report (yet)
-  bytesReceived: number | null
-  throughputKbps: number | null
-  failure: string | null
-  use: string | null // the gateway's word; null = not reported
-  activeMs: number | null // time with traffic; null = not reported
-  userId?: string // household scope only; absent there = a deleted account
-}
+import type { Tunnel } from '../../generated/tunnels'
+
+// The generated type says null; the API leaves userId out instead (household scope only;
+// absent there = a deleted account).
+export type TunnelRow = Omit<Tunnel, 'userId'> & { userId?: string }
 
 const USES: Record<string, string> = {
   playback: 'Playback',

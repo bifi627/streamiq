@@ -10,12 +10,13 @@ is not a status log: open work lives in `gh issue list`, history in git.
 - Being ported slice by slice from the .NET API (`backend/`). In dev (`scripts/dev.ps1`)
   and the e2e stack the Go API is the one API URL: it serves its slices (today `/healthz`,
   `GET /api/me`, the broker's two sockets, `GET /api/gateways`, `GET /api/gateways/{id}/health`,
-  `DELETE /api/gateways/{id}`, `POST /api/gateways/enrollment-tokens` and `POST /api/gateways/enroll`) and proxies every other request, WebSocket upgrades included, to
+  `DELETE /api/gateways/{id}`, `POST /api/gateways/enrollment-tokens`, `POST /api/gateways/enroll`,
+  `GET /api/tunnels`, `GET /api/tunnels/summary` and `PATCH /api/tunnels/{id}`) and proxies every other request, WebSocket upgrades included, to
   the .NET API (`STREAMIQ_LEGACY_API_URL`) on the same database. It answers CORS for
   both, as ASP.NET's policy did. Production still runs the .NET-only image (#732).
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
   `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
-  `gateways`, `onboarding`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
+  `gateways`, `onboarding`, `tunnels`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
   only imports between slices);
   `front` is `/healthz`, CORS and the proxy. `pgx` with hand-written SQL, no ORM;
   columns keep EF's quoted PascalCase until #744.
@@ -117,16 +118,17 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 One row per tunnel in `tunnels`: the broker writes the row and its end, the gateway
 reports route, bytes, what the tunnel was used for (playback / browsing / diagnostics /
-management) and its active time, the browser adds only its measured throughput. The web app shows
+management) and its active time, the browser adds only its measured throughput
+(`PATCH /api/tunnels/{id}`, its own tunnel only). The web app shows
 a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, or relayed.
 A member's own tunnels in the household (30 days, ≤ 200) are on the Activity page
-(`/activity`, `GET /api/tunnels`, `Features/Tunnels/ListTunnels.cs`): use, route,
+(`/activity`, `GET /api/tunnels`, `api/internal/tunnels`): use, route,
 duration (the active time when reported), data, throughput, a failure in plain words; no
 candidate types. Management and diagnostics rows hide behind a checkbox (remembered per browser) unless
 they failed.
 An admin's Activity opens on the whole household (`?scope=household`, admin only, rows carry
-`userId`): a per-member summary over every row of the 30 days (`GET /api/tunnels/summary`,
-`TunnelSummary.cs`: tunnels, failures, relayed bytes), a member filter and a Member column,
+`userId`): a per-member summary over every row of the 30 days (`GET /api/tunnels/summary`:
+tunnels, failures, relayed bytes), a member filter and a Member column,
 names from the members endpoint ("Former member" / "Deleted account" otherwise).
 
 **Gateway health** (#423): at telemetry `full` the heartbeat carries the box's health, kept

@@ -167,3 +167,36 @@ func pick(all []Household, named []string) *Household {
 	}
 	return nil
 }
+
+// Profile is a Firebase user's alias and email, read at request time and never stored
+// (no PII in our DB). Empty = not set.
+type Profile struct{ Alias, Email string }
+
+// Profiles is the Firebase profile of each uid it finds; Firebase unreachable = none,
+// so a caller answers without names.
+// ponytail: one GetUsers call, at most 100 uids; page it if a household ever gets that big.
+func (a *Auth) Profiles(ctx context.Context, uids []string) map[string]Profile {
+	ids := make([]fbauth.UserIdentifier, len(uids))
+	for i, u := range uids {
+		ids[i] = fbauth.UIDIdentifier{UID: u}
+	}
+	out := map[string]Profile{}
+	res, err := a.verifier.GetUsers(ctx, ids)
+	if err != nil {
+		return out
+	}
+	for _, u := range res.Users {
+		out[u.UID] = Profile{u.DisplayName, u.Email}
+	}
+	return out
+}
+
+// Name is the alias, else the email; nil when neither is known.
+func (p Profile) Name() *string {
+	for _, s := range []string{p.Alias, p.Email} {
+		if s != "" {
+			return &s
+		}
+	}
+	return nil
+}

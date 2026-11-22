@@ -7,6 +7,7 @@ package tunnel
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -25,15 +26,11 @@ type Router struct {
 	methods []string // every method a pattern names, for Allow
 }
 
-// NewRouter has the gateway-native endpoints (burst, screens) registered.
+// NewRouter has the tunnel's own endpoints (burst, route) registered.
 func NewRouter() *Router {
 	r := &Router{mux: http.NewServeMux()}
 	r.Handle("GET "+BurstPath, http.HandlerFunc(serveBurst))
 	r.Handle("GET "+RoutePath, http.HandlerFunc(serveRoute))
-	r.Handle("GET "+ScreenPath, http.HandlerFunc(serveScreen))
-	r.Handle("POST "+ScreenPath+"/state", http.HandlerFunc(serveScreenState))
-	r.Handle("GET "+ScreensPath, http.HandlerFunc(serveScreens))
-	r.Handle("POST "+ScreensPath+"/{id}", http.HandlerFunc(serveScreenCommand))
 	return r
 }
 
@@ -91,6 +88,20 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	clear(w.Header())
 	w.Header().Set("Allow", strings.Join(allow, ", "))
 	refuse(w, http.StatusMethodNotAllowed, fmt.Errorf("gateway API: %s %s: allowed %v", r.Method, r.URL.Path, allow))
+}
+
+// Session is who sent a tunnel request: the broker session id, the client's
+// pairing name (looked up only when a screen opens), and a channel closed when
+// the request's data channel closes.
+type Session struct {
+	ID     string
+	User   string // the user's users.id, from the broker's offer: picks their Jellyfin viewer
+	Role   string // the user's role in this gateway's household, from the broker's offer: Admin | Member
+	Key    string // the client key fp the session authed with (which device)
+	Name   func() string
+	Route  func() string // relay | lan | direct, decided at call time; nil outside a tunnel
+	Closed <-chan struct{}
+	Use    *Usage // what the tunnel's requests were for; nil records nothing
 }
 
 type callKey struct{}
@@ -179,3 +190,50 @@ func Do(
 	res := rec.Result()
 	return res.StatusCode, firstValues(res.Header), rec.Body.String(), st.run
 }
+
+// Open is Do for a held reply (a screen's stream): it returns once the head is
+// set, and the body streams from the reader (closing it ends the handler's next
+// Write; who.Closed is what ends its context).
+func Open(api *Router, who Session, method, url, body string) (status int, reply io.ReadCloser) {
+	raw, _ := json.Marshal(tunnelReq{Method: method, URL: url, Body: body})
+	status, _, reply = stream(&Root{API: api, Jellyfin: &Jellyfin{}}, raw, who)
+	return status, reply
+}
+
+// stream serves the request frame raw the way handleReq does, returning once
+// the head is set; the body streams from the reader.
+func stream(rt *Root, raw []byte, who Session) (int, map[string]string, io.ReadCloser) {
+	pr, pw := io.Pipe()
+	w := &pipeWriter{hdr: http.Header{}, pw: pw, head: make(chan struct{})}
+	go func() {
+		defer func() {
+			if p := recover(); p != nil {
+				w.WriteHeader(http.StatusBadGateway)
+				pw.CloseWithError(fmt.Errorf("aborted: %v", p))
+				return
+			}
+			pw.Close()
+		}()
+		serve(w, rt, raw, &reqState{who: who})
+	}()
+	<-w.head
+	return w.status, firstValues(w.hdr), pr
+}
+
+// pipeWriter streams a handler's reply into a pipe: the tunnel minus WebRTC.
+type pipeWriter struct {
+	hdr    http.Header
+	pw     *io.PipeWriter
+	head   chan struct{} // closed once status is set
+	status int
+}
+
+func (w *pipeWriter) Header() http.Header { return w.hdr }
+func (w *pipeWriter) Flush()              {}
+func (w *pipeWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+		close(w.head)
+	}
+}
+func (w *pipeWriter) Write(b []byte) (int, error) { w.WriteHeader(200); return w.pw.Write(b) }

@@ -445,7 +445,7 @@ open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
 its feature, registered in `gateway/cmd/gateway/main.go`). The request and response
 bodies are Go types in a types-only file of the package that serves them, generated
-into `frontend/src/generated/`: `gateway/internal/{tunnel,pairing,onboarding,telemetry,update}/types.go`,
+into `frontend/src/generated/`: `gateway/internal/{tunnel,screen,pairing,onboarding,telemetry,update}/types.go`,
 and `/streamiq/status` in `gateway/cmd/gateway/status.go` (with `host/load.go`,
 `jellyfin/viewer.go`).
 
@@ -549,7 +549,7 @@ kept as the hint, and Auto stays at 480p.
 A TV in screen mode is remote-controlled by a phone on the **same gateway**: the
 gateway relays the commands, so the API is not involved and what's watched never
 reaches the API. Both devices are paired clients with their own tunnel.
-Code: `gateway/internal/tunnel/screen.go`; the commands and state: `gateway/internal/tunnel/types.go`.
+Code: `gateway/internal/screen/screen.go`; the commands and state: `gateway/internal/screen/types.go`.
 
 - **Opt-in is structural.** A screen exists only while a session holds its
   `GET /streamiq/screen` response open, and is removed the moment that channel

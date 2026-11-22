@@ -74,6 +74,9 @@ packages:
   - path: "streamiq/gateway/internal/tunnel"
     output_path: "frontend/src/generated/tunnel.ts"
     include_files: ["types.go"]
+  - path: "streamiq/gateway/internal/screen"
+    output_path: "frontend/src/generated/screen.ts"
+    include_files: ["types.go"]
     frontmatter: |
       /** A phone → TV screen command. */
       export type ScreenCommand =

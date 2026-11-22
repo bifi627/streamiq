@@ -35,6 +35,7 @@ import (
 	"streamiq/gateway/internal/localpage"
 	"streamiq/gateway/internal/onboarding"
 	"streamiq/gateway/internal/pairing"
+	"streamiq/gateway/internal/screen"
 	"streamiq/gateway/internal/service"
 	"streamiq/gateway/internal/sessions"
 	"streamiq/gateway/internal/telemetry"
@@ -257,11 +258,12 @@ func jellyfinUp(ctx context.Context, file string) error {
 }
 
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
-// screens are tunnel's own. status is GET /streamiq/status.
+// route are tunnel's own. status is GET /streamiq/status.
 func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler,
 	tel *telemetry.Switch,
 ) *tunnel.Router {
 	rt := tunnel.NewRouter()
+	screen.Register(rt)
 	rt.Handle("GET "+tunnel.StatusPath, status)
 	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
 	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)

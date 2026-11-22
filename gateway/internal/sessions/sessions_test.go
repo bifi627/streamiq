@@ -23,6 +23,7 @@ import (
 
 	"streamiq/gateway/internal/identity"
 	"streamiq/gateway/internal/pairing"
+	"streamiq/gateway/internal/screen"
 	"streamiq/gateway/internal/testwait"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/protocol"
@@ -606,6 +607,7 @@ func TestScreenOverTunnel(t *testing.T) {
 	// The offer's role stays on the session (#194): on an admin-only endpoint a
 	// member's tunnel request is refused, an admin's passes the gate.
 	gateway.Root.API = tunnel.NewRouter()
+	screen.Register(gateway.Root.API)
 	gateway.Root.API.Handle("GET "+tunnel.StatusPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}), tunnel.AdminOnly)

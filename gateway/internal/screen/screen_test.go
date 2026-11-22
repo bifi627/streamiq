@@ -1,4 +1,4 @@
-package tunnel
+package screen
 
 import (
 	"bufio"
@@ -8,13 +8,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"streamiq/gateway/internal/tunnel"
 )
+
+var api = func() *tunnel.Router { rt := tunnel.NewRouter(); Register(rt); return rt }()
+
+type Session = tunnel.Session
+
+const vid = "aad7cecccec3a4dc85db63021e5bfd99"
 
 func call(t *testing.T, method, url, body string, who Session) (int, io.ReadCloser) {
 	t.Helper()
-	raw, _ := json.Marshal(tunnelReq{Method: method, URL: url, Body: body})
-	status, _, rc, _ := run(&Root{Jellyfin: &Jellyfin{}}, raw, who) // screens never touch Jellyfin
-	return status, rc
+	return tunnel.Open(api, who, method, url, body)
 }
 
 func list(t *testing.T) []struct {
@@ -161,7 +167,7 @@ func TestScreenRefusals(t *testing.T) {
 		{"POST", ScreensPath + "/" + sid, `{"type":"pause","ticks":1}`, laptop, 400},
 		{"POST", ScreenPath + "/state", `{"positionTicks":-1}`, tv, 400},
 		{"POST", ScreenPath + "/state", `{"subtitle":-2}`, tv, 400},
-		{"POST", ScreensPath + "/" + sid, `{"type":"pause","x":"` + strings.Repeat("x", MaxBody) + `"}`, laptop, http.StatusRequestEntityTooLarge},
+		{"POST", ScreensPath + "/" + sid, `{"type":"pause","x":"` + strings.Repeat("x", tunnel.MaxBody) + `"}`, laptop, http.StatusRequestEntityTooLarge},
 	} {
 		if s, _ := call(t, c.method, c.url, c.body, c.who); s != c.want {
 			t.Errorf("%s %s %.40s: %d, want %d", c.method, c.url, c.body, s, c.want)
@@ -212,17 +218,6 @@ func TestScreenAcrossUsers(t *testing.T) {
 	}
 	if got := next(bufio.NewReader(body)); got != `{"type":"pause"}` {
 		t.Fatalf("A's screen got %q", got)
-	}
-}
-
-func TestRoute(t *testing.T) {
-	for who, want := range map[*Session]string{
-		{}:                                      `{"route":"direct"}`, // no tunnel
-		{Route: func() string { return "lan" }}: `{"route":"lan"}`,
-	} {
-		if s, _, reply, _ := Do(NewRouter(), *who, "GET", RoutePath, ""); s != 200 || reply != want {
-			t.Errorf("GET %s = %d %q, want 200 %q", RoutePath, s, reply, want)
-		}
 	}
 }
 

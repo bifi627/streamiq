@@ -12,6 +12,7 @@ import (
 
 	"streamiq/gateway/internal/onboarding"
 	"streamiq/gateway/internal/pairing"
+	"streamiq/gateway/internal/screen"
 	"streamiq/gateway/internal/telemetry"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
@@ -148,6 +149,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Member, "POST", telemetry.Path, `{"level":"full"}`, http.StatusForbidden},
 		{tunnel.Member, "GET", tunnel.StatusPath, "", http.StatusNoContent},
 		{tunnel.Member, "GET", pairing.ClientsPath, "", http.StatusOK},
+		{tunnel.Member, "GET", screen.ScreensPath, "", http.StatusOK},
 		{tunnel.Admin, "POST", onboarding.NamePath, `{"name":"Den"}`, http.StatusOK},
 		{tunnel.Admin, "POST", update.Path, "", http.StatusAccepted},
 		{tunnel.Admin, "POST", telemetry.Path, `{"level":"full"}`, http.StatusOK},

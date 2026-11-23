@@ -5,9 +5,7 @@ package onboarding
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"net/http"
 	"time"
 
@@ -36,13 +34,6 @@ func newSecret(n int) string {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)
 	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-// hash is how a secret is stored: SHA-256 hex, never the plaintext. The same as
-// broker.Hash, which checks the credential on the gateway socket.
-func hash(secret string) string {
-	h := sha256.Sum256([]byte(secret))
-	return hex.EncodeToString(h[:])
 }
 
 // TokenLifetime is how long an enrollment token can be spent.

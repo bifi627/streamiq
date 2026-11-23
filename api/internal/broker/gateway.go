@@ -42,23 +42,30 @@ func (b *Broker) gateway(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = me.conn.CloseNow() }()
 	b.serveGateway(r.Context(), &me, auth.HashSecret(credential))
+	for _, c := range b.unlink(&me) {
+		go kill(c, protocol.CloseGatewayGone) // a dead peer's close can take ~10 s each
+	}
+}
 
+// unlink drops me from the broker and returns its sessions' browser sockets to close:
+// they are dead (a restart takes the pcs with it), so the browsers hear it now instead of
+// from ICE in ~30 s. None while the broker stops: each browser handler closes its own.
+func (b *Broker) unlink(me *link) []*websocket.Conn {
 	b.mu.Lock()
-	if b.gateways[me.gateID] == &me {
+	defer b.mu.Unlock()
+	if b.gateways[me.gateID] == me {
 		delete(b.gateways, me.gateID)
+	}
+	if b.stopping.Err() != nil {
+		return nil
 	}
 	var dead []*websocket.Conn
 	for _, s := range b.sessions {
-		if s.via == &me && !s.revoked {
+		if s.via == me && !s.revoked {
 			dead = append(dead, s.conn)
 		}
 	}
-	b.mu.Unlock()
-	// Its sessions are dead (a restart takes the pcs with it): close their browsers'
-	// sockets now instead of letting ICE notice in ~30 s.
-	for _, c := range dead {
-		go kill(c, protocol.CloseGatewayGone) // a dead peer's close can take ~10 s each
-	}
+	return dead
 }
 
 // serveGateway reads the socket's messages until it closes. The gateway is registered

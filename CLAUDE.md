@@ -72,7 +72,7 @@ really were `r8er`.
   numbered SQL in `api/migrations/`. Slices don't import each other (depguard `api-slices`).
 - Gateway: package per feature in `gateway/internal/<slice>/` with colocated `_test.go`;
   `cmd/gateway/main.go` wiring only. Slices don't import each other except shared primitives
-  (`identity`, `tunnel`, `pairing`).
+  (depguard `gateway-slices`).
 
 Auth = Firebase (emulator in dev). Media engine = bundled Jellyfin (pinned image). Hosting =
 Railway. TURN = Cloudflare (local coturn in dev).

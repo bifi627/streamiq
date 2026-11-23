@@ -99,7 +99,7 @@ func TestAMemberOfASecondHouseholdGetsTheirRoleThere(t *testing.T) {
 func TestNamingAnotherHouseholdDoesNotReachItsGateway(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
-	c := s.browserIn("bob@home.test", http.Header{auth.HouseholdHeader: {s.household("alice@home.test")}})
+	c := s.browserIn("bob@home.test", nas.id, http.Header{auth.HouseholdHeader: {s.household("alice@home.test")}})
 	offerTo(t, c, nas)
 	refused(t, c)
 	nothing(t, nas.conn)

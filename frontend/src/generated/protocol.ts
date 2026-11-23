@@ -115,6 +115,11 @@ export interface Jellyfin {
 export interface Auth {
   type: 'auth';
   token: string; // Firebase ID token
+  /**
+   * GatewayID is the gateway this session's offer goes to: TURN is minted for it only
+   * (relay usage), and an offer to another one is refused.
+   */
+  gatewayId: string;
 }
 /**
  * Ping keeps the browser's socket open through idle proxies; the broker ignores it.

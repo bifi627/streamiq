@@ -54,12 +54,13 @@ func FromEnv() *Issuer {
 
 func StunOnly() []json.RawMessage { return []json.RawMessage{json.RawMessage(stun)} }
 
-// Issue mints label's servers. revoke is set when the credential can (and must) be
-// revoked at the session's end.
-func (i *Issuer) Issue(ctx context.Context, label string) (servers []json.RawMessage, revoke string, err error) {
+// Issue mints label's servers. Cloudflare's carry tag as their customIdentifier, which
+// its usage analytics group by. revoke is set when the credential can (and must)
+// be revoked at the session's end.
+func (i *Issuer) Issue(ctx context.Context, label, tag string) (servers []json.RawMessage, revoke string, err error) {
 	switch {
 	case i.KeyID != "":
-		return i.cloudflare(ctx)
+		return i.cloudflare(ctx, tag)
 	case len(i.URLs) > 0:
 		// TURN REST (coturn --use-auth-secret): username = "<unix expiry>:<label>",
 		// credential = base64(HMAC-SHA1(secret, username)).
@@ -76,9 +77,12 @@ func (i *Issuer) Issue(ctx context.Context, label string) (servers []json.RawMes
 	return StunOnly(), "", nil
 }
 
-func (i *Issuer) cloudflare(ctx context.Context) ([]json.RawMessage, string, error) {
-	body := fmt.Sprintf(`{"ttl":%d}`, int(TTL.Seconds()))
-	rs, err := i.post(ctx, i.KeyID+"/credentials/generate-ice-servers", body)
+func (i *Issuer) cloudflare(ctx context.Context, tag string) ([]json.RawMessage, string, error) {
+	body, err := json.Marshal(map[string]any{"ttl": int(TTL.Seconds()), "customIdentifier": tag})
+	if err != nil {
+		return nil, "", err
+	}
+	rs, err := i.post(ctx, i.KeyID+"/credentials/generate-ice-servers", string(body))
 	if err != nil {
 		return nil, "", err
 	}

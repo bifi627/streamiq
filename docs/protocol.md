@@ -175,7 +175,7 @@ gateway survives ends it too: rare, and the next open makes a fresh session.
 
 | direction | message |
 |---|---|
-| browser → broker | `{type:"auth", token:"<Firebase ID token>"}` — first frame (not a query param: keeps it out of logs), within 10 s. Each failure closes `1008` with a reason: a first frame that isn't auth (or isn't a JSON object, or is over 8 KB) → "auth first"; nothing within 10 s → "auth timeout"; bad token → "unauthorized" (#555). |
+| browser → broker | `{type:"auth", token:"<Firebase ID token>", gatewayId}` — first frame (not a query param: keeps it out of logs), within 10 s. `gatewayId` = the gateway this session's offer goes to: `ready` carries TURN only when the user's offer could reach it now (else STUN only, alike for an unknown, offline or foreign gateway: no existence oracle), and an offer to another gateway gets "gateway offline or unknown" (#784). Without it (a web app from before): STUN only. Each failure closes `1008` with a reason: a first frame that isn't auth (or isn't a JSON object, or is over 8 KB) → "auth first"; nothing within 10 s → "auth timeout"; bad token → "unauthorized" (#555). |
 | broker → browser | `{type:"ready", iceServers}` — this session's ICE servers (below) |
 | browser → broker | `{type:"offer", gatewayId, sdp}` — browser is the offerer |
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |
@@ -219,7 +219,8 @@ per session (several browsers at once).
 
 **ICE servers come per session, in the broker's `ready`** (there is no
 free-standing TURN endpoint). Prod: Cloudflare `generate-ice-servers`
-mints a fresh credential for each broker socket, passed through, and the broker
+mints a fresh credential for each broker socket whose `auth.gatewayId` the user can reach,
+`customIdentifier` = that gateway's opaque relay tag (relay usage per gateway, #784), passed through, and the broker
 revokes it when the socket closes (= the session ends: the gateway gets `bye`).
 TTL 4 h is only the backstop for a failed revoke; it must outlast a relayed
 session because TURN refreshes need a valid credential. Dev: TURN REST creds for

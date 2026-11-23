@@ -153,11 +153,12 @@ func (s *stack) heartbeat(g *gw, extra map[string]any) {
 	}
 }
 
-// browser is a browser socket of email after `ready`; email has a household of its own.
-func (s *stack) browser(email string) *websocket.Conn { return s.browserIn(email, nil) }
+// browser is a browser socket of email after `ready`, naming no gateway; email has a
+// household of its own.
+func (s *stack) browser(email string) *websocket.Conn { return s.browserIn(email, "", nil) }
 
-// browserIn is browser with the handshake's headers h.
-func (s *stack) browserIn(email string, h http.Header) *websocket.Conn {
+// browserIn is browser naming gateway in its auth, with the handshake's headers h.
+func (s *stack) browserIn(email, gateway string, h http.Header) *websocket.Conn {
 	s.t.Helper()
 	s.household(email)
 	token, _ := s.user(email)
@@ -165,7 +166,7 @@ func (s *stack) browserIn(email string, h http.Header) *websocket.Conn {
 	if err != nil {
 		s.t.Fatal(err)
 	}
-	sendJSON(s.t, c, map[string]any{"type": "auth", "token": token})
+	sendJSON(s.t, c, map[string]any{"type": "auth", "token": token, "gatewayId": gateway})
 	if m := recv(s.t, c); m["type"] != "ready" {
 		s.t.Fatalf("not ready: %v", m)
 	}
@@ -175,7 +176,7 @@ func (s *stack) browserIn(email string, h http.Header) *websocket.Conn {
 // offer sends an offer from a browser of email to g and returns the browser.
 func (s *stack) offer(email string, g *gw) *websocket.Conn {
 	s.t.Helper()
-	c := s.browser(email)
+	c := s.browserIn(email, g.id, nil)
 	offerTo(s.t, c, g)
 	return c
 }

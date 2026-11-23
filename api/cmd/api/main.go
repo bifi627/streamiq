@@ -26,6 +26,7 @@ import (
 	"streamiq/api/internal/me"
 	"streamiq/api/internal/members"
 	"streamiq/api/internal/onboarding"
+	"streamiq/api/internal/relayusage"
 	"streamiq/api/internal/tunnels"
 	"streamiq/api/internal/turn"
 )
@@ -69,6 +70,10 @@ func main() {
 	b.Routes(mux)
 	gateways.Routes(mux, a, d, b)
 	tunnels.Routes(mux, a, d)
+	relayusage.Routes(mux, a, d)
+	if job := relayusage.FromEnv(d); job != nil {
+		go job.Run(ctx)
+	}
 	household.Routes(mux, a, d, ips)
 	members.Routes(mux, a, d)
 	invites.Routes(mux, a, d, ips)

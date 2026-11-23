@@ -82,7 +82,7 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
 }) => {
   const { page, user } = paired
   // The broker and the gateway record tunnels; the browser never calls the API's
-  // tunnels: its throughput goes to the gateway over the tunnel (#782).
+  // tunnels: its throughput goes to the gateway over the tunnel.
   let apiCalls = 0
   page.on('request', (r) => {
     if (r.url().includes('/api/tunnels')) apiCalls++

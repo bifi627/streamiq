@@ -60,7 +60,7 @@ func (b *Broker) gateway(w http.ResponseWriter, r *http.Request) {
 	}
 	var dead []*websocket.Conn
 	for _, s := range b.sessions {
-		if s.via == &me {
+		if s.via == &me && !s.revoked {
 			dead = append(dead, s.conn)
 		}
 	}

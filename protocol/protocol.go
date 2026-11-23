@@ -19,6 +19,19 @@ type Msg[S, C any] struct {
 	Candidate *C     `json:"candidate,omitempty"`               // ice
 }
 
+// The broker's close reasons (code 1008) on a browser's /api/broker/ws: the web app
+// maps each to what the user can do. CloseRateLimited closes a gateway socket too.
+
+const (
+	CloseAuthFirst      = "auth first"
+	CloseAuthTimeout    = "auth timeout"
+	CloseUnauthorized   = "unauthorized"
+	CloseNoHousehold    = "no household"
+	CloseRateLimited    = "rate limited"
+	CloseGatewayGone    = "gateway gone"
+	CloseGatewayRevoked = "gateway revoked"
+)
+
 // GatewayBusy is the one GatewayError the broker relays: the gateway holds as many
 // unauthenticated connections as it takes; a retry may get through.
 const GatewayBusy = "gateway busy"

@@ -21,6 +21,7 @@ import (
 	"streamiq/api/internal/db"
 	"streamiq/api/internal/iplimit"
 	"streamiq/api/internal/turn"
+	"streamiq/protocol"
 )
 
 type Broker struct {
@@ -144,7 +145,7 @@ func (b *Broker) Revoke(gatewayID string) {
 	b.mu.Unlock()
 	// Not waiting for the peers' close handshakes (up to 5 s each).
 	for _, c := range browsers {
-		go kill(c, "gateway revoked")
+		go kill(c, protocol.CloseGatewayRevoked)
 	}
 	if g != nil {
 		go kill(g.conn, "revoked")
@@ -173,7 +174,7 @@ func read(ctx context.Context, conn *websocket.Conn, limit int64, lim *rate.Limi
 			return nil
 		}
 		if lim != nil && !lim.Allow() {
-			kill(conn, "rate limited")
+			kill(conn, protocol.CloseRateLimited)
 			return nil
 		}
 		var m Fields

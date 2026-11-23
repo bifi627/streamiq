@@ -147,6 +147,8 @@ The broker closes it as `1008 "gateway gone"` when the gateway socket that took
 this session's offer closes (restart, update): the session is dead even if ICE
 hasn't noticed yet, and the client closes its pc (#172). A control-socket drop the
 gateway survives ends it too: rare, and the next open makes a fresh session.
+Every close reason the broker gives this socket is a `Close*` constant in
+`protocol/` (generated for the web app, which maps each to what the user can do).
 
 | direction | message |
 |---|---|

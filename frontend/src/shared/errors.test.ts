@@ -5,6 +5,7 @@ import {
   brokerClosed,
   brokerError,
   describe,
+  primaryAction,
   httpError,
   isKind,
   relayMessage,
@@ -21,6 +22,18 @@ test('broker socket: closed before open is unreachable, after is a drop', () => 
     brokerClosed(true, {}, 'gateway revoked').kind,
     'gateway-removed',
   )
+  // The broker's refusals of the auth frame, before or after open alike.
+  for (const opened of [false, true]) {
+    const kind = (reason: string) => brokerClosed(opened, {}, reason).kind
+    assert.equal(kind('unauthorized'), 'unauthorized')
+    assert.equal(kind('no household'), 'no-household')
+    assert.equal(kind('rate limited'), 'rate-limited')
+  }
+  // Neither is a refusal the user can act on: a slow token fetch, a client bug.
+  assert.equal(brokerClosed(true, {}, 'auth first').kind, 'broker-lost')
+  assert.equal(brokerClosed(true, {}, 'auth timeout').kind, 'broker-lost')
+  assert.equal(brokerClosed(false, {}, 'whatever').kind, 'broker-unreachable')
+  assert.equal(brokerClosed(true, {}, 'toString').kind, 'broker-lost')
 })
 
 test('broker error text', () => {
@@ -84,6 +97,8 @@ test('every kind: a message and the buttons it shows', () => {
   const actions: Record<Kind, string[]> = {
     'broker-unreachable': ['retry'],
     'broker-lost': ['retry'],
+    'no-household': ['reload'],
+    'rate-limited': ['reload'], // the budget is per socket
     'gateway-offline': ['retry', 'gateways'],
     'gateway-removed': ['gateways'],
     'gateway-busy': ['retry'],
@@ -110,6 +125,11 @@ test('every kind: a message and the buttons it shows', () => {
     // Only a possibly impersonated gateway is loud.
     assert.equal(d.loud, k === 'pin-mismatch' || undefined, k)
   }
+  // The button: retry before sign-in before reload; links never.
+  assert.equal(primaryAction(['gateways', 'retry']), 'retry')
+  assert.equal(primaryAction(['reload', 'sign-in']), 'sign-in')
+  assert.equal(primaryAction(['reload']), 'reload')
+  assert.equal(primaryAction(['gateways', 'pair']), undefined)
   // playback: the player's own wording
   assert.equal(describe(new AppError('playback', 'decode')).message, 'decode')
 })

@@ -104,23 +104,23 @@ func (b *Broker) iceServers(ctx context.Context, user, gateway string) (
 func (b *Broker) authenticate(ctx context.Context, conn *websocket.Conn) (user, gateway string, ok bool) {
 	// The timer closes the socket instead of cancelling the read: a cancelled read
 	// closes it without a reason.
-	timeout := time.AfterFunc(b.AuthTimeout, func() { kill(conn, "auth timeout") })
+	timeout := time.AfterFunc(b.AuthTimeout, func() { kill(conn, protocol.CloseAuthTimeout) })
 	m := read(ctx, conn, 8<<10, nil, true)
 	if !timeout.Stop() {
 		return "", "", false
 	}
 	if m == nil || str(m, "type") != "auth" {
-		kill(conn, "auth first")
+		kill(conn, protocol.CloseAuthFirst)
 		return "", "", false
 	}
 	c, err := b.Auth.Token(ctx, str(m, "token")) // missing = "", which fails verification
 	if err != nil {
-		kill(conn, "unauthorized")
+		kill(conn, protocol.CloseUnauthorized)
 		return "", "", false
 	}
 	// In no household at all: nothing to offer to, and no TURN credential for it.
 	if len(c.Households) == 0 {
-		kill(conn, "no household")
+		kill(conn, protocol.CloseNoHousehold)
 		return "", "", false
 	}
 	return c.User, id(m, "gatewayId"), true

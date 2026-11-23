@@ -5,6 +5,7 @@ import { auth } from './firebase'
 import {
   AppError,
   describe,
+  primaryAction,
   toAppError,
   type Action,
   type Kind,
@@ -15,6 +16,7 @@ const label: Record<Action, string> = {
   pair: 'Pair this browser',
   gateways: 'Gateways',
   'sign-in': 'Sign in again',
+  reload: 'Reload',
 }
 
 // 24×24 stroke icons (State's).
@@ -95,11 +97,12 @@ export function ErrorView({
 }) {
   const error = toAppError(thrown)
   const { message, actions, loud } = describe(error)
-  const button = actions.includes('retry')
-    ? 'retry'
-    : actions.includes('sign-in')
-      ? 'sign-in'
-      : null
+  const button = primaryAction(actions)
+  const onClick = {
+    retry: onRetry,
+    'sign-in': () => signOut(auth),
+    reload: () => location.reload(),
+  }
   const links = actions.filter(
     (a) => a === 'gateways' || (a === 'pair' && pair === undefined),
   )
@@ -119,7 +122,7 @@ export function ErrorView({
               type="button"
               className="primary"
               autoFocus={focus}
-              onClick={button === 'retry' ? onRetry : () => signOut(auth)}
+              onClick={onClick[button]}
             >
               {label[button]}
             </button>

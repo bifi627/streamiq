@@ -22,7 +22,7 @@ func TestRemote(t *testing.T) {
 			set  func()
 			want string
 		}{
-			{func() { r.Supported = false }, "remote update works on Windows only so far"},
+			{func() { r.Supported = false }, RefusedUnsupported},
 			{func() { r.Supported, r.Version = true, "dev" }, RefusedDevBuild},
 			{func() { r.Version, newer = "1.4.0", "" }, RefusedUpToDate},
 			{func() { newer = "1.4.0" }, RefusedUpToDate},

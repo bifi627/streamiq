@@ -3,7 +3,7 @@
 // the bar's controls, volume, quality, compatible mode, Auto on a slow link, the
 // speed test's cache and Off setting, data saver, audio, auto audio, subtitles and next episode. Per-device settings
 // are arranged in localStorage before the app loads (the Settings toggles are
-// shell.spec's). Movies → clip → Play and the Resume spot are the golden path's;
+// shell.spec's). Movies → clip → Play and the Resume spot are smoke.spec's;
 // Play on TV is the screen spec's, rung choice and decisions profile.test.ts's.
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'

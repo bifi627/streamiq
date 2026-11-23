@@ -34,7 +34,7 @@
           "error",
           {
             "allowedTags": [
-              "@golden",
+              "@smoke",
               "@gateways",
               "@library",
               "@player",

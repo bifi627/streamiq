@@ -1,9 +1,9 @@
 // Diagnostics, on a paired browser with its own gateway
 // (fixtures.ts `paired`): the dock on the library, the /diagnostics report with
-// its connection test (direct, forced relay), Copy report, a never-paired
-// browser's report. The panel flag is arranged in localStorage (its Settings
-// toggle is shell.spec's); relay fallback itself stays in the golden path;
-// the tunnel report's edge cases are gateway/internal/sessions and history.
+// its connection test (direct, forced relay), the dock's Force relay over a real
+// library tunnel, Copy report, a never-paired browser's report. The panel flag is
+// arranged in localStorage (its Settings toggle is shell.spec's); the tunnel
+// report's edge cases are gateway/internal/sessions and history.
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -111,6 +111,24 @@ test('report, forced relay: relayed (TURN), relay row @diagnostics', async ({
     /relay forced: yes[\s\S]*relay: available[\s\S]*path: relayed \(TURN\) over udp/,
   )
   expect(row, JSON.stringify(row)).toMatchObject({ relay: true, failure: null })
+})
+
+// Buttons, not ?relay / ?debug: a TV can't edit the URL.
+test('dock Force relay: the library tunnels over TURN, the badge says so @diagnostics', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await page.addInitScript(() => localStorage.setItem('streamiq.debug', '1'))
+  await page.reload()
+  await openDock(page)
+  await page.getByLabel('Force relay (TURN) on next connect').check()
+  await openLibrary(page) // a tunnel request made it
+  await page
+    .getByRole('button', { name: 'Relayed · encrypted' })
+    .click({ timeout: 30_000 })
+  await expect(
+    page.getByText(/encrypted relay that can't see it · [\d.,]+ MB relayed/),
+  ).toBeVisible()
 })
 
 test('Copy report: the clipboard holds the report @diagnostics', async ({

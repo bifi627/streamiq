@@ -3,9 +3,10 @@
 // dot, paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
 // local gateway page, a refused broker socket and TV mode.
-// Onboarding, Approve, Test connection and the removes that end sessions are
-// the golden path's; the offline dot (90 s), rejection edge cases and a
-// member's own client list are the Go API tests and multi-user.
+// Onboarding through the UI is smoke.spec's, restart, backup, a new certificate,
+// the removes that end sessions and an evicted key lifecycle.spec's; the offline
+// dot (90 s), rejection edge cases and a member's own client list are the Go API
+// tests and multi-user.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {

@@ -114,5 +114,5 @@ test('tracked: the notices of an update started here', () => {
 test('refusedText: the text per code, a generic one for an unknown code', () => {
   assert.equal(refusedText('no task').startsWith('no logon task'), true)
   assert.equal(refusedText('dev build'), 'it is a dev build')
-  assert.equal(refusedText('rm -rf'), 'the gateway refused the update')
+  assert.equal(refusedText('rm -rf'), "the gateway can't update itself now")
 })

@@ -20,7 +20,7 @@ const refusals = new Map([
 
 /** The text for the gateway's update refusal code (`remoteUpdate`, the 409). */
 export const refusedText = (code: string) =>
-  refusals.get(code) ?? 'the gateway refused the update'
+  refusals.get(code) ?? "the gateway can't update itself now"
 
 // A remote update the gateway card started: the target it named and
 // the version the gateway ran before.

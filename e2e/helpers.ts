@@ -240,8 +240,12 @@ export async function newPage(browser: Browser) {
   return ctx.newPage()
 }
 
-/** Chrome's console reports of a blocked load in any newContext(): fixtures.ts fails the test on one. */
-export const cspViolations: string[] = []
+/** The current test's newContext()s and Chrome's console reports of a blocked load
+ * in them: fixtures.ts starts new lists per test, closes the contexts so no page
+ * outlives its test, then fails the test on a report. */
+export const cspScope = {
+  current: { violations: [] as string[], contexts: [] as BrowserContext[] },
+}
 
 /** browser.newContext() for every context a test opens (app or local gateway page).
  * Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
@@ -251,9 +255,11 @@ export const cspViolations: string[] = []
  * error on a page or its scripts only: anything else still fails the test. */
 export async function newContext(browser: Browser) {
   const ctx = await browser.newContext()
+  // The test that opened this context, not whichever test runs when a report arrives.
+  const { violations, contexts } = cspScope.current
+  contexts.push(ctx)
   ctx.on('console', (m) => {
-    if (m.text().includes('Content Security Policy'))
-      cspViolations.push(m.text())
+    if (m.text().includes('Content Security Policy')) violations.push(m.text())
   })
   // Google's gapi, which Firebase's popup sign-in loads even against the
   // emulator: fetched by Playwright outside Chrome, so the error below can't

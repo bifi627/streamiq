@@ -18,6 +18,7 @@ test('the production policy: own origin, Firebase, blobs; nothing inline', () =>
     "'self'",
     'https://identitytoolkit.googleapis.com',
     'https://securetoken.googleapis.com',
+    'https://apis.google.com',
   ])
   assert.deepEqual(p['frame-src'], ['https://app.firebaseapp.com'])
   assert.deepEqual(p['media-src'], ["'self'", 'blob:'])

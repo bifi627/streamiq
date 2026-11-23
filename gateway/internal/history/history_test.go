@@ -143,3 +143,22 @@ func TestAnEmptyHistoryIsAnEmptyList(t *testing.T) {
 		t.Fatalf("%d %q", w.Code, w.Body)
 	}
 }
+
+func TestAStoredHealthLineStillReads(t *testing.T) {
+	line := `{"at":"2026-11-20T12:00:00Z","gatewayVersion":"1.4.0","jellyfin":{"reachable":true,"version":"10.11.2"},` +
+		`"os":"linux","arch":"amd64","transcoding":"none","tunnels":2,"cpu":12.5}`
+	var e entry
+	if err := json.Unmarshal([]byte(line), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Jellyfin.Version != "10.11.2" || e.Tunnels != 2 || *e.CPU != 12.5 || e.GatewayVersion != "1.4.0" {
+		t.Fatalf("got %+v", e)
+	}
+	b, _ := json.Marshal(e)
+	var back, want map[string]any
+	_ = json.Unmarshal(b, &back)
+	_ = json.Unmarshal([]byte(line), &want)
+	if len(back) != len(want) {
+		t.Fatalf("written %s, stored %s", b, line)
+	}
+}

@@ -203,9 +203,9 @@ func (s *Store) Reserve(user string) error {
 	}
 	switch {
 	case total >= MaxPending:
-		return errors.New("too many pending pairing requests")
+		return errors.New(RejectedFull)
 	case s.reserved[user] >= MaxPendingPerUser:
-		return errors.New("this user is already pairing a browser")
+		return errors.New(RejectedUserPairing)
 	}
 	if s.reserved == nil {
 		s.reserved = map[string]int{}

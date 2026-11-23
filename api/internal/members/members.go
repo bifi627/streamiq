@@ -24,10 +24,7 @@ func Routes(mux *http.ServeMux, a *auth.Auth, d *db.DB) {
 		func(w http.ResponseWriter, r *http.Request, c auth.Caller) { setRole(w, r, c, d) }))
 }
 
-// LastAdmin is the 409's error.
-const LastAdmin = "A household needs at least one admin. Make someone else admin first."
-
-var errNotFound, errLastAdmin = errors.New("not a member"), errors.New(LastAdmin)
+var errNotFound, errLastAdmin = errors.New("not a member"), errors.New("last admin")
 
 // target is the {userId} in the path; not a UUID = no member's, a 404.
 func target(r *http.Request) (string, bool) {
@@ -60,10 +57,8 @@ func answer(w http.ResponseWriter, err error) {
 		w.WriteHeader(http.StatusNoContent)
 	case errors.Is(err, errNotFound):
 		w.WriteHeader(http.StatusNotFound)
-	case errors.Is(err, errLastAdmin):
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	case errors.Is(err, errLastAdmin): // no body: the web app has the text
 		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": LastAdmin})
 	default:
 		http.Error(w, "", http.StatusInternalServerError)
 	}

@@ -9,6 +9,8 @@ import {
   CloseNoHousehold,
   CloseRateLimited,
   CloseUnauthorized,
+  GatewayBusy,
+  GatewayOffline,
 } from '../generated/protocol.ts'
 
 export type Kind =
@@ -104,9 +106,9 @@ export const brokerClosed = (
 /** The broker's `{type:"error"}` text (docs/protocol.md). */
 export const brokerError = (text: string, context: Context = {}) =>
   new AppError(
-    /offline/i.test(text)
+    text === GatewayOffline
       ? 'gateway-offline'
-      : /busy/i.test(text)
+      : text === GatewayBusy
         ? 'gateway-busy'
         : 'unknown',
     text,

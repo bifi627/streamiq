@@ -10,8 +10,14 @@ export interface Started {
   version: string;
 }
 /**
- * Refused is the 409: why the gateway won't update itself.
+ * Refused is the 409: why the gateway won't update itself, one of the Refused* codes
+ * (also /streamiq/status's remoteUpdate); the web app has the text per code.
  */
 export interface Refused {
   reason: string;
 }
+export const RefusedUnsupported = "unsupported"; // remote update works on Windows only so far
+export const RefusedDevBuild = "dev build";
+export const RefusedRunning = "running"; // an update is already running
+export const RefusedUpToDate = "up to date"; // no newer release
+export const RefusedNoTask = "no task"; // no logon task would start the gateway again

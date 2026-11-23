@@ -1,7 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { AppError, describe } from '../../shared/errors.ts'
-import { startOutcome, tracked, updated, updateState } from './update.ts'
+import {
+  refusedText,
+  startOutcome,
+  tracked,
+  updated,
+  updateState,
+} from './update.ts'
 
 test('a remote update is done once online on another version (#312)', () => {
   const u = { to: '1.5.0', from: '1.4.0' }
@@ -89,8 +95,8 @@ test('Update: started, refused, or the error (#312, #564)', () => {
     remote: 'not a service',
   })
   // A refused retry keeps the tracked update: a line next to Try again.
-  assert.deepEqual(startOutcome({ reason: 'busy' }, '1.4.0', true), {
-    msg: 'Refused: busy.',
+  assert.deepEqual(startOutcome({ reason: 'running' }, '1.4.0', true), {
+    msg: 'Refused: an update is already running.',
   })
   const err = new AppError('http', 'x → HTTP', { status: 500 })
   assert.deepEqual(startOutcome(err, '1.4.0', false), {
@@ -103,4 +109,10 @@ test('tracked: the notices of an update started here', () => {
     assert.equal(tracked(n), true)
   for (const n of ['button', 'reason', 'byHand', null] as const)
     assert.equal(tracked(n), false)
+})
+
+test('refusedText: the text per code, a generic one for an unknown code', () => {
+  assert.equal(refusedText('no task').startsWith('no logon task'), true)
+  assert.equal(refusedText('dev build'), 'it is a dev build')
+  assert.equal(refusedText('rm -rf'), 'the gateway refused the update')
 })

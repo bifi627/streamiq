@@ -11,6 +11,7 @@ import {
 import { answerCheck } from './crypto.ts'
 import { DIRECT_ONLY, relayServers } from './relay.ts'
 import type { BrokerMessage } from '../../generated/protocol.ts'
+import { RejectedFull, RejectedUserPairing } from '../../generated/pairing.ts'
 import type { GatewayAuthMessage } from '../../generated/sessions.ts'
 
 // quirk(#632): while connecting, Chrome reports 'failed' once every candidate
@@ -221,7 +222,7 @@ function onGateway(s: State, m: GatewayAuthMessage): Step {
     case 'rejected': {
       const why = m.reason ?? 'rejected'
       // A full pairing queue (all slots, or this user's one) frees up: busy, not refused.
-      const full = /pending pairing requests|already pairing/.test(why)
+      const full = why === RejectedFull || why === RejectedUserPairing
       return fail(
         s,
         full ? 'gateway-busy' : 'gateway-refused',

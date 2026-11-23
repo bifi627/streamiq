@@ -23,10 +23,10 @@ func TestRemote(t *testing.T) {
 			want string
 		}{
 			{func() { r.Supported = false }, "remote update works on Windows only so far"},
-			{func() { r.Supported, r.Version = true, "dev" }, "dev build"},
-			{func() { r.Version, newer = "1.4.0", "" }, "already up to date"},
-			{func() { newer = "1.4.0" }, "already up to date"},
-			{func() { newer, task = "1.5.0", false }, "no logon task, so nothing would start the gateway again after the update"},
+			{func() { r.Supported, r.Version = true, "dev" }, RefusedDevBuild},
+			{func() { r.Version, newer = "1.4.0", "" }, RefusedUpToDate},
+			{func() { newer = "1.4.0" }, RefusedUpToDate},
+			{func() { newer, task = "1.5.0", false }, RefusedNoTask},
 		} {
 			c.set()
 			if v, why, err := r.Run(); why != c.want || v != "" || err != nil || r.Reason() != c.want {
@@ -40,7 +40,7 @@ func TestRemote(t *testing.T) {
 		if v, why, err := r.Run(); v != "1.5.0" || why != "" || err != nil || starts != 1 {
 			t.Fatalf("Run = %q %q %v starts=%d", v, why, err, starts)
 		}
-		if _, why, _ := r.Run(); why != "an update is already running" || starts != 1 {
+		if _, why, _ := r.Run(); why != RefusedRunning || starts != 1 {
 			t.Fatalf("second Run: %q starts=%d", why, starts)
 		}
 		close(exited)   // the updater failed: the gateway still runs, it may try again
@@ -82,7 +82,7 @@ func TestRemoteAPI(t *testing.T) {
 		}
 		synctest.Wait() // the fake updater exits at once
 		r.Version = "1.5.0"
-		if st, body := call(tunnel.Admin); st != http.StatusConflict || body != `{"reason":"already up to date"}` {
+		if st, body := call(tunnel.Admin); st != http.StatusConflict || body != `{"reason":"up to date"}` {
 			t.Fatalf("refused: %d %s", st, body)
 		}
 		r.Version, fail = "1.4.0", errors.New("exec: access denied")

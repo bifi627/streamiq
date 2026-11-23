@@ -30,6 +30,10 @@ const (
 	CloseGatewayRevoked = "gateway revoked"
 )
 
+// GatewayOffline is the broker's ErrorMsg for an offer to a gateway that isn't connected
+// or isn't in the caller's household (the same answer: no probing other households).
+const GatewayOffline = "gateway offline or unknown"
+
 // GatewayBusy is the one GatewayError the broker relays: the gateway holds as many
 // unauthenticated connections as it takes; a retry may get through.
 const GatewayBusy = "gateway busy"

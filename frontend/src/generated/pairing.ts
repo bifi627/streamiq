@@ -4,6 +4,16 @@
 // source: types.go
 
 /**
+ * The pairing queue's refusals, sent as the auth channel's rejected reason: the web
+ * app reads both as "busy, try again" (a slot frees up), any other reason as refused.
+ */
+export const RejectedFull = "too many pending pairing requests";
+/**
+ * The pairing queue's refusals, sent as the auth channel's rejected reason: the web
+ * app reads both as "busy, try again" (a slot frees up), any other reason as refused.
+ */
+export const RejectedUserPairing = "this user is already pairing a browser";
+/**
  * Client is one item of GET ClientsPath; Self = the calling session's client key.
  */
 export interface Client {

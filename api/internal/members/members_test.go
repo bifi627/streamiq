@@ -229,8 +229,7 @@ func TestRemovingAMemberDeletesTheirPendingInvitesDemotingKeepsThem(t *testing.T
 func TestTheLastAdminCannotLeaveOrDemoteThemselves(t *testing.T) {
 	h := newHome(t)
 	for _, a := range []apitest.Answer{h.remove(t, h.alice, h.aliceID), h.role(t, h.alice, h.aliceID, "member")} {
-		if a.Status != http.StatusConflict || a.Header.Get("Content-Type") != "application/json; charset=utf-8" ||
-			string(a.Body) != `{"error":"`+members.LastAdmin+`"}` {
+		if a.Status != http.StatusConflict || len(a.Body) != 0 {
 			t.Fatalf("%d %s", a.Status, a.Body)
 		}
 	}

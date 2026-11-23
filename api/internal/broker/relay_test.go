@@ -79,3 +79,29 @@ func TestAnOfferForAnotherGatewayThanTheNamedOneIsRefused(t *testing.T) {
 	offerTo(t, c, nas) // the named one still goes through
 	session(t, nas)
 }
+
+// A gateway with its relay off (its heartbeat says so) gets no TURN credential for its
+// tunnels: STUN only, and `ready` says why. Its relay back on, the next one gets one.
+func TestAGatewayWithItsRelayOffGetsNoTURNCredential(t *testing.T) {
+	f := &fakeCloudflare{}
+	s := newStack(t, cloudflare(t, f, 5*time.Second), 1000)
+	direct := s.online("alice@home.test", "direct")
+	other := s.online("alice@home.test", "other")
+	s.heartbeat(direct, map[string]any{"relayOff": true})
+
+	if _, m := readyMsg(t, s, "alice@home.test", direct.id); len(m["iceServers"].([]any)) != 1 || m["relayOff"] != true {
+		t.Fatal(m)
+	}
+	if _, m := readyMsg(t, s, "alice@home.test", other.id); len(m["iceServers"].([]any)) != 2 || m["relayOff"] != nil {
+		t.Fatal(m)
+	}
+	if b := f.minted(); len(b) != 1 {
+		t.Fatal("minted for a gateway with its relay off:", b)
+	}
+
+	s.heartbeat(direct, map[string]any{})
+	if _, servers := ready(t, s, "alice@home.test", direct.id); len(servers) != 2 {
+		t.Fatal(servers)
+	}
+}
+

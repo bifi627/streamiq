@@ -146,6 +146,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		want                     int
 	}{
 		{tunnel.Member, "POST", onboarding.NamePath, `{"name":"mine"}`, http.StatusForbidden},
+		{tunnel.Member, "POST", onboarding.RelayPath, `{"relay":false}`, http.StatusForbidden},
 		{tunnel.Member, "POST", update.Path, "", http.StatusForbidden},
 		{tunnel.Member, "GET", tunnel.StatusPath, "", http.StatusNoContent},
 		{tunnel.Member, "GET", pairing.ClientsPath, "", http.StatusOK},
@@ -156,13 +157,14 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Admin, "GET", history.SummaryPath, "", http.StatusOK},
 		{tunnel.Member, "GET", screen.ScreensPath, "", http.StatusOK},
 		{tunnel.Admin, "POST", onboarding.NamePath, `{"name":"Den"}`, http.StatusOK},
+		{tunnel.Admin, "POST", onboarding.RelayPath, `{"relay":false}`, http.StatusOK},
 		{tunnel.Admin, "POST", update.Path, "", http.StatusAccepted},
 	} {
 		if s, _, _, _ := tunnel.Do(rt, tunnel.Session{Role: c.role}, c.method, c.path, c.body); s != c.want {
 			t.Errorf("%s %s %s: %d, want %d", c.role, c.method, c.path, s, c.want)
 		}
 	}
-	if st.CurrentName() != "Den" || started != 1 {
+	if st.CurrentName() != "Den" || started != 1 || st.Relay() {
 		t.Fatalf("name %q, updates started %d: a member's call went through", st.CurrentName(), started)
 	}
 }

@@ -1017,3 +1017,59 @@ func TestReportKeepsLastPair(t *testing.T) {
 		t.Fatalf("report after Failed = %+v", r)
 	}
 }
+
+const relayCand = "candidate:9 1 udp 41885439 203.0.113.7 3478 typ relay raddr 0.0.0.0 rport 0 generation 0"
+
+// Relay off: a browser's trickled relay candidate never reaches pion, with the relay
+// on it does (both connect over host candidates).
+func TestRelayOffDropsRemoteRelayCandidates(t *testing.T) {
+	for _, on := range []bool{true, false} {
+		gateway, _ := newGateway(t)
+		gateway.Relay = func() bool { return on }
+		unpaired(t, gateway, "s1")
+		raw, _ := json.Marshal(Msg{Type: "ice", Session: "s1",
+			Candidate: &webrtc.ICECandidateInit{Candidate: relayCand, SDPMid: ptr("0")}})
+		gateway.Handle(raw, func(any) {})
+		gateway.mu.Lock()
+		pc := gateway.pcs["s1"]
+		gateway.mu.Unlock()
+		if got := remoteRelays(pc); got != on {
+			t.Errorf("relay %v: pion has the relay candidate %v", on, got)
+		}
+	}
+}
+
+func remoteRelays(pc *webrtc.PeerConnection) bool {
+	for _, s := range pc.GetStats() {
+		if c, ok := s.(webrtc.ICECandidateStats); ok && c.Type == webrtc.StatsTypeRemoteCandidate &&
+			c.CandidateType == webrtc.ICECandidateTypeRelay {
+			return true
+		}
+	}
+	return false
+}
+
+// An offer's relay candidates go when the relay is off; everything else stays.
+func TestDropRelays(t *testing.T) {
+	host := "a=candidate:2 1 udp 2122260223 192.168.1.5 50000 typ host generation 0\r\n"
+	sdp := "v=0\r\n" + host + "a=" + relayCand + "\r\na=end-of-candidates\r\n"
+	if got, want := dropRelays(sdp), "v=0\r\n"+host+"a=end-of-candidates\r\n"; got != want {
+		t.Fatalf("%q, want %q", got, want)
+	}
+}
+
+// Relay off: a pair over a relay must not stay, also one that reached us as prflx
+// from a browser that signaled a relay; a prflx without one is a plain NAT.
+func TestRelayed(t *testing.T) {
+	sawRelay, none := &signaled{}, &signaled{}
+	sawRelay.saw(relayCand)
+	sawRelay.saw("candidate:2 1 udp 2122260223 192.168.1.5 50000 typ host generation 0")
+	pair := func(remote webrtc.ICECandidateType) *webrtc.ICECandidatePair {
+		return &webrtc.ICECandidatePair{Local: &webrtc.ICECandidate{Typ: webrtc.ICECandidateTypeHost},
+			Remote: &webrtc.ICECandidate{Typ: remote}}
+	}
+	if !relayed(pair(webrtc.ICECandidateTypeRelay), none) || !relayed(pair(webrtc.ICECandidateTypePrflx), sawRelay) ||
+		relayed(pair(webrtc.ICECandidateTypePrflx), none) || relayed(pair(webrtc.ICECandidateTypeHost), sawRelay) {
+		t.Fatal("relayed")
+	}
+}

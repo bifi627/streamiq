@@ -137,9 +137,9 @@ func (b *Broker) beat(ctx context.Context, me *link, hash string, m Fields) bool
 	live := true
 	err := b.DB.InTenant(ctx, me.tenant, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `UPDATE gateways SET last_seen_at = now(), lan_url = $3, version = $4,
-			protocol = $5, update = $6, name = coalesce($7, name)
+			protocol = $5, update = $6, name = coalesce($7, name), relay_off = $8
 			WHERE id = $1 AND credential_hash = $2`,
-			me.gateID, hash, h.LanURL, h.Version, h.Protocol, h.Update, h.Name)
+			me.gateID, hash, h.LanURL, h.Version, h.Protocol, h.Update, h.Name, h.RelayOff)
 		live = err != nil || tag.RowsAffected() > 0 // a failed write isn't a revoke
 		return err
 	})

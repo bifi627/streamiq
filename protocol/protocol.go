@@ -51,7 +51,7 @@ type Report struct {
 }
 
 // Heartbeat is the gateway's liveness message: on connect, every 30 s, and early on a
-// change of what the API mirrors (name).
+// change of what the API mirrors (name, relay setting).
 type Heartbeat struct {
 	Type     string `json:"type"             tstype:"'heartbeat'"`
 	LanURL   string `json:"lanUrl"`
@@ -59,6 +59,7 @@ type Heartbeat struct {
 	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
 	Protocol int    `json:"protocol"`
 	Name     string `json:"name"`
+	RelayOff bool   `json:"relayOff,omitempty"` // direct connections only: the broker mints no TURN credential
 }
 
 // Health is the box's health as the gateway records it in its own history. Counts and
@@ -100,6 +101,8 @@ type Ping struct {
 type Ready struct {
 	Type       string            `json:"type"       tstype:"'ready'"`
 	ICEServers []json.RawMessage `json:"iceServers" tstype:"RTCIceServer[]"`
+	// RelayOff: the named gateway allows direct connections only, so iceServers is STUN only.
+	RelayOff bool `json:"relayOff,omitempty"`
 }
 
 // Offer is the browser's offer to one gateway.

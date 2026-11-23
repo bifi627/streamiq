@@ -1,8 +1,6 @@
-// Package protocol holds the broker's messages on both of its sockets (docs/protocol.md,
-// "Gateway onboarding" + "Broker"): the gateway's on /api/gateways/ws, the browser's on
-// /api/broker/ws. The gateway and the Go API use them; scripts/gen-types.sh makes the
-// web app's TypeScript from them. Types only: no pion, no database, nothing from gateway/
-// or api/, so every side can import it.
+// Package protocol holds the broker's messages on both of its sockets (docs/protocol.md):
+// the gateway's on /api/gateways/ws, the browser's on /api/broker/ws. Types only, nothing
+// from gateway/ or api/: the gateway, the Go API and (scripts/gen-types.sh) the web app use it.
 package protocol
 
 import "encoding/json"
@@ -62,8 +60,7 @@ type Ping struct {
 type Ready struct {
 	Type       string            `json:"type"       tstype:"'ready'"`
 	ICEServers []json.RawMessage `json:"iceServers" tstype:"RTCIceServer[]"`
-	// RelayOff: the named gateway allows direct connections only, so iceServers is STUN only.
-	RelayOff bool `json:"relayOff,omitempty"`
+	RelayOff   bool              `json:"relayOff,omitempty"` // the gateway allows direct connections only: iceServers is STUN only
 }
 
 // Offer is the browser's offer to one gateway.

@@ -29,7 +29,7 @@ export type Kind =
   | 'invite-invalid' // invite link unknown, expired, used or revoked (API 404)
   | 'last-admin' // the change would leave the household without an admin (API 409)
   | 'admin-only' // API 403: every 403 the API sends is a member refused an admin-only action
-  | 'unauthorized' // API 401
+  | 'unauthorized' // API 401, or the broker refused the token
   | 'http' // any other non-2xx
   | 'network' // fetch itself failed
   | 'playback' // player decode / hls.js errors (wording comes from the player)
@@ -135,6 +135,10 @@ export const relayMessage = (e: AppError) =>
 
 export type Action = 'retry' | 'pair' | 'gateways' | 'sign-in' | 'reload'
 
+/** The one action <ErrorView> shows as its button; the rest are links. */
+export const primaryAction = (actions: Action[]) =>
+  (['retry', 'sign-in', 'reload'] as const).find((a) => actions.includes(a))
+
 // Exhaustive: a new Kind doesn't compile until it's mapped here.
 export function describe(e: AppError): {
   message: string
@@ -160,10 +164,10 @@ export function describe(e: AppError): {
         actions: ['reload'],
       }
     case 'rate-limited':
-      // Retry right away would only be refused again.
+      // The budget is per socket: a reload opens a fresh one.
       return {
-        message: 'Too many requests. Wait a minute, then reload.',
-        actions: [],
+        message: 'Too many requests on this connection.',
+        actions: ['reload'],
       }
     case 'gateway-offline':
       return {

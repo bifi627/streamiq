@@ -566,7 +566,6 @@ export async function startStack(o: StackOptions) {
   process.env.E2E_BUILD_URL = built
   process.env.E2E_API_URL = api // helpers.ts: users + invites over the API
   process.env.E2E_EMULATOR_URL = emulator
-  process.env.E2E_PG_CONTAINER = pg.getId() // helpers.ts psql: tunnelRow
   const db = { host: pg.getHost(), port: pg.getMappedPort(5432) }
   const apiProc = start('api', goApiBin, [], {
     cwd: root,

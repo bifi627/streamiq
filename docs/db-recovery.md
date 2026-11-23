@@ -2,7 +2,7 @@
 
 The control plane's Postgres runs on Railway. It holds households (`tenants`), users (pseudonymous
 `firebase_uid` only), memberships, invites, gateway credential hashes + DTLS pins,
-enrollment tokens, and tunnel telemetry. **Media never touches it.**
+enrollment tokens, and relayed bytes per gateway and month. **Media never touches it.**
 Credentials for everything below: `docs/tools.md`.
 
 ## What exists

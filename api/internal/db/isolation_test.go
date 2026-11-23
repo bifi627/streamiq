@@ -28,8 +28,6 @@ var tenantOwned = []string{
 	"gateways",
 	"enrollment_tokens",
 	"invites",
-	"tunnels",
-	"gateway_health",
 	"relay_usage",
 }
 
@@ -55,18 +53,6 @@ func seed(t *testing.T) string {
 		t,
 		`INSERT INTO invites (id, tenant_id, token_hash, expires_at) VALUES (uuidv7(), $1, uuidv7()::text, now())`,
 		h,
-	)
-	apitest.Exec(
-		t,
-		`INSERT INTO tunnels (id, tenant_id, gateway_id, relay, ipv6) VALUES (uuidv7(), $1, $2, false, false)`,
-		h,
-		gw,
-	)
-	apitest.Exec(
-		t,
-		`INSERT INTO gateway_health (id, tenant_id, gateway_id, at, level) VALUES (uuidv7(), $1, $2, now(), 'ok')`,
-		h,
-		gw,
 	)
 	apitest.Exec(
 		t,

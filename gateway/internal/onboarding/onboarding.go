@@ -59,7 +59,7 @@ type State struct {
 	beat chan struct{} // one pending signal: send a heartbeat now
 }
 
-// Beat asks RunControl for an early heartbeat (a rename, a new telemetry level),
+// Beat asks RunControl for an early heartbeat (a rename),
 // so the API sees the change now, not at the next tick.
 func (s *State) Beat() {
 	select {
@@ -151,11 +151,7 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 // RunControl holds the authenticated control socket until it drops: heartbeats
 // (liveness + update()) out, broker messages (signaling for browser sessions) in,
 // handed to handle with a send func that writes JSON back on this socket.
-// handle(nil, send) announces this socket once the API has its first heartbeat (it
-// takes messages only after that), handle(nil, nil) that it dropped: messages not
-// tied to a broker message (tunnel reports) go out on the socket that is up.
 // lastBeat holds the last heartbeat's unix time, 0 while disconnected (status page).
-// health is the telemetry level and the health it allows, read before each heartbeat.
 func RunControl(
 	ctx context.Context,
 	api string,
@@ -163,7 +159,6 @@ func RunControl(
 	lanURL, version string,
 	lastBeat *atomic.Int64,
 	update func() string,
-	health func() (level string, health *protocol.Health),
 	handle func(raw []byte, send func(any)),
 ) error {
 	// Dial's context bounds only the handshake: cancelling it once Dial returned
@@ -184,7 +179,6 @@ func RunControl(
 	}
 	defer func() { _ = conn.CloseNow() }() // it only fails on a connection already closed
 	defer lastBeat.Store(0)
-	defer handle(nil, nil)
 	conn.SetReadLimit(1 << 20) // SDP exceeds the 32KB default
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -198,16 +192,12 @@ func RunControl(
 	go func() { // heartbeat (also keeps Railway's edge from reaping an idle socket)
 		t := time.NewTicker(heartbeatEvery)
 		defer t.Stop()
-		for first := true; ; first = false {
-			level, h := health()
+		for {
 			send(protocol.Heartbeat{
 				Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol,
-				Name: st.CurrentName(), Telemetry: level, Health: h,
+				Name: st.CurrentName(),
 			})
 			lastBeat.Store(time.Now().Unix())
-			if first {
-				handle(nil, send)
-			}
 			select {
 			case <-ctx.Done():
 				return

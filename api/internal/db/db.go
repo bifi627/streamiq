@@ -64,11 +64,8 @@ func Connect(ctx context.Context, cfg *pgxpool.Config) (*DB, error) {
 	return &DB{pool}, nil
 }
 
-// atStart runs as the owner, past row-level security: it gives AppRole its password
-// (ALTER ROLE takes no parameters, hence the quoted literal) and ends every tunnel row
-// still open: its process died without its cleanup (a kill, a crash), or it is the
-// previous deployment, which Railway stops only once this one is up. That one's own
-// cleanup stamps its rows again when it stops.
+// atStart runs as the owner: it gives AppRole its password (ALTER ROLE takes no
+// parameters, hence the quoted literal).
 func atStart(ctx context.Context, ownerURL, password string) error {
 	conn, err := pgx.Connect(ctx, ownerURL)
 	if err != nil {
@@ -77,10 +74,6 @@ func atStart(ctx context.Context, ownerURL, password string) error {
 	defer func() { _ = conn.Close(ctx) }()
 	// sqlcheck: DDL takes no parameters; the password is our own config, quoted
 	_, err = conn.Exec(ctx, `ALTER ROLE `+AppRole+` LOGIN PASSWORD '`+strings.ReplaceAll(password, `'`, `''`)+`'`)
-	if err != nil {
-		return err
-	}
-	_, err = conn.Exec(ctx, `UPDATE tunnels SET ended_at = now() WHERE ended_at IS NULL`)
 	return err
 }
 

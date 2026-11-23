@@ -51,13 +51,13 @@ export interface GatewayError {
   error: string;
 }
 /**
- * Report is the gateway's account of a tunnel, sent once when its PeerConnection
- * ends ("Telemetry"): the broker fills that tunnel's row with it.
+ * Report is the gateway's account of a tunnel, made once when its PeerConnection
+ * ends: its line in the gateway's tunnel history. Never sent to the API (older
+ * gateways sent it as `tunnel`; the broker ignores it).
  * local = the gateway's side of the selected pair, remote = the browser's; bytes as
  * the gateway counted them on the ICE transport (sent = gateway → client).
  */
 export interface Report {
-  type: 'tunnel';
   session: string;
   relay: boolean;
   ipv6: boolean;
@@ -72,7 +72,7 @@ export interface Report {
 }
 /**
  * Heartbeat is the gateway's liveness message: on connect, every 30 s, and early on a
- * change of what the API mirrors (name, telemetry level).
+ * change of what the API mirrors (name).
  */
 export interface Heartbeat {
   type: 'heartbeat';
@@ -81,15 +81,10 @@ export interface Heartbeat {
   update?: string; // newer release version, "" = up to date
   protocol: number /* int */;
   name: string;
-  /**
-   * Telemetry is the level; Health what it allows (none at off). Older APIs ignore both.
-   */
-  telemetry: 'off' | 'full';
-  health?: Health;
 }
 /**
- * Health is the heartbeat's `health` at telemetry full. Counts and versions only: never
- * names, users, client keys, media titles, file names or paths.
+ * Health is the box's health as the gateway records it in its own history. Counts and
+ * versions only: never names, users, client keys, media titles, file names or paths.
  */
 export interface Health {
   jellyfin: Jellyfin;
@@ -144,13 +139,11 @@ export interface Offer<S extends any> {
   sdp: S;
 }
 /**
- * Answer is the gateway's answer as the browser gets it. Tunnel is the tunnel's id
- * (the broker session), for the browser's throughput PATCH.
+ * Answer is the gateway's answer as the browser gets it.
  */
 export interface Answer<S extends any> {
   type: 'answer';
   sdp: S;
-  tunnel: string;
 }
 /**
  * Ice is one trickled candidate between browser and broker, either way.

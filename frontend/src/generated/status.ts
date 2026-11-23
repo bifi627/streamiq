@@ -19,7 +19,6 @@ export interface Status {
   viewer: jellyfin.ViewerStatus; // the calling session's
   remoteUpdate: true | string; // the update button works, or why not
   host: host.Load; // live only, never cached
-  telemetry: 'off' | 'full';
 }
 export interface JellyfinStatus {
   reachable: boolean;

@@ -3,15 +3,16 @@ package broker_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 )
 
-// A stop closes every socket the way a peer's close does: the open tunnel gets its end and
+// A stop closes every socket the way a peer's close does: the open tunnel's gateway hears its bye and
 // its TURN credential is revoked before Shutdown returns; a socket after it is refused.
-func TestShutdownEndsTheOpenTunnelsAndRevokesTheirTURNCredentials(t *testing.T) {
+func TestShutdownByesTheOpenTunnelsAndRevokesTheirTURNCredentials(t *testing.T) {
 	f := &fakeCloudflare{}
 	s := newStack(t, cloudflare(t, f, 5*time.Second), 1000)
 	nas := s.online("alice@home.test", "nas")
@@ -25,15 +26,21 @@ func TestShutdownEndsTheOpenTunnelsAndRevokesTheirTURNCredentials(t *testing.T) 
 	if err := s.b.Shutdown(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if !ended(t, sid) || !f.called("POST /v1/turn/keys/key1/credentials/"+user+"/revoke Bearer tok") {
-		t.Fatalf("ended %v, calls %v", ended(t, sid), f.calls)
+	if !f.called("POST /v1/turn/keys/key1/credentials/" + user + "/revoke Bearer tok") {
+		t.Fatalf("calls %v", f.calls)
 	}
+	bye := false
 	for _, c := range []*websocket.Conn{browser, nas.conn} {
 		for { // the gateway hears its session's bye first
-			if _, _, err := c.Read(ctx); err != nil {
+			_, b, err := c.Read(ctx)
+			if err != nil {
 				break
 			}
+			bye = bye || c == nas.conn && strings.Contains(string(b), `"bye"`) && strings.Contains(string(b), sid)
 		}
+	}
+	if !bye {
+		t.Fatal("no bye")
 	}
 	_, rs, err := s.dial("/api/broker/ws", nil)
 	if err == nil || rs == nil || rs.StatusCode != http.StatusServiceUnavailable {

@@ -1,5 +1,4 @@
-// Package gateways is the household's gateways: the list, a gateway's health rows
-// and DELETE /api/gateways/{id} (revoke).
+// Package gateways is the household's gateways: the list and DELETE /api/gateways/{id} (revoke).
 package gateways
 
 import (
@@ -16,10 +15,6 @@ func Routes(mux *http.ServeMux, a *auth.Auth, d *db.DB, b *broker.Broker) {
 		list(w, r, c, d)
 	}))
 	mux.HandleFunc(
-		"GET /api/gateways/{id}/health",
-		a.Handler(false, func(w http.ResponseWriter, r *http.Request, c auth.Caller) { health(w, r, c, d) }),
-	)
-	mux.HandleFunc(
 		"DELETE /api/gateways/{id}",
 		a.Handler(false, func(w http.ResponseWriter, r *http.Request, c auth.Caller) {
 			revoke(w, r, c, d, b)
@@ -29,6 +24,3 @@ func Routes(mux *http.ServeMux, a *auth.Auth, d *db.DB, b *broker.Broker) {
 
 // OnlineWindow: 3 missed 30 s heartbeats and a gateway is offline.
 const OnlineWindow = 90 * time.Second
-
-// HealthWindow is how far back the health read goes.
-const HealthWindow = 7 * 24 * time.Hour

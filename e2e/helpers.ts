@@ -1,7 +1,6 @@
 // Shared by the specs: accounts + households over the API (emulator sign-up as in
 // preview.ts, the invite flow), gateways, and browser steps (sign in, pair, play).
 // Arrange state here, not through the UI: only the feature under test uses the browser.
-import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -18,33 +17,22 @@ import { envVar, must } from './must.ts'
 
 export const password = 'e2e-password'
 
-function psql(sql: string): string {
-  const r = spawnSync(
-    'docker',
-    [
-      'exec',
-      envVar('E2E_PG_CONTAINER'),
-      'psql',
-      '-U',
-      'streamiq',
-      '-d',
-      'streamiq',
-      '-At',
-      '-c',
-      sql,
-    ],
-    { encoding: 'utf8' },
-  )
-  if (r.status !== 0) throw new Error(`psql: ${r.stderr}`)
-  return r.stdout.trim()
-}
-
-/** One `tunnels` row as JSON (keys are its columns: relay, bytes_sent, ended_at, …),
- * read from the stack's Postgres with its own psql: e2e has no DB client. null = no row. */
-export function tunnelRow(id: string): Record<string, any> | null {
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error(`not a tunnel id: ${id}`)
-  const out = psql(`select row_to_json(t) from tunnels t where id = '${id}'`)
-  return out ? JSON.parse(out) : null
+/** The ended tunnels in the gateway's own history (`<state dir>/history/`, the day
+ * files gateway/internal/history writes), as stored (keys: relay, bytesSent,
+ * endedAt, use, …). */
+export function historyTunnels(stateDir: string): Record<string, any>[] {
+  const dir = path.join(stateDir, 'history')
+  if (!fs.existsSync(dir)) return []
+  return fs
+    .readdirSync(dir)
+    .filter((f) => /^tunnels-.*\.jsonl$/.test(f))
+    .flatMap((f) =>
+      fs
+        .readFileSync(path.join(dir, f), 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l)),
+    )
 }
 
 /** Ended tunnels added to the gateway's own history (`<state dir>/history/`, the

@@ -83,6 +83,21 @@ func TestAGatewayBelowTheMinimumProtocolIsRefusedAndStoredAsSuch(t *testing.T) {
 	}
 }
 
+// An older gateway still sends its tunnel report, health and telemetry level: all
+// ignored, the socket stays open and the heartbeat is stored.
+func TestAnOlderGatewaysTelemetryIsIgnored(t *testing.T) {
+	s := newBroker(t)
+	nas := s.online("alice@home.test", "nas")
+	s.offer("alice@home.test", nas)
+	sid := session(t, nas)
+	sendJSON(t, nas.conn, map[string]any{"type": "tunnel", "session": sid, "bytesSent": 5, "bytesReceived": 1})
+	s.heartbeat(nas, map[string]any{"version": "1.4.0", "telemetry": "full",
+		"health": map[string]any{"jellyfin": map[string]any{"reachable": true}, "tunnels": 1}})
+	if got := gatewayCols(t, nas, `version`); got != "1.4.0" || !s.b.Online(nas.id) {
+		t.Fatal(got)
+	}
+}
+
 func TestAGatewayAtTheCurrentProtocolIsAcceptedAndStaysOpen(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")

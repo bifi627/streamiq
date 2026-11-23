@@ -116,7 +116,7 @@ func TestTheListIsOldestFirstWithoutRevokedOnesAndSaysOnlineAndUpgradeRequired(t
 	apitest.Exec(t, `UPDATE gateways SET created_at = now() - interval '1 day' WHERE name = 'a-old'`)
 	apitest.Exec(t, `UPDATE gateways SET credential_hash = NULL WHERE name = 'revoked'`)
 	apitest.Exec(t, `UPDATE gateways SET last_seen_at = now() - interval '89 seconds', protocol = $1,
-		lan_url = 'http://nas.lan:8097', version = '1.2.0', update = '1.3.0', telemetry = 'full'
+		lan_url = 'http://nas.lan:8097', version = '1.2.0', update = '1.3.0'
 		WHERE name = 'a-old'`, broker.MinGatewayProtocol-1)
 	apitest.Exec(t, `UPDATE gateways SET last_seen_at = now() - interval '91 seconds', protocol = $1
 		WHERE name = 'b-new'`, broker.MinGatewayProtocol)
@@ -128,7 +128,7 @@ func TestTheListIsOldestFirstWithoutRevokedOnesAndSaysOnlineAndUpgradeRequired(t
 	}
 	old, nw := raw[0], raw[1]
 	if old["online"] != true || old["upgradeRequired"] != true || old["lanUrl"] != "http://nas.lan:8097" ||
-		old["version"] != "1.2.0" || old["update"] != "1.3.0" || old["telemetry"] != "full" || old["lastSeenAt"] == nil {
+		old["version"] != "1.2.0" || old["update"] != "1.3.0" || old["lastSeenAt"] == nil {
 		t.Fatal(body)
 	}
 	if nw["online"] != false || nw["upgradeRequired"] != false {
@@ -138,7 +138,7 @@ func TestTheListIsOldestFirstWithoutRevokedOnesAndSaysOnlineAndUpgradeRequired(t
 	apitest.Exec(t, `UPDATE gateways SET last_seen_at = NULL, protocol = NULL WHERE name = 'b-new'`)
 	_, body = s.get(t, alice, "", "/api/gateways")
 	want := `{"id":"` + nw["id"].(string) + `","name":"b-new","lastSeenAt":null,"lanUrl":null,"version":null,` +
-		`"update":null,"telemetry":null,"online":false,"upgradeRequired":false}]`
+		`"update":null,"online":false,"upgradeRequired":false}]`
 	if !strings.HasSuffix(body, ","+want) {
 		t.Fatalf("%s\nwant it to end with %s", body, want)
 	}

@@ -37,7 +37,7 @@ browser (was "browser device"; its key = client key); **API** = the control plan
 the gateway serves under `/streamiq/*` over the tunnel (#138; a session carries device = client
 key and user = `users.id` from the broker); **tunnel** = the WebRTC connection from one client to
 one gateway, from the browser opening `/api/broker/ws` until that socket closes: direct, relayed,
-or failed (one row in `tunnels`); "session" stays only the protocol/code name of a tunnel's
+or failed (one line in the gateway's tunnel history); "session" stays only the protocol/code name of a tunnel's
 identity (the `session` field, `gateway/internal/sessions`). "Media server" means Jellyfin only;
 "relay" means TURN only.
 Player qualities (`profile.ts`): **Auto** = the default, capped from the measured gateway →
@@ -60,7 +60,7 @@ really were `r8er`.
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
 | `protocol/` | The broker's messages on both sockets, types only: used by the gateway (and the Go API); `scripts/gen-types.sh` (tygo) generates `frontend/src/generated/` from it and the API and gateway slices in `scripts/tygo.yaml` | Go |
-| `e2e/` | E2E specs on one stack, in parallel: `golden-path` (browser → broker → gateway → Jellyfin; its tunnels on Activity), `multi-user` (two users over the tunnel), `gateways` (the gateways page spec: rename, status, status dot, paired clients, member view, local-page Reject, a refused broker socket, Activity from the gateway's history: an admin's household, a member's own), `households` (the household page + no-household screen: members, roles, invites, join, switcher; no gateway), `library` (home redirect, nav Library link, shared session, folder deep link + cache, Recently added, Continue watching, season tabs, watched marks, no speed test while browsing), `player` (privacy badge, profile line, deep link + Back key, ±10 s / play-pause, quality, compatible mode, Auto on a slow link, the speed test cache + Off, data saver, audio, auto audio, subtitles, next episode), `screen` (Use as screen entry, Play on…, the phone remote's commands, two phones, closing; tag `@player`), `diagnostics` (the dock on the library: bar, request table + log, stays open; the /diagnostics report: probe, Test connection direct + forced relay with its `tunnels` row, Copy report, a never-paired browser), `shell` (sign-in, nav, not-found, PWA, Settings; TV mode: the first visit on a TV (webOS on, the Android TV question), the handoff page (QR code, Back), the Settings + nav TV subsets; no gateway), `chrome87` (the production build signs in on a pinned Chromium 87, the webOS engine; tag `@shell`), `compat` (the last released gateway, via `gh release download`, against this commit's API: online → smoke, `upgradeRequired` → "Update required", neither → fail). `test` comes from `fixtures.ts` (Jellyfin per worker: in CI started by global setup, locally only when a spec needs it; fixture media encoded once into `e2e/.bin/media-<hash>`; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`; the area tags are `allowedTags` in `e2e/.oxlintrc.json` | Playwright + testcontainers-node |
+| `e2e/` | E2E specs on one stack, in parallel: `golden-path` (browser → broker → gateway → Jellyfin; its tunnels on Activity), `multi-user` (two users over the tunnel), `gateways` (the gateways page spec: rename, status, status dot, paired clients, member view, local-page Reject, a refused broker socket, Activity from the gateway's history: an admin's household, a member's own), `households` (the household page + no-household screen: members, roles, invites, join, switcher; no gateway), `library` (home redirect, nav Library link, shared session, folder deep link + cache, Recently added, Continue watching, season tabs, watched marks, no speed test while browsing), `player` (privacy badge, profile line, deep link + Back key, ±10 s / play-pause, quality, compatible mode, Auto on a slow link, the speed test cache + Off, data saver, audio, auto audio, subtitles, next episode), `screen` (Use as screen entry, Play on…, the phone remote's commands, two phones, closing; tag `@player`), `diagnostics` (the dock on the library: bar, request table + log, stays open; the /diagnostics report: probe, Test connection direct + forced relay with its line in the gateway's history, Copy report, a never-paired browser), `shell` (sign-in, nav, not-found, PWA, Settings; TV mode: the first visit on a TV (webOS on, the Android TV question), the handoff page (QR code, Back), the Settings + nav TV subsets; no gateway), `chrome87` (the production build signs in on a pinned Chromium 87, the webOS engine; tag `@shell`), `compat` (the last released gateway, via `gh release download`, against this commit's API: online → smoke, `upgradeRequired` → "Update required", neither → fail). `test` comes from `fixtures.ts` (Jellyfin per worker: in CI started by global setup, locally only when a spec needs it; fixture media encoded once into `e2e/.bin/media-<hash>`; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`; the area tags are `allowedTags` in `e2e/.oxlintrc.json` | Playwright + testcontainers-node |
 | `scripts/` | Dev + CI scripts (`check.sh`, `dev.ps1`, `gen-test-media.sh`, …) | bash / PowerShell |
 | `dev/firebase/` | Auth emulator config for compose | — |
 
@@ -217,11 +217,11 @@ Railway dev instance); unset → compose Postgres. Copy `.env.example` only to o
 - **CRUD stays boring**: plain SQL on pgx, no ORM, no repository ceremony (SQL shape:
   `api/internal/db/sqlsource_test.go`). The cleverness budget goes to tunnel/signaling/gateway
   only. The owner works ponytail-style: laziest solution that works, stdlib first, shortest diff.
-- **Tunnel telemetry is a deliverable**: every tunnel that reaches a gateway is logged there
-  (direct-vs-relay, IPv4/v6, bytes, duration, use, throughput; `state/history/`, 30 days,
-  #782): the gateway writes the line, the browser adds only its measured throughput over the
-  tunnel. Activity reads it from the gateways. Postgres `tunnels` is still written, unread,
-  until #783.
+- **Tunnel history is a deliverable**: every tunnel that reaches a gateway is recorded in the
+  gateway's own history (direct or relayed, IPv4/v6, bytes, duration, use, throughput;
+  `state/history/`, 30 days): the gateway writes the line, the browser adds only its measured
+  throughput over the tunnel. Activity reads it from the gateways. Postgres keeps only relayed
+  bytes per gateway and month, from Cloudflare (`relay_usage`).
 - Data-channel payloads are **chunked (~16–64KB) with backpressure** (`bufferedAmount` both
   ends): never whole segments as one message.
 - **English-only UI** (#97): user-visible strings stay inline (no message map, no i18n library).

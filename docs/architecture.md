@@ -94,8 +94,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   replaces it).
 - Pairing: browser WebCrypto client key, commit/reveal comparison code approved on the
   local gateway page, allowlist on the gateway, pins enforced in both directions.
-- Revocation: `DELETE /api/gateways/{id}` nulls the credential hash, keeps the row for
-  telemetry, closes its sockets and sessions. Removing a client on the local gateway page
+- Revocation: `DELETE /api/gateways/{id}` nulls the credential hash, keeps the row,
+  closes its sockets and sessions. Removing a client on the local gateway page
   closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).
 
 ## Broker and signaling
@@ -126,16 +126,14 @@ is not a status log: open work lives in `gh issue list`, history in git.
   (`STREAMIQ_TURN_SECRET`). `?relay` forces the relay path; `?relay=tls` keeps only the
   `turns:…:443` URLs (TLS 443 relay, #576: checked by the prod smoke only, local coturn has no TLS).
 
-## Tunnel telemetry
+## Tunnel history
 
-One row per tunnel in `tunnels`: the broker writes the row and its end, the gateway
-reports route, bytes, what the tunnel was used for (playback / browsing / diagnostics /
-management) and its active time. Until #783 removes it, nothing reads this table: Activity
-reads the gateways (below). A stop (SIGTERM) closes every broker
-socket through its normal cleanup within 8 s (`shutdownTimeout`): each open tunnel gets its
-end and its TURN credential is revoked. A killed or crashed process can't: the next start
-ends every row still open at its own start time (`api/internal/db`, one instance). During a
-deploy the old one still runs: its rows are ended early, then stamped again by its own stop. The web app shows
+The API keeps no per-tunnel data (#783): every tunnel is recorded on its gateway (below),
+Postgres keeps only relayed bytes per gateway and month, from Cloudflare (relay usage,
+below). What an older gateway still sends (its `tunnel` report, health, telemetry level)
+the broker ignores. A stop (SIGTERM) closes every broker socket through its normal cleanup
+within 8 s (`shutdownTimeout`): each open tunnel's gateway gets its `bye` and its TURN
+credential is revoked. The web app shows
 a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, or relayed.
 **The tunnel history stays on the gateway** (#782, part of #768): `sessions` hands every
 ended tunnel (`Sessions.Ended`: the report, its user, the offer's time, the throughput) to
@@ -168,21 +166,15 @@ a removed one's bytes stay). A failed run is logged and retried the next day. `G
 ("Relayed through StreamIQ", `RelayUsage.tsx`) whether the gateways are online or not. Dev
 and e2e (coturn): always empty.
 
-**Gateway health** (#423): at telemetry `full` the heartbeat carries the box's health, kept
-in `gateway_health` (`api/internal/broker`, `storeHealth`): a row when Jellyfin, OS/arch,
-transcoding or the offline jail change, and at least every 5 min, at most one per 25 s; the latest row is the
-current state. `gateways.telemetry` holds the level. Rows are kept (also after `off`).
-The web gateway card shows the level; an admin switches it over the tunnel
-(`POST /streamiq/telemetry`). Rows carry the gateway's version too (#424).
-**The history stays on the gateway** (#781, part of #768): at every telemetry level the gateway
-records its health with the same rule (`gateway/internal/history`, `Health.Record`, every 30 s
-from `box.record`) in `state/history/health-YYYY-MM-DD.jsonl` (JSON Lines, one file per UTC
+**Gateway health** (#781, part of #768): the history stays on the gateway, never in the
+API. The gateway records its health (`gateway/internal/history`, `Health.Record`, every 30 s
+from `box.record`): a row when Jellyfin, OS/arch, transcoding, the offline jail or the
+gateway version change, at least every 5 min, at most one per 25 s, in `state/history/health-YYYY-MM-DD.jsonl` (JSON Lines, one file per UTC
 day, 7 days kept; `backup` carries the directory). "Health, last 7 days" on the card
 (`HealthHistory.tsx`) reads only the gateway API `GET /streamiq/health` over the tunnel, when
 opened: offline or from an unpaired browser it says why it can't show it (no API request).
 `health.ts` derives incidents (Jellyfin down, gaps over 10 min), version changes and daily
-peaks per local day. Until #783 the heartbeat still sends health at `full` and the API keeps
-`gateway_health` and `GET /api/gateways/{id}/health`, which nothing reads.
+peaks per local day.
 
 ## Gateway (native binary)
 
@@ -194,7 +186,7 @@ peaks per local day. Until #783 the heartbeat still sends health at `full` and t
 - `tunnel` is the shared primitive: the data-channel request/response, the Jellyfin proxy
   and the gateway API's `Router` (its own endpoints: burst, route). Each feature registers
   its endpoints in `cmd/gateway` wiring: the screen relay (`screen`, docs/protocol.md
-  "Screens"), pairing, onboarding, update, telemetry.
+  "Screens"), pairing, onboarding, update, history.
 - Released on GitHub Releases: a merge changing what the gateway builds with (`gateway/**`, repo
   packages it imports, its modules or the `go`/`toolchain` line in `go.mod`; `docs/tools.md`) auto-versions a release after
   green CI (`!` in the subject = minor bump; major = a hand-pushed `gateway-v*` tag;

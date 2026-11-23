@@ -45,11 +45,6 @@ func id(m Fields, key string) string {
 	return u.String()
 }
 
-func object(m Fields, key string) Fields {
-	o, _ := field[Fields](m, key)
-	return o
-}
-
 func units(s string) int {
 	n := 0
 	for _, r := range s {
@@ -71,24 +66,6 @@ func cut(s string, limit int) string {
 }
 
 func hasControl(s string) bool { return strings.ContainsFunc(s, unicode.IsControl) }
-
-// clip keeps a gateway-supplied string short and Postgres-safe: nil when missing or with
-// a control character (Postgres text refuses NUL).
-func clip(s *string, limit int) *string {
-	if s == nil || hasControl(*s) {
-		return nil
-	}
-	c := cut(*s, limit)
-	return &c
-}
-
-// bounded is nil when s is missing, empty, over limit or has a control character; never cut.
-func bounded(s *string, limit int) *string {
-	if s == nil || *s == "" || units(*s) > limit || hasControl(*s) {
-		return nil
-	}
-	return s
-}
 
 // safeName: the gateway owns its name. Missing or blank (an older gateway) or with a
 // control character = nil: keep the stored name. Cut to 100.
@@ -124,8 +101,8 @@ func safeLanURL(s *string) *string {
 
 // heartbeat is a heartbeat (docs/protocol.md), its strings already cleaned.
 type heartbeat struct {
-	Protocol                           int
-	LanURL, Version, Update, Name, Tel *string
+	Protocol                      int
+	LanURL, Version, Update, Name *string
 }
 
 // protocolOf: missing or not an integer = 0 (a gateway too old to send it).
@@ -139,7 +116,6 @@ func parseHeartbeat(m Fields) heartbeat {
 		Protocol: protocolOf(m),
 		LanURL:   safeLanURL(ptr[string](m, "lanUrl")),
 		Name:     safeName(ptr[string](m, "name")),
-		Tel:      levelOf(m),
 	}
 	if v := ptr[string](m, "version"); v != nil && units(*v) <= 40 {
 		h.Version = v
@@ -148,96 +124,4 @@ func parseHeartbeat(m Fields) heartbeat {
 		h.Update = u
 	}
 	return h
-}
-
-const levelFull, levelOff = "full", "off"
-
-// levelOf: missing (or null) = nil, a gateway too old to send it; anything but `full` = `off`.
-func levelOf(m Fields) *string {
-	raw, ok := m["telemetry"]
-	if !ok || string(raw) == "null" {
-		return nil
-	}
-	l := levelOff
-	if str(m, "telemetry") == levelFull {
-		l = levelFull
-	}
-	return &l
-}
-
-// health is a `full` heartbeat's `health`, each field out of bounds or of the wrong
-// type = nil. GatewayVersion is the heartbeat's version.
-type health struct {
-	JellyfinReachable                                         *bool
-	JellyfinVersion, Os, Arch, Transcoding, Offline, GatewayV *string
-	Tunnels, Transcodes                                       *int
-	CPU, Memory                                               *float64
-}
-
-func parseHealth(m Fields) health {
-	h := object(m, "health")
-	jf := object(h, "jellyfin")
-	return health{
-		JellyfinReachable: ptr[bool](jf, "reachable"),
-		JellyfinVersion:   bounded(ptr[string](jf, "version"), 40),
-		Os:                bounded(ptr[string](h, "os"), 20),
-		Arch:              bounded(ptr[string](h, "arch"), 20),
-		Transcoding:       bounded(ptr[string](h, "transcoding"), 20),
-		Offline:           bounded(ptr[string](h, "offline"), 20),
-		Tunnels:           count(h, "tunnels"),
-		Transcodes:        count(h, "transcodes"),
-		CPU:               percent(h, "cpu"),
-		Memory:            percent(h, "memory"),
-	}
-}
-
-// count: ponytail: 10 000 is far above any household's tunnels or transcodes.
-func count(h Fields, key string) *int {
-	if n := ptr[int](h, key); n != nil && *n >= 0 && *n <= 10_000 {
-		return n
-	}
-	return nil
-}
-
-func percent(h Fields, key string) *float64 {
-	if p := ptr[float64](h, key); p != nil && *p >= 0 && *p <= 100 {
-		return p
-	}
-	return nil
-}
-
-// report is a gateway's report of one tunnel when it ends.
-type report struct {
-	Session                         string
-	Sent, Received                  int64
-	Relay, Ipv6                     bool
-	Local, Remote, Protocol, Failed *string
-	Use                             *string
-	ActiveMs                        *int64
-}
-
-// parseReport is nil without a session or with byte counts missing or negative.
-func parseReport(m Fields) *report {
-	sent, okS := field[int64](m, "bytesSent")
-	received, okR := field[int64](m, "bytesReceived")
-	session := id(m, "session")
-	if session == "" || !okS || !okR || sent < 0 || received < 0 {
-		return nil
-	}
-	r := &report{
-		Session: session, Sent: sent, Received: received,
-		Local:    clip(ptr[string](m, "localCandidateType"), 16),
-		Remote:   clip(ptr[string](m, "remoteCandidateType"), 16),
-		Protocol: clip(ptr[string](m, "protocol"), 16),
-		Failed:   clip(ptr[string](m, "failure"), 64),
-	}
-	r.Relay, _ = field[bool](m, "relay")
-	r.Ipv6, _ = field[bool](m, "ipv6")
-	if u := clip(ptr[string](m, "use"), 16); u != nil && *u != "" {
-		r.Use = u
-	}
-	if a := ptr[int64](m, "activeMs"); a != nil && *a >= 0 {
-		r.ActiveMs = a
-	}
-	return r
 }

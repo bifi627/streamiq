@@ -37,16 +37,18 @@ func TestAdmitAtMaxUnauthed(t *testing.T) {
 }
 
 // An offer over MaxUnauthed builds no PeerConnection; the broker gets the error
-// for that session and its tunnel report the same failure.
+// for that session, its history line the same failure.
 func TestOfferOverMaxUnauthedRefused(t *testing.T) {
 	s := &Sessions{}
 	for range MaxUnauthed {
 		s.admit()
 	}
+	var report []protocol.Report
 	var line string
-	s.Ended = func(r protocol.Report, user string, _ time.Time, _ int) { line = r.Session + "/" + user }
-	var report []any
-	s.Handle(nil, func(v any) { report = append(report, v) }) // the control socket is up
+	s.Ended = func(r protocol.Report, user string, _ time.Time, _ int) {
+		report = append(report, r)
+		line = r.Session + "/" + user
+	}
 	var sent []any
 	raw, _ := json.Marshal(Msg{Type: "offer", Session: "s9", User: "u", Role: tunnel.Member,
 		SDP: &webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: "v=0"}})
@@ -62,7 +64,7 @@ func TestOfferOverMaxUnauthedRefused(t *testing.T) {
 	if len(report) != 1 {
 		t.Fatalf("reports = %v", report)
 	}
-	if r := report[0].(protocol.Report); r.Session != "s9" || r.Failure == nil || *r.Failure != busy {
+	if r := report[0]; r.Session != "s9" || r.Failure == nil || *r.Failure != busy {
 		t.Fatalf("report = %+v, want failure %q", r, busy)
 	}
 	if line != "s9/u" {

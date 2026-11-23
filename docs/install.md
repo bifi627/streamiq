@@ -252,34 +252,18 @@ app always asks for H.264):
 - Windows: **Task Manager → Performance → GPU**; the **Video Encode** graph
   moves while it plays.
 
-## Telemetry (optional)
+## What the gateway keeps, what StreamIQ sees
 
-Off by default: the gateway then tells StreamIQ only that it is alive and, per
-tunnel, its route, bytes and duration. At `full` its heartbeat (every 30 s) also
-carries the box's health, so StreamIQ can keep a history: Jellyfin reachable and
-its version, OS and architecture, hardware acceleration, the offline jail, active
-tunnels and transcodes, CPU % and memory %. Never names, users, media titles,
-file names or paths.
-
-    gateway telemetry          # the current level and what it sends
-    gateway telemetry full     # share the box's health
-    gateway telemetry off      # stop sending; the history StreamIQ already has is kept
-
-StreamIQ keeps the health it received at `full` (a row when something changes, and
-every 5 minutes otherwise), also after you switch to `off`: `off` only stops new
-data; it goes when the household is deleted.
-
-The history the web app shows (**Gateways**, the card's "Health, last 7 days") is the
-gateway's own, at every level: it records the same health in `state/history/` (a file
-per day, the last 7 days) and shows it only to a paired browser while it is online.
-So is **Activity**'s list of connections: who used the gateway, when and for what, kept
-there for 30 days (`state/history/tunnels-*.jsonl`). `gateway backup` carries both.
-
-A household admin can switch it in the web app too (**Gateways**, the card's Health
-sharing line), while the gateway is online and that browser is paired.
-The level lives in `state/telemetry` (so `gateway backup` and rollback carry it);
-a running gateway uses a new level from its next heartbeat, no restart. The local
-gateway page shows it.
+StreamIQ sees only that the gateway is alive (its name, version and LAN address, every
+30 s) and, for a relayed connection, the bytes Cloudflare relayed per gateway and month.
+Everything else stays on the gateway, in `state/history/`, shown only to a paired browser
+while the gateway is online: its health (**Gateways**, the card's "Health, last 7 days":
+Jellyfin reachable and its version, hardware acceleration, the offline jail, active
+tunnels and transcodes, CPU % and memory %; a file per day, the last 7 days) and
+**Activity**'s list of connections (who used the gateway, when and for what, direct or
+relayed, data and throughput; 30 days, `tunnels-*.jsonl`). Never names, media titles,
+file names or paths. `gateway backup` carries both. There is nothing to switch: the old
+`gateway telemetry` command is gone, and a `state/telemetry` file left from it is ignored.
 
 ## A second gateway on the same machine
 

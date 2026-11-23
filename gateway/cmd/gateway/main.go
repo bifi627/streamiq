@@ -39,10 +39,8 @@ import (
 	"streamiq/gateway/internal/screen"
 	"streamiq/gateway/internal/service"
 	"streamiq/gateway/internal/sessions"
-	"streamiq/gateway/internal/telemetry"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
-	"streamiq/protocol"
 )
 
 // version is set at build time (-ldflags -X main.version=…; see Dockerfile).
@@ -284,7 +282,7 @@ func instance(file string) error {
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
 // route are tunnel's own. status is GET /streamiq/status.
 func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler,
-	tel *telemetry.Switch, health http.Handler, tunnels *history.Tunnels,
+	health http.Handler, tunnels *history.Tunnels,
 ) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	screen.Register(rt)
@@ -294,7 +292,6 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	rt.Handle("GET "+history.SummaryPath, http.HandlerFunc(tunnels.ServeSummary), tunnel.AdminOnly)
 	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
 	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
-	rt.Handle("POST "+telemetry.Path, tel, tunnel.AdminOnly)
 	rt.Handle("GET "+pairing.ClientsPath, http.HandlerFunc(store.ServeClients))
 	rt.Handle("POST "+pairing.ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
 	rt.Handle("POST "+pairing.ClientsRenamePath, http.HandlerFunc(store.ServeRename))
@@ -402,10 +399,9 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	started := time.Now().UTC()
 	load := &host.Sampler{}
 	go load.Run(ctx)
-	b := &box{dir: stateDir, setup: setup, compose: compose, sess: sess, load: load}
-	tel := &telemetry.Switch{Dir: stateDir, Changed: st.Beat}
+	b := &box{setup: setup, compose: compose, sess: sess, load: load}
 	go b.record(ctx, health)
-	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), tel, health, tunnels)
+	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), health, tunnels)
 	token, err := localpage.Token(stateDir, lan)
 	if err != nil {
 		log.Fatalf("gateway: page token: %v", err)
@@ -416,12 +412,8 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			Name: st.CurrentName, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
 			LastBeat: &lastBeat, Update: &notice, Store: store,
 			Jellyfin: func() any { return setup.View() }, Login: setup.Login,
-			Offline:   func() string { return jellyfin.Offline(compose) },
-			Libraries: func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
-			Telemetry: func() (string, string) {
-				l := telemetry.Read(stateDir)
-				return l, telemetry.Sends(l)
-			},
+			Offline:     func() string { return jellyfin.Offline(compose) },
+			Libraries:   func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
 			MakeOffline: setup.MakeOffline, SetExtras: setup.SetExtras,
 		})
 		// ponytail: no WriteTimeout, handlers wait on Jellyfin; header + idle limits are free
@@ -438,7 +430,6 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			version,
 			&lastBeat,
 			func() string { return *newer.Load() },
-			func() (string, *protocol.Health) { return b.beat(ctx) },
 			sess.Handle,
 		)
 	})

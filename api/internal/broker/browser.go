@@ -24,8 +24,7 @@ type rawMsg = protocol.Msg[json.RawMessage, json.RawMessage]
 // gateway of the user's households that isn't revoked, online or not (one that comes
 // online seconds later still gets a relay), tagged as that gateway's (relay usage);
 // else STUN only, the same for an unknown or foreign gateway. A revocable TURN
-// credential is revoked when the socket closes, which also ends the session (`bye`,
-// the tunnel's end).
+// credential is revoked when the socket closes, which also ends the session (`bye`).
 func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 	conn, err := accept(w, r)
 	if err != nil {
@@ -140,10 +139,6 @@ func (b *Broker) offer(ctx context.Context, conn *websocket.Conn, user string, m
 		return "", nil
 	}
 	sid := uuid.NewString()
-	// The row exists before the gateway hears of the session, so its report finds it.
-	// Best effort: a failed write costs this tunnel its telemetry, never the tunnel.
-	b.tenant(ctx, gw.tenant, `INSERT INTO tunnels (id, tenant_id, gateway_id, user_id, relay, ipv6)
-		VALUES ($1, app_tenant(), $2, $3, false, false)`, sid, gw.gateID, user)
 	b.mu.Lock()
 	b.sessions[sid] = &session{conn: conn, via: gw}
 	b.mu.Unlock()
@@ -178,7 +173,7 @@ func (b *Broker) role(ctx context.Context, user string, gw *link) string {
 	return role
 }
 
-// endSession tells the gateway and stamps the tunnel's end, once.
+// endSession tells the gateway, once.
 func (b *Broker) endSession(sid string, gw *link) {
 	if gw == nil {
 		return
@@ -191,7 +186,4 @@ func (b *Broker) endSession(sid string, gw *link) {
 		return
 	}
 	send(gw.conn, rawMsg{Type: "bye", Session: sid})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	b.tenant(ctx, gw.tenant, `UPDATE tunnels SET ended_at = now() WHERE id = $1`, sid)
 }

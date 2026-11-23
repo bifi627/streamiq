@@ -9,7 +9,6 @@ import type { EnrollmentToken as Install } from '../../generated/onboarding'
 import type { Name } from '../../generated/gateway-onboarding'
 import type { Client, ClientKey, ClientName } from '../../generated/pairing'
 import type { Status } from '../../generated/status'
-import type { Level } from '../../generated/telemetry'
 import type { HealthRow } from '../../generated/history'
 import type { Route } from '../../generated/tunnel'
 import type { Screen, ScreenCommand, ScreenState } from '../../generated/screen'
@@ -114,11 +113,6 @@ export const useGatewayStatus = (id: string, enabled: boolean) =>
 // The health history: kept on the gateway, never in the API.
 export const getHealth = (id: string) =>
   viaTunnel<HealthRow[]>(id, '/streamiq/health')
-
-// Gateway API POST /streamiq/telemetry (admin-only): the gateway stores the level
-// and tells the API with an early heartbeat.
-export const setTelemetry = (id: string, level: Level['level']) =>
-  viaTunnel<Level>(id, '/streamiq/telemetry', { level } satisfies Level)
 
 export const removeClient = (id: string, keyFp: string) =>
   viaTunnel(id, '/streamiq/clients/remove', { keyFp } satisfies ClientKey)

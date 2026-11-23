@@ -88,7 +88,7 @@ export function DiagnosticsPage() {
         `failed at ${step}: ${e instanceof Error ? e.message : e} (peer: ${diag.pc || 'none'})`,
       )
     } finally {
-      close() // ends the session and its telemetry row
+      close() // ends the session: the gateway records the tunnel
       setRunning(false)
     }
   }

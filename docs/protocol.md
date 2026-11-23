@@ -38,46 +38,19 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 2, "name": "Living room NAS",
-  "telemetry": "full",
-  "health": { "jellyfin": { "reachable": true, "version": "10.11.2" }, "os": "windows", "arch": "amd64",
-              "transcoding": "nvenc", "offline": "enforced", "tunnels": 1, "transcodes": 0, "cpu": 12.5, "memory": 47.3 } }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 2, "name": "Living room NAS" }
 ```
 Liveness plus what the gateway owns and the API mirrors (#140, #310); a gateway sends one
-early, right after its name or telemetry level changes over the gateway API, not just every 30 s
-(a `gateway telemetry` change shows at the next tick).
-**Telemetry (#422).** `telemetry` is the gateway's level, `off` (the default) or `full`,
-from `state/telemetry`, read before each heartbeat (`gateway telemetry off|full`, or
-`POST /streamiq/telemetry` below). `health` is there only at `full`, built from the values
-`GET /streamiq/status` uses: `jellyfin` (`reachable`, `version`), `os`, `arch`,
-`transcoding`, `offline` (absent without a compose Jellyfin), `tunnels` (active tunnels),
-`transcodes` (Jellyfin sessions with `TranscodingInfo`, read from `/Sessions` as the
-gateway's own admin; absent when that fails or there is none), `cpu` / `memory` (busy %
-and memory used %, 0–100; absent where the platform can't measure them). Never names,
-users, client keys, media titles, file names or paths. Both fields are new and optional:
-an API that doesn't know them ignores them (no protocol bump).
-**What the API stores (#423):** `gateways.telemetry` = the level (missing = null, a gateway
-too old to send one; any value but `full` = `off`). At `full` a `gateway_health` row
-(tenant-owned) when `jellyfin`, `os`, `arch`, `transcoding` or `offline` differ from that
-gateway's latest row, or that row is ≥ 5 min old, but never within 25 s of it (a change
-waits for the next heartbeat); the counts and load alone add none. Each
-field is checked: versions ≤ 40 chars, `os` / `arch` / `transcoding` / `offline` ≤ 20,
-counts 0–10 000, `cpu` / `memory` 0–100, else null; other fields are ignored. `off` stores
-nothing new and keeps the rows (no retention yet). Each row also carries the heartbeat's
-`version` as `gateway_version` (#424; a change makes a row like the fields above; rows from
-before stay null). `GET /api/gateways` returns `telemetry` to every member.
-`GET /api/gateways/{id}/health` (#424, any member) returns that gateway's rows of the last
-7 days, oldest first, led by the latest row before them: `at`, `jellyfinReachable`,
-`jellyfinVersion`, `gatewayVersion`, `tunnels`, `transcodes`, `cpu`, `memory` (null = not
-sent). Another household's gateway or an unknown id → 404. The web app no longer reads it:
-the gateway keeps its own history (`GET /streamiq/health`, #781); both go in #783.
+early, right after its name changes over the gateway API, not just every 30 s.
+An older gateway also sends `telemetry` and, at `full`, `health` (#422): the API ignores
+both (#783). The box's health stays in the gateway's own history (`GET /streamiq/health`).
 The API also sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null) and
 `protocol` (below), and `name` (#310: trimmed, cut to 100 UTF-16 units, never inside a
 surrogate pair; missing, blank or with a control character = the stored name stays), and ignores any other field. The gateway owns
 its name; the API never writes it after enrollment. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
-`version`, `update`, `upgradeRequired` and `telemetry`; everything richer comes from the gateway itself over the
+`version`, `update` and `upgradeRequired`; everything richer comes from the gateway itself over the
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
@@ -141,7 +114,7 @@ the household → `404`. Anything that would leave the household without an admi
 
 **`DELETE /api/gateways/{id}`** (Firebase Bearer, household admin; a member gets
 `403`) → `204`: revokes the gateway's
-credential (row kept, hidden from `GET /api/gateways`; its telemetry stays). The
+credential (row kept, hidden from `GET /api/gateways`; its relay usage stays). The
 broker closes its control socket (`1008 "revoked"`) and every browser session
 through it (`1008 "gateway revoked"`). Another tenant's or an already revoked
 gateway → `404`. A gateway that authenticated just before the revoke is closed
@@ -181,15 +154,14 @@ gateway survives ends it too: rare, and the next open makes a fresh session.
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |
 | broker → browser | `{type:"error", error:"gateway busy"}` — relayed from the gateway: it refused the offer ("Limits before auth" below); a retry may get through |
 | browser → broker | `{type:"ice", candidate}` |
-| broker → browser | `{type:"answer", sdp, tunnel}` (`tunnel` = this tunnel's id; the web app no longer reads it, #783 drops it) · `{type:"ice", candidate}` |
+| broker → browser | `{type:"answer", sdp}` · `{type:"ice", candidate}` |
 | browser → broker | `{type:"ping"}` — every 25 s while the socket is open, ignored by the broker: keeps an idle session's socket from being dropped by a proxy (#178, #180) |
 
 **Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, user, role, sdp}`,
 `{type:"ice", session, candidate}`, `{type:"bye", session}`; gateway → broker
 `{type:"answer"|"ice", session, …}`, `{type:"error", session, error}` (the offer
 refused, "Limits before auth" below: the broker relays it to that browser as its
-`error` frame) and, when a session's PeerConnection ends,
-`{type:"tunnel", session, …}` (telemetry, below). The broker only routes a gateway's message
+`error` frame). The broker only routes a gateway's message
 into a session opened *for that gateway*. The gateway keeps one PeerConnection
 per session (several browsers at once).
 
@@ -215,7 +187,7 @@ per session (several browsers at once).
   compromised API alone gets nothing without a paired device. The role is fixed for the session: a demoted admin keeps it until the
   session ends (like a removed membership, #192).
 
-## ICE servers + tunnel telemetry
+## ICE servers + tunnel report
 
 **ICE servers come per session, in the broker's `ready`** (there is no
 free-standing TURN endpoint). Prod: Cloudflare `generate-ice-servers`
@@ -236,59 +208,38 @@ that can't edit the URL; `?debug` also opens it), sets `iceTransportPolicy: "rel
 gateway stays on its own config (STUN, optional `STREAMIQ_ICE_*`): the browser's
 relay candidate is enough, as the e2e's forced-relay step shows.
 
-**Telemetry** (#390): the broker and the gateway record every tunnel, the browser
-can't create, alter or skip a row. One row in `tunnels` (tenant-owned, global filter) per
-offer the broker routes:
-- **Start**: routing an `offer` inserts the row: `id` = the broker session, tenant = the
-  gateway's household, `gateway_id`, `user_id` (`users.id`). A refused offer (gateway
-  offline/unknown, not a member) writes none. Best-effort: a failed insert is logged and the
-  offer is routed anyway (that tunnel has no row; its report changes nothing). Deleting the
-  user sets `user_id` null, the row stays.
-- **End**: the browser's broker socket closing (the `bye` path) stamps `ended_at`; duration
-  = `ended_at - created_at`.
-- **Gateway report**: when a session's PeerConnection fails or closes (any path: ICE,
-  `bye`, a removed client), the gateway sends once, read from pion before `pc.Close()`, on
-the control socket that is up then (not the offer's: held until the next one if none is):
-  `{type:"tunnel", session, relay, ipv6, localCandidateType, remoteCandidateType, protocol,
-  bytesSent, bytesReceived, failure, use, activeMs}`. From the gateway's side: `local` = the gateway's
-  selected candidate, `remote` = the browser's, `bytesSent` = gateway → client (ICE
-  transport totals). `relay` = either side of the pair is a relay, or the browser's side is
-`prflx` and every candidate the browser signaled is a relay (forced relay: a NAT in front of
-the TURN server, like Docker in the e2e, hides the signaled relay address). No pair (ICE
-never connected) = candidate fields absent. `failure`:
+**Tunnel report** (#390, #782): the gateway records every tunnel in its own history; the
+API keeps no per-tunnel data (#783) and the browser can't create, alter or skip a line.
+- **Report**: when a session's PeerConnection fails or closes (any path: ICE, `bye`, a
+  removed client), the gateway reads once, from pion before `pc.Close()`, `relay`, `ipv6`,
+  the candidate types, `protocol`, `bytesSent`, `bytesReceived`, `failure`, `use` and
+  `activeMs` (`protocol.Report`) and writes its line to
+  `state/history/tunnels-YYYY-MM-DD.jsonl` (below), which Activity reads. From the gateway's
+  side: `local` = the gateway's selected candidate, `remote` = the browser's, `bytesSent` =
+  gateway → client (ICE transport totals). `relay` = either side of the pair is a relay, or
+  the browser's side is `prflx` and every candidate the browser signaled is a relay (forced
+  relay: a NAT in front of the TURN server, like Docker in the e2e, hides the signaled relay
+  address). No pair (ICE never connected) = candidate fields absent. `failure`:
   `"ice failed"` (ICE failed before it ever connected; a later loss keeps the pair it had), else, when auth never succeeded, the gateway's last auth outcome
   (`"unpaired"`, a refusal reason) or `"ended before auth"` (incl. a browser that refused the
   gateway's pin: it hangs up before auth), `"not authenticated within 30s"` or `"gateway busy"`
-  ("Limits before auth" below); null = the tunnel came up and passed auth. The
-  broker applies it only to a row with that id **and** this gateway's id, only the first
-  report (`bytes_sent` null until then), and also after the browser's socket closed. Strings
-  are cut to 16 chars (`failure` 64). A gateway below protocol 2 sends none: its rows keep
-  null route and bytes. A gateway crash mid-tunnel loses that tunnel's report.
-- **Use + active time** (#681, additive: older gateways leave both null). `use` = what the
-  tunnel was for, the highest-ranked use among the requests it served (the gateway's table
-  in `tunnel/usage.go`, highest first): `playback` (a GET under `/Videos/{id}/`: playlists,
-  segments, subtitles), `browsing` (any other Jellyfin request), `diagnostics`
-  (`/streamiq/burst`), `management` (any other `/streamiq/*`). An open word: the API stores
-  any value (cut to 16 chars), so a new use is a gateway table row + this list + a web label,
-  no protocol bump. `activeMs` = from the gateway receiving the offer to the end of the
-  tunnel's last request, on the gateway's clock (no skew against the API's `created_at`; the
-  shared tunnel's idle wait before it closes is not in it). Both absent when no request was
-  served. Stored on `tunnels` (`use`, `active_ms`) under the first-report rule; returned by
-  `GET /api/tunnels`.
+  ("Limits before auth" below); null = the tunnel came up and passed auth. A gateway crash
+  mid-tunnel loses that tunnel's line. Older gateways also sent it to the broker as
+  `{type:"tunnel", session, …}`: the broker ignores it.
+- **Use + active time** (#681). `use` = what the tunnel was for, the highest-ranked use among
+  the requests it served (the gateway's table in `tunnel/usage.go`, highest first):
+  `playback` (a GET under `/Videos/{id}/`: playlists, segments, subtitles), `browsing` (any
+  other Jellyfin request), `diagnostics` (`/streamiq/burst`), `management` (any other
+  `/streamiq/*`). A new use is a gateway table row + this list + a web label. `activeMs` =
+  from the gateway receiving the offer to the end of the tunnel's last request (the shared
+  tunnel's idle wait before it closes is not in it). Both absent when no request was served.
 - **Browser**: only its measured throughput, to the gateway over the tunnel itself
   (`POST /streamiq/tunnels/throughput`, below), before it closes the socket; a closed tab
-  skips it. The API's `PATCH /api/tunnels/{id}` `{throughputKbps}` stays until #783, nothing
-  calls it.
-- **The gateway's own history** (#782): the gateway also writes each tunnel's end to
-  `state/history/tunnels-YYYY-MM-DD.jsonl` (below), which Activity reads; `tunnels` is
-  recorded until #783 and read by nothing.
+  skips it.
 
-Rate queries: up = `bytes_sent IS NOT NULL AND failure IS NULL`; unreported (a gateway
-below protocol 2, a lost report, one that never answered the offer) = `bytes_sent IS NULL`,
-whose `relay`/`failure` say nothing. `relay` = either selected candidate is a relay. The
-browser's own reading of its pair (`getStats()`; Chrome can report a relayed local candidate
-as `prflx`, only relay candidates carry `relayProtocol`, so that counts too) drives the
-player's privacy indicator (polled every 2 s) and Diagnostics, not telemetry.
+The browser's own reading of its pair (`getStats()`; Chrome can report a relayed local
+candidate as `prflx`, only relay candidates carry `relayProtocol`, so that counts too) drives
+the player's privacy indicator (polled every 2 s) and Diagnostics, not the history.
 
 ## Pairing + connection auth
 
@@ -434,7 +385,7 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile`, `/streamiq/update` and `/streamiq/telemetry`) matches an endpoint; an unknown, unclean or
+`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
 percent-encoded path under the prefix is `404`; a known path with another method
 is `405` with an `Allow` header listing its methods, no body (#436; `HEAD` is never
 served, so a `GET` path answers it `405` with `Allow: GET`), checked before the
@@ -444,13 +395,13 @@ that means Jellyfin is unreachable (#327). Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (the route option
-`tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name`,
-`/streamiq/update` and `/streamiq/telemetry` so far; #89 decides per endpoint. `/streamiq/clients*` is
+`tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name` and
+`/streamiq/update` so far; #89 decides per endpoint. `/streamiq/clients*` is
 open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
 its feature, registered in `gateway/cmd/gateway/main.go`). The request and response
 bodies are Go types in a types-only file of the package that serves them, generated
-into `frontend/src/generated/`: `gateway/internal/{tunnel,screen,pairing,onboarding,telemetry,update,history}/types.go`,
+into `frontend/src/generated/`: `gateway/internal/{tunnel,screen,pairing,onboarding,update,history}/types.go`,
 and `/streamiq/status` in `gateway/cmd/gateway/status.go` (with `host/load.go`,
 `jellyfin/viewer.go`).
 
@@ -463,8 +414,7 @@ Fields are added over time; a client ignores ones it doesn't know.
   "viewer": { "shared": true, "reason": "admin-refused" },
   "remoteUpdate": "no logon task, so nothing would start the gateway again after the update",
   "host": { "cpu": 12.5, "memory": { "used": 8123456789, "total": 17179869184 },
-            "disk": { "free": 120000000000, "total": 1000000000000 } },
-  "telemetry": "off" }
+            "disk": { "free": 120000000000, "total": 1000000000000 } } }
 ```
 
 | Field | Values |
@@ -476,7 +426,6 @@ Fields are added over time; a client ignores ones it doesn't know.
 | `pairedClients`, `activeSessions` | counts only, no client names (#65) |
 | `viewer` | the calling session's Jellyfin viewer (#242): `shared: false` = the user's own; `shared: true` = the shared `streamiq-viewer` (#195 fallback), with a `reason` code: `admin-refused` (Jellyfin refused the gateway's admin sign-in), `no-admin` (the gateway has no Jellyfin admin of its own), `failed` (anything else; retried on the user's next session). The web app words it; an unknown code shows no reason. No credentials, no Jellyfin ids. The web app shows a guest-mode banner on the library and player while `shared` is true; no field (older gateway) = no banner |
 | `host` | the box's live load (#671), never stored: `cpu` busy % (0–100, averaged over the last ~10 s by a background sampler; absent until its first sample), `memory` `used`/`total` bytes (physical), `disk` `free`/`total` bytes of the drive holding `jellyfin-compose.yml` (and so `jellyfin-config/`; absent without a compose file). A field the platform can't measure is left out: macOS sends only `disk`. The web gateway page asks again every 10 s while Status is open and leaves `host` out of its offline cache |
-| `telemetry` | the heartbeat's telemetry level (#422): `off` / `full`. No field (older gateway) = no telemetry |
 | `remoteUpdate` | `true` = `POST /streamiq/update` would start an update now (#312); else a sentence saying why not, shown as it is: not Windows, dev build, an update already running, already up to date, no logon task. No field (older gateway) = update by hand |
 
 The web gateway page caches the last response per gateway in `localStorage` and
@@ -489,11 +438,11 @@ gateway older than this endpoint answers `404`; the web gateway page then says
 to update it.
 
 **`GET /streamiq/health`** (#781, any member) → `200`, the health the gateway recorded
-itself, at every telemetry level, in `state/history/` (JSON Lines, a file per UTC day, 7 days
+itself in `state/history/` (JSON Lines, a file per UTC day, 7 days
 kept): its rows of the last 7 days, oldest first, led by the latest row before them, each
 `{ "at", "jellyfinReachable", "jellyfinVersion", "gatewayVersion", "tunnels", "transcodes",
-"cpu", "memory" }` (null = not measured; `[]` before the first). A row is recorded by the
-`gateway_health` rule above (every 30 s the gateway checks; a change of `jellyfin`, `os`,
+"cpu", "memory" }` (null = not measured; `[]` before the first). A row is recorded
+when it adds something (every 30 s the gateway checks; a change of `jellyfin`, `os`,
 `arch`, `transcoding`, `offline` or its version, else every 5 min, never within 25 s). A
 gateway older than this endpoint answers `404`.
 
@@ -529,11 +478,6 @@ else `400`. The gateway writes it to `state/gateway.json` (atomically) and uses 
 once (local page, backup file names, logs), then sends an early heartbeat so
 `GET /api/gateways` shows it within a second. A gateway older than this endpoint
 answers `404`; the web app then says to update it.
-
-**`POST /streamiq/telemetry`** (#422, admin-only) `{ "level": "off" | "full" }` → `200`
-`{ "level": "<stored>" }`; any other level or body `400`. The gateway writes
-`state/telemetry` (atomically, like `gateway telemetry`) and sends an early heartbeat, so
-the API sees the new level within a second. A gateway older than this endpoint answers `404`.
 
 **`GET /streamiq/clients`** (#311) → `200`
 `[{ "keyFp": "…", "name": "Pixel 8 · Chrome", "addedAt": "2026-11-01T10:00:00Z", "self": true, "profile": null }]`:
@@ -594,7 +538,7 @@ Each reading is stored in localStorage with its time, per gateway +
 direct/relay + connection type; one younger than the per-device "Measure
 connection speed" setting (every 30 min / 2 h, the default / day) is used
 without bursts, and with the setting Off only `/diagnostics` "Test connection"
-measures (it always does, fresh). Only a fresh measurement goes to telemetry
+measures (it always does, fresh). Only a fresh measurement goes to the tunnel history
 (`throughputKbps`). With the client's data saver on a run is just 3
 `size=1048576` bursts (no warm-up, ~3 MB), not stored, and Auto stays at 480p.
 

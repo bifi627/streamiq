@@ -7,7 +7,7 @@ import (
 )
 
 // uses names what a tunnel was for, highest rank first: a tunnel reports the
-// highest-ranked use among the requests it served (docs/protocol.md, "Telemetry").
+// highest-ranked use among the requests it served (docs/protocol.md, "Tunnel report").
 // A new use is a row here; the API stores any word.
 var uses = []struct {
 	name string

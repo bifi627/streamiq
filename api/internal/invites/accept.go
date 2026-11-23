@@ -39,7 +39,7 @@ func accept(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	}
 	// The claim and the membership commit together.
 	var out Accepted
-	err = d.InClaimedTenant(r.Context(), db.Invite, hash(t), func(tx pgx.Tx, tenant string) error {
+	err = d.InClaimedTenant(r.Context(), db.Invite, auth.HashSecret(t), func(tx pgx.Tx, tenant string) error {
 		out.HouseholdID = tenant
 		_, e := tx.Exec(r.Context(), `INSERT INTO memberships (tenant_id, user_id, role)
 			VALUES ($1, $2, 'member')`, tenant, c.User)

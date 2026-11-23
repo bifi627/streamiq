@@ -113,9 +113,13 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
       }
       expect(cli('backup', zip)).toContain('NOT encrypted') // while it runs
       await gateway.stop()
+      const history = path.join(stateDir, 'history')
+      const days = fs.readdirSync(history) // the gateway's own health history
+      expect(days.length).toBeGreaterThan(0)
       for (const f of fs.readdirSync(stateDir))
-        fs.rmSync(path.join(stateDir, f))
+        fs.rmSync(path.join(stateDir, f), { recursive: true })
       cli('restore', zip)
+      expect(fs.readdirSync(history)).toEqual(days)
       fs.rmSync(zip)
       gateway = await startGateway(stateDir, env)
       const gatewayPage = await gatewayTab(gatewayCtx, gateway.pageUrl)

@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"streamiq/gateway/internal/backup"
+	"streamiq/gateway/internal/history"
 	"streamiq/gateway/internal/host"
 	"streamiq/gateway/internal/identity"
 	"streamiq/gateway/internal/jellyfin"
@@ -283,11 +284,12 @@ func instance(file string) error {
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
 // route are tunnel's own. status is GET /streamiq/status.
 func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler,
-	tel *telemetry.Switch,
+	tel *telemetry.Switch, health http.Handler,
 ) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	screen.Register(rt)
 	rt.Handle("GET "+tunnel.StatusPath, status)
+	rt.Handle("GET "+history.HealthPath, health)
 	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
 	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
 	rt.Handle("POST "+telemetry.Path, tel, tunnel.AdminOnly)
@@ -391,7 +393,10 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	go load.Run(ctx)
 	b := &box{dir: stateDir, setup: setup, compose: compose, sess: sess, load: load}
 	tel := &telemetry.Switch{Dir: stateDir, Changed: st.Beat}
-	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), tel)
+	health := &history.Health{Store: &history.Store{Dir: filepath.Join(stateDir, history.Dir), Kind: "health"},
+		Version: version}
+	go b.record(ctx, health)
+	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), tel, health)
 	token, err := localpage.Token(stateDir, lan)
 	if err != nil {
 		log.Fatalf("gateway: page token: %v", err)

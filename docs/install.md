@@ -269,6 +269,11 @@ StreamIQ keeps the health it received at `full` (a row when something changes, a
 every 5 minutes otherwise), also after you switch to `off`: `off` only stops new
 data; it goes when the household is deleted.
 
+The history the web app shows (**Gateways**, the card's "Health, last 7 days") is the
+gateway's own, at every level: it records the same health in `state/history/` (a file
+per day, the last 7 days) and shows it only to a paired browser while it is online.
+`gateway backup` carries it.
+
 A household admin can switch it in the web app too (**Gateways**, the card's Health
 sharing line), while the gateway is online and that browser is paired.
 The level lives in `state/telemetry` (so `gateway backup` and rollback carry it);

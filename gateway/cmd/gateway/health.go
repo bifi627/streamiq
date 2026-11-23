@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
 
+	"streamiq/gateway/internal/history"
 	"streamiq/gateway/internal/host"
 	"streamiq/gateway/internal/jellyfin"
 	"streamiq/gateway/internal/pairing"
@@ -15,8 +17,8 @@ import (
 	"streamiq/protocol"
 )
 
-// box reads the gateway box's state: GET /streamiq/status live, the heartbeat's
-// health at telemetry full.
+// box reads the gateway box's state: GET /streamiq/status live, the health history,
+// the heartbeat's health at telemetry full.
 type box struct {
 	dir     string // state dir
 	setup   *jellyfin.Setup
@@ -34,6 +36,36 @@ func (b *box) beat(ctx context.Context) (string, *protocol.Health) {
 	}
 	h := b.health(ctx)
 	return level, &h
+}
+
+// record adds the box's health to the history every 30 s (the heartbeat's pace), at
+// every telemetry level: the history stays on the gateway.
+func (b *box) record(ctx context.Context, h *history.Health) {
+	// Before Jellyfin's first probe the view says unreachable: a restart would record a
+	// "Jellyfin down" that never was. A Jellyfin really down is recorded after 30 s.
+	for i := 0; i < 30 && !b.setup.View().Reachable; i++ {
+		if !sleep(ctx, time.Second) {
+			return
+		}
+	}
+	for {
+		if err := h.Record(time.Now(), b.health(ctx)); err != nil {
+			log.Printf("gateway: health history: %v", err)
+		}
+		if !sleep(ctx, 30*time.Second) {
+			return
+		}
+	}
+}
+
+// sleep waits d; false when ctx ended first.
+func sleep(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
+	}
 }
 
 func (b *box) health(ctx context.Context) protocol.Health {

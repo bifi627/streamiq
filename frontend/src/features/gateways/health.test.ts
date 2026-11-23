@@ -1,7 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { AppError } from '../../shared/errors.ts'
 import {
   dailyPeaks,
+  historyGap,
+  historyMessage,
   incidents,
   span,
   versionChanges,
@@ -133,4 +136,20 @@ test('span: minutes, hours, days', () => {
   assert.match(span(4 * MIN), /^4\D/)
   assert.match(span(125 * MIN), /^2\D.*5\D/)
   assert.match(span((3 * 24 + 4) * 60 * MIN), /^3\D.*4\D/)
+})
+
+test('the history shows only from a paired browser while the gateway is online (#781)', () => {
+  assert.equal(historyGap(true, true), null)
+  assert.match(
+    historyGap(false, true) ?? '',
+    /kept on the gateway: it's offline/,
+  )
+  assert.match(historyGap(true, false) ?? '', /pair this browser/)
+  assert.match(historyGap(false, false) ?? '', /offline/)
+})
+
+test('an old gateway without the endpoint is told to update (#781)', () => {
+  const e = (status: number) => new AppError('http', 'x → HTTP', { status })
+  assert.match(historyMessage(e(404)), /too old .* update it/)
+  assert.doesNotMatch(historyMessage(e(500)), /too old/)
 })

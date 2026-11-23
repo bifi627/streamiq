@@ -1,6 +1,7 @@
 // The gateways page, on a paired browser with its own gateway (fixtures.ts
 // `paired`): rename, Status paired and unpaired, the nav chip's
-// dot, paired clients, the member view, health sharing, the health history, Reject on the
+// dot, paired clients, the member view, health sharing, the health history, Activity
+// read from the gateway (an admin's household, a member's own), Reject on the
 // local gateway page, a refused broker socket and TV mode.
 // Onboarding, Approve, Test connection and the removes that end sessions are
 // the golden path's; the offline dot (90 s), rejection edge cases and a
@@ -13,6 +14,7 @@ import {
   join,
   pair,
   seedHealth,
+  seedTunnels,
   signedInPage,
   signUp,
   uniqueEmail,
@@ -265,6 +267,55 @@ test("health history: an incident, a version change and daily peaks from the gat
       name: / 2\s+100%/,
     }),
   ).toBeVisible()
+})
+
+test("activity: an admin sees the household, a member only their own, from the gateway's history (#782) @gateways", async ({
+  browser,
+  paired,
+}) => {
+  const { page: a, user, gateway, gatewayCtx } = paired
+  const [g] = await user.api<{ id: string; name: string }[]>('/gateways')
+  const member = await signUp(uniqueEmail('act-member'), { alias: 'Bob' })
+  await join(user, member)
+  const m = await signedInPage(browser, member, '/activity', user.tenantId)
+  // Not paired with this browser: named, no rows.
+  await expect(m.getByText(`${g.name}: history unavailable`)).toBeVisible()
+  await m.getByRole('link', { name: 'Gateways', exact: true }).click()
+  await pair(m, gatewayCtx, gateway.pageUrl)
+  seedTunnels(gateway.stateDir, g.id, [
+    { userId: user.userId, use: 'playback', relay: false, bytes: 1000 },
+    { userId: member.userId, use: 'playback', relay: true, bytes: 2_000_000 },
+  ])
+  let apiReads = 0
+  a.on('request', (r) => {
+    if (r.url().includes('/api/tunnels')) apiReads++
+  })
+  const playback = new RegExp(`${g.name} Playback`)
+
+  await a.getByRole('link', { name: 'Activity' }).click()
+  // Bob's count and failures include his pairing tunnels; only the seeded one was relayed.
+  const summary = a.getByRole('table', { name: "Members' activity" })
+  await expect(
+    summary.getByRole('row', { name: /Bob \d+ \d+ 2 MB/ }),
+  ).toBeVisible()
+  await expect(summary.getByRole('row', { name: user.email })).toBeVisible() // the admin's own
+  const tunnels = a.getByRole('table', { name: 'Tunnels' })
+  await expect(
+    tunnels.getByRole('row', { name: new RegExp(`Bob ${g.name} Playback`) }),
+  ).toBeVisible()
+  await a
+    .getByRole('combobox', { name: 'Member' })
+    .selectOption({ label: 'Me' })
+  await expect(tunnels.getByRole('row', { name: /Bob/ })).toHaveCount(0)
+  await expect(tunnels.getByRole('row', { name: playback })).toHaveCount(1)
+  expect(apiReads).toBe(0)
+
+  await m.getByRole('link', { name: 'Activity' }).click()
+  await expect(m.getByRole('row', { name: playback })).toHaveCount(1) // Bob's own
+  await expect(m.getByRole('table', { name: "Members' activity" })).toHaveCount(
+    0,
+  )
+  await expect(m.getByRole('combobox', { name: 'Member' })).toHaveCount(0)
 })
 
 test('reject on the local gateway page: refused, stays unpaired @gateways', async ({

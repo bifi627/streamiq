@@ -20,3 +20,53 @@ export interface HealthRow {
   cpu: number /* float64 */ | null;
   memory: number /* float64 */ | null;
 }
+/**
+ * TunnelsPath is the tunnel history; ?scope=household: every member's (admin only).
+ */
+export const TunnelsPath = "/streamiq/tunnels";
+/**
+ * SummaryPath is the per-user summary of the tunnel history (admin only).
+ */
+export const SummaryPath = "/streamiq/tunnels/summary";
+/**
+ * Tunnel is one ended tunnel to this gateway, a line of the history and a row of
+ * GET /streamiq/tunnels.
+ */
+export interface Tunnel {
+  id: string; // the broker session
+  /**
+   * GatewayID: the enrollment that wrote it; a re-enrolled gateway (maybe another
+   * household) answers none of its earlier lines.
+   */
+  gatewayId: string;
+  createdAt: string;
+  endedAt: string;
+  /**
+   * UserID: stored on every line, answered in the household scope only.
+   */
+  userId: string | null;
+  relay: boolean;
+  ipv6: boolean;
+  bytesSent: number /* uint64 */;
+  bytesReceived: number /* uint64 */;
+  throughputKbps: number /* int */ | null; // null = none measured
+  failure: string | null; // null = it came up and passed auth
+  use: string | null; // null = no request served
+  activeMs: number /* int64 */ | null; // null = no request served
+}
+/**
+ * Summary is a row of GET /streamiq/tunnels/summary: one user's last TunnelDays.
+ */
+export interface Summary {
+  userId: string;
+  tunnels: number /* int */;
+  /**
+   * Hidden: management or diagnostics that didn't fail, the rows Activity hides by default.
+   */
+  hidden: number /* int */;
+  failed: number /* int */;
+  /**
+   * RelayedBytes: both directions of every relayed tunnel, whatever its use: what the relay costs.
+   */
+  relayedBytes: number /* uint64 */;
+}

@@ -1,8 +1,12 @@
-import type { Tunnel } from '../../generated/tunnels'
+import type { Tunnel } from '../../generated/history'
 
-// The generated type says null; the API leaves userId out instead (household scope only;
-// absent there = a deleted account).
-export type TunnelRow = Omit<Tunnel, 'userId'> & { userId?: string }
+// A gateway's history line plus the gateway it came from. The generated type says
+// null; the gateway leaves userId out instead (household scope only).
+export type TunnelRow = Omit<Tunnel, 'userId'> & {
+  userId?: string
+  gatewayId: string
+  gatewayName: string | null
+}
 
 const USES: Record<string, string> = {
   playback: 'Playback',
@@ -24,7 +28,6 @@ const REASONS: Record<string, string> = {
 
 export function route(t: TunnelRow): string {
   if (t.failure) return `Failed: ${REASONS[t.failure] ?? t.failure}`
-  if (t.bytesSent === null) return 'Unknown'
   return (t.relay ? 'Relayed' : 'Direct') + (t.ipv6 ? ' · IPv6' : '')
 }
 
@@ -54,10 +57,7 @@ export function pair(big: string, n: number, small: string, m: number): string {
 }
 
 export function duration(t: TunnelRow): string {
-  let ms: number
-  if (t.activeMs !== null) ms = t.activeMs
-  else if (!t.endedAt) return 'Ongoing'
-  else ms = Date.parse(t.endedAt) - Date.parse(t.createdAt)
+  const ms = t.activeMs ?? Date.parse(t.endedAt) - Date.parse(t.createdAt)
   // ms below 1 s, tenths below 10 s, then whole seconds; from a minute on
   // two units, the larger one first. 999.5 / 9950: where rounding would
   // reach the next step.
@@ -70,10 +70,7 @@ export function duration(t: TunnelRow): string {
     : pair('hour', Math.floor(s / 3600), 'minute', Math.floor(s / 60) % 60)
 }
 
-export function data(t: TunnelRow): string {
-  if (t.bytesSent === null) return '—'
-  return bytes(t.bytesSent + (t.bytesReceived ?? 0))
-}
+export const data = (t: TunnelRow) => bytes(t.bytesSent + t.bytesReceived)
 
 export const bytes = (n: number) =>
   scaled(n, ['byte', 'kilobyte', 'megabyte', 'gigabyte'], 1000)

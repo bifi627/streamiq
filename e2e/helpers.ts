@@ -47,25 +47,38 @@ export function tunnelRow(id: string): Record<string, any> | null {
   return out ? JSON.parse(out) : null
 }
 
-/** A finished playback tunnel of user in their household tenantId, on a new
- * gateway named gatewayName, written straight to Postgres: Activity reads the
- * table, and a real tunnel needs Jellyfin. */
-export function seedTunnel(
-  tenantId: string,
-  userId: string,
-  gatewayName: string,
+/** Ended tunnels added to the gateway's own history (`<state dir>/history/`, the
+ * day files gateway/internal/history writes): real ones of another user need
+ * their own browser and Jellyfin playback. */
+export function seedTunnels(
+  stateDir: string,
+  gatewayId: string,
+  rows: { userId: string; use: string; relay: boolean; bytes: number }[],
 ) {
-  const ids = [tenantId, userId]
-  if (!ids.every((id) => /^[0-9a-f-]{36}$/.test(id)))
-    throw new Error(`not ids: ${ids}`)
-  if (!/^[\w -]+$/.test(gatewayName))
-    throw new Error(`not a name: ${gatewayName}`)
-  const [gateway, tunnel] = [randomUUID(), randomUUID()]
-  psql(
-    `insert into gateways (id, tenant_id, name, created_at) values ('${gateway}', '${tenantId}', '${gatewayName}', now());` +
-      `insert into tunnels (id, tenant_id, gateway_id, user_id, relay, ipv6, created_at, ended_at, bytes_sent, bytes_received, use)` +
-      ` values ('${tunnel}', '${tenantId}', '${gateway}', '${userId}', true, false, now() - interval '5 minutes', now(), 2000000, 1000, 'playback')`,
-  )
+  const dir = path.join(stateDir, 'history')
+  fs.mkdirSync(dir, { recursive: true })
+  for (const r of rows) {
+    const end = new Date()
+    const line = JSON.stringify({
+      id: randomUUID(),
+      gatewayId,
+      createdAt: new Date(end.getTime() - 5 * 60_000).toISOString(),
+      endedAt: end.toISOString(),
+      userId: r.userId,
+      relay: r.relay,
+      ipv6: false,
+      bytesSent: r.bytes,
+      bytesReceived: 0,
+      throughputKbps: null,
+      failure: null,
+      use: r.use,
+      activeMs: 60_000,
+    })
+    fs.appendFileSync(
+      path.join(dir, `tunnels-${end.toISOString().slice(0, 10)}.jsonl`),
+      line + '\n',
+    )
+  }
 }
 
 /** Health rows added to the gateway's own history (`<state dir>/history/`, the

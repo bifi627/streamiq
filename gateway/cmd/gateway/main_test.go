@@ -141,6 +141,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }),
 		&telemetry.Switch{Dir: dir, Changed: st.Beat},
 		&history.Health{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "health"}},
+		&history.Tunnels{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "tunnels"}},
 	)
 	for _, c := range []struct {
 		role, method, path, body string
@@ -152,6 +153,10 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Member, "GET", tunnel.StatusPath, "", http.StatusNoContent},
 		{tunnel.Member, "GET", pairing.ClientsPath, "", http.StatusOK},
 		{tunnel.Member, "GET", history.HealthPath, "", http.StatusOK},
+		{tunnel.Member, "GET", history.TunnelsPath, "", http.StatusOK},
+		{tunnel.Member, "GET", history.SummaryPath, "", http.StatusForbidden},
+		{tunnel.Member, "POST", tunnel.ThroughputPath, `{"throughputKbps":5}`, http.StatusNoContent},
+		{tunnel.Admin, "GET", history.SummaryPath, "", http.StatusOK},
 		{tunnel.Member, "GET", screen.ScreensPath, "", http.StatusOK},
 		{tunnel.Admin, "POST", onboarding.NamePath, `{"name":"Den"}`, http.StatusOK},
 		{tunnel.Admin, "POST", update.Path, "", http.StatusAccepted},

@@ -272,7 +272,8 @@ data; it goes when the household is deleted.
 The history the web app shows (**Gateways**, the card's "Health, last 7 days") is the
 gateway's own, at every level: it records the same health in `state/history/` (a file
 per day, the last 7 days) and shows it only to a paired browser while it is online.
-`gateway backup` carries it.
+So is **Activity**'s list of connections: who used the gateway, when and for what, kept
+there for 30 days (`state/history/tunnels-*.jsonl`). `gateway backup` carries both.
 
 A household admin can switch it in the web app too (**Gateways**, the card's Health
 sharing line), while the gateway is online and that browser is paired.

@@ -28,10 +28,9 @@ const row = (o: Partial<TunnelRow> = {}): TunnelRow => ({
   ...o,
 })
 
-test('route: direct, relayed, IPv6, no report yet', () => {
+test('route: direct, relayed, IPv6', () => {
   assert.equal(route(row()), 'Direct')
   assert.equal(route(row({ relay: true, ipv6: true })), 'Relayed · IPv6')
-  assert.equal(route(row({ bytesSent: null })), 'Unknown')
 })
 
 test('route: failure reasons in plain words, unknown ones as is', () => {
@@ -56,11 +55,6 @@ test('route: failure reasons in plain words, unknown ones as is', () => {
     'Failed: Closed: no sign-in in time',
   )
   assert.equal(route(row({ failure: 'boom' })), 'Failed: boom')
-})
-
-test('still open: Ongoing; no report: no data', () => {
-  assert.equal(duration(row({ endedAt: null })), 'Ongoing')
-  assert.equal(data(row({ bytesSent: null })), '—')
 })
 
 test('the filter lists each gateway once, a nameless one too', () => {
@@ -114,10 +108,6 @@ test('duration: the active time when reported, else end − start', () => {
     }).format(n)
   assert.equal(duration(row()), f('minute', 5))
   assert.equal(duration(row({ activeMs: 120_000 })), f('minute', 2))
-  assert.equal(
-    duration(row({ endedAt: null, activeMs: 120_000 })),
-    f('minute', 2),
-  )
   assert.equal(duration(row({ activeMs: 400 })), f('millisecond', 400))
   assert.equal(duration(row({ activeMs: 999.7 })), f('second', 1))
   assert.equal(duration(row({ activeMs: 2_340 })), f('second', 2.3, 1))

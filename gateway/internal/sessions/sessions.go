@@ -33,6 +33,10 @@ type Sessions struct {
 	// Viewers makes sure a user has their own Jellyfin viewer, once the
 	// session's device is paired: an offer alone (the API) makes nothing. nil = none.
 	Viewers func(user string)
+	// Ended gets every tunnel's report as it ends, with its user, when its offer came
+	// and the throughput its browser measured (0 = none): the gateway's tunnel history.
+	// nil = none.
+	Ended func(r protocol.Report, user string, start time.Time, kbps int)
 
 	mu    sync.Mutex
 	pcs   map[string]*webrtc.PeerConnection
@@ -162,7 +166,7 @@ func (s *Sessions) offer(m Msg, live bool, send func(any)) {
 	}
 	pre := s.admit()
 	if pre == nil {
-		s.refuse(m.Session, send)
+		s.refuse(m.Session, m.User, send)
 		return
 	}
 	log.Printf("gateway: session %s: user %s (%s)", m.Session, m.User, m.Role)
@@ -215,7 +219,7 @@ func (s *Sessions) newPeer(id, user, role string, pre *preAuth, send func(any)) 
 	// and the tunnel row keeps the route of a tunnel that came up.
 	var pair atomic.Pointer[webrtc.ICECandidatePair]
 	use := tunnel.NewUsage(time.Now())
-	ended := s.ender(id, pc, &cands, &pair, &authed, &why, use)
+	ended := s.ender(id, user, pc, &cands, &pair, &authed, &why, use)
 	end := func(iceFailed bool) { pre.leave(); ended(iceFailed) }
 	s.mu.Lock()
 	s.pcs[id] = pc
@@ -281,7 +285,7 @@ func endsSession(st webrtc.PeerConnectionState) bool {
 // report is read before pc.Close() (pion's stats are gone after it) and sent
 // once, whichever path comes first.
 func (s *Sessions) ender(
-	id string,
+	id, user string,
 	pc *webrtc.PeerConnection,
 	cands *signaled,
 	pair *atomic.Pointer[webrtc.ICECandidatePair],
@@ -305,6 +309,7 @@ func (s *Sessions) ender(
 		r := report(id, pc, cands, pair.Load(), failure(iceFailed, authed.Load(), w))
 		r.Use, r.ActiveMs = use.Summary()
 		s.report(r)
+		s.ended(r, user, use.Start(), use.Throughput())
 		pc.Close()
 	}
 }
@@ -397,6 +402,12 @@ func (s *Sessions) report(r protocol.Report) {
 	s.mu.Unlock()
 	if send != nil {
 		send(r)
+	}
+}
+
+func (s *Sessions) ended(r protocol.Report, user string, start time.Time, kbps int) {
+	if s.Ended != nil {
+		s.Ended(r, user, start, kbps)
 	}
 }
 

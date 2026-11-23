@@ -47,10 +47,12 @@ func (s *Sessions) admit() *preAuth {
 
 // refuse answers an offer over MaxUnauthed: the broker relays the error to the
 // browser, the report gives its tunnel row the failure.
-func (s *Sessions) refuse(id string, send func(any)) {
+func (s *Sessions) refuse(id, user string, send func(any)) {
 	log.Printf("gateway: session %s: refused, %d connections not authenticated yet", id, MaxUnauthed)
 	send(protocol.GatewayError{Type: "error", Session: id, Error: busy})
-	s.report(protocol.Report{Type: "tunnel", Session: id, Failure: ptr(busy)})
+	r := protocol.Report{Type: "tunnel", Session: id, Failure: ptr(busy)}
+	s.report(r)
+	s.ended(r, user, time.Now(), 0)
 }
 
 // deadline closes the connection UnauthedFor after its offer unless it has

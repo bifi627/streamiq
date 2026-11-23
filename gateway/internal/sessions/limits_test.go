@@ -43,6 +43,8 @@ func TestOfferOverMaxUnauthedRefused(t *testing.T) {
 	for range MaxUnauthed {
 		s.admit()
 	}
+	var line string
+	s.Ended = func(r protocol.Report, user string, _ time.Time, _ int) { line = r.Session + "/" + user }
 	var report []any
 	s.Handle(nil, func(v any) { report = append(report, v) }) // the control socket is up
 	var sent []any
@@ -62,6 +64,9 @@ func TestOfferOverMaxUnauthedRefused(t *testing.T) {
 	}
 	if r := report[0].(protocol.Report); r.Session != "s9" || r.Failure == nil || *r.Failure != busy {
 		t.Fatalf("report = %+v, want failure %q", r, busy)
+	}
+	if line != "s9/u" {
+		t.Fatalf("history line %q, want the refused tunnel's", line)
 	}
 }
 

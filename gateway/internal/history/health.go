@@ -11,7 +11,7 @@ import (
 )
 
 // Window is how far back GET /streamiq/health reaches.
-const Window = KeepDays * 24 * time.Hour
+const Window = HealthDays * 24 * time.Hour
 
 // entry is one stored health row: the heartbeat's health, stamped.
 type entry struct {

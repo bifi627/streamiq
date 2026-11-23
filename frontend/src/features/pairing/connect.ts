@@ -79,7 +79,7 @@ export async function connect(
   // addEventListener: the handlers below own the on* properties.
   pc.addEventListener('connectionstatechange', () => pcState(pc))
   pc.addEventListener('iceconnectionstatechange', () => pcState(pc))
-  const { close, setTunnel, keepAlive, up } = lifetime(pc, ws, gatewayId)
+  const { close, keepAlive, up } = lifetime(pc, ws, gatewayId)
   const send = (m: BrowserMessage) => ws.send(JSON.stringify(m))
 
   return new Promise<Session>((resolve, reject) => {
@@ -117,7 +117,6 @@ export async function connect(
             sdp: pc.localDescription ?? offer,
           })
         case 'answer':
-          setTunnel(f.tunnel)
           return pc.setRemoteDescription(f.sdp)
         case 'addIce':
           return pc.addIceCandidate(f.candidate)

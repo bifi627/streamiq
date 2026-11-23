@@ -58,8 +58,8 @@ type Ping struct {
 // Ready answers a good Auth with this session's ICE servers, passed through as the
 // TURN provider made them.
 type Ready struct {
-	Type       string            `json:"type"       tstype:"'ready'"`
-	ICEServers []json.RawMessage `json:"iceServers" tstype:"RTCIceServer[]"`
+	Type       string            `json:"type"               tstype:"'ready'"`
+	ICEServers []json.RawMessage `json:"iceServers"         tstype:"RTCIceServer[]"`
 	RelayOff   bool              `json:"relayOff,omitempty"` // the gateway takes direct connections only: STUN only
 }
 

@@ -1,4 +1,4 @@
-// Package history keeps the gateway's own records in its state dir (#768): JSON
+// Package history keeps the gateway's own records in its state dir: JSON
 // Lines, one file per UTC day, the last KeepDays days. ponytail: plain files, a
 // store behind Append / Read (SQLite, say) if the reads ever need an index.
 package history
@@ -37,7 +37,7 @@ func (s *Store) Append(now time.Time, v any) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
+	if err = os.MkdirAll(s.Dir, 0o700); err != nil {
 		return err
 	}
 	f, err := os.OpenFile(s.file(now), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)

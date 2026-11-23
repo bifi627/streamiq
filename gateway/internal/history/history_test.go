@@ -139,7 +139,8 @@ func TestTheEndpointAnswersTodaysShape(t *testing.T) {
 
 func TestAnEmptyHistoryIsAnEmptyList(t *testing.T) {
 	w := httptest.NewRecorder()
-	(&Health{Store: &Store{Dir: t.TempDir(), Kind: "health"}}).ServeHTTP(w, httptest.NewRequest(http.MethodGet, HealthPath, nil))
+	h := &Health{Store: &Store{Dir: t.TempDir(), Kind: "health"}}
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, HealthPath, nil))
 	if w.Code != http.StatusOK || w.Body.String() != "[]" {
 		t.Fatalf("%d %q", w.Code, w.Body)
 	}

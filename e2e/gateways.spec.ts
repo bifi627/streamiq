@@ -78,7 +78,8 @@ test('relay switch: off over the tunnel, mirrored by the API; direct only after 
   })
   await expect(relay).toBeChecked()
   await expect(card(page).getByText(/strict NAT can't connect/)).toBeVisible() // what off costs, next to the switch
-  await relay.uncheck()
+  await relay.click() // the box follows the gateway's answer, not the click
+  await expect(relay).not.toBeChecked()
   // The gateway stores it and tells the API with an early heartbeat.
   await expect.poll(async () => (await row()).relayOff).toBe(true)
   await page.reload()
@@ -87,9 +88,7 @@ test('relay switch: off over the tunnel, mirrored by the API; direct only after 
   // The broker sends STUN only: a forced relay fails and says why.
   await page.goto(appUrl(`/g/${(await row()).id}?relay`))
   await expect(
-    page.getByText('This gateway allows direct connections only', {
-      exact: false,
-    }),
+    page.getByText(/^This gateway allows direct connections only/),
   ).toBeVisible()
   // /diagnostics: the relay is off, the forced-relay test skipped, direct works.
   await page.goto(appUrl('/diagnostics'))
@@ -108,7 +107,8 @@ test('relay switch: off over the tunnel, mirrored by the API; direct only after 
   )
 
   await page.goto(appUrl('/gateways'))
-  await relay.check()
+  await relay.click()
+  await expect(relay).toBeChecked()
   await expect.poll(async () => (await row()).relayOff).toBe(false)
 })
 

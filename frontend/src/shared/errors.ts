@@ -112,7 +112,7 @@ export const renameMessage = (e: AppError) =>
         ? "The gateway couldn't save the name; see its log."
         : describe(e).message
 
-/** A failed relay switch (#785): a gateway from before it answers 404. */
+/** A failed relay switch: a gateway from before it answers 404. */
 export const relayMessage = (e: AppError) =>
   e.context.status === 404
     ? 'This gateway is too old for this setting: update it.'

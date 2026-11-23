@@ -162,30 +162,7 @@ export function DiagnosticsPage() {
           >
             {running ? 'Testing…' : 'Test connection'}
           </button>
-          {direct ? (
-            <span className="muted">
-              Relay: off for this gateway (direct connections only)
-            </span>
-          ) : (
-            <>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={relayOn()}
-                  onChange={(e) => setRelay(e.target.checked)}
-                />{' '}
-                Force relay (TURN)
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={relayTlsOn()}
-                  onChange={(e) => setFlag('relayTls', e.target.checked)}
-                />{' '}
-                Force relay over TLS (443)
-              </label>
-            </>
-          )}
+          <ForceRelay direct={direct} />
         </div>
       </div>
 
@@ -199,5 +176,35 @@ export function DiagnosticsPage() {
         <pre className="report">{report}</pre>
       </div>
     </section>
+  )
+}
+
+// The forced-relay toggles; a gateway with its relay off has none to test.
+function ForceRelay({ direct }: { direct: boolean }) {
+  if (direct)
+    return (
+      <span className="muted">
+        Relay: off for this gateway (direct connections only)
+      </span>
+    )
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={relayOn()}
+          onChange={(e) => setRelay(e.target.checked)}
+        />{' '}
+        Force relay (TURN)
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={relayTlsOn()}
+          onChange={(e) => setFlag('relayTls', e.target.checked)}
+        />{' '}
+        Force relay over TLS (443)
+      </label>
+    </>
   )
 }

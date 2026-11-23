@@ -57,22 +57,25 @@ export function State({
   )
 }
 
+const OFFLINE: Kind[] = [
+  'gateway-offline',
+  'broker-unreachable',
+  'broker-lost',
+  'ice-failed',
+  'direct-only',
+  'tunnel-lost',
+  'network',
+]
+const LOCK: Kind[] = [
+  'not-paired',
+  'pin-mismatch',
+  'gateway-refused',
+  'unauthorized',
+  'admin-only',
+]
+
 const icon = (k: Kind): keyof typeof ICON =>
-  k === 'gateway-offline' ||
-  k === 'broker-unreachable' ||
-  k === 'broker-lost' ||
-  k === 'ice-failed' ||
-  k === 'direct-only' ||
-  k === 'tunnel-lost' ||
-  k === 'network'
-    ? 'offline'
-    : k === 'not-paired' ||
-        k === 'pin-mismatch' ||
-        k === 'gateway-refused' ||
-        k === 'unauthorized' ||
-        k === 'admin-only'
-      ? 'lock'
-      : 'alert'
+  OFFLINE.includes(k) ? 'offline' : LOCK.includes(k) ? 'lock' : 'alert'
 
 /** The one way an error is shown, in the State look (data-kind for tests). Takes
  * anything thrown: non-AppErrors show as `unknown`. Retry defaults to a reload,

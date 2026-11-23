@@ -9,7 +9,7 @@ import {
   type Kind,
 } from '../../shared/errors.ts'
 import { answerCheck } from './crypto.ts'
-import { relayServers } from './relay.ts'
+import { DIRECT_ONLY, relayServers } from './relay.ts'
 import type { BrokerMessage } from '../../generated/protocol.ts'
 import type { GatewayAuthMessage } from '../../generated/sessions.ts'
 
@@ -127,14 +127,18 @@ function onEvent(s: State, ev: Event): Step {
 function onBroker(s: State, m: BrokerMessage): Step {
   switch (m.type) {
     case 'ready': {
-      const { iceServers, noTurn } = relayServers(m.iceServers, s.relayTls)
+      const { iceServers, noTurn } = relayServers(
+        m.iceServers,
+        s.relayTls,
+        m.relayOff,
+      )
       const next = { ...s, noTurn }
       const line: Effect = { do: 'relayLine', noTurn }
       // A forced relay without a TURN server can't connect: say why now.
       if (noTurn && s.forceRelay) {
         const r = fail(
           next,
-          'ice-failed',
+          noTurn === DIRECT_ONLY ? 'direct-only' : 'ice-failed',
           `relay forced, but relay unavailable: ${noTurn}`,
         )
         return { state: r.state, fx: [line, ...r.fx] }
@@ -256,7 +260,7 @@ function onConnection(s: State, pcState: RTCPeerConnectionState): Step {
 const iceFailed = (s: State) =>
   fail(
     s,
-    'ice-failed',
+    s.noTurn === DIRECT_ONLY ? 'direct-only' : 'ice-failed',
     `ICE failed: no direct or relayed route to the gateway${s.noTurn ? ` (relay unavailable: ${s.noTurn})` : ''}`,
   )
 

@@ -62,6 +62,7 @@ const icon = (k: Kind): keyof typeof ICON =>
   k === 'broker-unreachable' ||
   k === 'broker-lost' ||
   k === 'ice-failed' ||
+  k === 'direct-only' ||
   k === 'tunnel-lost' ||
   k === 'network'
     ? 'offline'

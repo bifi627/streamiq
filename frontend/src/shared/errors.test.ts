@@ -7,6 +7,7 @@ import {
   describe,
   httpError,
   isKind,
+  relayMessage,
   renameMessage,
   toAppError,
   type Kind,
@@ -57,6 +58,13 @@ test('rename form: a gateway 500 names the gateway, never the media server', () 
   assert.equal(m(403), 'Request failed.')
 })
 
+test('relay switch: an old gateway (404) is told to update', () => {
+  const m = (s: number) =>
+    relayMessage(httpError('tunnel', s, '/streamiq/relay'))
+  assert.equal(m(404), 'This gateway is too old for this setting: update it.')
+  assert.equal(m(403), 'Request failed.')
+})
+
 test('toAppError keeps AppErrors and wraps the rest as unknown', () => {
   const a = new AppError('not-paired', 'x')
   assert.equal(toAppError(a), a)
@@ -80,6 +88,7 @@ test('every kind: a message and the buttons it shows', () => {
     'gateway-removed': ['gateways'],
     'gateway-busy': ['retry'],
     'ice-failed': ['retry'],
+    'direct-only': ['retry'],
     'not-paired': ['pair'],
     'pin-mismatch': ['pair'],
     'gateway-refused': ['gateways'],

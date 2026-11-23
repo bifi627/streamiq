@@ -72,7 +72,7 @@ export interface Report {
 }
 /**
  * Heartbeat is the gateway's liveness message: on connect, every 30 s, and early on a
- * change of what the API mirrors (name).
+ * change of what the API mirrors (name, relay setting).
  */
 export interface Heartbeat {
   type: 'heartbeat';
@@ -81,6 +81,7 @@ export interface Heartbeat {
   update?: string; // newer release version, "" = up to date
   protocol: number /* int */;
   name: string;
+  relayOff?: boolean; // direct connections only: the broker mints no TURN credential
 }
 /**
  * Health is the box's health as the gateway records it in its own history. Counts and
@@ -129,6 +130,10 @@ export interface Ping {
 export interface Ready {
   type: 'ready';
   iceServers: RTCIceServer[];
+  /**
+   * RelayOff: the named gateway allows direct connections only, so iceServers is STUN only.
+   */
+  relayOff?: boolean;
 }
 /**
  * Offer is the browser's offer to one gateway.

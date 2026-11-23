@@ -22,4 +22,8 @@ export interface Gateway {
    * UpgradeRequired: refused, its protocol is below the API's minimum.
    */
   upgradeRequired: boolean;
+  /**
+   * RelayOff: direct connections only (the gateway's setting, from its heartbeat).
+   */
+  relayOff: boolean;
 }

@@ -6,7 +6,7 @@ import { httpError } from '../../shared/errors'
 import { nextAsk } from './host'
 import type { Gateway } from '../../generated/gateways'
 import type { EnrollmentToken as Install } from '../../generated/onboarding'
-import type { Name } from '../../generated/gateway-onboarding'
+import type { Name, Relay } from '../../generated/gateway-onboarding'
 import type { Client, ClientKey, ClientName } from '../../generated/pairing'
 import type { Status } from '../../generated/status'
 import type { HealthRow } from '../../generated/history'
@@ -44,6 +44,14 @@ export async function renameGateway(id: string, name: string) {
   } finally {
     release()
   }
+}
+
+// Gateway API POST /streamiq/relay: the gateway owns the setting and answers the
+// stored one; the API learns it from the heartbeat.
+export async function setGatewayRelay(id: string, relay: boolean) {
+  return !!(
+    await viaTunnel<Relay>(id, '/streamiq/relay', { relay } satisfies Relay)
+  ).relay
 }
 
 // Paired clients, gateway API over the shared session: the list and

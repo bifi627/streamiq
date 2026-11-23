@@ -334,3 +334,23 @@ test('pairing messages out of order are refused', async (t) => {
     )
   })
 })
+
+test('relay off on the gateway (#785)', async (t) => {
+  await t.test('a lasting ICE failure says direct only', () => {
+    const r = run(
+      init(),
+      broker({ type: 'ready', iceServers: STUN, relayOff: true }),
+      { on: 'connection', state: 'failed' },
+      { on: 'graceOver' },
+    )
+    assert.equal(failure(r.fx)?.kind, 'direct-only')
+  })
+  await t.test('a forced relay fails at ready, direct only', () => {
+    const r = run(
+      init({ forceRelay: true }),
+      broker({ type: 'ready', iceServers: STUN, relayOff: true }),
+    )
+    assert.deepEqual(kinds(r.fx), ['relayLine', 'fail'])
+    assert.equal(failure(r.fx)?.kind, 'direct-only')
+  })
+})

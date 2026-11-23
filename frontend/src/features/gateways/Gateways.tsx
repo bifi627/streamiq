@@ -23,6 +23,7 @@ import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
+import { RelaySetting } from './RelaySetting'
 import { canManage, gatewayName, shownError, type ActErr } from './list'
 import { event } from '../../shared/diag'
 
@@ -293,6 +294,7 @@ function GatewayCard({
           </div>
         )
       )}
+      <RelaySetting g={g} manage={manage} />
       <StatusDetails g={g} />
       <HealthHistory g={g} paired={pinned === true} /* removedSelf unpins */ />
       {/* A member's list is just this browser. */}

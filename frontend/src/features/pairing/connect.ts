@@ -57,12 +57,15 @@ async function challengeAnswer(
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
  * unpaired browser starts pairing and onCode receives the code to compare.
  * An aborted signal closes the attempt: the gateway frees its pairing slot.
+ * direct: ignore a forced relay (a gateway whose relay is off).
  */
 export async function connect(
   gatewayId: string,
   onCode?: (code: string) => void,
   signal?: AbortSignal,
+  direct = false,
 ): Promise<Session> {
+  const force = !direct && relayOn()
   const [key, pin, token] = await Promise.all([
     clientKey(),
     getPin(gatewayId),
@@ -74,7 +77,7 @@ export async function connect(
   const pc = new RTCPeerConnection({
     // Diagnostic: `?relay` or the diagnostics panel's toggle forces the TURN path;
     // `?relay=tls` or its TLS toggle keeps only the `turns:` servers.
-    iceTransportPolicy: relayOn() ? 'relay' : 'all',
+    iceTransportPolicy: force ? 'relay' : 'all',
   })
   // addEventListener: the handlers below own the on* properties.
   pc.addEventListener('connectionstatechange', () => pcState(pc))
@@ -166,8 +169,8 @@ export async function connect(
       gatewayId,
       pin,
       pairing: !!onCode,
-      forceRelay: relayOn(),
-      relayTls: relayTlsOn(),
+      forceRelay: force,
+      relayTls: force && relayTlsOn(),
     })
     let queue = Promise.resolve()
     function dispatch(ev: Event) {

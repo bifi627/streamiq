@@ -9,3 +9,9 @@
 export interface Name {
   name: string;
 }
+/**
+ * Relay is POST RelayPath's body and its reply (the setting as stored); null = a bad body.
+ */
+export interface Relay {
+  relay?: boolean;
+}

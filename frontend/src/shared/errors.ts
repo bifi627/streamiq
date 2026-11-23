@@ -10,6 +10,7 @@ export type Kind =
   | 'gateway-removed' // the broker closed the session: its gateway was removed from the household
   | 'gateway-busy' // the gateway refused for now: too many unauthenticated connections, or its pairing slots are taken
   | 'ice-failed'
+  | 'direct-only' // ICE failed to a gateway whose relay is off
   | 'not-paired'
   | 'pin-mismatch'
   | 'gateway-refused'
@@ -111,6 +112,12 @@ export const renameMessage = (e: AppError) =>
         ? "The gateway couldn't save the name; see its log."
         : describe(e).message
 
+/** A failed relay switch (#785): a gateway from before it answers 404. */
+export const relayMessage = (e: AppError) =>
+  e.context.status === 404
+    ? 'This gateway is too old for this setting: update it.'
+    : describe(e).message
+
 export type Action = 'retry' | 'pair' | 'gateways' | 'sign-in'
 
 // Exhaustive: a new Kind doesn't compile until it's mapped here.
@@ -149,6 +156,12 @@ export function describe(e: AppError): {
     case 'ice-failed':
       return {
         message: "Couldn't reach the gateway: no direct or relayed route.",
+        actions: ['retry'],
+      }
+    case 'direct-only':
+      return {
+        message:
+          'This gateway allows direct connections only, and this network has no direct route to it.',
         actions: ['retry'],
       }
     case 'not-paired':

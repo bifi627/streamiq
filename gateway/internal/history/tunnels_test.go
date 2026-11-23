@@ -47,7 +47,8 @@ func TestATunnelLineHasEveryField(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(filepath.Join(s.Dir, "tunnels-"+end.Format(day)+".jsonl"))
-	want := fmt.Sprintf(`{"id":"s1","gatewayId":"g1","createdAt":%q,"endedAt":%q,"userId":"u1","relay":true,"ipv6":true,`+
+	want := fmt.Sprintf(`{"id":"s1","gatewayId":"g1","createdAt":%q,"endedAt":%q,`+
+		`"userId":"u1","relay":true,"ipv6":true,`+
 		`"bytesSent":10,"bytesReceived":20,"throughputKbps":4200,"failure":null,"use":"playback","activeMs":900}`+"\n"+
 		`{"id":"s2","gatewayId":"g1","createdAt":%[2]q,"endedAt":%[2]q,"userId":"u1","relay":false,"ipv6":false,`+
 		`"bytesSent":0,"bytesReceived":0,"throughputKbps":null,"failure":"ice failed","use":null,"activeMs":null}`+"\n",

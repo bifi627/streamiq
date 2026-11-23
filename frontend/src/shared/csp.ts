@@ -33,6 +33,8 @@ export function csp({ dev, api, emulator, authDomain }: CspInput): string {
       'https://identitytoolkit.googleapis.com',
       'https://securetoken.googleapis.com',
       ...extra(emulator && origin(emulator)),
+      // gapi's sampled telemetry ping (gen_204) during the popup sign-in.
+      'https://apis.google.com',
       // Vite dev's HMR socket.
       ...extra(dev && 'ws:', dev && 'wss:'),
     ],

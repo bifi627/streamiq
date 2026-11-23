@@ -37,9 +37,9 @@ export const test = base.extend<
   // Every test fails on a Content-Security-Policy violation in its browsers.
   csp: [
     async ({}, use) => {
-      cspViolations.length = 0
+      const violations = (cspViolations.current = [])
       await use()
-      expect(cspViolations, 'CSP violations').toEqual([])
+      expect(violations, 'CSP violations').toEqual([])
     },
     { auto: true },
   ],

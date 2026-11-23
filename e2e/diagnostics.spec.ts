@@ -1,7 +1,8 @@
 // Diagnostics, on a paired browser with its own gateway
-// (fixtures.ts `paired`): the dock on the library, the /diagnostics report with
-// its connection test (direct, forced relay), the dock's Force relay over a real
-// library tunnel, Copy report, a never-paired browser's report. The panel flag is
+// (fixtures.ts `paired`): the dock on the library (bar, request table + log,
+// stays open), the /diagnostics report with its probe and connection test (direct
+// with its line in the gateway's history, forced relay), the dock's Force relay over
+// a real library tunnel with the badge, Copy report, a never-paired browser's report. The panel flag is
 // arranged in localStorage (its Settings toggle is shell.spec's); the tunnel
 // report's edge cases are gateway/internal/sessions and history.
 import type { Page } from '@playwright/test'

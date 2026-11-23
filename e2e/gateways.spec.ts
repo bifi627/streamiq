@@ -1,6 +1,6 @@
 // The gateways page, on a paired browser with its own gateway (fixtures.ts
-// `paired`): rename, the relay switch, Status paired and unpaired, the nav chip's
-// dot, paired clients, the member view, the health history, Activity
+// `paired`): rename, the relay switch, Status paired and unpaired, the shell's
+// connection badge (checked, live, offline), paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
 // local gateway page, a refused broker socket and TV mode.
 // Onboarding through the UI is smoke.spec's, restart, backup, a new certificate,
@@ -12,7 +12,9 @@ import { expect, test } from './fixtures.ts'
 import {
   appUrl,
   gatewayTab,
+  historyTunnels,
   join,
+  openLibrary,
   pair,
   seedHealth,
   seedTunnels,
@@ -145,16 +147,82 @@ test('status, unpaired: liveness only, details need pairing (#140) @gateways', a
   await expect(b.getByText(/Jellyfin:|Paired browsers/)).toHaveCount(0)
 })
 
-test("status dot: a gateway route's nav chip shows its name, online (#206) @gateways", async ({
+// The shell's badge: the active gateway, its dot and the connection type.
+const badge = (p: Page) => p.locator('header .chip')
+
+test('connection badge: one check on a fresh load off the library, its tunnel closed, none on navigating (#860) @gateways', async ({
+  paired,
+}) => {
+  const { page, user, gateway } = paired
+  const [g] = await user.api<{ name: string }[]>('/gateways')
+  const checks = (since: number) =>
+    historyTunnels(gateway.stateDir).filter(
+      (l) => l.use === 'management' && Date.parse(l.createdAt) >= since,
+    )
+  const since = Date.now()
+  await page.goto(appUrl('/settings'))
+  await expect(badge(page)).toContainText(g.name)
+  await expect(badge(page).getByRole('img', { name: 'online' })).toBeVisible()
+  await expect(
+    badge(page).getByRole('button', { name: 'On your network' }), // same host
+  ).toBeVisible({ timeout: 30_000 })
+  // Its tunnel closed once answered: the gateway wrote its line.
+  await expect.poll(() => checks(since).length, { timeout: 15_000 }).toBe(1)
+  // Household: a page that opens no tunnel of its own (Activity reads the gateways).
+  const sockets: string[] = []
+  page.on('websocket', (ws) => sockets.push(ws.url()))
+  await page.getByRole('link', { name: 'Household' }).click()
+  await expect(
+    badge(page).getByRole('button', { name: 'On your network' }),
+  ).toBeVisible()
+  // oxlint-disable-next-line playwright/no-wait-for-timeout -- proves no check starts: no state to wait on
+  await page.waitForTimeout(2_000)
+  expect(sockets.filter((u) => u.includes('/broker/ws'))).toEqual([])
+})
+
+test('connection badge: live from the library tunnel, which replaced its own badge (#860) @gateways', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await openLibrary(page)
+  await badge(page).getByRole('button', { name: 'On your network' }).click()
+  await expect(
+    page.getByText(/end-to-end encrypted · never leaves the house/),
+  ).toBeVisible()
+  await expect(page.locator('.lib-top .privacy')).toHaveCount(0)
+})
+
+test('connection badge: a browser without a pin shows Not paired and opens no tunnel @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const { user } = paired
+  const b = await signedInPage(browser, user, '/settings')
+  // A tunnel would have been refused: "Can't connect".
+  await expect(badge(b).getByRole('link', { name: 'Not paired' })).toBeVisible()
+})
+
+test('connection badge: an offline gateway shows offline and opens no tunnel (#860) @gateways', async ({
   paired,
 }) => {
   const { page, user } = paired
   const [g] = await user.api<{ name: string }[]>('/gateways')
-  await card(page).getByRole('button', { name: 'Open' }).click()
-  await expect(page).toHaveURL(/\/g\/[^/]+$/)
-  const chip = page.locator('header .chip')
-  await expect(chip).toContainText(g.name)
-  await expect(chip.getByRole('img', { name: 'online' })).toBeVisible()
+  await page.route('**/api/gateways', async (route) => {
+    const res = await route.fetch()
+    const list = (await res.json()) as { online: boolean }[]
+    await route.fulfill({
+      response: res,
+      json: list.map((x) => ({ ...x, online: false })),
+    })
+  })
+  const sockets: string[] = []
+  page.on('websocket', (ws) => sockets.push(ws.url()))
+  await page.goto(appUrl('/settings'))
+  await expect(badge(page)).toContainText(g.name)
+  await expect(badge(page)).toContainText('· offline')
+  await expect(badge(page).getByRole('img', { name: 'offline' })).toBeVisible()
+  await expect(badge(page).getByText('Checking…')).toHaveCount(0)
+  expect(sockets.filter((u) => u.includes('/broker/ws'))).toEqual([])
 })
 
 test('paired clients: name, list, rename own, remove other (stream stops), remove self (#311, #365) @gateways', async ({

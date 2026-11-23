@@ -12,6 +12,8 @@ import { arrowFocus } from '../../shared/focus'
 import { tvOn } from '../../shared/settings'
 import { routeLine, showPair as pairShown, type State } from './pairState'
 import { event } from '../../shared/diag'
+import { useQueryClient } from '@tanstack/react-query'
+import { connKey } from '../gateways/connection'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
 // and tunnel one request through it ("Test connection": a cheap diagnostic).
@@ -39,6 +41,7 @@ export function Pairing({
   // Pair shows while this browser has no pin for the gateway. ponytail: a pin
   // the gateway dropped (Remove on its page) only shows on a failed test.
   const [pinned, setPinned] = usePin(gatewayId)
+  const qc = useQueryClient()
 
   const root = useRef<HTMLDivElement>(null)
   const testBtn = useRef<HTMLButtonElement>(null)
@@ -70,7 +73,11 @@ export function Pairing({
         pair ? (code) => setS({ step: 'code', code }) : undefined,
         attempt.current.signal,
       )
-      if (pair) setPinned(true)
+      if (pair) {
+        setPinned(true)
+        // The shell badge's check ran unpaired: check again.
+        void qc.invalidateQueries({ queryKey: connKey(gatewayId) })
+      }
       try {
         const [info, stats] = await Promise.all([
           tunnelJson<SystemInfo>(x.pc, systemInfo),

@@ -41,6 +41,7 @@ import { PickAlias } from './shared/Alias'
 import { needsAlias, signingIn } from './shared/aliases'
 import { clearArtThen } from './shared/leave'
 import { useGateways } from './features/gateways/api'
+import { GatewayBadge } from './features/gateways/Badge'
 import { useQueryClient } from '@tanstack/react-query'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
@@ -71,21 +72,26 @@ function Shell() {
     return () => removeEventListener('storage', onStorage)
   }, [])
 
-  // Gateway routes: that gateway's status chip (the connectivity badge's
-  // slot). Refetched on entering/leaving a gateway. ponytail: online is as
-  // of then, poll if it needs to be live.
+  // The badge's gateway: the route's, else the Library tab's. Its dot is
+  // as of entering/leaving a gateway route (refetched then).
+  // ponytail: poll if online needs to be live.
   const { gatewayId } = useParams({ strict: false })
   const q = useGateways()
   const qc = useQueryClient()
   const gateways = q.data ?? []
-  const gateway = gateways.find((g) => g.id === gatewayId)
   useEffect(() => {
     if (gatewayId) setLastGateway(gatewayId)
     // cancelRefetch false: joins the mount's fetch instead of a second one.
     void qc.refetchQueries({ queryKey: ['gateways'] }, { cancelRefetch: false })
   }, [gatewayId, qc])
-  // The chip's dot: loading / failed are not "offline". The Gateways
-  // list / library show their own errors.
+  const library = libraryTarget(
+    gatewayId,
+    lastGateway(),
+    gateways.map((g) => g.id),
+  )
+  const gateway = gateways.find((g) => g.id === library)
+  // The dot: loading / failed are not "offline". The Gateways list /
+  // library show their own errors.
   const dot = q.isPending
     ? 'loading'
     : q.isError
@@ -93,11 +99,6 @@ function Shell() {
       : gateway?.online
         ? 'online'
         : 'offline'
-  const library = libraryTarget(
-    gatewayId,
-    lastGateway(),
-    gateways.map((g) => g.id),
-  )
   const homeless = me !== null && me.tenantId === null
   const { pathname } = useLocation()
   const tv = useSyncExternalStore(onTvChange, tvOn)
@@ -138,8 +139,13 @@ function Shell() {
           </Link>
           <Nav tabs={tabs(tv, homeless)} library={library} />
           <span className="grow" />
-          {gatewayId && !homeless && (
-            <GatewayChip name={gateway?.name} dot={dot} />
+          {library && !homeless && (
+            <GatewayBadge
+              id={library}
+              gateway={gateway}
+              dot={dot}
+              live={!!gatewayId}
+            />
           )}
         </header>
       )}
@@ -169,24 +175,6 @@ function Shell() {
       </main>
       <Diagnostics />
     </div>
-  )
-}
-
-function GatewayChip({ name, dot }: { name?: string | null; dot: string }) {
-  return (
-    <span className="chip">
-      <span
-        className={`dot ${dot}`}
-        role="img"
-        aria-label={dot === 'failed' ? 'status unavailable' : dot}
-      />
-      {name ?? 'Gateway'}
-      {dot === 'failed' && (
-        <span className="muted" aria-hidden="true">
-          · status unavailable
-        </span>
-      )}
-    </span>
   )
 }
 

@@ -33,7 +33,9 @@ import {
   upNext,
   type Item,
 } from './items'
-import { Privacy } from '../player/Privacy'
+import { LiveRoute } from '../gateways/Badge'
+import { connKey, type Conn } from '../gateways/connection'
+import { useQueryClient } from '@tanstack/react-query'
 import { useGuestStatus } from './queries'
 import { PlayOn } from '../screen/Screen'
 import { arrowFocus } from '../../shared/focus'
@@ -55,10 +57,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [session, setSession] = useState<Session | null>(null)
   const [err, setErr] = useState<AppError | null>(null)
   const [attempt, setAttempt] = useState(0) // bumped after an inline re-pair
-  // The player has its own badge in its overlay.
-  const playing = useRouterState({
-    select: (r) => r.location.pathname.includes('/play/'),
-  })
+  const qc = useQueryClient()
   const screenMode = useRouterState({
     select: (r) => r.location.pathname.endsWith('/screen'),
   })
@@ -71,13 +70,19 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         if (gone) return
         setSession(x)
       },
-      (e) => setErr(toAppError(e)),
+      (e) => {
+        const err = toAppError(e)
+        setErr(err)
+        qc.setQueryData<Conn>(connKey(gatewayId), {
+          route: err.kind === 'not-paired' ? 'unpaired' : 'failed',
+        }) // the shell badge
+      },
     )
     return () => {
       gone = true
       release()
     }
-  }, [gatewayId, attempt])
+  }, [gatewayId, attempt, qc])
 
   return (
     // D-pad: the whole library, the not-paired block included; the
@@ -90,9 +95,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
       <p className="lib-top">
         <Link to="/gateways">← Gateways</Link>
         <span className="lib-actions">
-          {session && !playing && !screenMode && (
-            <Privacy gatewayId={gatewayId} pc={session.pc} />
-          )}
+          {session && <LiveRoute gatewayId={gatewayId} pc={session.pc} />}
           {/* Up front only in TV mode; every device keeps the gateway
               card's entry (Gateways.tsx). */}
           {!screenMode && tvOn() && (

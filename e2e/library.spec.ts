@@ -63,9 +63,13 @@ test('library → back → library within 30 s: one shared session (#152) @libra
   const { page: a } = paired
   let rows = 0 // one broker socket per tunnel
   const count = (ws: WebSocket) => ws.url().endsWith('/broker/ws') && rows++
-  a.on('websocket', count)
-  // A fresh page: pairing left the card's own shared session open.
+  // A fresh page: pairing left the card's own shared session open. Counted
+  // once the shell badge's own check tunnel has answered.
   await a.reload()
+  await expect(
+    a.locator('header .chip').getByRole('button', { name: 'On your network' }),
+  ).toBeVisible()
+  a.on('websocket', count)
   await a.getByRole('button', { name: 'Open' }).click()
   await expect(movies(a)).toBeVisible()
   await a.getByRole('link', { name: '← Gateways' }).click()

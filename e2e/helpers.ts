@@ -240,9 +240,12 @@ export async function newPage(browser: Browser) {
   return ctx.newPage()
 }
 
-/** Chrome's console reports of a blocked load in the current test's newContext()s:
- * fixtures.ts starts a new list per test and fails the test on an entry. */
-export const cspViolations = { current: [] as string[] }
+/** The current test's newContext()s and Chrome's console reports of a blocked load
+ * in them: fixtures.ts starts new lists per test, closes the contexts so no page
+ * outlives its test, then fails the test on a report. */
+export const cspScope = {
+  current: { violations: [] as string[], contexts: [] as BrowserContext[] },
+}
 
 /** browser.newContext() for every context a test opens (app or local gateway page).
  * Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
@@ -252,9 +255,9 @@ export const cspViolations = { current: [] as string[] }
  * error on a page or its scripts only: anything else still fails the test. */
 export async function newContext(browser: Browser) {
   const ctx = await browser.newContext()
-  // The list of the test that opened this context: a report that arrives after
-  // that test ended lands in its (already checked) list, not in the next test's.
-  const violations = cspViolations.current
+  // The test that opened this context, not whichever test runs when a report arrives.
+  const { violations, contexts } = cspScope.current
+  contexts.push(ctx)
   ctx.on('console', (m) => {
     if (m.text().includes('Content Security Policy')) violations.push(m.text())
   })

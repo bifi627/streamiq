@@ -12,7 +12,7 @@ import {
   type Page,
 } from '@playwright/test'
 import {
-  cspViolations,
+  cspScope,
   newContext,
   onboardGateway,
   pair,
@@ -37,9 +37,11 @@ export const test = base.extend<
   // Every test fails on a Content-Security-Policy violation in its browsers.
   csp: [
     async ({}, use) => {
-      const violations = (cspViolations.current = [])
+      const scope: typeof cspScope.current = { violations: [], contexts: [] }
+      cspScope.current = scope
       await use()
-      expect(violations, 'CSP violations').toEqual([])
+      await Promise.all(scope.contexts.map((c) => c.close()))
+      expect(scope.violations, 'CSP violations').toEqual([])
     },
     { auto: true },
   ],

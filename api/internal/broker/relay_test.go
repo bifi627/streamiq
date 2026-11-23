@@ -89,7 +89,13 @@ func TestAGatewayWithItsRelayOffGetsNoTURNCredential(t *testing.T) {
 	other := s.online("alice@home.test", "other")
 	s.heartbeat(direct, map[string]any{"relayOff": true})
 
-	if _, m := readyMsg(t, s, "alice@home.test", direct.id); len(m["iceServers"].([]any)) != 1 || m["relayOff"] != true {
+	if _, m := readyMsg(
+		t,
+		s,
+		"alice@home.test",
+		direct.id,
+	); len(m["iceServers"].([]any)) != 1 ||
+		m["relayOff"] != true {
 		t.Fatal(m)
 	}
 	if _, m := readyMsg(t, s, "alice@home.test", other.id); len(m["iceServers"].([]any)) != 2 || m["relayOff"] != nil {
@@ -104,4 +110,3 @@ func TestAGatewayWithItsRelayOffGetsNoTURNCredential(t *testing.T) {
 		t.Fatal(servers)
 	}
 }
-

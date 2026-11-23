@@ -183,7 +183,9 @@ func gatewayCmds(ctx context.Context, exe string, runGateway func(*cobra.Command
 			},
 		),
 		{
-			Use: "relay on|off", GroupID: "gateway", Args: args(cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs)),
+			Use:       "relay on|off",
+			GroupID:   "gateway",
+			Args:      args(cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs)),
 			ValidArgs: []string{"on", "off"},
 			Short:     "Allow the relay (on, the default) or direct connections only (off)",
 			Long: `on (the default): a client that can't connect directly goes through the relay (TURN).

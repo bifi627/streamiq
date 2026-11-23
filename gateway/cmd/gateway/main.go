@@ -125,7 +125,9 @@ func setRelay(on bool) error {
 	if on {
 		fmt.Println("Relay on: a client that can't connect directly goes through the relay (TURN).")
 	} else {
-		fmt.Println("Relay off: direct connections only. Clients behind carrier NAT (most cellular) or a strict NAT can't connect.")
+		fmt.Println(
+			"Relay off: direct connections only. Clients behind carrier NAT (most cellular) or a strict NAT can't connect.",
+		)
 	}
 	fmt.Println("Start the gateway again (gateway service install, or gateway run).")
 	return nil

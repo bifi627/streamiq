@@ -72,7 +72,9 @@ func TestHeartbeatParsesEveryField(t *testing.T) {
 }
 
 func TestHeartbeatFieldsOfTheWrongTypeReadAsMissing(t *testing.T) {
-	got := parseHeartbeat(msg(t, `{"type":"heartbeat","protocol":1,"lanUrl":5,"version":true,"update":[],"name":5,"relayOff":"yes"}`))
+	got := parseHeartbeat(
+		msg(t, `{"type":"heartbeat","protocol":1,"lanUrl":5,"version":true,"update":[],"name":5,"relayOff":"yes"}`),
+	)
 	if !reflect.DeepEqual(got, heartbeat{Protocol: 1}) {
 		t.Fatalf("%+v", got)
 	}

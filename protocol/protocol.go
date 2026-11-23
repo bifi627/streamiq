@@ -60,7 +60,7 @@ type Ping struct {
 type Ready struct {
 	Type       string            `json:"type"       tstype:"'ready'"`
 	ICEServers []json.RawMessage `json:"iceServers" tstype:"RTCIceServer[]"`
-	RelayOff   bool              `json:"relayOff,omitempty"` // the gateway allows direct connections only: iceServers is STUN only
+	RelayOff   bool              `json:"relayOff,omitempty"` // the gateway takes direct connections only: STUN only
 }
 
 // Offer is the browser's offer to one gateway.

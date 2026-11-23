@@ -86,7 +86,7 @@ export interface Ping {
 export interface Ready {
   type: 'ready';
   iceServers: RTCIceServer[];
-  relayOff?: boolean; // the gateway allows direct connections only: iceServers is STUN only
+  relayOff?: boolean; // the gateway takes direct connections only: STUN only
 }
 /**
  * Offer is the browser's offer to one gateway.

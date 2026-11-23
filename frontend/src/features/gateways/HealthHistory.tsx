@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { describe, toAppError } from '../../shared/errors'
+import { toAppError } from '../../shared/errors'
 import { getHealth, type Gateway } from './api'
 import {
   dailyPeaks,
   historyGap,
+  historyMessage,
   incidents,
   span,
   versionChanges,
@@ -46,7 +47,7 @@ function History({ g }: { g: Gateway }) {
     refetchOnWindowFocus: false,
   })
   if (q.isError)
-    return <p role="alert">{describe(toAppError(q.error)).message}</p>
+    return <p role="alert">{historyMessage(toAppError(q.error))}</p>
   if (!q.data) return <p className="muted">Loading…</p>
   if (!q.data.length) return <p className="muted">No health data yet.</p>
   // The fetch's time, not the render's: the rows don't move while the page polls.

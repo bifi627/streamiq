@@ -1,4 +1,5 @@
 import { pair } from '../activity/tunnels.ts'
+import { describe, type AppError } from '../../shared/errors.ts'
 import type { HealthRow } from '../../generated/history.ts'
 
 // Gateway API GET /streamiq/health: the last 7 days the gateway recorded, oldest
@@ -18,6 +19,12 @@ export function historyGap(online: boolean, paired: boolean): string | null {
   if (!paired) return `${kept}: pair this browser to see it.`
   return null
 }
+
+// A gateway older than GET /streamiq/health answers 404.
+export const historyMessage = (e: AppError) =>
+  e.context.status === 404
+    ? 'This gateway is too old to keep a health history: update it.'
+    : describe(e).message
 
 // Epoch ms; to null = still going on.
 export type Incident = {

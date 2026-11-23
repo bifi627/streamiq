@@ -250,11 +250,12 @@ func TestAGatewayWithoutABearerCredentialIsRefused(t *testing.T) {
 func TestABrowserThatNeverAuthenticatesIsClosedAfterTheAuthTimeout(t *testing.T) {
 	s := newBroker(t)
 	s.b.AuthTimeout = 300 * time.Millisecond
+	// The server's timer starts after the upgrade, which can be just after dial returns.
+	start := time.Now()
 	c, _, err := s.dial("/api/broker/ws", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	start := time.Now()
 	closedAs(t, c, "auth timeout")
 	if time.Since(start) < s.b.AuthTimeout {
 		t.Fatal("closed before the timeout")

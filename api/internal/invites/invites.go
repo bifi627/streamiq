@@ -6,9 +6,7 @@ package invites
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -32,12 +30,6 @@ func Routes(mux *http.ServeMux, a *auth.Auth, d *db.DB, ips *iplimit.Limiter) {
 		func(w http.ResponseWriter, r *http.Request, c auth.Caller) { preview(w, r, c, d, a) }))
 	mux.HandleFunc("POST /api/invites/accept", a.Handler(true,
 		func(w http.ResponseWriter, r *http.Request, c auth.Caller) { accept(w, r, c, d) }))
-}
-
-// hash is how a token is stored: SHA-256 hex, never the plaintext.
-func hash(token string) string {
-	h := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(h[:])
 }
 
 func newToken() string {
@@ -67,7 +59,7 @@ func find(r *http.Request, d *db.DB, token string) (f found, ok bool, err error)
 		return f, false, nil
 	}
 	err = d.NoTenant().QueryRow(r.Context(), `SELECT tenant_id::text, usable, name, inviter_uid
-		FROM invite_by_hash($1)`, hash(token)).Scan(&f.household, &f.usable, &f.name, &f.inviterUID)
+		FROM invite_by_hash($1)`, auth.HashSecret(token)).Scan(&f.household, &f.usable, &f.name, &f.inviterUID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return f, false, nil
 	}

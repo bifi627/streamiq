@@ -8,12 +8,13 @@ import {
   CloseGatewayRevoked,
   CloseNoHousehold,
   CloseRateLimited,
+  CloseServerError,
   CloseUnauthorized,
 } from '../generated/protocol.ts'
 
 export type Kind =
   | 'broker-unreachable' // broker socket closed before it opened: offline or rate-limited (a 429 is invisible to JS)
-  | 'broker-lost' // broker socket dropped after it opened
+  | 'broker-lost' // broker socket dropped after it opened, or the broker failed on its side ("server error")
   | 'no-household' // the broker refused: the user is in no household (anymore)
   | 'rate-limited' // the broker closed the socket: too many messages
   | 'gateway-offline'
@@ -80,6 +81,7 @@ const closeKind = new Map<string, Kind>([
   [CloseGatewayGone, 'gateway-offline'],
   [CloseGatewayRevoked, 'gateway-removed'],
   [CloseUnauthorized, 'unauthorized'],
+  [CloseServerError, 'broker-lost'],
   [CloseNoHousehold, 'no-household'],
   [CloseRateLimited, 'rate-limited'],
 ])

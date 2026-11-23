@@ -37,6 +37,7 @@ export interface Msg<S extends any, C extends any> {
 export const CloseAuthFirst = "auth first";
 export const CloseAuthTimeout = "auth timeout";
 export const CloseUnauthorized = "unauthorized";
+export const CloseServerError = "server error";
 export const CloseNoHousehold = "no household";
 export const CloseRateLimited = "rate limited";
 export const CloseGatewayGone = "gateway gone";

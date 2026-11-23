@@ -65,7 +65,7 @@ func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 		case "offer":
 			// A browser from before auth.gatewayId names none: it got STUN only.
 			if named != "" && id(m, "gatewayId") != named {
-				send(conn, protocol.ErrorMsg{Type: "error", Error: "gateway offline or unknown"})
+				send(conn, protocol.ErrorMsg{Type: "error", Error: protocol.GatewayOffline})
 			} else if gw == nil {
 				sid, gw = b.offer(ctx, conn, user, m)
 			}
@@ -146,7 +146,7 @@ func (b *Broker) offer(ctx context.Context, conn *websocket.Conn, user string, m
 		role = b.role(ctx, user, gw)
 	}
 	if role == "" {
-		send(conn, protocol.ErrorMsg{Type: "error", Error: "gateway offline or unknown"})
+		send(conn, protocol.ErrorMsg{Type: "error", Error: protocol.GatewayOffline})
 		return "", nil
 	}
 	sid := uuid.NewString()

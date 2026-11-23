@@ -1,4 +1,26 @@
 import { AppError, describe } from '../../shared/errors.ts'
+import {
+  RefusedDevBuild,
+  RefusedNoTask,
+  RefusedRunning,
+  RefusedUnsupported,
+  RefusedUpToDate,
+} from '../../generated/update.ts'
+
+const refusals = new Map([
+  [RefusedUnsupported, 'remote update works on Windows only so far'],
+  [RefusedDevBuild, 'it is a dev build'],
+  [RefusedRunning, 'an update is already running'],
+  [RefusedUpToDate, 'it is already up to date'],
+  [
+    RefusedNoTask,
+    'no logon task, so nothing would start the gateway again after the update',
+  ],
+])
+
+/** The text for the gateway's update refusal code (`remoteUpdate`, the 409). */
+export const refusedText = (code: string) =>
+  refusals.get(code) ?? "the gateway can't update itself now"
 
 // A remote update the gateway card started: the target it named and
 // the version the gateway ran before.
@@ -65,6 +87,8 @@ export function startOutcome(
 ): { msg: string } | { remote: string } | { started: Started } {
   if (r instanceof AppError) return { msg: describe(r).message }
   if ('reason' in r)
-    return tracking ? { msg: `Refused: ${r.reason}.` } : { remote: r.reason }
+    return tracking
+      ? { msg: `Refused: ${refusedText(r.reason)}.` }
+      : { remote: r.reason }
   return { started: { to: r.version, from } }
 }

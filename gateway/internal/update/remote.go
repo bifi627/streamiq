@@ -21,19 +21,19 @@ type Remote struct {
 	running atomic.Bool
 }
 
-// Reason says why a remote update isn't possible now; "" = it is.
+// Reason says why a remote update isn't possible now (a Refused* code); "" = it is.
 func (r *Remote) Reason() string {
 	switch {
 	case !r.Supported:
-		return "remote update works on Windows only so far"
+		return RefusedUnsupported
 	case r.Version == "dev":
-		return "dev build"
+		return RefusedDevBuild
 	case r.running.Load():
-		return "an update is already running"
+		return RefusedRunning
 	case r.Newer() == "" || !Newer(r.Newer(), r.Version):
-		return "already up to date"
+		return RefusedUpToDate
 	case !r.Task():
-		return "no logon task, so nothing would start the gateway again after the update"
+		return RefusedNoTask
 	}
 	return ""
 }
@@ -46,7 +46,7 @@ func (r *Remote) Run() (target, refused string, err error) {
 		return "", why, nil
 	}
 	if !r.running.CompareAndSwap(false, true) {
-		return "", "an update is already running", nil
+		return "", RefusedRunning, nil
 	}
 	target = r.Newer()
 	wait, err := r.Start()
@@ -60,7 +60,7 @@ func (r *Remote) Run() (target, refused string, err error) {
 
 // Path starts a remote update (gateway API, admin-only): POST → 202
 // {"version": target}, the gateway goes down for the swap right after; refused →
-// 409 {"reason": "…"}.
+// 409 {"reason": a Refused* code}.
 const Path = "/streamiq/update"
 
 // ServeHTTP is POST Path.

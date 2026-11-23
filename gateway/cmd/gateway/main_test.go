@@ -104,7 +104,7 @@ func TestRemoteUpdateStatus(t *testing.T) {
 		t.Fatalf("possible: %v, want true", got)
 	}
 	r.Task = func() bool { return false }
-	if got, ok := remoteUpdate(r).(string); !ok || !strings.HasPrefix(got, "no logon task") {
+	if got, ok := remoteUpdate(r).(string); !ok || got != update.RefusedNoTask {
 		t.Fatalf("no task: %v, want the reason", remoteUpdate(r))
 	}
 }

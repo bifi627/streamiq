@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { GatewayOffline } from '../../generated/protocol.ts'
 import {
   start,
   step,
@@ -191,6 +192,12 @@ test('rejected', () => {
     )
     assert.equal(failure(full.fx)?.kind, 'gateway-busy', reason)
   }
+  // By equality: a reworded reason is a refusal, not busy.
+  const reworded = run(
+    answered({ pairing: true }),
+    gateway({ type: 'rejected', reason: 'too many pending pairing requests!' }),
+  )
+  assert.equal(failure(reworded.fx)?.kind, 'gateway-refused')
 })
 
 test('pairing: commit, reveal, approved → pin and resolve', () => {
@@ -280,7 +287,7 @@ test('after a failure every event is ignored', () => {
 
 test('a broker error and broken JSON fail', () => {
   assert.equal(
-    failure(run(init(), broker({ type: 'error', error: 'gateway offline' })).fx)
+    failure(run(init(), broker({ type: 'error', error: GatewayOffline })).fx)
       ?.kind,
     'gateway-offline',
   )

@@ -5,6 +5,13 @@ package pairing
 
 import "time"
 
+// The pairing queue's refusals, sent as the auth channel's rejected reason: the web
+// app reads both as "busy, try again" (a slot frees up), any other reason as refused.
+const (
+	RejectedFull        = "too many pending pairing requests"
+	RejectedUserPairing = "this user is already pairing a browser"
+)
+
 // Client is one item of GET ClientsPath; Self = the calling session's client key.
 type Client struct {
 	KeyFp   string    `json:"keyFp"`

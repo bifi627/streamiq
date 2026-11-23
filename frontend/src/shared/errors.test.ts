@@ -44,6 +44,8 @@ test('broker error text', () => {
   )
   assert.equal(brokerError('gateway busy').kind, 'gateway-busy')
   assert.equal(brokerError('something new').kind, 'unknown')
+  // By equality: a reworded text is unknown, not offline.
+  assert.equal(brokerError('gateway offline').kind, 'unknown')
 })
 
 test('HTTP status → kind, by who answered', () => {

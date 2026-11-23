@@ -8,6 +8,7 @@ import {
   updateState,
   type Notice,
   type Started,
+  refusedText,
 } from './update'
 import { gatewayName } from './list'
 import { event } from '../../shared/diag'
@@ -175,8 +176,8 @@ function Available({
         </button>
       ) : notice === 'reason' ? (
         <>
-          Can't update from here: {remote}. Run <code>install.sh</code> on the
-          gateway (Linux/macOS); on Windows run{' '}
+          Can't update from here: {refusedText(String(remote))}. Run{' '}
+          <code>install.sh</code> on the gateway (Linux/macOS); on Windows run{' '}
           <code>gateway service install</code> once at home, then update from
           here.
         </>

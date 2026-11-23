@@ -10,6 +10,7 @@ export function RelayUsage() {
     queryKey: ['relay-usage'],
     queryFn: () => authed<Usage[]>('/relay-usage'),
   })
+  if (q.error) return <p className="muted">Relayed data: unavailable</p>
   if (!q.data?.length) return null
   return (
     <>

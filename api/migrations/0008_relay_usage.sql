@@ -1,4 +1,4 @@
--- Relay usage per gateway and month (#784), from Cloudflare's TURN analytics. Each
+-- Relay usage per gateway and month, from Cloudflare's TURN analytics. Each
 -- credential is minted with the gateway's relay_tag as its customIdentifier: random, so
 -- the analytics name neither the gateway nor its household. The volatile default gives
 -- every existing gateway its own tag.

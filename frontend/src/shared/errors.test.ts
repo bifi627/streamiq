@@ -16,6 +16,10 @@ test('broker socket: closed before open is unreachable, after is a drop', () => 
   assert.equal(brokerClosed(false).kind, 'broker-unreachable')
   assert.equal(brokerClosed(true).kind, 'broker-lost')
   assert.equal(brokerClosed(true, {}, 'gateway gone').kind, 'gateway-offline')
+  assert.equal(
+    brokerClosed(true, {}, 'gateway revoked').kind,
+    'gateway-removed',
+  )
 })
 
 test('broker error text', () => {
@@ -73,6 +77,7 @@ test('every kind: a message and the buttons it shows', () => {
     'broker-unreachable': ['retry'],
     'broker-lost': ['retry'],
     'gateway-offline': ['retry', 'gateways'],
+    'gateway-removed': ['gateways'],
     'gateway-busy': ['retry'],
     'ice-failed': ['retry'],
     'not-paired': ['pair'],

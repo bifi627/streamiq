@@ -7,6 +7,7 @@ export type Kind =
   | 'broker-unreachable' // broker socket closed before it opened: offline or rate-limited (a 429 is invisible to JS)
   | 'broker-lost' // broker socket dropped after it opened
   | 'gateway-offline'
+  | 'gateway-removed' // the broker closed the session: its gateway was removed from the household
   | 'gateway-busy' // the gateway refused for now: too many unauthenticated connections, or its pairing slots are taken
   | 'ice-failed'
   | 'not-paired'
@@ -71,12 +72,18 @@ export const brokerClosed = (
   context: Context = {},
   reason = '',
 ) =>
-  // The broker closes a session whose gateway's socket dropped.
+  // The broker closes a session whose gateway's socket dropped, or was removed.
   reason === 'gateway gone'
     ? new AppError('gateway-offline', 'gateway disconnected', context)
-    : opened
-      ? new AppError('broker-lost', 'broker connection closed', context)
-      : new AppError('broker-unreachable', 'broker connection failed', context)
+    : reason === 'gateway revoked'
+      ? new AppError('gateway-removed', 'gateway revoked', context)
+      : opened
+        ? new AppError('broker-lost', 'broker connection closed', context)
+        : new AppError(
+            'broker-unreachable',
+            'broker connection failed',
+            context,
+          )
 
 /** The broker's `{type:"error"}` text (docs/protocol.md). */
 export const brokerError = (text: string, context: Context = {}) =>
@@ -128,6 +135,11 @@ export function describe(e: AppError): {
       return {
         message: 'The gateway is offline.',
         actions: ['retry', 'gateways'],
+      }
+    case 'gateway-removed':
+      return {
+        message: 'This gateway was removed.',
+        actions: ['gateways'],
       }
     case 'gateway-busy':
       return {

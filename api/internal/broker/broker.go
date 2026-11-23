@@ -106,8 +106,9 @@ type link struct {
 // session is a browser's socket and the gateway link its offer went to: when that
 // socket closes, the session is closed as "gateway gone". A reconnected gateway is a new link.
 type session struct {
-	conn *websocket.Conn
-	via  *link
+	conn    *websocket.Conn
+	via     *link
+	revoked bool // Revoke closes it as "gateway revoked": the gateway's cleanup leaves it alone
 }
 
 // writeTimeout bounds a send to a peer that stopped reading; coder/websocket closes it then.
@@ -136,12 +137,12 @@ func (b *Broker) Revoke(gatewayID string) {
 	var browsers []*websocket.Conn
 	for _, s := range b.sessions {
 		if s.via.gateID == gatewayID {
+			s.revoked = true
 			browsers = append(browsers, s.conn)
 		}
 	}
 	b.mu.Unlock()
-	// Sessions first: the gateway's own cleanup would close them as "gateway gone". Not
-	// waiting for the peers' close handshakes (up to 5 s each).
+	// Not waiting for the peers' close handshakes (up to 5 s each).
 	for _, c := range browsers {
 		go kill(c, "gateway revoked")
 	}

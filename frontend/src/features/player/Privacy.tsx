@@ -7,6 +7,7 @@
 // (CSS: .badge:focus / [aria-expanded] + .explain); the relayed MB live there.
 import { useState } from 'react'
 import { useOnLan, usePairInfo } from '../library/queries'
+import { routeOf, type Route } from '../gateways/connection'
 
 export function Privacy({
   gatewayId,
@@ -17,12 +18,26 @@ export function Privacy({
 }) {
   const p = usePairInfo(gatewayId, pc)
   const lan = useOnLan(gatewayId, pc)
-  const [open, setOpen] = useState(false)
   if (!p || lan === null) return null
-  const mb = ((p.bytesReceived + p.bytesSent) / 1e6).toLocaleString(undefined, {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  })
+  return (
+    <RouteBadge
+      route={routeOf(p.relay, lan)}
+      mb={(p.bytesReceived + p.bytesSent) / 1e6}
+    />
+  )
+}
+
+/** The badge itself; mb: relayed so far, unknown after the shell's
+ * short check (its explanation then leaves the figure out). */
+export function RouteBadge({ route, mb }: { route: Route; mb?: number }) {
+  const [open, setOpen] = useState(false)
+  const relayed =
+    mb === undefined
+      ? ''
+      : ` · ${mb.toLocaleString(undefined, {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })} MB relayed`
   const { label, icon, explain } = {
     lan: {
       label: 'On your network',
@@ -40,11 +55,11 @@ export function Privacy({
     relay: {
       label: 'Relayed · encrypted',
       icon: 'M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6z',
-      explain: `Your networks couldn't connect directly, so the stream passes an encrypted relay that can't see it · ${mb} MB relayed`,
+      explain: `Your networks couldn't connect directly, so the stream passes an encrypted relay that can't see it${relayed}`,
     },
-  }[p.relay ? 'relay' : lan ? 'lan' : 'direct']
+  }[route]
   return (
-    <span className="privacy" data-relay={p.relay}>
+    <span className="privacy" data-relay={route === 'relay'}>
       <button
         type="button"
         className="badge"

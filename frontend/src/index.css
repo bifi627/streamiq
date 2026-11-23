@@ -275,6 +275,13 @@ input[type='radio'] {
 .dot.online {
   background: var(--direct);
 }
+/* The shell badge: the route badge sits in the chip, without its frame. */
+.chip.conn .badge {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
 
 /* Phone: the nav becomes a bottom tab bar, icon over label, above the
    home indicator; Library in the middle, a bit bigger. --tabbar is its height
@@ -293,6 +300,9 @@ input[type='radio'] {
   }
   .wordmark {
     font-size: 1.375rem;
+  }
+  .chip.conn .badge-text {
+    display: none;
   }
   .titlerow {
     margin-bottom: var(--sp-4);

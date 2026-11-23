@@ -41,12 +41,9 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* TV mode (Settings, per device): larger root + 5 % safe-area padding. */
+/* TV mode (Settings, per device): larger root. */
 html.tv {
   font-size: 150%;
-}
-html.tv body {
-  padding: 5vh 5vw;
 }
 
 * {
@@ -219,25 +216,24 @@ input[type='radio'] {
   opacity: 0.4;
   cursor: default;
 }
-/* Title row: back | title | actions, the title centered on the row. */
+/* Title row: back, title (left aligned), actions right. */
 .titlerow {
-  display: grid;
-  grid-template-columns: 1fr minmax(0, auto) 1fr;
+  display: flex;
   align-items: center;
   gap: var(--sp-3);
   margin-bottom: var(--sp-5);
 }
+.titlerow > :empty:not(.titlerow-title) {
+  display: none; /* no Back: no gap before the title */
+}
 .titlerow-title {
+  flex: 1;
   min-width: 0;
-  text-align: center;
 }
 .titlerow h1 {
   margin: 0;
   font-size: var(--fs-section);
   overflow-wrap: anywhere;
-}
-.titlerow-title .name {
-  justify-content: center;
 }
 .titlerow-actions {
   display: flex;
@@ -498,9 +494,6 @@ button.link {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
-  }
-  html.tv .signin {
-    margin: 0 auto; /* body has the safe-area padding */
   }
   .signin .wide {
     min-height: var(--target);
@@ -1870,15 +1863,6 @@ progress::-moz-progress-bar {
   .dock-log {
     overflow: auto;
   }
-}
-/* TV: inside the 5 % safe area the body pads (TV mode) */
-html.tv .dock {
-  left: 5vw;
-  right: 5vw;
-  bottom: 5vh;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
 }
 /* Phone: above the bottom tab bar */
 @media (max-width: 600px) {

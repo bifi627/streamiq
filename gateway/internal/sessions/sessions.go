@@ -36,7 +36,7 @@ type Sessions struct {
 	// Ended gets every tunnel's report as it ends, with its user, when its offer came
 	// and the throughput its browser measured (0 = none): the gateway's tunnel history.
 	// nil = none.
-	Ended func(r protocol.Report, user string, start time.Time, kbps int)
+	Ended func(r tunnel.Report, user string, start time.Time, kbps int)
 	// Relay: false = direct connections only (the gateway's setting): no TURN of our
 	// own, the browser's relay candidates dropped. nil = on.
 	Relay func() bool
@@ -381,7 +381,7 @@ func (s *Sessions) Drop(keyFp string) {
 	}
 }
 
-func (s *Sessions) ended(r protocol.Report, user string, start time.Time, kbps int) {
+func (s *Sessions) ended(r tunnel.Report, user string, start time.Time, kbps int) {
 	if s.Ended != nil {
 		s.Ended(r, user, start, kbps)
 	}
@@ -440,17 +440,15 @@ func report(
 	cands *signaled,
 	last *webrtc.ICECandidatePair,
 	failure *string,
-) protocol.Report {
-	r := protocol.Report{Session: id, Failure: failure}
+) tunnel.Report {
+	r := tunnel.Report{Session: id, Failure: failure}
 	ice := pc.SCTP().Transport().ICETransport()
 	p, err := ice.GetSelectedCandidatePair()
 	if err != nil || p == nil {
 		p = last // gone after Failed: the pair it had while connected
 	}
 	if p != nil {
-		r.LocalCandidateType, r.RemoteCandidateType = p.Local.Typ.String(), p.Remote.Typ.String()
 		r.Relay, r.Ipv6 = classify(p, cands)
-		r.Protocol = p.Local.Protocol.String()
 	}
 	st := ice.Stats()
 	r.BytesSent, r.BytesReceived = st.BytesSent, st.BytesReceived

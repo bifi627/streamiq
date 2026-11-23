@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"streamiq/gateway/internal/tunnel"
-	"streamiq/protocol"
 )
 
 // Window is how far back GET /streamiq/health reaches.
@@ -17,7 +16,7 @@ const Window = HealthDays * 24 * time.Hour
 type entry struct {
 	At             time.Time `json:"at"`
 	GatewayVersion string    `json:"gatewayVersion"`
-	protocol.Health
+	Sample
 }
 
 // Health records the box's health and serves it back.
@@ -32,7 +31,7 @@ type Health struct {
 // Record stores h unless it adds nothing: a row when Jellyfin, OS/arch, transcoding,
 // the offline jail or the gateway version change, at least every 5 min, at most
 // one per 25 s. Live counts and load alone don't make one.
-func (s *Health) Record(now time.Time, h protocol.Health) error {
+func (s *Health) Record(now time.Time, h Sample) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.loaded { // after a restart the rule goes on from the stored latest row
@@ -45,7 +44,7 @@ func (s *Health) Record(now time.Time, h protocol.Health) error {
 		}
 		s.loaded = true
 	}
-	e := entry{At: now.UTC(), GatewayVersion: s.Version, Health: h}
+	e := entry{At: now.UTC(), GatewayVersion: s.Version, Sample: h}
 	if l := s.last; l != nil {
 		age := now.Sub(l.At)
 		// A clock set back (negative age) records again rather than waiting for the old time.

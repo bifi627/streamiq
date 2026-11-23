@@ -26,7 +26,6 @@ import (
 	"streamiq/gateway/internal/screen"
 	"streamiq/gateway/internal/testwait"
 	"streamiq/gateway/internal/tunnel"
-	"streamiq/protocol"
 )
 
 // A browser (played by a second Pion peer) is refused tunnel channels until it
@@ -751,8 +750,8 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
 	var ended []string // the history's lines: session/user
 	var mu sync.Mutex
-	reps := make(chan protocol.Report, 4)
-	gateway.Ended = func(r protocol.Report, user string, start time.Time, _ int) {
+	reps := make(chan tunnel.Report, 4)
+	gateway.Ended = func(r tunnel.Report, user string, start time.Time, _ int) {
 		mu.Lock()
 		defer mu.Unlock()
 		if start.IsZero() {
@@ -761,13 +760,13 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 		ended = append(ended, r.Session+"/"+user)
 		reps <- r
 	}
-	next := func() protocol.Report {
+	next := func() tunnel.Report {
 		select {
 		case r := <-reps:
 			return r
 		case <-time.After(10 * time.Second):
 			t.Fatal("no tunnel report")
-			return protocol.Report{}
+			return tunnel.Report{}
 		}
 	}
 	bye := func(id string) {
@@ -791,8 +790,7 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	}
 	bye("s1")
 	r := next()
-	if r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
-		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 ||
+	if r.Session != "s1" || r.Failure != nil || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 ||
 		r.Use != "browsing" || r.ActiveMs == nil || *r.ActiveMs <= 0 {
 		t.Fatalf("report of a served tunnel = %+v", r)
 	}
@@ -873,8 +871,8 @@ func TestClassify(t *testing.T) {
 // without a failure (#520): only ICE failing before it came up is "ice failed" (#485).
 func TestBrowserCloseReportsNoFailure(t *testing.T) {
 	gateway, store := newGateway(t)
-	reps := make(chan protocol.Report, 4)
-	gateway.Ended = func(r protocol.Report, _ string, _ time.Time, _ int) { reps <- r }
+	reps := make(chan tunnel.Report, 4)
+	gateway.Ended = func(r tunnel.Report, _ string, _ time.Time, _ int) { reps <- r }
 	b, _ := unpaired(t, gateway, "s1")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
@@ -1012,8 +1010,7 @@ func TestReportKeepsLastPair(t *testing.T) {
 		Remote: &webrtc.ICECandidate{Typ: webrtc.ICECandidateTypeHost, Address: "2001:db8::1"},
 	}
 	r := report("s", pc, &signaled{}, last, failure(false, true, ""))
-	if r.LocalCandidateType != "relay" || r.RemoteCandidateType != "host" || r.Protocol != "udp" ||
-		!r.Relay || !r.Ipv6 || r.Failure != nil {
+	if !r.Relay || !r.Ipv6 || r.Failure != nil {
 		t.Fatalf("report after Failed = %+v", r)
 	}
 }

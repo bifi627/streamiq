@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"streamiq/gateway/internal/tunnel"
 	"streamiq/protocol"
 )
 
@@ -50,7 +51,7 @@ func (s *Sessions) admit() *preAuth {
 func (s *Sessions) refuse(id, user string, send func(any)) {
 	log.Printf("gateway: session %s: refused, %d connections not authenticated yet", id, MaxUnauthed)
 	send(protocol.GatewayError{Type: "error", Session: id, Error: busy})
-	s.ended(protocol.Report{Session: id, Failure: ptr(busy)}, user, time.Now(), 0)
+	s.ended(tunnel.Report{Session: id, Failure: ptr(busy)}, user, time.Now(), 0)
 }
 
 // deadline closes the connection UnauthedFor after its offer unless it has

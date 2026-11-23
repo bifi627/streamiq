@@ -13,7 +13,6 @@ import (
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
-	"streamiq/protocol"
 )
 
 // box reads the gateway box's state: GET /streamiq/status live and the health history.
@@ -53,11 +52,11 @@ func sleep(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-func (b *box) health(ctx context.Context) protocol.Health {
+func (b *box) health(ctx context.Context) history.Sample {
 	v := b.setup.View()
 	l := b.load.Load(b.compose)
-	h := protocol.Health{
-		Jellyfin: protocol.Jellyfin{Reachable: v.Reachable, Version: v.Version},
+	h := history.Sample{
+		Jellyfin: history.Jellyfin{Reachable: v.Reachable, Version: v.Version},
 		OS:       runtime.GOOS, Arch: runtime.GOARCH, Transcoding: v.Transcoding(),
 		Offline: jellyfin.Offline(b.compose), Tunnels: b.sess.Active(), CPU: l.CPU,
 	}

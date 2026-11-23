@@ -151,7 +151,8 @@ func TestThroughputGoesToTheCallersOwnTunnel(t *testing.T) {
 			t.Errorf("%s: %d, kept %d, want %d", body, status, use.Throughput(), want)
 		}
 	}
-	if status, _, _, _ := tunnel.Do(rt, tunnel.Session{}, "POST", ThroughputPath, "nope"); status != http.StatusBadRequest {
+	status, _, _, _ := tunnel.Do(rt, tunnel.Session{}, "POST", ThroughputPath, "nope")
+	if status != http.StatusBadRequest {
 		t.Fatalf("a bad body: %d", status)
 	}
 }

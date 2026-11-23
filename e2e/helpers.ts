@@ -174,7 +174,7 @@ export async function join(host: User, user: User) {
 }
 
 /**
- * user's new gateway, onboarded the way "Add gateway" does (the golden path
+ * user's new gateway, onboarded the way "Add gateway" does (smoke.spec.ts
  * drives that UI): an enrollment token, the gateway started with it, online.
  * Needs the `jellyfin` fixture (the gateway connects to it).
  */
@@ -203,6 +203,21 @@ export async function onboardGateway(user: User) {
   }
   return gateway
 }
+
+/**
+ * Restarts gateway on its state dir, in place, so the `paired` fixture stops the
+ * new process. The spent token isn't needed: gateway.json holds the credential.
+ */
+export async function restartGateway(gateway: Gateway) {
+  await gateway.stop()
+  Object.assign(
+    gateway,
+    await startGateway(gateway.stateDir, {
+      STREAMIQ_API_URL: envVar('E2E_API_URL'),
+    }),
+  )
+}
+type Gateway = Awaited<ReturnType<typeof startGateway>>
 
 /**
  * Signs user in on page (at its current URL), acting in household (what /join or

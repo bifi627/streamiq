@@ -2,8 +2,8 @@
 // `paired`): `/` → the one gateway's library, the nav's Library link, the
 // shared session, folder deep links + cache, Recently added,
 // Continue watching's order and click-through guard, season tabs
-// and watched marks, no speed test while browsing. Folder → movie → Play and the Resume spot are the golden
-// path's; `/` with no gateway or several, artwork caching and the guest banner
+// and watched marks, no speed test while browsing. Folder → movie → Play and the Resume spot are
+// smoke.spec's; `/` with no gateway or several, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'

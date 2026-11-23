@@ -649,7 +649,7 @@ async function startCoturn(labeled: (c: GenericContainer) => GenericContainer) {
   for (let attempt = 1; ; attempt++) {
     const turnPort = 20000 + Math.floor(Math.random() * 20000) // below Windows' ephemeral range; a clash anywhere is a bind error → retry
     // One relay port per allocation, and every tunnel's browser and gateway allocate:
-    // 5 ran out with 3 golden-path copies in parallel (508 Cannot create socket).
+    // 5 ran out with 3 copies of one long multi-tunnel spec in parallel (508 Cannot create socket).
     const relayPorts = Array.from({ length: 50 }, (_, i) => turnPort + 1 + i)
     const hex = turnPort.toString(16).toUpperCase().padStart(4, '0')
     const fixed = (port: number, protocol: 'tcp' | 'udp') => ({

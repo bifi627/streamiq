@@ -7,17 +7,15 @@ import { expect, test } from './fixtures.ts'
 import {
   appUrl,
   join,
-  keepPcs,
   newPage,
   pair,
   signIn,
   signUp,
   uniqueEmail,
   videoTime,
-  viaTunnel,
 } from './helpers.ts'
 import { jellyfinAdminGet } from './jellyfin.ts'
-import { envVar, must } from './must.ts'
+import { envVar } from './must.ts'
 
 /** Plays the fixture from the library home to sec, then leaves (saves it). */
 async function playTo(p: Page, sec: number) {
@@ -43,20 +41,13 @@ test(
     // A: signed in, paired with A's own gateway (fixtures.ts).
     const { user: A, page: a, gateway, gatewayCtx } = paired
     const B = await signUp(uniqueEmail('multi-b'))
-    // Each in their own browser (own client key), each paired.
-    const client = async () => {
-      const p = await newPage(browser) // own client key
-      await keepPcs(p)
-      return p
-    }
     const connect = async (p: Page) => {
       await p.goto(appUrl('/gateways'))
       if (p !== a) await pair(p, gatewayCtx, gateway.pageUrl)
       await p.getByRole('button', { name: 'Open' }).click()
       await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible() // a live session
     }
-    await keepPcs(a) // from its next navigation on (connect)
-    const b = await client()
+    const b = await newPage(browser) // own client key
 
     // B joins A's household over the API (the invite UI: households.spec.ts).
     await join(A, B)
@@ -64,26 +55,6 @@ test(
     await signIn(b, B, A.tenantId)
     await connect(a)
     await connect(b)
-
-    await test.step('paired clients: a member sees and removes only itself (#311, #341)', async () => {
-      type Client = { keyFp: string; self: boolean }
-      const list = await viaTunnel(a, '/streamiq/clients')
-      expect(list.status).toBe(200)
-      const clients: Client[] = JSON.parse(list.body)
-      expect(clients.map((c) => c.self).sort()).toEqual([false, true])
-      const own = await viaTunnel(b, '/streamiq/clients')
-      expect(own.status).toBe(200)
-      const bs: Client[] = JSON.parse(own.body)
-      expect(bs.map((c) => c.self)).toEqual([true])
-      const aKey = must(
-        clients.find((c) => c.self),
-        'the own client',
-      ).keyFp
-      const remove = await viaTunnel(b, '/streamiq/clients/remove', {
-        keyFp: aKey,
-      })
-      expect(remove.status).toBe(403)
-    })
 
     await test.step('A and B play to different positions: one Jellyfin viewer each (#195)', async () => {
       await playTo(a, 5)
@@ -125,6 +96,7 @@ test(
       await resume(/0:1[5-9]/)
     })
 
+    // The one test with a paired member: its card lists only itself (the 403 on another's key: pairing/api_test.go).
     await test.step('B (member) unpairs its own browser from the card (#341)', async () => {
       await b.goto(appUrl('/gateways'))
       const card = b.locator('li.card')

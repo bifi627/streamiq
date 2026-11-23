@@ -60,12 +60,22 @@ one (#453): if it fails, Jellyfin refuses old backups, and the PR says so.
 
 ```bash
 SKIP_E2E=1 bash scripts/check.sh          # default: format, lint, tests, build, compose config; CI runs the full e2e suite on the PR
-E2E_GREP=@golden bash scripts/check.sh    # instead, when the bump changes what the e2e specs exercise (list below)
+E2E_GREP='@smoke|…' bash scripts/check.sh  # instead, when the bump changes what the e2e specs exercise (table below)
 ```
 
-Narrow e2e (`E2E_GREP=@golden`) for: frontend runtime packages (React, Vite),
-Playwright / e2e deps, the gateway's WebRTC (Pion), the Jellyfin / Postgres image
-pins; one such package in a mixed wave puts the whole wave on `@golden`. Everything else: `SKIP_E2E=1` (`check.sh` prints `!! SKIPPED: e2e …`).
+Narrow e2e: `@smoke` plus the areas the bumped component drives (a mixed wave: the
+union of its rows). The tags and what each covers: CLAUDE.md's e2e row.
+
+| Component | `E2E_GREP` |
+|---|---|
+| Frontend runtime (React, Vite, router, player libs) | `@smoke\|@shell\|@library\|@player` |
+| Playwright / e2e deps | `@smoke\|@shell` |
+| The gateway's WebRTC (Pion), coturn pin | `@smoke\|@gateways\|@diagnostics` |
+| Jellyfin image pin | `@smoke\|@library\|@player` |
+| Postgres image pin, pgx | `@smoke\|@households\|@gateways` |
+
+A component not in the table that the specs exercise: pick its areas the same way and
+name them in the commit. Everything else: `SKIP_E2E=1` (`check.sh` prints `!! SKIPPED: e2e …`).
 Never a full local e2e run (a Jellyfin per worker) unless the owner asks.
 
 Integration tests are NOT "expensive" — include by default. Docker daemon
@@ -137,7 +147,7 @@ chore(deps): <scope summary>
 Verified: scripts/check.sh (ALL CHECKS PASSED; e2e: CI).
 ```
 
-`e2e: CI` after `SKIP_E2E=1`; `e2e: @golden` after `E2E_GREP=@golden`.
+`e2e: CI` after `SKIP_E2E=1`; `e2e: <the grep>` after `E2E_GREP=<the grep>`.
 
 Use a HEREDOC for the message so multi-line formatting survives.
 

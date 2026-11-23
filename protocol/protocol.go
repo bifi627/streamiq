@@ -19,11 +19,13 @@ type Msg[S, C any] struct {
 
 // The broker's close reasons (code 1008) on a browser's /api/broker/ws: the web app
 // maps each to what the user can do. CloseRateLimited closes a gateway socket too.
+// CloseServerError = the auth frame failed on our side (a database error), not the token.
 
 const (
 	CloseAuthFirst      = "auth first"
 	CloseAuthTimeout    = "auth timeout"
 	CloseUnauthorized   = "unauthorized"
+	CloseServerError    = "server error"
 	CloseNoHousehold    = "no household"
 	CloseRateLimited    = "rate limited"
 	CloseGatewayGone    = "gateway gone"

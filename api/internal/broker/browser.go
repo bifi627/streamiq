@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/time/rate"
 
+	"streamiq/api/internal/auth"
 	"streamiq/api/internal/turn"
 	"streamiq/protocol"
 )
@@ -114,8 +116,12 @@ func (b *Broker) authenticate(ctx context.Context, conn *websocket.Conn) (user, 
 		return "", "", false
 	}
 	c, err := b.Auth.Token(ctx, str(m, "token")) // missing = "", which fails verification
-	if err != nil {
+	if errors.Is(err, auth.ErrBadToken) {
 		kill(conn, protocol.CloseUnauthorized)
+		return "", "", false
+	}
+	if err != nil {
+		kill(conn, protocol.CloseServerError)
 		return "", "", false
 	}
 	// In no household at all: nothing to offer to, and no TURN credential for it.

@@ -11,6 +11,7 @@ import (
 
 	"streamiq/api/internal/apitest"
 	"streamiq/api/internal/auth"
+	"streamiq/api/internal/db"
 )
 
 // A browser reaches gateways of households it is a member of only (checked for the
@@ -275,4 +276,26 @@ func TestABrowserWhoseFirstFrameIsNotAuthIsRefused(t *testing.T) {
 		}
 		closedAs(t, c, "auth first")
 	}
+}
+
+// A database error isn't the token's fault: the web app offers a retry, not a sign-in.
+func TestADatabaseErrorOnTheAuthFrameIsAServerError(t *testing.T) {
+	s := newBroker(t)
+	token, _ := s.user("alice@home.test")
+	down, err := db.Connect(t.Context(), apitest.AppConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	down.Close()
+	v, err := auth.NewVerifier(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.b.Auth = auth.New(v, down)
+	c, _, err := s.dial("/api/broker/ws", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sendJSON(t, c, map[string]any{"type": "auth", "token": token})
+	closedAs(t, c, "server error")
 }

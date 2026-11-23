@@ -28,6 +28,7 @@ test('broker socket: closed before open is unreachable, after is a drop', () => 
     assert.equal(kind('unauthorized'), 'unauthorized')
     assert.equal(kind('no household'), 'no-household')
     assert.equal(kind('rate limited'), 'rate-limited')
+    assert.equal(kind('server error'), 'broker-lost') // a DB blip: Retry, not sign-out
   }
   // Neither is a refusal the user can act on: a slow token fetch, a client bug.
   assert.equal(brokerClosed(true, {}, 'auth first').kind, 'broker-lost')

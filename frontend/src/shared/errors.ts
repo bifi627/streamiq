@@ -8,6 +8,7 @@ import {
   CloseGatewayRevoked,
   CloseNoHousehold,
   CloseRateLimited,
+  CloseServerError,
   CloseUnauthorized,
 } from '../generated/protocol.ts'
 
@@ -80,6 +81,7 @@ const closeKind = new Map<string, Kind>([
   [CloseGatewayGone, 'gateway-offline'],
   [CloseGatewayRevoked, 'gateway-removed'],
   [CloseUnauthorized, 'unauthorized'],
+  [CloseServerError, 'broker-lost'],
   [CloseNoHousehold, 'no-household'],
   [CloseRateLimited, 'rate-limited'],
 ])

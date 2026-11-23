@@ -116,12 +116,15 @@ func (a *Auth) Handler(optional bool, h func(http.ResponseWriter, *http.Request,
 	}
 }
 
+// ErrBadToken is Token's error for a token that fails verification; any other is ours.
+var ErrBadToken = errors.New("bad ID token")
+
 // Token is the Caller of an ID token that arrives in-band (the broker's first message),
 // through the same verification as Handler's. Tenant and Role stay empty.
 func (a *Auth) Token(ctx context.Context, token string) (Caller, error) {
 	t, err := a.verifier.VerifyIDToken(ctx, token)
 	if err != nil {
-		return Caller{}, err
+		return Caller{}, fmt.Errorf("%w: %w", ErrBadToken, err)
 	}
 	return a.caller(ctx, t.UID)
 }

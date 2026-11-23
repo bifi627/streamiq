@@ -7,6 +7,7 @@ import { useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { connect } from '../pairing/connect'
+import { getPin } from '../pairing/store'
 import { pairInfo } from '../../shared/stats'
 import { event } from '../../shared/diag'
 import { RouteBadge } from '../player/Privacy'
@@ -16,8 +17,10 @@ import { connKey, connPart, routeOf, type Conn } from './connection'
 
 // One tunnel, closed once it has its answer: one line in the gateway's
 // tunnel history. A gateway without /streamiq/route: not on your network.
+// No pin: no tunnel (the gateway would refuse it and log a failed line).
 async function check(gatewayId: string, direct: boolean): Promise<Conn> {
   try {
+    if (!(await getPin(gatewayId))) return { route: 'unpaired' }
     const s = await connect(gatewayId, undefined, undefined, direct)
     try {
       const [stats, lan] = await Promise.all([
@@ -70,7 +73,8 @@ export function GatewayBadge({
           · {note}
         </span>
       )}
-      <Part part={connPart(dot, conn)} mb={conn?.mb} />
+      {/* mb: only while its tunnel is live, not frozen after leaving */}
+      <Part part={connPart(dot, conn)} mb={live ? conn?.mb : undefined} />
     </span>
   )
 }
@@ -89,6 +93,7 @@ function Part({
       </span>
     )
   if (part === 'failed') return <Link to="/diagnostics">Can't connect</Link>
+  if (part === 'unpaired') return <Link to="/gateways">Not paired</Link>
   return part && <RouteBadge route={part} mb={mb} />
 }
 

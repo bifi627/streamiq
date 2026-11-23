@@ -168,11 +168,16 @@ test('connection badge: one check on a fresh load off the library, its tunnel cl
   ).toBeVisible({ timeout: 30_000 })
   // Its tunnel closed once answered: the gateway wrote its line.
   await expect.poll(() => checks(since).length, { timeout: 15_000 }).toBe(1)
-  await page.getByRole('link', { name: 'Activity' }).click()
+  // Household: a page that opens no tunnel of its own (Activity reads the gateways).
+  const sockets: string[] = []
+  page.on('websocket', (ws) => sockets.push(ws.url()))
+  await page.getByRole('link', { name: 'Household' }).click()
   await expect(
     badge(page).getByRole('button', { name: 'On your network' }),
   ).toBeVisible()
-  expect(checks(since)).toHaveLength(1)
+  // oxlint-disable-next-line playwright/no-wait-for-timeout -- proves no check starts: no state to wait on
+  await page.waitForTimeout(2_000)
+  expect(sockets.filter((u) => u.includes('/broker/ws'))).toEqual([])
 })
 
 test('connection badge: live from the library tunnel, which replaced its own badge (#860) @gateways', async ({
@@ -185,6 +190,16 @@ test('connection badge: live from the library tunnel, which replaced its own bad
     page.getByText(/end-to-end encrypted · never leaves the house/),
   ).toBeVisible()
   await expect(page.locator('.lib-top .privacy')).toHaveCount(0)
+})
+
+test('connection badge: a browser without a pin shows Not paired and opens no tunnel @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const { user } = paired
+  const b = await signedInPage(browser, user, '/settings')
+  // A tunnel would have been refused: "Can't connect".
+  await expect(badge(b).getByRole('link', { name: 'Not paired' })).toBeVisible()
 })
 
 test('connection badge: an offline gateway shows offline and opens no tunnel (#860) @gateways', async ({

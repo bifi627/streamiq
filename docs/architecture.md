@@ -264,7 +264,7 @@ peaks per local day.
   (the player's `RouteBadge`). Library routes feed it from their live tunnel (`LiveRoute`);
   elsewhere one check tunnel per page load and gateway (connect, `/streamiq/route`, close),
   kept in the query cache (`['connection', id]`) until a library tunnel or a new pairing
-  replaces it. Offline: no check.
+  replaces it. Offline or no pin on this browser: no check ("Not paired").
 - Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its
   first-visit default (`features/tv/tv.ts`: known TV → on, Android box → ask once, #309). Its routes
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the

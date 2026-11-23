@@ -4,7 +4,7 @@ export type Route = 'lan' | 'direct' | 'relay'
 
 /** A gateway's connection type as last seen this page load: the shell's
  * one check or the library's live tunnel. mb: relayed so far, live only. */
-export type Conn = { route: Route | 'failed'; mb?: number }
+export type Conn = { route: Route | 'failed' | 'unpaired'; mb?: number }
 
 export const connKey = (gatewayId: string) => ['connection', gatewayId]
 

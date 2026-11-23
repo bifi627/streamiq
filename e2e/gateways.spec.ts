@@ -77,9 +77,7 @@ test('relay switch: off over the tunnel, mirrored by the API; direct only after 
     name: 'Allow the relay (TURN)',
   })
   await expect(relay).toBeChecked()
-  await expect(
-    card(page).getByText(/strict NAT can't connect/),
-  ).toBeVisible() // what off costs, next to the switch
+  await expect(card(page).getByText(/strict NAT can't connect/)).toBeVisible() // what off costs, next to the switch
   await relay.uncheck()
   // The gateway stores it and tells the API with an early heartbeat.
   await expect.poll(async () => (await row()).relayOff).toBe(true)
@@ -98,7 +96,9 @@ test('relay switch: off over the tunnel, mirrored by the API; direct only after 
   await expect(
     page.getByText('Relay: off for this gateway (direct connections only)'),
   ).toBeVisible()
-  await expect(page.getByLabel('Force relay (TURN)', { exact: true })).toHaveCount(0)
+  await expect(
+    page.getByLabel('Force relay (TURN)', { exact: true }),
+  ).toHaveCount(0)
   await page.getByRole('button', { name: 'Test connection' }).click()
   await expect(
     page.locator('pre', { hasText: 'StreamIQ diagnostics' }),

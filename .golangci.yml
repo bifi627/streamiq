@@ -52,7 +52,7 @@ linters:
           list-mode: lax
           deny:
             - pkg: streamiq/api/internal/
-              desc: "another slice: let api/cmd/api/main.go hand in what it needs (CLAUDE.md)"
+              desc: "another slice: let api/cmd/api/main.go hand in what it needs; a slice's own subpackage: allow it in .golangci.yml (CLAUDE.md)"
           allow:
             - streamiq/api/internal/db$
             - streamiq/api/internal/auth$
@@ -66,7 +66,7 @@ linters:
           list-mode: lax
           deny:
             - pkg: streamiq/gateway/internal/
-              desc: "another slice: let gateway/cmd/gateway/main.go hand in what it needs (CLAUDE.md)"
+              desc: "another slice: let gateway/cmd/gateway/main.go hand in what it needs; a slice's own subpackage: allow it in .golangci.yml (CLAUDE.md)"
           allow:
             - streamiq/gateway/internal/identity$
             - streamiq/gateway/internal/tunnel$

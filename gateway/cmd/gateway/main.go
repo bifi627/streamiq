@@ -284,12 +284,15 @@ func instance(file string) error {
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
 // route are tunnel's own. status is GET /streamiq/status.
 func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler,
-	tel *telemetry.Switch, health http.Handler,
+	tel *telemetry.Switch, health http.Handler, tunnels *history.Tunnels,
 ) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	screen.Register(rt)
 	rt.Handle("GET "+tunnel.StatusPath, status)
 	rt.Handle("GET "+history.HealthPath, health)
+	rt.Handle("GET "+history.TunnelsPath, http.HandlerFunc(tunnels.ServeList))
+	rt.Handle("GET "+history.SummaryPath, http.HandlerFunc(tunnels.ServeSummary), tunnel.AdminOnly)
+	rt.Handle("POST "+history.ThroughputPath, http.HandlerFunc(history.ServeThroughput))
 	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
 	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
 	rt.Handle("POST "+telemetry.Path, tel, tunnel.AdminOnly)
@@ -381,6 +384,13 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			defer cancel()
 			setup.EnsureViewer(viewerCtx, user)
 		}}
+	tunnels := &history.Tunnels{Store: &history.Store{Dir: filepath.Join(stateDir, history.Dir), Kind: "tunnels",
+		Days: history.TunnelDays}}
+	sess.Ended = func(r protocol.Report, user string, start time.Time, kbps int) {
+		if err := tunnels.Record(r, user, start, time.Now(), kbps); err != nil {
+			log.Printf("gateway: tunnel history: %v", err)
+		}
+	}
 	store.OnRemove = sess.Drop // removing a browser ends its open sessions
 	var lastBeat atomic.Int64
 	var notice, newer atomic.Pointer[string]
@@ -393,10 +403,10 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	go load.Run(ctx)
 	b := &box{dir: stateDir, setup: setup, compose: compose, sess: sess, load: load}
 	tel := &telemetry.Switch{Dir: stateDir, Changed: st.Beat}
-	health := &history.Health{Store: &history.Store{Dir: filepath.Join(stateDir, history.Dir), Kind: "health"},
+	health := &history.Health{Store: &history.Store{Dir: filepath.Join(stateDir, history.Dir), Kind: "health", Days: history.HealthDays},
 		Version: version}
 	go b.record(ctx, health)
-	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), tel, health)
+	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), tel, health, tunnels)
 	token, err := localpage.Token(stateDir, lan)
 	if err != nil {
 		log.Fatalf("gateway: page token: %v", err)

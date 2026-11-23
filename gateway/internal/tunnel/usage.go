@@ -19,13 +19,15 @@ var uses = []struct {
 	{"management", func(_, p string) bool { return isGatewayAPI(p) }},
 }
 
-// Usage is one tunnel's use and active time, recorded as its requests end.
+// Usage is one tunnel's use and active time, recorded as its requests end, and the
+// throughput its browser measured.
 type Usage struct {
 	start time.Time // the offer arrived
 
 	mu   sync.Mutex
 	rank int       // index into uses; len(uses) = no request yet
 	last time.Time // the end of the last request
+	kbps int       // 0 = none measured
 }
 
 func NewUsage(start time.Time) *Usage { return &Usage{start: start, rank: len(uses)} }
@@ -57,4 +59,25 @@ func (u *Usage) Summary() (string, *int64) {
 	}
 	ms := u.last.Sub(u.start).Milliseconds()
 	return uses[u.rank].name, &ms // every path matches browsing or management
+}
+
+// Start is when the tunnel's offer arrived.
+func (u *Usage) Start() time.Time { return u.start }
+
+// SetThroughput keeps the gateway → client throughput the browser measured on this
+// tunnel; zero or negative = none. nil u (a test session) keeps nothing.
+func (u *Usage) SetThroughput(kbps int) {
+	if u == nil {
+		return
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.kbps = max(kbps, 0)
+}
+
+// Throughput is SetThroughput's value; 0 = none.
+func (u *Usage) Throughput() int {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.kbps
 }

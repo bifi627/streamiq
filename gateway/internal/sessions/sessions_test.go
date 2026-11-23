@@ -750,6 +750,16 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
 	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
+	var ended []string // the history's lines: session/user
+	var mu sync.Mutex
+	gateway.Ended = func(r protocol.Report, user string, start time.Time, _ int) {
+		mu.Lock()
+		defer mu.Unlock()
+		if start.IsZero() {
+			t.Error("a line without its start")
+		}
+		ended = append(ended, r.Session+"/"+user)
+	}
 	reps := make(chan protocol.Report, 4)
 	next := func() protocol.Report {
 		select {
@@ -801,6 +811,11 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	case r := <-reps:
 		t.Fatalf("second report %+v", r)
 	case <-time.After(time.Second): // also covers the Closed state callback that follows
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if strings.Join(ended, ",") != "s1/user-s1,s2/user-s2" {
+		t.Fatalf("history lines %v, want one per tunnel with its user", ended)
 	}
 }
 

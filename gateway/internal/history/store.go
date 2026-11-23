@@ -1,5 +1,5 @@
 // Package history keeps the gateway's own records in its state dir: JSON
-// Lines, one file per UTC day, the last KeepDays days. ponytail: plain files, a
+// Lines, one file per UTC day, each kind its own number of days. ponytail: plain files, a
 // store behind Append / Read (SQLite, say) if the reads ever need an index.
 package history
 
@@ -17,8 +17,11 @@ import (
 // Dir is the history's directory in the state dir; backup and restore carry it.
 const Dir = "history"
 
-// KeepDays: day files older than this many days are deleted.
-const KeepDays = 7
+// HealthDays and TunnelDays: how many days back each kind's day files are kept.
+const (
+	HealthDays = 7
+	TunnelDays = 30
+)
 
 const day = "2006-01-02"
 
@@ -26,10 +29,11 @@ const day = "2006-01-02"
 type Store struct {
 	Dir  string
 	Kind string
+	Days int // day files more than Days before today's are deleted
 	mu   sync.Mutex
 }
 
-// Append writes v as one line to now's day file, then deletes the day files past KeepDays.
+// Append writes v as one line to now's day file, then deletes the day files past Days.
 func (s *Store) Append(now time.Time, v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -79,13 +83,13 @@ func (s *Store) days() ([]string, error) {
 	return files, err
 }
 
-// prune deletes the day files more than KeepDays before now's day.
+// prune deletes the day files more than Days before now's day.
 func (s *Store) prune(now time.Time) error {
 	files, err := s.days()
 	if err != nil {
 		return err
 	}
-	oldest := now.UTC().AddDate(0, 0, -KeepDays).Format(day)
+	oldest := now.UTC().AddDate(0, 0, -s.Days).Format(day)
 	for _, f := range files {
 		d := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(f), s.Kind+"-"), ".jsonl")
 		if d < oldest {

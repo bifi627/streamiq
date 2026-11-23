@@ -17,7 +17,7 @@ var t0 = time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
 type rec struct{ N int }
 
 func TestAppendReadAndRetention(t *testing.T) {
-	s := &Store{Dir: filepath.Join(t.TempDir(), Dir), Kind: "x"}
+	s := &Store{Dir: filepath.Join(t.TempDir(), Dir), Kind: "x", Days: 7}
 	for i := range 10 { // one record a day: 10 days
 		if err := s.Append(t0.AddDate(0, 0, i), rec{i}); err != nil {
 			t.Fatal(err)
@@ -28,7 +28,7 @@ func TestAppendReadAndRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Today (day 9) and the 7 days before it are kept.
-	if len(got) != KeepDays+1 || got[0].N != 2 || got[len(got)-1].N != 9 {
+	if len(got) != 8 || got[0].N != 2 || got[len(got)-1].N != 9 {
 		t.Fatalf("got %v, want days 2..9", got)
 	}
 	if _, err := os.Stat(filepath.Join(s.Dir, "x-2026-11-29.jsonl")); err != nil {

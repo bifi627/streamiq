@@ -3,6 +3,7 @@ package broker_test
 import (
 	"context"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,7 +21,21 @@ func TestShutdownRevokesTheOpenTunnelsTURNCredentials(t *testing.T) {
 	session(t, nas)
 	user := servers[1].(map[string]any)["username"].(string)
 
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	// Both peers read while Shutdown runs, as real ones do: a socket the gateway's cleanup
+	// closes with a handshake waits up to 5 s for its peer's close frame (#848).
+	var peers sync.WaitGroup
+	for _, c := range []*websocket.Conn{browser, nas.conn} {
+		peers.Go(func() {
+			for {
+				if _, _, err := c.Read(t.Context()); err != nil {
+					return
+				}
+			}
+		})
+	}
+	// Longer than the broker's own timeouts (TURN client 5 s, writeTimeout 10 s): running out
+	// means a hang, not a slow runner.
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	if err := s.b.Shutdown(ctx); err != nil {
 		t.Fatal(err)
@@ -28,13 +43,7 @@ func TestShutdownRevokesTheOpenTunnelsTURNCredentials(t *testing.T) {
 	if !f.called("POST /v1/turn/keys/key1/credentials/" + user + "/revoke Bearer tok") {
 		t.Fatalf("calls %v", f.calls)
 	}
-	for _, c := range []*websocket.Conn{browser, nas.conn} {
-		for {
-			if _, _, err := c.Read(ctx); err != nil {
-				break
-			}
-		}
-	}
+	peers.Wait()
 	_, rs, err := s.dial("/api/broker/ws", nil)
 	if err == nil || rs == nil || rs.StatusCode != http.StatusServiceUnavailable {
 		t.Fatal(rs, err)

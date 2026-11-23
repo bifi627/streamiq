@@ -2,8 +2,6 @@ package broker
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
@@ -14,14 +12,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/time/rate"
 
+	"streamiq/api/internal/auth"
 	"streamiq/protocol"
 )
-
-// Hash is how a gateway credential is stored: SHA-256 hex, never the plaintext.
-func Hash(credential string) string {
-	h := sha256.Sum256([]byte(credential))
-	return hex.EncodeToString(h[:])
-}
 
 // gateway is a gateway's control socket, authenticated by its credential (Bearer):
 // heartbeats and its half of the brokered sessions. What an older gateway still sends
@@ -34,7 +27,7 @@ func (b *Broker) gateway(w http.ResponseWriter, r *http.Request) {
 	if strings.EqualFold(scheme, "Bearer") && credential != "" {
 		// The credential establishes the tenant: a SECURITY DEFINER lookup.
 		err = b.DB.NoTenant().QueryRow(r.Context(), `SELECT id, tenant_id FROM gateway_by_credential($1)`,
-			Hash(credential)).Scan(&me.gateID, &me.tenant)
+			auth.HashSecret(credential)).Scan(&me.gateID, &me.tenant)
 	}
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -48,7 +41,7 @@ func (b *Broker) gateway(w http.ResponseWriter, r *http.Request) {
 		return // accept answered the request
 	}
 	defer func() { _ = me.conn.CloseNow() }()
-	b.serveGateway(r.Context(), &me, Hash(credential))
+	b.serveGateway(r.Context(), &me, auth.HashSecret(credential))
 
 	b.mu.Lock()
 	if b.gateways[me.gateID] == &me {

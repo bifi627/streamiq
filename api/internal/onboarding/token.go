@@ -33,7 +33,7 @@ func createToken(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
 		return tx.QueryRow(r.Context(), `INSERT INTO enrollment_tokens (id, tenant_id, token_hash, expires_at)
 			VALUES (uuidv7(), $1, $2, now() + $3::interval) RETURNING expires_at`,
-			c.Tenant, hash(t.Token), TokenLifetime).Scan(&t.ExpiresAt)
+			c.Tenant, auth.HashSecret(t.Token), TokenLifetime).Scan(&t.ExpiresAt)
 	})
 	t.ExpiresAt = t.ExpiresAt.UTC()
 	if err != nil {

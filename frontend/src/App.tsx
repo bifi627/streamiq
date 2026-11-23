@@ -32,7 +32,7 @@ import {
 } from './shared/settings'
 import { TvAsk } from './features/tv/TvMode'
 import { handoffHome, shellPage } from './features/tv/tvRoute'
-import { chromeless, libraryTarget, tabs } from './shell'
+import { chromeless, libraryTarget, screenTarget, tabs } from './shell'
 import { Nav } from './Nav'
 import { SlotsContext } from './shared/slots'
 import { Handoff } from './features/tv/Handoff'
@@ -120,6 +120,7 @@ function Shell() {
     [back, title, actions],
   )
   const bare = chromeless(pathname)
+  const screen = !homeless && screenTarget(tv, library, pathname)
 
   return (
     // D-pad: an arrow no page container used (its edge, or a page
@@ -139,6 +140,18 @@ function Shell() {
           </Link>
           <Nav tabs={tabs(tv, homeless)} library={library} />
           <span className="grow" />
+          {screen && (
+            <>
+              <Link
+                className="screen-btn"
+                to="/g/$gatewayId/screen"
+                params={{ gatewayId: screen }}
+              >
+                Use as screen
+              </Link>
+              <span className="grow" />
+            </>
+          )}
           {library && !homeless && (
             <GatewayBadge
               id={library}

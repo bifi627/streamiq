@@ -273,7 +273,7 @@ function GatewayCard({
             navigate({ to: '/g/$gatewayId', params: { gatewayId: g.id } })
           }
         >
-          {/* Every device; the library shows it only in TV mode. */}
+          {/* Every device; TV mode also has it in the top bar (App.tsx). */}
           {!unpaired && (
             <Link to="/g/$gatewayId/screen" params={{ gatewayId: g.id }}>
               Use as screen

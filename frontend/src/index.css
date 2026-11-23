@@ -256,6 +256,21 @@ input[type='radio'] {
 .grow {
   flex: 1;
 }
+/* TV mode's Use as screen (App.tsx), centered between the nav and the badge. */
+.screen-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: 1.375rem;
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+}
+.screen-btn:hover {
+  background: var(--surface);
+}
 .chip {
   display: flex;
   align-items: center;
@@ -982,11 +997,6 @@ html.tv .rows li.no-tv:first-child + li {
   justify-content: space-between;
   align-items: center;
   gap: var(--sp-3);
-}
-.lib-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
 }
 
 /* Privacy badge: on your network / direct / relayed; focus or click shows the line. */

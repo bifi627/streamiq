@@ -76,22 +76,28 @@ const cue = (tv: Page) =>
       .join(),
   )
 
-test('entry (#248): the gateway card always, the library only in TV mode @player', async ({
+test('entry (#248, #872): the gateway card always, the top bar only in TV mode @player', async ({
   paired,
 }) => {
   const { page } = paired
+  const bar = page.getByRole('banner').getByRole('link', {
+    name: 'Use as screen',
+  })
   await openLibrary(page)
   await expect(page.getByRole('link', { name: 'Use as screen' })).toHaveCount(0)
   await page.getByRole('link', { name: '← Gateways' }).click()
   await expect(
     page.locator('li.card').getByRole('link', { name: 'Use as screen' }),
   ).toBeVisible()
+  await expect(bar).toHaveCount(0)
   await page.addInitScript(() =>
     localStorage.setItem('streamiq.settings.tv', '1'),
   )
   await page.reload()
-  await openLibrary(page)
-  await expect(page.getByRole('link', { name: 'Use as screen' })).toBeVisible()
+  await page.getByRole('link', { name: 'Settings' }).click()
+  await bar.click() // every page, on the active gateway
+  await expect(page.getByRole('heading', { name: /^Screen: / })).toBeVisible()
+  await expect(bar).toHaveCount(0)
 })
 
 test('Play on… (#180): the waiting screen, a phone plays on it @player', async ({

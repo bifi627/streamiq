@@ -1,9 +1,10 @@
 // The app shell and Settings, no gateway or Jellyfin: sign-in, a signed-out
-// deep link, not-found, the nav, Settings Back, PWA installability, each
+// deep link, not-found, the nav (five tabs, Library disabled without a
+// gateway), the title row's Back (Diagnostics), PWA installability, each
 // per-device setting persisted, and the D-pad on Settings. TV mode: the first visit
 // on a TV (webOS turns it on, Android TV asks), the handoff page (/household: QR
-// code, Back), the Settings + nav TV subsets. What the settings do to
-// playback is the player's spec.
+// code, Back), the Settings + nav TV subsets, the D-pad up to the title row and
+// along the nav. What the settings do to playback is the player's spec.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -56,10 +57,24 @@ test('not-found: Go to your gateways @shell', async ({ browser }) => {
   await expect(gatewaysHeading(p)).toBeVisible()
 })
 
-test('nav: Gateways, Household, Settings @shell', async ({ browser }) => {
+test('nav: five tabs, Library disabled without a gateway @shell', async ({
+  browser,
+}) => {
   const p = await signedIn(browser, '/settings')
   const nav = p.getByRole('navigation', { name: 'Main' })
   const h1 = p.getByRole('heading', { level: 1 })
+  await expect(nav.getByRole('link')).toHaveText([
+    'Gateways',
+    'Activity',
+    'Library',
+    'Household',
+    'Settings',
+  ])
+  await expect(nav.getByRole('link', { name: 'Library' })).toBeDisabled()
+  await expect(p.getByText('Your files stay on your hardware')).toHaveCount(0)
+  await nav.getByRole('link', { name: 'Activity' }).click()
+  await expect(p).toHaveURL(/\/activity$/)
+  await expect(h1).toHaveText('Activity')
   await nav.getByRole('link', { name: 'Gateways' }).click()
   await expect(p).toHaveURL(/\/gateways$/)
   await expect(h1).toHaveText('Gateways')
@@ -71,27 +86,19 @@ test('nav: Gateways, Household, Settings @shell', async ({ browser }) => {
   await expect(h1).toHaveText('Settings')
 })
 
-test('Settings Back: home after a direct open, else back in history @shell', async ({
+test('title row Back: only on a page with a parent; Diagnostics goes to Settings after a direct open @shell', async ({
   browser,
 }) => {
-  const p = await signedIn(browser, '/settings') // no in-app history
+  const p = await signedIn(browser, '/settings')
+  const h1 = p.getByRole('heading', { level: 1 })
   const back = p.getByRole('button', { name: 'Back' })
+  await expect(h1).toHaveText('Settings')
+  await expect(back).toHaveCount(0) // a tab: no parent
+  await p.goto(appUrl('/diagnostics')) // no in-app history
+  await expect(h1).toHaveText('Diagnostics')
   await back.click()
-  await expect(gatewaysHeading(p)).toBeVisible()
-  // Gateways → Settings → Back: history, here Gateways again.
-  const settings = p.getByRole('link', { name: 'Settings', exact: true })
-  await settings.click()
   await expect(p).toHaveURL(/\/settings$/)
-  await back.click()
-  await expect(p).toHaveURL(/\/gateways$/)
-  await expect(gatewaysHeading(p)).toBeVisible()
-  // Home is /gateways too, so only a page other than home proves history.
-  await p.getByRole('link', { name: 'Household', exact: true }).click()
-  await expect(p).toHaveURL(/\/household$/)
-  await settings.click()
-  await expect(p).toHaveURL(/\/settings$/)
-  await back.click()
-  await expect(p).toHaveURL(/\/household$/)
+  await expect(h1).toHaveText('Settings')
 })
 
 test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
@@ -108,7 +115,7 @@ test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
   expect((await cdp.send('Page.getAppManifest')).errors).toEqual([])
 })
 
-test('TV mode: /household hands off, the nav drops Household, Settings keeps Sign out, no alias @shell', async ({
+test('TV mode: /household hands off, the nav keeps Library + Settings, D-pad to the top bar, Settings keeps Sign out, no alias @shell', async ({
   browser,
 }) => {
   const p = await signedIn(browser, '/settings')
@@ -120,8 +127,23 @@ test('TV mode: /household hands off, the nav drops Household, Settings keeps Sig
   // Account keeps Sign out; the alias is a phone/PC's to change.
   await expect(alias).toBeHidden()
   await expect(p.getByRole('button', { name: 'Sign out' })).toBeVisible()
-  await expect(nav.getByRole('link', { name: 'Household' })).toHaveCount(0)
-  await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible()
+  await expect(nav.getByRole('link')).toHaveText(['Library', 'Settings'])
+
+  // D-pad: Up from the page reaches the top bar (nearest: Settings, right
+  // above), Left/Right move along it; Down from the logo is the title row's Back.
+  await p.goto(appUrl('/diagnostics'))
+  await p.getByRole('button', { name: 'Test connection' }).focus()
+  await p.keyboard.press('ArrowUp')
+  const settings = nav.getByRole('link', { name: 'Settings' })
+  await expect(settings).toBeFocused()
+  const logo = p.getByRole('link', { name: 'StreamIQ home' })
+  await p.keyboard.press('ArrowLeft') // past the disabled Library
+  await expect(logo).toBeFocused()
+  await p.keyboard.press('ArrowRight')
+  await expect(settings).toBeFocused()
+  await logo.focus()
+  await p.keyboard.press('ArrowDown')
+  await expect(p.getByRole('button', { name: 'Back' })).toBeFocused()
 
   await p.goto(appUrl('/household?x=1'))
   await expect(h1).toHaveText('Do this on your phone or PC')

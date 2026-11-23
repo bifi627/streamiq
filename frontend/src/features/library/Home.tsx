@@ -2,6 +2,7 @@
 // button takes first focus, so one OK press resumes), up to 3 more in progress,
 // Recently added, and the libraries (the shell nav has no tunnel, so they live
 // here). Arrow keys: GatewayLibrary's D-pad container (Library.tsx).
+import { PageBar } from '../../shared/PageBar'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../shared/errors'
@@ -37,6 +38,15 @@ function meta(i: Item) {
 }
 
 export function Home() {
+  return (
+    <>
+      <PageBar title="Library" />
+      <Shelves />
+    </>
+  )
+}
+
+function Shelves() {
   const { gatewayId, pc } = useTunnel()
   const navigate = useNavigate()
   // Resume is never cached (progress changes); Recently added and the

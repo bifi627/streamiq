@@ -1,6 +1,8 @@
 // The screen feature: a TV in screen mode, the phone's "Play on…"
 // and its remote. Routes in App.tsx; the remote's decisions live in remote.ts.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { PageBar } from '../../shared/PageBar'
+import { useBack } from '../../shared/slots'
 import {
   Link,
   useCanGoBack,
@@ -159,6 +161,7 @@ export function ScreenPage() {
   }, [pc])
   return (
     <>
+      <PageBar title="Screen" onBack={leave} />
       {ended && (
         <p role="alert">
           Screen mode ended ({ended}).{' '}
@@ -296,6 +299,20 @@ const IDLE: ScreenState = {
 // every second) and sends commands one at a time, in order (each POST is its
 // own channel). Two phones see the same state; the last command wins.
 export function RemotePage({ screenId }: { screenId: string }) {
+  const { gatewayId } = useTunnel()
+  const navigate = useNavigate()
+  const back = useBack(() =>
+    navigate({ to: '/g/$gatewayId', params: { gatewayId } }),
+  )
+  return (
+    <>
+      <PageBar title="Remote" onBack={back} />
+      <Remote screenId={screenId} />
+    </>
+  )
+}
+
+function Remote({ screenId }: { screenId: string }) {
   const { gatewayId, pc } = useTunnel()
   const [msg, setMsg] = useState('') // the last command's error
   const q = useScreens(gatewayId, pc, screenId)

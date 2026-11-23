@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PageBar } from '../../shared/PageBar'
 import {
   createEnrollmentToken,
   removeGateway,
@@ -98,15 +99,18 @@ export function Gateways() {
 
   return (
     <section className="gateways" onKeyDown={arrowFocus}>
-      <div className="head">
-        <h1>Gateways</h1>
-        {/* No gateways: the empty state carries it instead. */}
-        {admin && gateways?.length !== 0 && (
-          <button type="button" className="no-tv" onClick={addGateway}>
-            Add gateway
-          </button>
-        )}
-      </div>
+      <PageBar
+        title="Gateways"
+        actions={
+          // No gateways: the empty state carries it instead.
+          admin &&
+          gateways?.length !== 0 && (
+            <button type="button" className="no-tv" onClick={addGateway}>
+              Add gateway
+            </button>
+          )
+        }
+      />
       {err && <ErrorView error={err} />}
       {/* Keyed by the command (it holds the token): a new token resets Copied. */}
       {install && (

@@ -152,7 +152,7 @@ test("status dot: a gateway route's nav chip shows its name, online (#206) @gate
   const [g] = await user.api<{ name: string }[]>('/gateways')
   await card(page).getByRole('button', { name: 'Open' }).click()
   await expect(page).toHaveURL(/\/g\/[^/]+$/)
-  const chip = page.locator('header .status .chip')
+  const chip = page.locator('header .chip')
   await expect(chip).toContainText(g.name)
   await expect(chip.getByRole('img', { name: 'online' })).toBeVisible()
 })
@@ -243,9 +243,12 @@ test('member view: the gateway, no Add gateway, no Remove (#190) @gateways', asy
     card(m).getByRole('heading', { level: 2, name: g.name }),
   ).toBeVisible()
   await expect(card(m).getByText('Online', { exact: true })).toBeVisible() // card loaded
-  // The role is in (/me): the switcher shows the joined household. Before that
-  // both buttons are hidden for anyone.
+  // The role is in (/me): the switcher (on Household) shows the joined
+  // household. Before that both buttons are hidden for anyone.
+  await m.getByRole('link', { name: 'Household' }).click()
   await expect(m.getByLabel('Switch household')).toHaveValue(user.tenantId)
+  await m.getByRole('link', { name: 'Gateways' }).click()
+  await expect(card(m).getByText('Online', { exact: true })).toBeVisible()
   await expect(m.getByRole('button', { name: 'Add gateway' })).toHaveCount(0)
   await expect(card(m).getByRole('button', { name: 'Remove' })).toHaveCount(0)
 })

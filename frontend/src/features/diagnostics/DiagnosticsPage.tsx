@@ -1,6 +1,9 @@
 // /diagnostics: what this client can play, and how good its path to a
 // gateway is, as a report to paste into a support request. No email, no IPs.
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { PageBar } from '../../shared/PageBar'
+import { useBack } from '../../shared/slots'
+import { useNavigate } from '@tanstack/react-router'
 import {
   diag,
   relayOn,
@@ -37,6 +40,8 @@ export function DiagnosticsPage() {
   const gatewayId = picked || defaultGateway(gateways)
   const [test, setTest] = useState<Test | null>(null)
   const [running, setRunning] = useState(false)
+  const navigate = useNavigate()
+  const back = useBack(() => navigate({ to: '/settings', replace: true }))
   const [copied, setCopied] = useState('')
   const { me } = useHousehold()
 
@@ -121,8 +126,8 @@ export function DiagnosticsPage() {
   // The tokens' page layout: Settings' column of cards (.settings).
   return (
     <section className="settings diagnostics">
+      <PageBar title="Diagnostics" onBack={back} />
       <div className="head">
-        <h1>Diagnostics</h1>
         <p className="muted">
           What this browser can play and how it reaches your gateway, as a
           report for a support request. No email, no IPs.

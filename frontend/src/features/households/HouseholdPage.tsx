@@ -14,6 +14,8 @@ import {
 } from './household'
 import { Invites } from './Invites'
 import { Members } from './Members'
+import { PageBar } from '../../shared/PageBar'
+import type { Me } from '../../shared/api'
 
 // /household: who's in the current household, and (admin) invites.
 // Its own page, not under the Gateways list: those are what you open daily,
@@ -43,29 +45,51 @@ export function Household() {
   }
   return (
     <section className="household" onKeyDown={arrowFocus}>
-      <div className="head">
-        {current ? (
-          <EditableName
-            name={current.name ?? ''}
-            label="Household name"
-            hint={STORED}
-            rename={current.role === 'admin' ? rename : undefined}
-          >
-            <h1>{householdLabel(current)}</h1>
-          </EditableName>
-        ) : (
-          <h1>Household</h1>
-        )}
-        {current && (
+      <PageBar
+        title={
+          current ? (
+            <EditableName
+              name={current.name ?? ''}
+              label="Household name"
+              hint={STORED}
+              rename={current.role === 'admin' ? rename : undefined}
+            >
+              <h1>{householdLabel(current)}</h1>
+            </EditableName>
+          ) : (
+            'Household'
+          )
+        }
+      />
+      {current && (
+        <div className="head">
           <span className="chip">
             {current.role === 'admin' ? 'You are an admin' : 'You are a member'}
           </span>
-        )}
-      </div>
+          {me && me.memberships.length > 1 && <Switcher me={me} />}
+        </div>
+      )}
       <Members />
       {current?.role === 'admin' && <Invites />}
       {current && <CreateAnother />}
     </section>
+  )
+}
+
+// Switching reloads into the picked household (household.ts).
+function Switcher({ me }: { me: Me }) {
+  return (
+    <select
+      aria-label="Switch household"
+      value={me.tenantId ?? ''}
+      onChange={(e) => switchHousehold(e.target.value)}
+    >
+      {me.memberships.map((m) => (
+        <option key={m.id} value={m.id}>
+          {householdLabel(m)} ({m.role})
+        </option>
+      ))}
+    </select>
   )
 }
 

@@ -263,9 +263,9 @@ test('create another: a member makes its own household, Cancel makes none @house
   confirmNext(b)
   await create.click() // reloads / in the new household
   await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
+  await b.getByRole('link', { name: 'Household' }).click()
   await expect(picker.locator('option')).toHaveCount(2)
   await expect(picker).not.toHaveValue(A.tenantId)
-  await b.getByRole('link', { name: 'Household' }).click()
   await expect(b.getByText('You are an admin')).toBeVisible()
   await expect(members(b).getByText('(you)')).toHaveCount(1)
 })
@@ -318,15 +318,18 @@ test('switcher: two households switch and back; one, no picker @households', asy
   await join(A, B)
   await b.reload() // /me again: two households
   await expect(picker).toHaveValue(B.tenantId)
+  const gateways = b.getByRole('heading', { name: 'Gateways' })
   await picker.selectOption(A.tenantId) // reloads /
-  await expect(picker).toHaveValue(A.tenantId)
+  await expect(gateways).toBeVisible()
   await b.getByRole('link', { name: 'Household' }).click()
   await expect(h1(b)).toHaveText(label(A))
+  await expect(picker).toHaveValue(A.tenantId)
   await expect(b.getByText('You are a member')).toBeVisible()
   await picker.selectOption(B.tenantId)
-  await expect(picker).toHaveValue(B.tenantId)
+  await expect(gateways).toBeVisible()
   await b.getByRole('link', { name: 'Household' }).click()
   await expect(h1(b)).toHaveText(label(B))
+  await expect(picker).toHaveValue(B.tenantId)
   await expect(b.getByText('You are an admin')).toBeVisible()
 })
 

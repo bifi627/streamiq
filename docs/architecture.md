@@ -248,12 +248,17 @@ peaks per local day.
   URL is the one PlaybackInfo returns (`TranscodingUrl`).
 - Household context: Shell loads `/me` once per page load and shares it
   (`HouseholdContext`, `useHousehold()` in `features/households/household.ts`); a picker
-  shows with more than one membership. The chosen household is per device
+  on the Household page shows with more than one membership. The chosen household is per device
   (`localStorage`); `switchHousehold()` stores it and fully reloads `/` (closes tunnels,
   drops the old household's state). On `X-StreamIQ-Not-Member`, `authed()` (`shared/api.ts`)
   drops the choice and reloads `/` with a notice.
 - Design tokens and base styles (dark, pill buttons, one 3 px `:focus-visible` ring) in
   `frontend/src/index.css`, CSS that Chrome 87 / webOS reads. Shell nav, gateway chip.
+- App shell (`App.tsx` `Shell`, tabs in `shell.ts`, `Nav.tsx`): a top bar (logo, nav,
+  gateway chip), a title row (back · title · actions) the page fills with `<PageBar>`
+  (`shared/PageBar.tsx`, portals into the row) and on a phone (≤ 600 px) the nav as a bottom
+  tab bar above the safe-area inset. TV mode's nav: Library and Settings. The player hides
+  all of it.
 - Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its
   first-visit default (`features/tv/tv.ts`: known TV → on, Android box → ask once, #309). Its routes
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the

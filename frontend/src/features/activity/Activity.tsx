@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageBar } from '../../shared/PageBar'
 import { useQuery } from '@tanstack/react-query'
 import { toAppError } from '../../shared/errors'
 import { ErrorView, State } from '../../shared/ErrorView'
@@ -46,8 +47,8 @@ export function Activity() {
 
   return (
     <section className="settings activity" onKeyDown={arrowFocus}>
+      <PageBar title="Activity" />
       <div className="head">
-        <h1>Activity</h1>
         <p className="muted">
           {admin ? "Everyone's" : 'Your'} connections to this household's
           gateways.

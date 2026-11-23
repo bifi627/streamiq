@@ -790,8 +790,7 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	}
 	bye("s1")
 	r := next()
-	if r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
-		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 ||
+	if r.Session != "s1" || r.Failure != nil || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 ||
 		r.Use != "browsing" || r.ActiveMs == nil || *r.ActiveMs <= 0 {
 		t.Fatalf("report of a served tunnel = %+v", r)
 	}
@@ -1011,8 +1010,7 @@ func TestReportKeepsLastPair(t *testing.T) {
 		Remote: &webrtc.ICECandidate{Typ: webrtc.ICECandidateTypeHost, Address: "2001:db8::1"},
 	}
 	r := report("s", pc, &signaled{}, last, failure(false, true, ""))
-	if r.LocalCandidateType != "relay" || r.RemoteCandidateType != "host" || r.Protocol != "udp" ||
-		!r.Relay || !r.Ipv6 || r.Failure != nil {
+	if !r.Relay || !r.Ipv6 || r.Failure != nil {
 		t.Fatalf("report after Failed = %+v", r)
 	}
 }

@@ -220,14 +220,12 @@ relay candidate is enough, as the e2e's forced-relay step shows.
 API keeps no per-tunnel data (#783) and the browser can't create, alter or skip a line.
 - **Report**: when a session's PeerConnection fails or closes (any path: ICE, `bye`, a
   removed client), the gateway reads once, from pion before `pc.Close()`, `relay`, `ipv6`,
-  the candidate types, `protocol`, `bytesSent`, `bytesReceived`, `failure`, `use` and
-  `activeMs` (`tunnel.Report`) and writes its line to
-  `state/history/tunnels-YYYY-MM-DD.jsonl` (below), which Activity reads. From the gateway's
-  side: `local` = the gateway's selected candidate, `remote` = the browser's, `bytesSent` =
-  gateway → client (ICE transport totals). `relay` = either side of the pair is a relay, or
+  `bytesSent`, `bytesReceived`, `failure`, `use` and `activeMs` (`tunnel.Report`) and writes
+  its line to `state/history/tunnels-YYYY-MM-DD.jsonl` (below), which Activity reads. From the
+  gateway's side: `bytesSent` = gateway → client (ICE transport totals). `relay` = either side of the pair is a relay, or
   the browser's side is `prflx` and every candidate the browser signaled is a relay (forced
   relay: a NAT in front of the TURN server, like Docker in the e2e, hides the signaled relay
-  address). No pair (ICE never connected) = candidate fields absent. `failure`:
+  address). No pair (ICE never connected) = `relay` and `ipv6` false. `failure`:
   `"ice failed"` (ICE failed before it ever connected; a later loss keeps the pair it had), else, when auth never succeeded, the gateway's last auth outcome
   (`"unpaired"`, a refusal reason) or `"ended before auth"` (incl. a browser that refused the
   gateway's pin: it hangs up before auth), `"not authenticated within 30s"` or `"gateway busy"`

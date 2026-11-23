@@ -448,9 +448,7 @@ func report(
 		p = last // gone after Failed: the pair it had while connected
 	}
 	if p != nil {
-		r.LocalCandidateType, r.RemoteCandidateType = p.Local.Typ.String(), p.Remote.Typ.String()
 		r.Relay, r.Ipv6 = classify(p, cands)
-		r.Protocol = p.Local.Protocol.String()
 	}
 	st := ice.Stats()
 	r.BytesSent, r.BytesReceived = st.BytesSent, st.BytesReceived

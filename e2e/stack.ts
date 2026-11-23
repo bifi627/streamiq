@@ -153,7 +153,7 @@ export async function startGateway(
       )
     }
   }
-  return { ...p, pageUrl, pageCookie }
+  return { ...p, pageUrl, pageCookie, stateDir }
 }
 
 /**

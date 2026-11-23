@@ -1,14 +1,23 @@
 import { pair } from '../activity/tunnels.ts'
-import type { HealthRow } from '../../generated/gateways.ts'
+import type { HealthRow } from '../../generated/history.ts'
 
-// GET /api/gateways/{id}/health: the last 7 days of `gateway_health`, oldest
+// Gateway API GET /streamiq/health: the last 7 days the gateway recorded, oldest
 // first, led by the latest row before them (docs/protocol.md).
 export type { HealthRow }
 
 export const WINDOW_MS = 7 * 24 * 3600_000
-// Rows come at least every 5 min while sharing is on: more than 10 min
-// without one means the gateway was offline or sharing was off.
+// Rows come at least every 5 min while the gateway runs: more than 10 min
+// without one means it was offline.
 export const GAP_MS = 10 * 60_000
+
+// Why the card can't show the history, or null: it's kept on the gateway and read
+// over the tunnel, so not while it's offline or from a browser it hasn't paired.
+export function historyGap(online: boolean, paired: boolean): string | null {
+  const kept = 'The health history is kept on the gateway'
+  if (!online) return `${kept}: it's offline, so it can't be shown.`
+  if (!paired) return `${kept}: pair this browser to see it.`
+  return null
+}
 
 // Epoch ms; to null = still going on.
 export type Incident = {

@@ -22,11 +22,15 @@ import (
 // skip: machine-specific (the page login is per LAN address, made again on start).
 var skip = []string{"page-token", "page-link"}
 
+// historyDir is the history slice's directory (history.Dir): the one subdirectory a
+// backup carries, as entries "history/<name>".
+const historyDir = "history"
+
 // required: without these a restore brings back nothing worth having.
 var required = []string{"cert.pem", "gateway.json"}
 
-// ComposeEntry is the compose file's name in the zip. State entries are flat,
-// so the prefix keeps it from ever being taken for (or written as) a state file.
+// ComposeEntry is the compose file's name in the zip. State entries are flat (or
+// in historyDir), so the prefix keeps it from ever being taken for (or written as) a state file.
 const ComposeEntry = "install/jellyfin-compose.yml"
 
 // JellyfinEntry is the managed Jellyfin's backup archive, prefixed like
@@ -109,7 +113,43 @@ func zipState(zw *zip.Writer, dir string) error {
 	if have != len(required) {
 		return fmt.Errorf("%s has no gateway identity (%s): nothing to back up", dir, strings.Join(required, ", "))
 	}
+	return zipHistory(zw, dir)
+}
+
+// zipHistory adds the regular files in dir's historyDir, if there is one.
+func zipHistory(zw *zip.Writer, dir string) error {
+	names, err := historyFiles(dir)
+	if err != nil {
+		return err
+	}
+	for _, n := range names {
+		b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(n)))
+		if err != nil {
+			return err
+		}
+		if err := zipBytes(zw, n, b); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// historyFiles names the regular files in dir's historyDir as their entries
+// ("history/<name>"); none without the directory.
+func historyFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(dir, historyDir))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			names = append(names, historyDir+"/"+e.Name())
+		}
+	}
+	return names, nil
 }
 
 // checkJSON refuses a .json file that isn't valid JSON: the gateway rewrites
@@ -228,8 +268,8 @@ func restoreState(dir string, files map[string][]byte, force bool) error {
 }
 
 // checkEntries refuses a zip that isn't a gateway backup: every entry but
-// ComposeEntry and JellyfinEntry must be a flat file name (no directories, no
-// zip-slip), and every required file must be there.
+// ComposeEntry and JellyfinEntry must be a flat file name, or one in historyDir
+// (no other directories, no zip-slip), and every required file must be there.
 func checkEntries(path string, zf []*zip.File) error {
 	var names []string
 	for _, f := range zf {
@@ -237,7 +277,8 @@ func checkEntries(path string, zf []*zip.File) error {
 		if n == ComposeEntry || n == JellyfinEntry {
 			continue
 		}
-		if n == "." || !filepath.IsLocal(n) || filepath.Base(n) != n || strings.ContainsAny(n, `/\:`) ||
+		flat := strings.TrimPrefix(n, historyDir+"/")
+		if flat == "." || !filepath.IsLocal(flat) || filepath.Base(flat) != flat || strings.ContainsAny(flat, `/\:`) ||
 			f.FileInfo().IsDir() {
 			return fmt.Errorf("%s: not a gateway backup (entry %q)", path, n)
 		}
@@ -298,8 +339,8 @@ func readEntries(path string, zf []*zip.File) (map[string][]byte, error) {
 }
 
 // stale names the old gateway's files a forced restore removes (e.g. its
-// allowlist.json): the regular files in dir the backup (files) doesn't have,
-// except skip.
+// allowlist.json, its history): the regular files in dir and its historyDir the
+// backup (files) doesn't have, except skip.
 func stale(dir string, files map[string][]byte) ([]string, error) {
 	old, err := os.ReadDir(dir)
 	if err != nil {
@@ -307,26 +348,34 @@ func stale(dir string, files map[string][]byte) ([]string, error) {
 	}
 	var gone []string
 	for _, e := range old {
-		if _, ok := files[e.Name()]; !ok && e.Type().IsRegular() && !slices.Contains(skip, e.Name()) {
+		if e.Type().IsRegular() && !slices.Contains(skip, e.Name()) {
 			gone = append(gone, e.Name())
 		}
 	}
-	return gone, nil
+	hist, err := historyFiles(dir)
+	gone = slices.DeleteFunc(append(gone, hist...), func(n string) bool { _, ok := files[n]; return ok })
+	return gone, err
 }
 
 // removeAll removes names from root, stopping at the first error.
 func removeAll(root *os.Root, names []string) error {
 	for _, n := range names {
-		if err := root.Remove(n); err != nil {
+		if err := root.Remove(filepath.FromSlash(n)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// writeState writes files into root, each with mode 0600.
+// writeState writes files into root, each with mode 0600 (historyDir 0700).
 func writeState(root *os.Root, files map[string][]byte) error {
 	for n, b := range files {
+		if strings.HasPrefix(n, historyDir+"/") {
+			if err := root.MkdirAll(historyDir, 0o700); err != nil {
+				return err
+			}
+		}
+		n = filepath.FromSlash(n)
 		if err := root.WriteFile(n, b, 0o600); err != nil {
 			return err
 		}

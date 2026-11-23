@@ -68,11 +68,11 @@ export function seedTunnel(
   )
 }
 
-/** `gateway_health` rows of gatewayId (household tenantId), straight to
- * Postgres: the stored history needs hours of heartbeats at `full`. */
+/** Health rows added to the gateway's own history (`<state dir>/history/`, the
+ * day files gateway/internal/history writes): a real history needs hours of
+ * the gateway running. */
 export function seedHealth(
-  tenantId: string,
-  gatewayId: string,
+  stateDir: string,
   rows: {
     minAgo: number
     reachable: boolean
@@ -82,17 +82,22 @@ export function seedHealth(
     cpu: number
   }[],
 ) {
-  const ids = [tenantId, gatewayId]
-  if (!ids.every((id) => /^[0-9a-f-]{36}$/.test(id)))
-    throw new Error(`not ids: ${ids}`)
-  const values = rows.map(
-    (r) =>
-      `('${randomUUID()}', '${tenantId}', '${gatewayId}', now() - interval '${Number(r.minAgo)} minutes', 'full', ${!!r.reachable}, ` +
-      `'${r.jellyfin.replace(/'/g, '')}', '${r.gateway.replace(/'/g, '')}', ${Number(r.tunnels)}, ${Number(r.cpu)})`,
-  )
-  psql(
-    `insert into gateway_health (id, tenant_id, gateway_id, at, level, jellyfin_reachable, jellyfin_version, gateway_version, tunnels, cpu) values ${values.join(', ')}`,
-  )
+  const dir = path.join(stateDir, 'history')
+  fs.mkdirSync(dir, { recursive: true })
+  for (const r of rows) {
+    const at = new Date(Date.now() - r.minAgo * 60_000).toISOString()
+    const line = JSON.stringify({
+      at,
+      gatewayVersion: r.gateway,
+      jellyfin: { reachable: r.reachable, version: r.jellyfin },
+      tunnels: r.tunnels,
+      cpu: r.cpu,
+    })
+    fs.appendFileSync(
+      path.join(dir, `health-${at.slice(0, 10)}.jsonl`),
+      line + '\n',
+    )
+  }
 }
 
 /** A fresh address per call: the Auth emulator lives for the whole run, and

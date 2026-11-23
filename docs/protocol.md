@@ -69,7 +69,8 @@ before stay null). `GET /api/gateways` returns `telemetry` to every member.
 `GET /api/gateways/{id}/health` (#424, any member) returns that gateway's rows of the last
 7 days, oldest first, led by the latest row before them: `at`, `jellyfinReachable`,
 `jellyfinVersion`, `gatewayVersion`, `tunnels`, `transcodes`, `cpu`, `memory` (null = not
-sent). Another household's gateway or an unknown id → 404.
+sent). Another household's gateway or an unknown id → 404. The web app no longer reads it:
+the gateway keeps its own history (`GET /streamiq/health`, #781); both go in #783.
 The API also sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null) and
@@ -445,7 +446,7 @@ open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
 its feature, registered in `gateway/cmd/gateway/main.go`). The request and response
 bodies are Go types in a types-only file of the package that serves them, generated
-into `frontend/src/generated/`: `gateway/internal/{tunnel,screen,pairing,onboarding,telemetry,update}/types.go`,
+into `frontend/src/generated/`: `gateway/internal/{tunnel,screen,pairing,onboarding,telemetry,update,history}/types.go`,
 and `/streamiq/status` in `gateway/cmd/gateway/status.go` (with `host/load.go`,
 `jellyfin/viewer.go`).
 
@@ -482,6 +483,15 @@ fall back to the CPU silently (a broken GPU setup fails playback), and
 Jellyfin's `/Sessions` can't tell more to the viewer token (spike on #86). A
 gateway older than this endpoint answers `404`; the web gateway page then says
 to update it.
+
+**`GET /streamiq/health`** (#781, any member) → `200`, the health the gateway recorded
+itself, at every telemetry level, in `state/history/` (JSON Lines, a file per UTC day, 7 days
+kept): its rows of the last 7 days, oldest first, led by the latest row before them, each
+`{ "at", "jellyfinReachable", "jellyfinVersion", "gatewayVersion", "tunnels", "transcodes",
+"cpu", "memory" }` (null = not measured; `[]` before the first). A row is recorded by the
+`gateway_health` rule above (every 30 s the gateway checks; a change of `jellyfin`, `os`,
+`arch`, `transcoding`, `offline` or its version, else every 5 min, never within 25 s). A
+gateway older than this endpoint answers `404`.
 
 **`POST /streamiq/name`** (#310, admin-only) `{ "name": "Living room NAS" }` → `200`
 `{ "name": "<stored>" }`. The name is trimmed, 1–100 characters counted in UTF-16

@@ -100,6 +100,12 @@ packages:
   - path: "streamiq/gateway/internal/update"
     output_path: "frontend/src/generated/update.ts"
     include_files: ["types.go"]
+  - path: "streamiq/gateway/internal/history"
+    output_path: "frontend/src/generated/history.ts"
+    include_files: ["types.go"]
+    optional_type: "null"
+    type_mappings:
+      time.Time: "string"
   - path: "streamiq/gateway/internal/host"
     output_path: "frontend/src/generated/host.ts"
     include_files: ["load.go"]

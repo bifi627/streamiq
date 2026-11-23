@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { authed } from '../../shared/api'
 import { describe, toAppError } from '../../shared/errors'
-import type { Gateway } from './api'
+import { getHealth, type Gateway } from './api'
 import {
   dailyPeaks,
+  historyGap,
   incidents,
   span,
   versionChanges,
@@ -22,17 +22,18 @@ const pct = new Intl.NumberFormat(undefined, {
 })
 const KIND = {
   jellyfin: 'Jellyfin down',
-  gap: 'No data (gateway offline or sharing off)',
+  gap: 'No data (gateway offline)',
 }
 
-// The stored health history from the API: works offline and unpaired. Asked
+// The gateway's own health history, over the tunnel (paired, online). Asked
 // only while open.
-export function HealthHistory({ g }: { g: Gateway }) {
+export function HealthHistory({ g, paired }: { g: Gateway; paired: boolean }) {
   const [open, setOpen] = useState(false)
+  const gap = historyGap(g.online, paired)
   return (
     <details className="no-tv" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>Health, last 7 days</summary>
-      {open && <History g={g} />}
+      {open && (gap ? <p className="muted">{gap}</p> : <History g={g} />)}
     </details>
   )
 }
@@ -40,19 +41,14 @@ export function HealthHistory({ g }: { g: Gateway }) {
 function History({ g }: { g: Gateway }) {
   const q = useQuery({
     queryKey: ['gatewayHealth', g.id],
-    queryFn: () => authed<HealthRow[]>(`/gateways/${g.id}/health`),
+    queryFn: () => getHealth(g.id),
+    retry: false, // each try opens a tunnel
+    refetchOnWindowFocus: false,
   })
   if (q.isError)
     return <p role="alert">{describe(toAppError(q.error)).message}</p>
   if (!q.data) return <p className="muted">Loading…</p>
-  if (!q.data.length)
-    return (
-      <p className="muted">
-        {g.telemetry === 'off'
-          ? 'Health sharing is off: an admin turns it on above.'
-          : 'No health data yet.'}
-      </p>
-    )
+  if (!q.data.length) return <p className="muted">No health data yet.</p>
   // The fetch's time, not the render's: the rows don't move while the page polls.
   const now = q.dataUpdatedAt
   return (

@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
 
+	"streamiq/gateway/internal/history"
 	"streamiq/gateway/internal/host"
 	"streamiq/gateway/internal/jellyfin"
 	"streamiq/gateway/internal/pairing"
@@ -15,8 +17,8 @@ import (
 	"streamiq/protocol"
 )
 
-// box reads the gateway box's state: GET /streamiq/status live, the heartbeat's
-// health at telemetry full.
+// box reads the gateway box's state: GET /streamiq/status live, the health history,
+// the heartbeat's health at telemetry full.
 type box struct {
 	dir     string // state dir
 	setup   *jellyfin.Setup
@@ -34,6 +36,21 @@ func (b *box) beat(ctx context.Context) (string, *protocol.Health) {
 	}
 	h := b.health(ctx)
 	return level, &h
+}
+
+// record adds the box's health to the history every 30 s (the heartbeat's pace), at
+// every telemetry level: the history stays on the gateway.
+func (b *box) record(ctx context.Context, h *history.Health) {
+	for {
+		if err := h.Record(time.Now(), b.health(ctx)); err != nil {
+			log.Printf("gateway: health history: %v", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+	}
 }
 
 func (b *box) health(ctx context.Context) protocol.Health {

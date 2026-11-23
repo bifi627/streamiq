@@ -10,6 +10,7 @@ import type { Name } from '../../generated/gateway-onboarding'
 import type { Client, ClientKey, ClientName } from '../../generated/pairing'
 import type { Status } from '../../generated/status'
 import type { Level } from '../../generated/telemetry'
+import type { HealthRow } from '../../generated/history'
 import type { Route } from '../../generated/tunnel'
 import type { Screen, ScreenCommand, ScreenState } from '../../generated/screen'
 import type { Refused, Started } from '../../generated/update'
@@ -109,6 +110,10 @@ export const useGatewayStatus = (id: string, enabled: boolean) =>
     refetchOnWindowFocus: false, // nextAsk: no retry, each would open a tunnel
     refetchOnReconnect: false,
   })
+
+// The health history: kept on the gateway, never in the API.
+export const getHealth = (id: string) =>
+  viaTunnel<HealthRow[]>(id, '/streamiq/health')
 
 // Gateway API POST /streamiq/telemetry (admin-only): the gateway stores the level
 // and tells the API with an early heartbeat.

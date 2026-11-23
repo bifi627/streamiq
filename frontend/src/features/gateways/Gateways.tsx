@@ -296,7 +296,7 @@ function GatewayCard({
         )
       )}
       <StatusDetails g={g} />
-      <HealthHistory g={g} />
+      <HealthHistory g={g} paired={!!pinned && !unpaired} />
       {/* A member's list is just this browser. */}
       <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
     </li>

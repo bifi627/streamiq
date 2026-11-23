@@ -150,10 +150,15 @@ transcoding or the offline jail change, and at least every 5 min, at most one pe
 current state. `gateways.telemetry` holds the level. Rows are kept (also after `off`).
 The web gateway card shows the level; an admin switches it over the tunnel
 (`POST /streamiq/telemetry`). Rows carry the gateway's version too (#424).
-"Health, last 7 days" on the card (`HealthHistory.tsx`) reads `GET /api/gateways/{id}/health`
-(`api/internal/gateways/health.go`, raw rows) when opened, from the API, so offline and
-unpaired too; `health.ts` derives incidents (Jellyfin down, gaps over 10 min), version changes
-and daily peaks per local day.
+**The history stays on the gateway** (#781, part of #768): at every telemetry level the gateway
+records its health with the same rule (`gateway/internal/history`, `Health.Record`, every 30 s
+from `box.record`) in `state/history/health-YYYY-MM-DD.jsonl` (JSON Lines, one file per UTC
+day, 7 days kept; `backup` carries the directory). "Health, last 7 days" on the card
+(`HealthHistory.tsx`) reads only the gateway API `GET /streamiq/health` over the tunnel, when
+opened: offline or from an unpaired browser it says why it can't show it (no API request).
+`health.ts` derives incidents (Jellyfin down, gaps over 10 min), version changes and daily
+peaks per local day. Until #783 the heartbeat still sends health at `full` and the API keeps
+`gateway_health` and `GET /api/gateways/{id}/health`, which nothing reads.
 
 ## Gateway (native binary)
 

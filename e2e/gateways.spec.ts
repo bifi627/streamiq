@@ -222,13 +222,13 @@ test('health sharing: an admin turns it on and off over the tunnel (#423) @gatew
   })
 })
 
-test('health history: an incident, a version change and daily peaks from stored rows (#424) @gateways', async ({
+test("health history: an incident, a version change and daily peaks from the gateway's own rows (#424, #781) @gateways", async ({
   paired,
 }) => {
-  const { user, page } = paired
-  const [g] = await user.api<{ id: string }[]>('/gateways')
+  const { page, gateway } = paired
   const base = { jellyfin: '10.11.2', gateway: '1.4.0', tunnels: 0, cpu: 10 }
-  seedHealth(user.tenantId, g.id, [
+  // Before the row the gateway recorded at its start: sorted by time on the way out.
+  seedHealth(gateway.stateDir, [
     { ...base, minAgo: 9, reachable: true },
     { ...base, minAgo: 7, reachable: false },
     {
@@ -237,7 +237,7 @@ test('health history: an incident, a version change and daily peaks from stored 
       reachable: true,
       jellyfin: '10.11.3',
       tunnels: 2,
-      cpu: 55,
+      cpu: 100, // no live reading is higher
     },
     { ...base, minAgo: 1, reachable: true, jellyfin: '10.11.3' },
   ])
@@ -253,10 +253,16 @@ test('health history: an incident, a version change and daily peaks from stored 
       name: /Jellyfin 10\.11\.2 10\.11\.3/,
     }),
   ).toBeVisible()
+  // The gateway's own row, recorded at its start, follows the seeded ones.
+  await expect(
+    c.getByRole('table', { name: 'Version changes' }).getByRole('row', {
+      name: /Gateway 1\.4\.0 /,
+    }),
+  ).toBeVisible()
   // The row's local day: whichever it is, its peaks are these.
   await expect(
     c.getByRole('table', { name: 'Daily peaks' }).getByRole('row', {
-      name: / 2\s+55%/,
+      name: / 2\s+100%/,
     }),
   ).toBeVisible()
 })

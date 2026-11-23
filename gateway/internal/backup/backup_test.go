@@ -93,6 +93,34 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRoundTripWithHistory(t *testing.T) {
+	src := writeDir(t, state)
+	if err := os.Mkdir(filepath.Join(src, historyDir), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	day := filepath.Join(src, historyDir, "health-2026-11-20.jsonl")
+	if err := os.WriteFile(day, []byte("{\"at\":1}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	zipPath := backupFile(t, src)
+	// A forced restore over a gateway with its own history: the backup's replaces it.
+	dst := writeDir(t, map[string]string{"gateway.json": "{}"})
+	old := filepath.Join(dst, historyDir, "health-2026-11-01.jsonl")
+	if err := os.MkdirAll(filepath.Dir(old), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(old, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Restore(zipPath, dst, filepath.Join(t.TempDir(), "c.yml"), true); err != nil {
+		t.Fatal(err)
+	}
+	got := readDir(t, filepath.Join(dst, historyDir))
+	if !maps.Equal(got, map[string]string{"health-2026-11-20.jsonl": "{\"at\":1}\n"}) {
+		t.Fatalf("history restored as %v", got)
+	}
+}
+
 func TestRefusesExistingWithoutForce(t *testing.T) {
 	zipPath := backupFile(t, writeDir(t, state))
 	dst := writeDir(t, map[string]string{"gateway.json": `{"name":"other"}`, "metadata.json": "{}"})
@@ -358,11 +386,15 @@ func zipFiles(t *testing.T, names ...string) []*zip.File {
 func TestCheckEntries(t *testing.T) {
 	if err := checkEntries(
 		"z",
-		zipFiles(t, "cert.pem", "gateway.json", "allowlist.json", ComposeEntry, JellyfinEntry),
+		zipFiles(t, "cert.pem", "gateway.json", "allowlist.json", ComposeEntry, JellyfinEntry,
+			"history/health-2026-11-20.jsonl"),
 	); err != nil {
 		t.Fatal(err)
 	}
-	for _, bad := range []string{"../evil", "sub/x", `sub\x`, "C:x", "dir/", "..", "."} {
+	for _, bad := range []string{
+		"../evil", "sub/x", `sub\x`, "C:x", "dir/", "..", ".",
+		"history/", "history/../evil", "history/a/b", `history/a\b`, "history/..", "history/history/x",
+	} {
 		if err := checkEntries("z", zipFiles(t, "cert.pem", "gateway.json", bad)); err == nil {
 			t.Errorf("%q: accepted", bad)
 		}
@@ -434,12 +466,17 @@ func TestStale(t *testing.T) {
 		t,
 		map[string]string{"gateway.json": "{}", "allowlist.json": "[]", "page-token": "t", "page-link": "l"},
 	)
-	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o700); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, historyDir), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	got, err := stale(dir, map[string][]byte{"gateway.json": nil, ComposeEntry: nil})
-	if err != nil || !slices.Equal(got, []string{"allowlist.json"}) {
-		t.Fatalf("stale = %v, err %v; want [allowlist.json]", got, err)
+	for _, n := range []string{"a.jsonl", "b.jsonl"} {
+		if err := os.WriteFile(filepath.Join(dir, historyDir, n), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := stale(dir, map[string][]byte{"gateway.json": nil, ComposeEntry: nil, "history/b.jsonl": nil})
+	if err != nil || !slices.Equal(got, []string{"allowlist.json", "history/a.jsonl"}) {
+		t.Fatalf("stale = %v, err %v; want [allowlist.json history/a.jsonl]", got, err)
 	}
 }
 

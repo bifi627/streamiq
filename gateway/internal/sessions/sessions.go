@@ -84,7 +84,7 @@ func (s *Sessions) Active() int {
 }
 
 // Handle processes one broker message; send writes JSON to the current control socket.
-// A nil raw (a control socket came up or dropped) and heartbeat acks are not ours.
+// Heartbeat acks and anything without a session are not ours.
 func (s *Sessions) Handle(raw []byte, send func(any)) {
 	var m Msg
 	if json.Unmarshal(raw, &m) != nil || m.Session == "" {
@@ -195,7 +195,7 @@ func (s *Sessions) newPeer(id, user, role string, pre *preAuth, send func(any)) 
 	var cands signaled
 	var why atomic.Value // last auth outcome short of success ("unpaired", a refusal); the report's failure
 	// The selected pair while connected: pion drops it before it reports Failed,
-	// and the tunnel row keeps the route of a tunnel that came up.
+	// and the history line keeps the route of a tunnel that came up.
 	var pair atomic.Pointer[webrtc.ICECandidatePair]
 	use := tunnel.NewUsage(time.Now())
 	ended := s.ender(id, user, pc, &cands, &pair, &authed, &why, use)

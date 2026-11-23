@@ -132,8 +132,9 @@ The API keeps no per-tunnel data (#783): every tunnel is recorded on its gateway
 Postgres keeps only relayed bytes per gateway and month, from Cloudflare (relay usage,
 below). What an older gateway still sends (its `tunnel` report, health, telemetry level)
 the broker ignores. A stop (SIGTERM) closes every broker socket through its normal cleanup
-within 8 s (`shutdownTimeout`): each open tunnel's gateway gets its `bye` and its TURN
-credential is revoked. The web app shows
+within 8 s (`shutdownTimeout`): each open tunnel's TURN credential is revoked (its gateway
+may not hear the `bye`: its socket closes too, and the tunnel ends when the browser's
+connection drops). The web app shows
 a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, or relayed.
 **The tunnel history stays on the gateway** (#782, part of #768): `sessions` hands every
 ended tunnel (`Sessions.Ended`: the report, its user, the offer's time, the throughput) to

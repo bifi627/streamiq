@@ -71,8 +71,11 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         setSession(x)
       },
       (e) => {
-        setErr(toAppError(e))
-        qc.setQueryData<Conn>(connKey(gatewayId), { route: 'failed' }) // the shell badge
+        const err = toAppError(e)
+        setErr(err)
+        qc.setQueryData<Conn>(connKey(gatewayId), {
+          route: err.kind === 'not-paired' ? 'unpaired' : 'failed',
+        }) // the shell badge
       },
     )
     return () => {

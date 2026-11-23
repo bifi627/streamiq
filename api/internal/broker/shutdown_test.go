@@ -26,7 +26,7 @@ func TestShutdownRevokesTheOpenTunnelsTURNCredentials(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	// Both peers read while Shutdown runs, as real ones do: a socket the gateway's cleanup
-	// closes with a handshake waits up to 5 s for its peer's close frame (#848).
+	// closes with a handshake waits up to 5 s for its peer's close frame.
 	var peers sync.WaitGroup
 	for _, c := range []*websocket.Conn{browser, nas.conn} {
 		peers.Go(func() {

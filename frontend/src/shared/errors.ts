@@ -76,13 +76,13 @@ export function httpError(
   return new AppError(kind, detail, { ...context, status })
 }
 
-const closeKind: Record<string, Kind> = {
-  [CloseGatewayGone]: 'gateway-offline',
-  [CloseGatewayRevoked]: 'gateway-removed',
-  [CloseUnauthorized]: 'unauthorized',
-  [CloseNoHousehold]: 'no-household',
-  [CloseRateLimited]: 'rate-limited',
-}
+const closeKind = new Map<string, Kind>([
+  [CloseGatewayGone, 'gateway-offline'],
+  [CloseGatewayRevoked, 'gateway-removed'],
+  [CloseUnauthorized, 'unauthorized'],
+  [CloseNoHousehold, 'no-household'],
+  [CloseRateLimited, 'rate-limited'],
+])
 
 /** The broker socket closed, with the broker's reason (docs/protocol.md). Any
  * other reason: before open, offline or the upgrade was refused (a 429 rate
@@ -92,12 +92,14 @@ export const brokerClosed = (
   opened: boolean,
   context: Context = {},
   reason = '',
-) =>
-  Object.hasOwn(closeKind, reason)
-    ? new AppError(closeKind[reason], `broker closed: ${reason}`, context)
+) => {
+  const kind = closeKind.get(reason)
+  return kind
+    ? new AppError(kind, `broker closed: ${reason}`, context)
     : opened
       ? new AppError('broker-lost', 'broker connection closed', context)
       : new AppError('broker-unreachable', 'broker connection failed', context)
+}
 
 /** The broker's `{type:"error"}` text (docs/protocol.md). */
 export const brokerError = (text: string, context: Context = {}) =>

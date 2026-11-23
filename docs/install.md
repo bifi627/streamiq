@@ -254,9 +254,11 @@ app always asks for H.264):
 
 ## What the gateway keeps, what StreamIQ sees
 
-StreamIQ sees only that the gateway is alive (its name, version and LAN address, every
-30 s) and, for a relayed connection, the bytes Cloudflare relayed per gateway and month.
-Everything else stays on the gateway, in `state/history/`, shown only to a paired browser
+StreamIQ keeps only that the gateway is alive (its name, version and LAN address, every
+30 s) and, for relayed connections, the bytes Cloudflare relayed per gateway and month.
+Setting up each connection passes through StreamIQ (who connects to which gateway, when,
+and both sides' network addresses, so the two can find each other), but none of it is
+stored. Everything else stays on the gateway, in `state/history/`, shown only to a paired browser
 while the gateway is online: its health (**Gateways**, the card's "Health, last 7 days":
 Jellyfin reachable and its version, hardware acceleration, the offline jail, active
 tunnels and transcodes, CPU % and memory %; a file per day, the last 7 days) and

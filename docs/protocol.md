@@ -54,7 +54,7 @@ its name; the API never writes it after enrollment. `GET /api/gateways` returns 
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
-protocol (currently **2**: 2 adds the `tunnel` report, #390; Go `onboarding.Protocol`). A breaking change bumps it. The API
+protocol (currently **2**: 2 added a `tunnel` report, #390, which gateways no longer send since #783; Go `onboarding.Protocol`). A breaking change bumps it. The API
 has one minimum (`broker.MinGatewayProtocol`, `api/internal/broker`); raising it is a deliberate step,
 since every gateway below it stops working until its owner updates. A first heartbeat
 below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the API
@@ -296,13 +296,13 @@ holds that to one guess per connection:
 is *not authenticated* from its offer until `ok` or `approved`:
 
 - **At most 8 at once** (`MaxUnauthed`). An offer over it builds no PeerConnection:
-  the gateway sends the broker `{type:"error", session, error:"gateway busy"}` and a
-  `tunnel` report with that failure; the broker relays only this one reason
+  the gateway sends the broker `{type:"error", session, error:"gateway busy"}` and
+  records that failure in its tunnel history; the broker relays only this one reason
   (`protocol.GatewayBusy`; any other gateway `error` is dropped), and the browser
   shows "The gateway is busy. Try again in a moment." with Retry.
 - **30 s from the offer** (`UnauthedFor`). Still not authenticated then and no
   pairing exchange running (an accepted `commit`) → the gateway closes the
-  PeerConnection; the tunnel row's failure is `not authenticated within 30s`, or
+  PeerConnection; the history line's failure is `not authenticated within 30s`, or
   `ice failed` when ICE never connected. A running exchange keeps its 5-minute
   windows; one that ends without `approved` is closed at the next 30-s check after
   it. The browser sees the connection close.

@@ -99,7 +99,7 @@ export async function connect(
     const run = async (f: Effect) => {
       switch (f.do) {
         case 'auth':
-          send({ type: 'auth', token: token ?? '' }) // signed out: the broker refuses it
+          send({ type: 'auth', token: token ?? '', gatewayId }) // signed out: the broker refuses it
           return keepAlive(send)
         case 'relayLine':
           diag.relay = relayLine(f.noTurn)

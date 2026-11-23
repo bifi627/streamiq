@@ -19,9 +19,13 @@ import (
 type rawMsg = protocol.Msg[json.RawMessage, json.RawMessage]
 
 // browser is a browser's signaling socket: one socket = one session to one gateway. The
-// ID token arrives as the first message (never a query parameter: it stays out of
-// logs). `ready` carries this session's ICE servers; a revocable TURN credential is
-// revoked when the socket closes, which also ends the session (`bye`, the tunnel's end).
+// ID token and the gateway arrive as the first message (never a query parameter: it
+// stays out of logs). `ready` carries this session's ICE servers: TURN only for a
+// gateway of the user's households that isn't revoked, online or not (one that comes
+// online seconds later still gets a relay), tagged as that gateway's (relay usage);
+// else STUN only, the same for an unknown or foreign gateway. A revocable TURN
+// credential is revoked when the socket closes, which also ends the session (`bye`,
+// the tunnel's end).
 func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 	conn, err := accept(w, r)
 	if err != nil {
@@ -29,11 +33,11 @@ func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = conn.CloseNow() }()
 	ctx := r.Context()
-	user, ok := b.authenticate(ctx, conn)
+	user, named, ok := b.authenticate(ctx, conn)
 	if !ok {
 		return
 	}
-	servers, revoke, err := b.TURN.Issue(ctx, user)
+	servers, revoke, err := b.iceServers(ctx, user, named)
 	if err != nil {
 		log.Printf("broker: TURN credential not issued, session gets STUN only: %v", err)
 		servers = turn.StunOnly()
@@ -57,7 +61,10 @@ func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 	for m := read(ctx, conn, 64<<10, lim, false); m != nil; m = read(ctx, conn, 64<<10, lim, false) {
 		switch str(m, "type") {
 		case "offer":
-			if gw == nil {
+			// A browser from before auth.gatewayId names none: it got STUN only.
+			if named != "" && id(m, "gatewayId") != named {
+				send(conn, protocol.ErrorMsg{Type: "error", Error: "gateway offline or unknown"})
+			} else if gw == nil {
 				sid, gw = b.offer(ctx, conn, user, m)
 			}
 		case "ice":
@@ -68,31 +75,51 @@ func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// iceServers mints a TURN credential tagged as gateway's when it is one of user's
+// households' and isn't revoked.
+func (b *Broker) iceServers(ctx context.Context, user, gateway string) ([]json.RawMessage, string, error) {
+	tag := ""
+	all, err := b.Auth.Households(ctx, user)
+	for _, h := range all {
+		if err == nil && tag == "" && gateway != "" {
+			err = b.DB.InTenant(ctx, h.ID, func(tx pgx.Tx) error {
+				return tx.QueryRow(ctx, `SELECT coalesce(max(relay_tag), '') FROM gateways
+					WHERE id = $1 AND credential_hash IS NOT NULL`, gateway).Scan(&tag)
+			})
+		}
+	}
+	if err != nil || tag == "" {
+		return turn.StunOnly(), "", err
+	}
+	return b.TURN.Issue(ctx, user, tag)
+}
+
 // authenticate reads the auth message within AuthTimeout: the same token verification
-// as the REST API, no bypass. false = the socket was closed with the reason.
-func (b *Broker) authenticate(ctx context.Context, conn *websocket.Conn) (user string, ok bool) {
+// as the REST API, no bypass. It returns the gateway the message names ("" = none).
+// false = the socket was closed with the reason.
+func (b *Broker) authenticate(ctx context.Context, conn *websocket.Conn) (user, gateway string, ok bool) {
 	// The timer closes the socket instead of cancelling the read: a cancelled read
 	// closes it without a reason.
 	timeout := time.AfterFunc(b.AuthTimeout, func() { kill(conn, "auth timeout") })
 	m := read(ctx, conn, 8<<10, nil, true)
 	if !timeout.Stop() {
-		return "", false
+		return "", "", false
 	}
 	if m == nil || str(m, "type") != "auth" {
 		kill(conn, "auth first")
-		return "", false
+		return "", "", false
 	}
 	c, err := b.Auth.Token(ctx, str(m, "token")) // missing = "", which fails verification
 	if err != nil {
 		kill(conn, "unauthorized")
-		return "", false
+		return "", "", false
 	}
 	// In no household at all: nothing to offer to, and no TURN credential for it.
 	if len(c.Households) == 0 {
 		kill(conn, "no household")
-		return "", false
+		return "", "", false
 	}
-	return c.User, true
+	return c.User, id(m, "gatewayId"), true
 }
 
 // offer routes an offer: only to an online gateway of a household the user is a member

@@ -18,7 +18,7 @@ func TestDevCredentialsAreShortLivedTURNRESTCredentials(t *testing.T) {
 
 func devCredentials(t *testing.T) {
 	i := &Issuer{URLs: []string{"turn:127.0.0.1:3478?transport=udp"}, Secret: "s3cret"}
-	servers, revoke, err := i.Issue(t.Context(), "user-1")
+	servers, revoke, err := i.Issue(t.Context(), "user-1", "tag")
 	if err != nil || revoke != "" || len(servers) != 2 { // coturn's can't be revoked, only expire
 		t.Fatal(err, revoke, len(servers))
 	}
@@ -39,7 +39,7 @@ func devCredentials(t *testing.T) {
 }
 
 func TestNeitherIsStunOnly(t *testing.T) {
-	servers, revoke, err := (&Issuer{}).Issue(t.Context(), "u")
+	servers, revoke, err := (&Issuer{}).Issue(t.Context(), "u", "tag")
 	if err != nil || revoke != "" || len(servers) != 1 || !strings.Contains(string(servers[0]), `"stun:`) {
 		t.Fatal(servers, err)
 	}

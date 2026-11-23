@@ -12,7 +12,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
   built web app.
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
   `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
-  `gateways`, `onboarding`, `tunnels`, `household`, `members`, `invites`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
+  `gateways`, `onboarding`, `tunnels`, `relayusage`, `household`, `members`, `invites`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
   only imports between slices);
   `front` is `/healthz`, CORS, the security headers (`nosniff`, `strict-origin-when-cross-origin`
   and a Content-Security-Policy, on every response) and the web app (a file that
@@ -119,7 +119,10 @@ is not a status log: open work lives in `gh issue list`, history in git.
   it too), per-socket
   message buckets (`golang.org/x/time/rate`), 10 s auth deadline.
 - TURN (`api/internal/turn`): credentials minted per broker session in `ready` and revoked at its end; no
-  standalone TURN endpoint. Cloudflare in prod; coturn in dev via TURN REST
+  standalone TURN endpoint. Only for the gateway the browser names in `auth` (`gatewayId`), when it is a
+  gateway of the user's households and not revoked, online or not (one that comes online right
+  after `ready` still gets a relay); else STUN only, and an offer to another gateway is refused. Each Cloudflare credential carries that gateway's
+  random `gateways.relay_tag` as `customIdentifier` (relay usage, below). Cloudflare in prod; coturn in dev via TURN REST
   (`STREAMIQ_TURN_SECRET`). `?relay` forces the relay path; `?relay=tls` keeps only the
   `turns:…:443` URLs (TLS 443 relay, #576: checked by the prod smoke only, local coturn has no TLS).
 
@@ -152,6 +155,18 @@ An admin's Activity opens on the whole household (`?scope=household`, admin only
 /streamiq/tunnels/summary` per gateway, added up per user: tunnels, failures, relayed
 bytes), a member filter and a Member column, names from the members endpoint ("Former
 member" otherwise).
+
+**Relay usage** (#784, part of #768): what each household relays through Cloudflare TURN,
+from Cloudflare's own numbers, so no gateway can under-report it. `api/internal/relayusage`:
+a job in the API (a minute after start, then daily; only with `CLOUDFLARE_ACCOUNT_ID` +
+`CLOUDFLARE_ANALYTICS_API_TOKEN`) reads `sum.egressBytes` per `customIdentifier` from the
+GraphQL analytics (`callsTurnUsageAdaptiveGroups`) for this UTC month and the last, maps
+each tag to its gateway (`gateway_by_relay_tag`, `SECURITY DEFINER`; an unknown tag is
+skipped) and **sets** `relay_usage` (tenant, gateway, month, bytes; no FK to the gateway, so
+a removed one's bytes stay). A failed run is logged and retried the next day. `GET
+/api/relay-usage` (admin) is the household's rows, shown in Activity's admin summary
+("Relayed through StreamIQ", `RelayUsage.tsx`) whether the gateways are online or not. Dev
+and e2e (coturn): always empty.
 
 **Gateway health** (#423): at telemetry `full` the heartbeat carries the box's health, kept
 in `gateway_health` (`api/internal/broker`, `storeHealth`): a row when Jellyfin, OS/arch,

@@ -8,6 +8,7 @@ import { useHousehold } from '../households/household'
 import { loadHistory } from './api'
 import { byMember, memberLabel } from './household'
 import { HouseholdSummary, MemberSelect } from './HouseholdSummary'
+import { RelayUsage } from './RelayUsage'
 import { useMembers } from './useMembers'
 import {
   byGateway,
@@ -61,6 +62,7 @@ export function Activity() {
       {admin && q.data && (
         <HouseholdSummary rows={q.data.summary} names={names} all={all} />
       )}
+      {admin && <RelayUsage />}
       {q.isPending && <p role="status">Loading…</p>}
       {tunnels?.length === 0 && !q.data?.unavailable.length && (
         <State icon="empty" title="No tunnels in the last 30 days." />

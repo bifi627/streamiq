@@ -23,7 +23,15 @@ func TestMain(m *testing.M) {
 	os.Exit(apitest.Run(m))
 }
 
-var tenantOwned = []string{"memberships", "gateways", "enrollment_tokens", "invites", "tunnels", "gateway_health"}
+var tenantOwned = []string{
+	"memberships",
+	"gateways",
+	"enrollment_tokens",
+	"invites",
+	"tunnels",
+	"gateway_health",
+	"relay_usage",
+}
 
 // seed gives a new household one row in every tenant-owned table, as the owner.
 func seed(t *testing.T) string {
@@ -57,6 +65,12 @@ func seed(t *testing.T) string {
 	apitest.Exec(
 		t,
 		`INSERT INTO gateway_health (id, tenant_id, gateway_id, at, level) VALUES (uuidv7(), $1, $2, now(), 'ok')`,
+		h,
+		gw,
+	)
+	apitest.Exec(
+		t,
+		`INSERT INTO relay_usage (tenant_id, gateway_id, month, bytes) VALUES ($1, $2, '2026-11-01', 1)`,
 		h,
 		gw,
 	)

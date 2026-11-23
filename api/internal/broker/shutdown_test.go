@@ -15,7 +15,7 @@ func TestShutdownEndsTheOpenTunnelsAndRevokesTheirTURNCredentials(t *testing.T) 
 	f := &fakeCloudflare{}
 	s := newStack(t, cloudflare(t, f, 5*time.Second), 1000)
 	nas := s.online("alice@home.test", "nas")
-	browser, servers := ready(t, s, "alice@home.test")
+	browser, servers := ready(t, s, "alice@home.test", nas.id)
 	offerTo(t, browser, nas)
 	sid := session(t, nas)
 	user := servers[1].(map[string]any)["username"].(string)

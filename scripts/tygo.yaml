@@ -46,6 +46,10 @@ packages:
     optional_type: "null"
     type_mappings:
       time.Time: "string"
+  - path: "streamiq/api/internal/relayusage"
+    output_path: "frontend/src/generated/relayusage.ts"
+    include_files: ["relayusage.go"]
+    optional_type: "null"
   - path: "streamiq/api/internal/household"
     output_path: "frontend/src/generated/household.ts"
     include_files: ["create.go", "rename.go"]

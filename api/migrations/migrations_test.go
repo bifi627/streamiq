@@ -35,12 +35,15 @@ func rows(t *testing.T, conn *pgx.Conn, sql string) string {
 	return s
 }
 
-func want(t *testing.T, conn *pgx.Conn) {
+func want(t *testing.T, conn *pgx.Conn) { wantTo(t, conn, "\n(0008_relay_usage.sql)") }
+
+// wantTo: every file up to 0007 was applied, then rest.
+func wantTo(t *testing.T, conn *pgx.Conn, rest string) {
 	t.Helper()
 	got := rows(t, conn, `SELECT name FROM schema_migrations ORDER BY name`)
 	if got != "(0001_baseline.sql)\n(0002_rls.sql)\n(0003_gateway_by_credential.sql)\n"+
 		"(0004_claim_enrollment_token.sql)\n(0005_households_invites.sql)\n(0006_rls_tenants_users.sql)\n"+
-		"(0007_snake_case.sql)" {
+		"(0007_snake_case.sql)"+rest {
 		t.Fatalf("applied %v", got)
 	}
 }
@@ -154,12 +157,12 @@ func TestSnakeCaseOnlyRenames(t *testing.T) {
 		}
 	}
 
-	if err := migrations.Up(t.Context(), url); err != nil {
+	if err := migrations.UpTo(t.Context(), url, "0007_snake_case.sql"); err != nil {
 		t.Fatal(err)
 	}
 	if after := state(); !slices.Equal(before, after) {
 		t.Fatalf("changed:\nbefore %q\nafter  %q", before, after)
 	}
-	want(t, conn)
+	wantTo(t, conn, "")
 	snakeCase(t, conn)
 }

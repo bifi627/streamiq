@@ -2,6 +2,7 @@ package broker_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -52,6 +53,7 @@ func TestABrowserFloodingMessagesIsClosed(t *testing.T) {
 type fakeCloudflare struct {
 	mu      sync.Mutex
 	calls   []string
+	bodies  []string
 	n       int
 	timeout bool
 	stop    chan struct{} // ends a timing-out call, at cleanup
@@ -60,6 +62,8 @@ type fakeCloudflare struct {
 func (f *fakeCloudflare) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.calls = append(f.calls, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+	body, _ := io.ReadAll(r.Body)
+	f.bodies = append(f.bodies, string(body))
 	f.n++
 	n := f.n
 	f.mu.Unlock()
@@ -83,6 +87,13 @@ func (f *fakeCloudflare) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"credential": "c",
 		},
 	}})
+}
+
+// minted is the bodies of the calls so far.
+func (f *fakeCloudflare) minted() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.bodies...)
 }
 
 func (f *fakeCloudflare) called(call string) bool {
@@ -109,7 +120,8 @@ func cloudflare(t *testing.T, f *fakeCloudflare, timeout time.Duration) *turn.Is
 	}
 }
 
-func ready(t *testing.T, s *stack, email string) (*websocket.Conn, []any) {
+// ready is a browser socket of email naming gateway, and its `ready`'s ICE servers.
+func ready(t *testing.T, s *stack, email, gateway string) (*websocket.Conn, []any) {
 	t.Helper()
 	token, _ := s.user(email)
 	s.household(email)
@@ -117,7 +129,7 @@ func ready(t *testing.T, s *stack, email string) (*websocket.Conn, []any) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sendJSON(t, c, map[string]any{"type": "auth", "token": token})
+	sendJSON(t, c, map[string]any{"type": "auth", "token": token, "gatewayId": gateway})
 	m := recv(t, c)
 	servers, _ := m["iceServers"].([]any)
 	return c, servers
@@ -126,9 +138,10 @@ func ready(t *testing.T, s *stack, email string) (*websocket.Conn, []any) {
 func TestEachBrokerSessionGetsItsOwnCloudflareCredentialRevokedWhenItEnds(t *testing.T) {
 	f := &fakeCloudflare{}
 	s := newStack(t, cloudflare(t, f, 5*time.Second), 1000)
+	nas := s.online("turn@home.test", "nas")
 	var users []string
 	for range 2 {
-		c, servers := ready(t, s, "turn@home.test")
+		c, servers := ready(t, s, "turn@home.test", nas.id)
 		users = append(users, servers[1].(map[string]any)["username"].(string))
 		_ = c.Close(websocket.StatusNormalClosure, "")
 	}
@@ -142,7 +155,7 @@ func TestEachBrokerSessionGetsItsOwnCloudflareCredentialRevokedWhenItEnds(t *tes
 
 func TestATimedOutTURNProviderFallsBackToSTUN(t *testing.T) {
 	s := newStack(t, cloudflare(t, &fakeCloudflare{timeout: true}, 200*time.Millisecond), 1000)
-	_, servers := ready(t, s, "turn-down@home.test")
+	_, servers := ready(t, s, "turn-down@home.test", s.online("turn-down@home.test", "nas").id)
 	if len(servers) != 1 || !strings.HasPrefix(servers[0].(map[string]any)["urls"].([]any)[0].(string), "stun:") {
 		t.Fatal(servers)
 	}

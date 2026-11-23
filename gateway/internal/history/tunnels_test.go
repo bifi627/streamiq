@@ -82,7 +82,8 @@ func seed(t *testing.T, n int) *Tunnels {
 	}
 	add(now.AddDate(0, 0, -31), "u2", protocol.Report{Session: "old"})
 	for i := range n {
-		add(now.Add(-time.Duration(n-i)*time.Minute), "u2", protocol.Report{Session: fmt.Sprint("m", i), Use: "playback"})
+		at := now.Add(-time.Duration(n-i) * time.Minute)
+		add(at, "u2", protocol.Report{Session: fmt.Sprint("m", i), Use: "playback"})
 	}
 	add(now.Add(-time.Hour), "u1", protocol.Report{Session: "a1", Use: "management"})
 	add(now.Add(-2*time.Hour), "u1", protocol.Report{Session: "a2", Use: "diagnostics", Failure: ref("ice failed")})

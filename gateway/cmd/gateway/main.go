@@ -303,6 +303,13 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	return rt
 }
 
+// histories are the gateway's own records in its state dir.
+func histories(stateDir string) (*history.Health, *history.Tunnels) {
+	dir := filepath.Join(stateDir, history.Dir)
+	return &history.Health{Store: &history.Store{Dir: dir, Kind: "health", Days: history.HealthDays}, Version: version},
+		&history.Tunnels{Store: &history.Store{Dir: dir, Kind: "tunnels", Days: history.TunnelDays}}
+}
+
 // run is the gateway daemon; compose is jellyfin-compose.yml next to the binary.
 func run(ctx context.Context, compose string) {
 	stateDir := stateDir()
@@ -384,13 +391,8 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 			defer cancel()
 			setup.EnsureViewer(viewerCtx, user)
 		}}
-	tunnels := &history.Tunnels{Store: &history.Store{Dir: filepath.Join(stateDir, history.Dir), Kind: "tunnels",
-		Days: history.TunnelDays}}
-	sess.Ended = func(r protocol.Report, user string, start time.Time, kbps int) {
-		if err := tunnels.Record(r, user, start, time.Now(), kbps); err != nil {
-			log.Printf("gateway: tunnel history: %v", err)
-		}
-	}
+	health, tunnels := histories(stateDir)
+	sess.Ended = tunnels.Ended
 	store.OnRemove = sess.Drop // removing a browser ends its open sessions
 	var lastBeat atomic.Int64
 	var notice, newer atomic.Pointer[string]
@@ -403,8 +405,6 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	go load.Run(ctx)
 	b := &box{dir: stateDir, setup: setup, compose: compose, sess: sess, load: load}
 	tel := &telemetry.Switch{Dir: stateDir, Changed: st.Beat}
-	health := &history.Health{Store: &history.Store{Dir: filepath.Join(stateDir, history.Dir), Kind: "health", Days: history.HealthDays},
-		Version: version}
 	go b.record(ctx, health)
 	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), tel, health, tunnels)
 	token, err := localpage.Token(stateDir, lan)

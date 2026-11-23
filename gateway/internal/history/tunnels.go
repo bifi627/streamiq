@@ -3,6 +3,7 @@ package history
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"slices"
 	"time"
@@ -31,6 +32,13 @@ func (t *Tunnels) Record(r protocol.Report, user string, start, end time.Time, k
 		l.Use = &r.Use
 	}
 	return t.Store.Append(end, l)
+}
+
+// Ended records a tunnel that ends now (sessions.Sessions.Ended); a failed write is logged.
+func (t *Tunnels) Ended(r protocol.Report, user string, start time.Time, kbps int) {
+	if err := t.Record(r, user, start, time.Now(), kbps); err != nil {
+		log.Printf("gateway: tunnel history: %v", err)
+	}
 }
 
 // recent is the lines of the last TunnelDays, newest first.

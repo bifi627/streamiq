@@ -267,6 +267,21 @@ relayed, data and throughput; 30 days, `tunnels-*.jsonl`). Never names, media ti
 file names or paths. `gateway backup` carries both. There is nothing to switch: the old
 `gateway telemetry` command is gone, and a `state/telemetry` file left from it is ignored.
 
+### Direct connections only
+
+A browser that can't reach the gateway directly (most cellular networks, a strict NAT)
+streams through a relay (TURN, run by Cloudflare). The relay sees only encrypted
+traffic, but if the stream shouldn't pass through it at all, turn it off for this
+gateway: on the gateway's card in the web app (**Allow the relay**, an admin on a paired
+browser), or with the gateway stopped, in its install dir:
+
+```
+gateway relay off
+```
+
+Then such a browser can't connect at all; it says "This gateway allows direct
+connections only". `gateway relay on` allows the relay again.
+
 ## A second gateway on the same machine
 
 To keep libraries apart (say private media and shared media), install a second
@@ -441,7 +456,7 @@ Installer-only variables are set on the install command, not in `gateway.env`.
 | `STREAMIQ_LAN_URL` | first private IPv4 + page port | The local gateway page's address on your LAN; needed in Docker, where the container's IP is useless. |
 | `STREAMIQ_ORIGIN` | `http://localhost:8096` | Your Jellyfin's address (another machine: its LAN address). |
 | `STREAMIQ_JELLYFIN_HWACCEL` | unset (CPU) | `nvenc` = NVIDIA GPU transcoding on a Jellyfin the gateway set up ([GPU transcoding](#gpu-transcoding-optional)). |
-| `STREAMIQ_ICE_URLS` | — (STUN only) | Comma-separated TURN URLs for the gateway's side of the tunnel. |
+| `STREAMIQ_ICE_URLS` | — (STUN only) | Comma-separated TURN URLs for the gateway's side of the tunnel; unused with the relay off ([Direct connections only](#direct-connections-only)). |
 | `STREAMIQ_ICE_USERNAME` | — | TURN username for `STREAMIQ_ICE_URLS`. |
 | `STREAMIQ_ICE_CREDENTIAL` | — | TURN credential for `STREAMIQ_ICE_URLS`. |
 | `STREAMIQ_ICE_PORT` | — (any port) | Pins WebRTC to one UDP port and advertises the `STREAMIQ_LAN_URL` host if it is an IP address (a hostname is ignored); for Docker (the image sets `8098`). |

@@ -38,19 +38,21 @@ shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 2, "name": "Living room NAS" }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 2, "name": "Living room NAS", "relayOff": true }
 ```
-Liveness plus what the gateway owns and the API mirrors (#140, #310); a gateway sends one
-early, right after its name changes over the gateway API, not just every 30 s.
+Liveness plus what the gateway owns and the API mirrors (#140, #310, #785); a gateway sends one
+early, right after its name or relay setting changes, not just every 30 s.
 An older gateway also sends `telemetry` and, at `full`, `health` (#422): the API ignores
 both (#783). The box's health stays in the gateway's own history (`GET /streamiq/health`).
 The API also sets `last_seen_at = now`, `lan_url` (http/https only,
 else null), `version` (≤ 40 chars, else null; `"dev"` for source builds) and
 `update` (newer release version, absent = up to date; ≤ 40 chars, else null) and
 `protocol` (below), and `name` (#310: trimmed, cut to 100 UTF-16 units, never inside a
-surrogate pair; missing, blank or with a control character = the stored name stays), and ignores any other field. The gateway owns
+surrogate pair; missing, blank or with a control character = the stored name stays), and
+`relay_off` from `relayOff` (#785: `true` = direct connections only; missing, an older
+gateway, or not a boolean = relay on), and ignores any other field. The gateway owns
 its name; the API never writes it after enrollment. `GET /api/gateways` returns `online`, `lastSeenAt`, `lanUrl`,
-`version`, `update` and `upgradeRequired`; everything richer comes from the gateway itself over the
+`version`, `update`, `upgradeRequired` and `relayOff`; everything richer comes from the gateway itself over the
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
@@ -148,8 +150,8 @@ gateway survives ends it too: rare, and the next open makes a fresh session.
 
 | direction | message |
 |---|---|
-| browser → broker | `{type:"auth", token:"<Firebase ID token>", gatewayId}` — first frame (not a query param: keeps it out of logs), within 10 s. `gatewayId` = the gateway this session's offer goes to: `ready` carries TURN only when it is a gateway of the user's households that isn't revoked, online or not (else STUN only, alike for an unknown or foreign gateway: no existence oracle), and an offer to another gateway gets "gateway offline or unknown" (#784). Without it (a web app from before): STUN only. Each failure closes `1008` with a reason: a first frame that isn't auth (or isn't a JSON object, or is over 8 KB) → "auth first"; nothing within 10 s → "auth timeout"; bad token → "unauthorized" (#555). |
-| broker → browser | `{type:"ready", iceServers}` — this session's ICE servers (below) |
+| browser → broker | `{type:"auth", token:"<Firebase ID token>", gatewayId}` — first frame (not a query param: keeps it out of logs), within 10 s. `gatewayId` = the gateway this session's offer goes to: `ready` carries TURN only when it is a gateway of the user's households that isn't revoked and has its relay on, online or not (else STUN only, alike for an unknown or foreign gateway: no existence oracle), and an offer to another gateway gets "gateway offline or unknown" (#784). Without it (a web app from before): STUN only. Each failure closes `1008` with a reason: a first frame that isn't auth (or isn't a JSON object, or is over 8 KB) → "auth first"; nothing within 10 s → "auth timeout"; bad token → "unauthorized" (#555). |
+| broker → browser | `{type:"ready", iceServers, relayOff?}` — this session's ICE servers (below); `relayOff: true` = the named gateway allows direct connections only (#785), so STUN only |
 | browser → broker | `{type:"offer", gatewayId, sdp}` — browser is the offerer |
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |
 | broker → browser | `{type:"error", error:"gateway busy"}` — relayed from the gateway: it refused the offer ("Limits before auth" below); a retry may get through |
@@ -200,7 +202,13 @@ session because TURN refreshes need a valid credential. Dev: TURN REST creds for
 base64(HMAC-SHA1(STREAMIQ_TURN_SECRET, username))` (coturn `--use-auth-secret`),
 expiry only. Neither configured, or Cloudflare failing: STUN only; the browser
 then reports `relay: unavailable` in the diagnostics test, fails a forced relay
-right after `ready`, and names it in an ICE failure (#585). The browser
+right after `ready`, and names it in an ICE failure (#585). **Relay off (#785).** A gateway whose heartbeat says `relayOff` gets no credential: STUN
+only, and `ready` says `relayOff: true`; the browser then names it ("This gateway allows
+direct connections only") in an ICE failure and a forced relay, and `/diagnostics` shows
+`relay: off` and skips the forced-relay test. The gateway enforces it too: no TURN of
+its own (`STREAMIQ_ICE_*` ignored), the browser's relay candidates dropped (offer SDP and
+trickled), and a tunnel that still came up over a relay (a dropped relay reaching it as
+prflx) closed. The browser
 applies them with `setConfiguration` before creating its offer. `?relay` in the
 app URL, or "Force relay" in the Diagnostics panel (turned on in Settings, for TVs
 that can't edit the URL; `?debug` also opens it), sets `iceTransportPolicy: "relay"`
@@ -385,7 +393,7 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
+`/streamiq/name`, `/streamiq/relay`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
 percent-encoded path under the prefix is `404`; a known path with another method
 is `405` with an `Allow` header listing its methods, no body (#436; `HEAD` is never
 served, so a `GET` path answers it `405` with `Allow: GET`), checked before the
@@ -395,8 +403,8 @@ that means Jellyfin is unreachable (#327). Like every
 tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (the route option
-`tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name` and
-`/streamiq/update` so far; #89 decides per endpoint. `/streamiq/clients*` is
+`tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name`,
+`/streamiq/relay` and `/streamiq/update` so far; #89 decides per endpoint. `/streamiq/clients*` is
 open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
 its feature, registered in `gateway/cmd/gateway/main.go`). The request and response
@@ -478,6 +486,12 @@ else `400`. The gateway writes it to `state/gateway.json` (atomically) and uses 
 once (local page, backup file names, logs), then sends an early heartbeat so
 `GET /api/gateways` shows it within a second. A gateway older than this endpoint
 answers `404`; the web app then says to update it.
+
+**`POST /streamiq/relay`** (#785, admin-only) `{ "relay": false }` → `200` `{ "relay":
+<stored> }`; a body without a boolean `relay` is `400`. Off = direct connections only
+(ICE servers, above). Stored in `state/gateway.json` as `relayOff` (on = no field, the
+default), then an early heartbeat. The CLI's `gateway relay on|off` writes the same file
+with the gateway stopped. An older gateway answers `404`; the web app says to update it.
 
 **`GET /streamiq/clients`** (#311) → `200`
 `[{ "keyFp": "…", "name": "Pixel 8 · Chrome", "addedAt": "2026-11-01T10:00:00Z", "self": true, "profile": null }]`:

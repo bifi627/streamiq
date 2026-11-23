@@ -56,7 +56,7 @@ export function GatewayBadge({
     staleTime: Infinity,
     gcTime: Infinity,
   }).data
-  const part = connPart(dot, conn)
+  const note = { failed: 'status unavailable', offline: 'offline' }[dot]
   return (
     <span className="chip conn">
       <span
@@ -65,22 +65,31 @@ export function GatewayBadge({
         aria-label={dot === 'failed' ? 'status unavailable' : dot}
       />
       {gateway?.name ?? 'Gateway'}
-      {(dot === 'failed' || dot === 'offline') && (
+      {note && (
         <span className="muted" aria-hidden="true">
-          · {dot === 'failed' ? 'status unavailable' : 'offline'}
+          · {note}
         </span>
       )}
-      {part === 'checking' && (
-        <span className="muted" role="status">
-          Checking…
-        </span>
-      )}
-      {part === 'failed' && <Link to="/diagnostics">Can't connect</Link>}
-      {part && part !== 'checking' && part !== 'failed' && (
-        <RouteBadge route={part} mb={conn?.mb} />
-      )}
+      <Part part={connPart(dot, conn)} mb={conn?.mb} />
     </span>
   )
+}
+
+function Part({
+  part,
+  mb,
+}: {
+  part: ReturnType<typeof connPart>
+  mb?: number
+}) {
+  if (part === 'checking')
+    return (
+      <span className="muted" role="status">
+        Checking…
+      </span>
+    )
+  if (part === 'failed') return <Link to="/diagnostics">Can't connect</Link>
+  return part && <RouteBadge route={part} mb={mb} />
 }
 
 /** Feeds the shell badge from the library's live tunnel; renders nothing. */

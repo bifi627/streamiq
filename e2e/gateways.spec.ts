@@ -147,7 +147,7 @@ test('status, unpaired: liveness only, details need pairing (#140) @gateways', a
   await expect(b.getByText(/Jellyfin:|Paired browsers/)).toHaveCount(0)
 })
 
-// The shell's badge (#860): the active gateway, its dot and the connection type.
+// The shell's badge: the active gateway, its dot and the connection type.
 const badge = (p: Page) => p.locator('header .chip')
 
 test('connection badge: one check on a fresh load off the library, its tunnel closed, none on navigating (#860) @gateways', async ({

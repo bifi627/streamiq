@@ -259,6 +259,12 @@ peaks per local day.
   (`shared/PageBar.tsx`, portals into the row) and on a phone (≤ 600 px) the nav as a bottom
   tab bar above the safe-area inset. TV mode's nav: Library and Settings. The player hides
   all of it.
+- Connection badge (`features/gateways/Badge.tsx`), the top bar's right end: the active
+  gateway (the route's, else the Library tab's) with its dot and the connection type
+  (the player's `RouteBadge`). Library routes feed it from their live tunnel (`LiveRoute`);
+  elsewhere one check tunnel per page load and gateway (connect, `/streamiq/route`, close),
+  kept in the query cache (`['connection', id]`) until a library tunnel or a new pairing
+  replaces it. Offline: no check.
 - Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its
   first-visit default (`features/tv/tv.ts`: known TV → on, Android box → ask once, #309). Its routes
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the

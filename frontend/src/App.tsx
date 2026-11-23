@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { onAuthStateChanged, type User } from '@firebase/auth'
 import {
   createRootRoute,
@@ -31,7 +31,10 @@ import {
   tvOn,
 } from './shared/settings'
 import { TvAsk } from './features/tv/TvMode'
-import { handoffHome, shellPage, tvRoute } from './features/tv/tvRoute'
+import { handoffHome, shellPage } from './features/tv/tvRoute'
+import { chromeless, libraryTarget, tabs } from './shell'
+import { Nav } from './Nav'
+import { SlotsContext } from './shared/slots'
 import { Handoff } from './features/tv/Handoff'
 import { arrowFocus } from './shared/focus'
 import { PickAlias } from './shared/Alias'
@@ -42,12 +45,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
 import { Household, NoHousehold } from './features/households/HouseholdPage'
-import {
-  HouseholdContext,
-  SetMeContext,
-  householdLabel,
-  switchHousehold,
-} from './features/households/household'
+import { HouseholdContext, SetMeContext } from './features/households/household'
 import { SignIn } from './features/signin/SignIn'
 import { Settings } from './features/settings/Settings'
 import { Activity } from './features/activity/Activity'
@@ -73,10 +71,9 @@ function Shell() {
     return () => removeEventListener('storage', onStorage)
   }, [])
 
-  // Gateway routes: that gateway's status chip. The Library link stays on other
-  // routes too: the last opened gateway (per device), else the only one.
-  // Refetched on entering/leaving a gateway. ponytail: online is as of then,
-  // poll if it needs to be live.
+  // Gateway routes: that gateway's status chip (the connectivity badge's
+  // slot). Refetched on entering/leaving a gateway. ponytail: online is as
+  // of then, poll if it needs to be live.
   const { gatewayId } = useParams({ strict: false })
   const q = useGateways()
   const qc = useQueryClient()
@@ -96,13 +93,14 @@ function Shell() {
       : gateway?.online
         ? 'online'
         : 'offline'
-  const last = gateways.find((g) => g.id === lastGateway()) // gone = removed, or another household
-  const libraryId =
-    gatewayId ?? last?.id ?? (gateways.length === 1 ? gateways[0].id : null)
+  const library = libraryTarget(
+    gatewayId,
+    lastGateway(),
+    gateways.map((g) => g.id),
+  )
   const homeless = me !== null && me.tenantId === null
   const { pathname } = useLocation()
   const tv = useSyncExternalStore(onTvChange, tvOn)
-  const navOk = (path: string) => !tv || tvRoute(path) === 'allow'
   const home = handoffHome(tv, homeless)
   const page = {
     outlet: <Outlet />,
@@ -112,67 +110,46 @@ function Shell() {
       <Handoff url={location.origin + '/household'} home={home} />
     ),
   }[shellPage(pathname, tv, homeless)]
+  // The title row's parts, filled by the page (PageBar).
+  const [back, setBack] = useState<HTMLElement | null>(null)
+  const [title, setTitle] = useState<HTMLElement | null>(null)
+  const [actions, setActions] = useState<HTMLElement | null>(null)
+  const slots = useMemo(
+    () => ({ back, title, actions }),
+    [back, title, actions],
+  )
+  const bare = chromeless(pathname)
 
   return (
     // D-pad: an arrow no page container used (its edge, or a page
-    // without one) moves across the whole shell, e.g. Down to the diagnostics
-    // dock. The player moves its own focus (Controls.tsx).
+    // without one) moves across the whole shell, e.g. Up to the title row
+    // and top bar, Down to the diagnostics dock. The player moves its own
+    // focus (Controls.tsx).
     <div
       className="shell"
       onKeyDown={(e) =>
         !(e.target as Element).closest('.player') && arrowFocus(e)
       }
     >
-      <header className="top">
-        <span className="wordmark">
-          Stream<span>IQ</span>
-        </span>
-        <nav className="nav" aria-label="Main" onKeyDown={arrowFocus}>
-          {!homeless && <Link to="/gateways">Gateways</Link>}
-          {!homeless && navOk('/activity') && (
-            <Link to="/activity">Activity</Link>
+      {!bare && (
+        <header className="top">
+          <Link to="/" className="wordmark" aria-label="StreamIQ home">
+            Stream<span>IQ</span>
+          </Link>
+          <Nav tabs={tabs(tv, homeless)} library={library} />
+          <span className="grow" />
+          {gatewayId && !homeless && (
+            <GatewayChip name={gateway?.name} dot={dot} />
           )}
-          {libraryId && !homeless && (
-            <Link to="/g/$gatewayId" params={{ gatewayId: libraryId }}>
-              Library
-            </Link>
-          )}
-          {navOk('/household') && <Link to="/household">Household</Link>}
-          {navOk('/settings') && <Link to="/settings">Settings</Link>}
-        </nav>
-        <span className="grow" />
-        {me && me.memberships.length > 1 && (
-          <select
-            aria-label="Switch household"
-            value={me.tenantId ?? ''}
-            onChange={(e) => switchHousehold(e.target.value)}
-          >
-            {me.memberships.map((m) => (
-              <option key={m.id} value={m.id}>
-                {householdLabel(m)} ({m.role})
-              </option>
-            ))}
-          </select>
-        )}
-        {gatewayId && !homeless && (
-          <div className="status">
-            <span className="chip">
-              <span
-                className={`dot ${dot}`}
-                role="img"
-                aria-label={dot === 'failed' ? 'status unavailable' : dot}
-              />
-              {gateway?.name ?? 'Gateway'}
-              {dot === 'failed' && (
-                <span className="muted" aria-hidden="true">
-                  · status unavailable
-                </span>
-              )}
-            </span>
-            <span className="meta muted">Your files stay on your hardware</span>
-          </div>
-        )}
-      </header>
+        </header>
+      )}
+      {!bare && (
+        <div className="titlerow">
+          <div ref={setBack} />
+          <div ref={setTitle} className="titlerow-title" />
+          <div ref={setActions} className="titlerow-actions" />
+        </div>
+      )}
       <main>
         <UncaughtErrors />
         {notice && (
@@ -185,11 +162,31 @@ function Shell() {
         )}
         {err && <ErrorView error={err} />}
         <HouseholdContext.Provider value={me}>
-          <SetMeContext.Provider value={setMe}>{page}</SetMeContext.Provider>
+          <SetMeContext.Provider value={setMe}>
+            <SlotsContext.Provider value={slots}>{page}</SlotsContext.Provider>
+          </SetMeContext.Provider>
         </HouseholdContext.Provider>
       </main>
       <Diagnostics />
     </div>
+  )
+}
+
+function GatewayChip({ name, dot }: { name?: string | null; dot: string }) {
+  return (
+    <span className="chip">
+      <span
+        className={`dot ${dot}`}
+        role="img"
+        aria-label={dot === 'failed' ? 'status unavailable' : dot}
+      />
+      {name ?? 'Gateway'}
+      {dot === 'failed' && (
+        <span className="muted" aria-hidden="true">
+          · status unavailable
+        </span>
+      )}
+    </span>
   )
 }
 

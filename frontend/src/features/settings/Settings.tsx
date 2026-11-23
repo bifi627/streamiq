@@ -1,9 +1,5 @@
-import {
-  Link,
-  useCanGoBack,
-  useNavigate,
-  useRouter,
-} from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
+import { PageBar } from '../../shared/PageBar'
 import { signOut } from '@firebase/auth'
 import { auth } from '../../shared/firebase'
 import { TvToggle } from '../tv/TvMode'
@@ -12,30 +8,12 @@ import { AliasSetting } from '../../shared/Alias'
 import { DiagnosticsToggle } from '../diagnostics/Diagnostics'
 import { Playback } from './Playback'
 
-// Per-device settings, in sections. Back goes back in history;
-// after a deep link (no in-app history) it goes home instead of leaving the app.
+// Per-device settings, in sections.
 export function Settings() {
-  const router = useRouter()
-  const canGoBack = useCanGoBack()
-  const navigate = useNavigate()
   return (
     <section className="settings" onKeyDown={arrowFocus}>
-      <button
-        type="button"
-        className="back"
-        onClick={() =>
-          canGoBack
-            ? router.history.back()
-            : navigate({ to: '/', replace: true })
-        }
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24">
-          <path d="M15 6l-6 6 6 6" />
-        </svg>
-        Back
-      </button>
+      <PageBar title="Settings" />
       <div className="head">
-        <h1>Settings</h1>
         <p className="muted">These apply to this device only.</p>
       </div>
 

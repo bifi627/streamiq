@@ -3,6 +3,8 @@
 // Routes (App.tsx): /g/$gatewayId owns the tunnel; its children (home, /i, /play,
 // /screen, /remote) render through <Outlet /> and share it.
 import { useEffect, useState } from 'react'
+import { PageBar } from '../../shared/PageBar'
+import { useBack } from '../../shared/slots'
 import {
   Link,
   Outlet,
@@ -191,8 +193,6 @@ function Title({
 }) {
   const { gatewayId, pc } = useTunnel()
   const navigate = useNavigate()
-  const router = useRouter()
-  const canGoBack = useCanGoBack()
   const series = item.Type === 'Series'
   const [tab, setTab] = useState(season)
   // ponytail: every episode in one request; per season if huge shows lag.
@@ -212,10 +212,9 @@ function Title({
       to: '/g/$gatewayId/play/$itemId',
       params: { gatewayId, itemId: i.Id },
     })
-  const back = () =>
-    canGoBack
-      ? router.history.back()
-      : navigate({ to: '/g/$gatewayId', params: { gatewayId } })
+  const back = useBack(() =>
+    navigate({ to: '/g/$gatewayId', params: { gatewayId } }),
+  )
   const next = series ? lists && upNext(lists.episodes) : item
   const ready = current(gatewayId, series ? es.dataUpdatedAt : updatedAt)
   const resumes =
@@ -239,20 +238,14 @@ function Title({
 
   return (
     <div className="title">
+      <PageBar title={item.Name} onBack={back} />
       <div className="title-side">
-        <button type="button" className="back" onClick={back}>
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M15 6l-6 6 6 6" />
-          </svg>
-          Back
-        </button>
         <Artwork
           art={primary(item)}
           card={item}
           width={360}
           className="title-poster"
         />
-        <h1>{item.Name}</h1>
         {meta.length > 0 && <p className="muted">{meta.join(' · ')}</p>}
         {item.Overview && <p className="overview">{item.Overview}</p>}
         {next && ready && (
@@ -411,6 +404,7 @@ function Browse({ item }: { item: Item }) {
 
   return (
     <>
+      <PageBar title={item.Name} />
       <p>
         <Link to="/g/$gatewayId" params={{ gatewayId }}>
           Library

@@ -1,7 +1,7 @@
 // A paired gateway's lifecycle (fixtures.ts `paired`): restart, backup → restore,
 // a new certificate, Remove on the local gateway page, an evicted client key and
-// Remove in the web app (revoke). Each test restarts or ends the fixture's
-// gateway; the gateways page itself is gateways.spec.ts.
+// Remove in the web app (revoke), each on its own paired gateway; the gateways
+// page itself is gateways.spec.ts.
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'

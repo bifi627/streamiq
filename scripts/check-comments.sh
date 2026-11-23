@@ -14,7 +14,7 @@ go=$(bash scripts/go-sources.sh)
 files=$( {
   echo "$go"
   find frontend/src -name '*.ts' -o -name '*.tsx' -o -name '*.css' | grep -vE '\.test\.tsx?$' | bash scripts/drop-generated.sh
-  ls scripts/*.sh scripts/*.ps1 scripts/*.sql .github/workflows/*.yml .golangci.yml .editorconfig
+  ls scripts/*.sh scripts/*.ps1 scripts/*.sql api/migrations/*.sql .github/workflows/*.yml .golangci.yml .editorconfig
 } | sort)
 
 # shellcheck disable=SC2086 # one path per line, none with spaces

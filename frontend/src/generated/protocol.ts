@@ -43,6 +43,10 @@ export const CloseRateLimited = "rate limited";
 export const CloseGatewayGone = "gateway gone";
 export const CloseGatewayRevoked = "gateway revoked";
 /**
+ * MinGatewayProtocol is the oldest Heartbeat.Protocol the API still speaks (docs/protocol.md).
+ */
+export const MinGatewayProtocol = 1;
+/**
  * GatewayOffline is the broker's ErrorMsg for an offer to a gateway that isn't connected
  * or isn't in the caller's household (the same answer: no probing other households).
  */

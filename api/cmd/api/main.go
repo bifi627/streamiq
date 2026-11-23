@@ -67,7 +67,7 @@ func main() {
 	ips := iplimit.New(perMinute, os.Getenv("STREAMIQ_CLIENT_IP_HEADER"))
 	b := broker.New(d, a, turn.FromEnv(), ips)
 	b.Routes(mux)
-	gateways.Routes(mux, a, d, b)
+	gateways.Routes(mux, a, d, b.Revoke)
 	relayusage.Routes(mux, a, d)
 	if job := relayusage.FromEnv(d); job != nil {
 		go job.Run(ctx)

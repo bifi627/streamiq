@@ -57,7 +57,7 @@ tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
 protocol (currently **2**: 2 added a `tunnel` report, #390, which gateways no longer send since #783; Go `onboarding.Protocol`). A breaking change bumps it. The API
-has one minimum (`broker.MinGatewayProtocol`, `api/internal/broker`); raising it is a deliberate step,
+has one minimum (`protocol.MinGatewayProtocol`); raising it is a deliberate step,
 since every gateway below it stops working until its owner updates. A first heartbeat
 below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the API
 records the version, `GET /api/gateways` reports `upgradeRequired: true`, and the

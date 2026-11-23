@@ -11,9 +11,9 @@ is not a status log: open work lives in `gh issue list`, history in git.
   broker's two sockets, `/healthz` and, with `STREAMIQ_WEB_DIR` set (the image), the
   built web app.
 - Layout: `api/cmd/api/main.go` (wiring only), `api/migrations/` (numbered plain SQL),
-  `api/internal/{db,auth,apitest,iplimit}` (shared kernel) and one package per slice (`me`, `broker`, `turn`,
-  `gateways`, `onboarding`, `relayusage`, `household`, `members`, `invites`; `gateways` → `broker` (a revoke closes the sockets) and `broker` → `turn` are the
-  only imports between slices);
+  `api/internal/{db,auth,apitest,iplimit,turn}` (shared kernel: no routes) and one package per slice (`me`, `broker`,
+  `gateways`, `onboarding`, `relayusage`, `household`, `members`, `invites`; no imports between them, depguard
+  `api-slices`: a revoke closes the broker's sockets through the `b.Revoke` that `main.go` hands to `gateways`);
   `front` is `/healthz`, CORS, the security headers (`nosniff`, `strict-origin-when-cross-origin`
   and a Content-Security-Policy, on every response) and the web app (a file that
   exists, else `index.html` for a path without an extension; `/api/*` stays a 404). The policy

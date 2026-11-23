@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"streamiq/api/internal/auth"
-	"streamiq/api/internal/broker"
 	"streamiq/api/internal/db"
 )
 
@@ -15,7 +14,7 @@ import (
 // session through it are closed. ponytail: revoked = credential hash nulled, row kept.
 // Re-adding the box =
 // delete its state/gateway.json and enroll again.
-func revoke(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB, b *broker.Broker) {
+func revoke(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB, closeSockets func(gatewayID string)) {
 	if c.Role != "admin" {
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -39,7 +38,7 @@ func revoke(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB, b *
 	case n == 0:
 		w.WriteHeader(http.StatusNotFound)
 	default:
-		b.Revoke(id.String())
+		closeSockets(id.String())
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

@@ -17,11 +17,6 @@ import (
 	"streamiq/protocol"
 )
 
-// MinGatewayProtocol is the oldest gateway protocol (docs/protocol.md) the API still
-// speaks. Raising it is a deliberate step: every gateway below it is refused until its
-// owner updates.
-const MinGatewayProtocol = 1
-
 // Hash is how a gateway credential is stored: SHA-256 hex, never the plaintext.
 func Hash(credential string) string {
 	h := sha256.Sum256([]byte(credential))
@@ -84,7 +79,7 @@ func (b *Broker) serveGateway(ctx context.Context, me *link, hash string) {
 			if !accepted {
 				// The protocol before anything else, so whatever else an old gateway sends
 				// can't keep it from being listed as "update required".
-				if p := protocolOf(m); p < MinGatewayProtocol {
+				if p := protocolOf(m); p < protocol.MinGatewayProtocol {
 					b.tenant(ctx, me.tenant, `UPDATE gateways SET protocol = $2 WHERE id = $1`, me.gateID, p)
 					kill(me.conn, "upgrade required")
 					return

@@ -22,6 +22,7 @@ import { useHousehold } from '../households/household'
 import {
   defaultGateway,
   gatewayLabel,
+  relayForcedLine,
   report as reportText,
   throughputLine,
   type Test,
@@ -47,11 +48,14 @@ export function DiagnosticsPage() {
       )
   }, [])
 
+  const gw = gateways.find((g) => g.id === gatewayId)
+  const direct = !!gw?.relayOff
+
   async function run() {
     setRunning(true)
     const lines = [
       `tested: ${new Date().toLocaleString()}`,
-      `relay forced: ${relayForced()}`,
+      relayForcedLine(direct, relayForced()),
     ]
     const show = (failed?: string) => setTest({ lines: [...lines], failed })
     show()
@@ -61,11 +65,13 @@ export function DiagnosticsPage() {
     // The broker's `ready` sets diag.relay, also when connect fails after it.
     const relay = () => diag.relay && lines.push(diag.relay)
     try {
-      const s = await connect(gatewayId).catch((e) => {
-        relay()
-        if (isKind(e, 'not-paired')) lines.push('paired: no')
-        throw e
-      })
+      const s = await connect(gatewayId, undefined, undefined, direct).catch(
+        (e) => {
+          relay()
+          if (isKind(e, 'not-paired')) lines.push('paired: no')
+          throw e
+        },
+      )
       close = s.close
       relay()
       lines.push('paired: yes')
@@ -93,7 +99,6 @@ export function DiagnosticsPage() {
     }
   }
 
-  const gw = gateways.find((g) => g.id === gatewayId)
   const report = reportText({
     cpu: diag.cpu,
     memory: diag.memory,
@@ -157,22 +162,7 @@ export function DiagnosticsPage() {
           >
             {running ? 'Testing…' : 'Test connection'}
           </button>
-          <label>
-            <input
-              type="checkbox"
-              checked={relayOn()}
-              onChange={(e) => setRelay(e.target.checked)}
-            />{' '}
-            Force relay (TURN)
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={relayTlsOn()}
-              onChange={(e) => setFlag('relayTls', e.target.checked)}
-            />{' '}
-            Force relay over TLS (443)
-          </label>
+          <ForceRelay direct={direct} />
         </div>
       </div>
 
@@ -186,5 +176,35 @@ export function DiagnosticsPage() {
         <pre className="report">{report}</pre>
       </div>
     </section>
+  )
+}
+
+// The forced-relay toggles; a gateway with its relay off has none to test.
+function ForceRelay({ direct }: { direct: boolean }) {
+  if (direct)
+    return (
+      <span className="muted">
+        Relay: off for this gateway (direct connections only)
+      </span>
+    )
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={relayOn()}
+          onChange={(e) => setRelay(e.target.checked)}
+        />{' '}
+        Force relay (TURN)
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={relayTlsOn()}
+          onChange={(e) => setFlag('relayTls', e.target.checked)}
+        />{' '}
+        Force relay over TLS (443)
+      </label>
+    </>
   )
 }

@@ -1,5 +1,5 @@
 // The gateways page, on a paired browser with its own gateway (fixtures.ts
-// `paired`): rename, Status paired and unpaired, the nav chip's
+// `paired`): rename, the relay switch, Status paired and unpaired, the nav chip's
 // dot, paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
 // local gateway page, a refused broker socket and TV mode.
@@ -65,6 +65,51 @@ test('rename: shown once paired, Escape cancels, Enter saves a trimmed name @gat
   await expect(
     b.getByRole('heading', { level: 2, name: 'Living room NAS' }),
   ).toBeVisible()
+})
+
+test('relay switch: off over the tunnel, mirrored by the API; direct only after (#785) @gateways', async ({
+  paired,
+}) => {
+  const { page, user } = paired
+  const row = async () =>
+    (await user.api<{ id: string; relayOff: boolean }[]>('/gateways'))[0]
+  const relay = card(page).getByRole('checkbox', {
+    name: 'Allow the relay (TURN)',
+  })
+  await expect(relay).toBeChecked()
+  await expect(card(page).getByText(/strict NAT can't connect/)).toBeVisible() // what off costs, next to the switch
+  await relay.click() // the box follows the gateway's answer, not the click
+  await expect(relay).not.toBeChecked()
+  // The gateway stores it and tells the API with an early heartbeat.
+  await expect.poll(async () => (await row()).relayOff).toBe(true)
+  await page.reload()
+  await expect(relay).not.toBeChecked()
+
+  // The broker sends STUN only: a forced relay fails and says why.
+  await page.goto(appUrl(`/g/${(await row()).id}?relay`))
+  await expect(
+    page.getByText(/^This gateway allows direct connections only/),
+  ).toBeVisible()
+  // /diagnostics: the relay is off, the forced-relay test skipped, direct works.
+  await page.goto(appUrl('/diagnostics'))
+  await expect(
+    page.getByText('Relay: off for this gateway (direct connections only)'),
+  ).toBeVisible()
+  await expect(
+    page.getByLabel('Force relay (TURN)', { exact: true }),
+  ).toHaveCount(0)
+  await page.getByRole('button', { name: 'Test connection' }).click()
+  await expect(
+    page.locator('pre', { hasText: 'StreamIQ diagnostics' }),
+  ).toContainText(
+    /relay forced: skipped \(relay off for this gateway\)[\s\S]*relay: off \(this gateway allows direct connections only\)[\s\S]*path: direct/,
+    { timeout: 30_000 },
+  )
+
+  await page.goto(appUrl('/gateways'))
+  await relay.click()
+  await expect(relay).toBeChecked()
+  await expect.poll(async () => (await row()).relayOff).toBe(false)
 })
 
 test('status, paired: details from the gateway API (#140) @gateways', async ({

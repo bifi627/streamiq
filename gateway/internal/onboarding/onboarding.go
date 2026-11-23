@@ -46,20 +46,22 @@ var ErrUpgradeRequired = errors.New("the StreamIQ service no longer supports thi
 	"update it by rerunning the install command (docs/install.md)")
 
 // State is gateway.json in the state dir. Delete the dir = brand-new gateway.
-// Name is shared mutable state: read it with CurrentName, change it with SetName.
-// Its JSON format changed? Update oldState in cmd/gateway/update_windows_test.go
+// Name and RelayOff are shared mutable state: read them with CurrentName / Relay,
+// change them with SetName / SetRelay. Its JSON format changed? Update oldState in cmd/gateway/update_windows_test.go
 // in the same PR: the update test starts from it.
 type State struct {
 	GatewayID  string `json:"gatewayId"`
 	Credential string `json:"credential"`
 	Name       string `json:"name"`
+	// RelayOff: tunnels go direct only, never through TURN (docs/architecture.md).
+	RelayOff bool `json:"relayOff,omitempty"`
 
 	path string
 	mu   sync.Mutex
 	beat chan struct{} // one pending signal: send a heartbeat now
 }
 
-// Beat asks RunControl for an early heartbeat (a rename),
+// Beat asks RunControl for an early heartbeat (a rename, the relay setting),
 // so the API sees the change now, not at the next tick.
 func (s *State) Beat() {
 	select {
@@ -88,7 +90,7 @@ func (s *State) SetName(name string) (string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := writeAtomic(s.path, s.GatewayID, s.Credential, name); err != nil {
+	if err := writeAtomic(s.path, s.GatewayID, s.Credential, name, s.RelayOff); err != nil {
 		return "", err
 	}
 	s.Name = name
@@ -97,9 +99,32 @@ func (s *State) SetName(name string) (string, error) {
 	return name, nil
 }
 
+// Relay: false = tunnels go direct only (RelayOff).
+func (s *State) Relay() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.RelayOff
+}
+
+// SetRelay stores the relay setting in gateway.json (atomically) and asks RunControl
+// for an early heartbeat, so the broker stops minting TURN credentials at once.
+func (s *State) SetRelay(on bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := writeAtomic(s.path, s.GatewayID, s.Credential, s.Name, !on); err != nil {
+		return err
+	}
+	s.RelayOff = !on
+	log.Printf("gateway: relay %s", map[bool]string{true: "on", false: "off (direct only)"}[on])
+	s.Beat()
+	return nil
+}
+
 // writeAtomic: a crash mid-write leaves the old file, never half a credential.
-func writeAtomic(path, id, credential, name string) error {
-	b, _ := json.Marshal(map[string]string{"gatewayId": id, "credential": credential, "name": name})
+func writeAtomic(path, id, credential, name string, relayOff bool) error {
+	b, _ := json.Marshal(map[string]any{
+		"gatewayId": id, "credential": credential, "name": name, "relayOff": relayOff,
+	})
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
@@ -141,7 +166,7 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
 		return nil, fmt.Errorf("enroll: %w", err)
 	}
-	if err := writeAtomic(path, st.GatewayID, st.Credential, st.Name); err != nil {
+	if err := writeAtomic(path, st.GatewayID, st.Credential, st.Name, false); err != nil {
 		return nil, err
 	}
 	log.Printf("gateway: enrolled as gateway %s", st.GatewayID)
@@ -195,7 +220,7 @@ func RunControl(
 		for {
 			send(protocol.Heartbeat{
 				Type: "heartbeat", LanURL: lanURL, Version: version, Update: update(), Protocol: Protocol,
-				Name: st.CurrentName(),
+				Name: st.CurrentName(), RelayOff: !st.Relay(),
 			})
 			lastBeat.Store(time.Now().Unix())
 			select {
@@ -255,4 +280,39 @@ func (s *State) ServeName(w http.ResponseWriter, r *http.Request) {
 	default:
 		tunnel.JSON(w, http.StatusOK, Name{name})
 	}
+}
+
+// RelayPath switches the relay (gateway API, admin-only): POST {"relay": bool} →
+// 200 {"relay": stored}, a bad body 400. The gateway owns the setting; the heartbeat
+// tells the API.
+const RelayPath = "/streamiq/relay"
+
+// ServeRelay is POST RelayPath.
+func (s *State) ServeRelay(w http.ResponseWriter, r *http.Request) {
+	var in Relay
+	if b, _ := io.ReadAll(r.Body); json.Unmarshal(b, &in) != nil || in.Relay == nil {
+		tunnel.Fail(w, http.StatusBadRequest, errors.New("gateway API: relay: bad body"))
+		return
+	}
+	if err := s.SetRelay(*in.Relay); err != nil {
+		tunnel.Fail(w, http.StatusInternalServerError, fmt.Errorf("gateway API: relay: %w", err))
+		return
+	}
+	on := s.Relay()
+	tunnel.JSON(w, http.StatusOK, Relay{&on})
+}
+
+// SetRelayFile is the CLI's switch: gateway.json in dir, with the gateway stopped
+// (a running one holds its state in memory).
+func SetRelayFile(dir string, on bool) error {
+	path := filepath.Join(dir, "gateway.json")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("not enrolled yet (%w)", err)
+	}
+	st := State{path: path, beat: make(chan struct{}, 1)}
+	if err := json.Unmarshal(b, &st); err != nil {
+		return err
+	}
+	return st.SetRelay(on)
 }

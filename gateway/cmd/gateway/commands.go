@@ -183,6 +183,19 @@ func gatewayCmds(ctx context.Context, exe string, runGateway func(*cobra.Command
 			},
 		),
 		{
+			Use:       "relay on|off",
+			GroupID:   "gateway",
+			Args:      args(cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs)),
+			ValidArgs: []string{"on", "off"},
+			Short:     "Allow the relay (on, the default) or direct connections only (off)",
+			Long: `on (the default): a client that can't connect directly goes through the relay (TURN).
+off: direct connections only, the stream never passes through the relay; clients behind
+carrier NAT (most cellular) or a strict NAT can't connect. Refuses while the gateway runs
+(the web gateway card switches it on a running one).`,
+			Example: "  gateway relay off\n  gateway relay on",
+			RunE:    func(_ *cobra.Command, a []string) error { return setRelay(a[0] == "on") },
+		},
+		{
 			Use: "reset-identity", GroupID: "gateway", Args: none, ValidArgsFunction: noFiles,
 			Short: "New certificate + empty paired-browser list",
 			Long: `New certificate + empty paired-browser list: every browser pairs again (after a

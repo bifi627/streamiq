@@ -123,6 +123,14 @@ func cloudflare(t *testing.T, f *fakeCloudflare, timeout time.Duration) *turn.Is
 // ready is a browser socket of email naming gateway, and its `ready`'s ICE servers.
 func ready(t *testing.T, s *stack, email, gateway string) (*websocket.Conn, []any) {
 	t.Helper()
+	c, m := readyMsg(t, s, email, gateway)
+	servers, _ := m["iceServers"].([]any)
+	return c, servers
+}
+
+// readyMsg is ready with the whole `ready` message.
+func readyMsg(t *testing.T, s *stack, email, gateway string) (*websocket.Conn, map[string]any) {
+	t.Helper()
 	token, _ := s.user(email)
 	s.household(email)
 	c, _, err := s.dial("/api/broker/ws", nil)
@@ -130,9 +138,7 @@ func ready(t *testing.T, s *stack, email, gateway string) (*websocket.Conn, []an
 		t.Fatal(err)
 	}
 	sendJSON(t, c, map[string]any{"type": "auth", "token": token, "gatewayId": gateway})
-	m := recv(t, c)
-	servers, _ := m["iceServers"].([]any)
-	return c, servers
+	return c, recv(t, c)
 }
 
 func TestEachBrokerSessionGetsItsOwnCloudflareCredentialRevokedWhenItEnds(t *testing.T) {

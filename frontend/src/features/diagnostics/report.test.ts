@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   defaultGateway,
   gatewayLabel,
+  relayForcedLine,
   report,
   throughputLine,
 } from './report.ts'
@@ -68,5 +69,13 @@ test('report: optional lines only when set, test block or "not run"', () => {
       gw: { name: 'Home', version: '1.2' },
     }),
     /gateway: Home \(1\.2\)$/,
+  )
+})
+
+test('relayForcedLine: a gateway with its relay off skips the forced relay', () => {
+  assert.equal(relayForcedLine(false, 'yes'), 'relay forced: yes')
+  assert.equal(
+    relayForcedLine(true, 'yes'),
+    'relay forced: skipped (relay off for this gateway)',
   )
 })

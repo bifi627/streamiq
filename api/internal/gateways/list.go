@@ -25,6 +25,8 @@ type Gateway struct {
 	Online bool    `json:"online"`
 	// UpgradeRequired: refused, its protocol is below the API's minimum.
 	UpgradeRequired bool `json:"upgradeRequired"`
+	// RelayOff: direct connections only (the gateway's setting, from its heartbeat).
+	RelayOff bool `json:"relayOff"`
 }
 
 // list is the household's gateways, oldest first; revoked ones are hidden.
@@ -32,13 +34,13 @@ func list(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 	out := []Gateway{}
 	err := d.InTenant(r.Context(), c.Tenant, func(tx pgx.Tx) error {
 		rows, _ := tx.Query(r.Context(), `SELECT id::text, name, last_seen_at, lan_url, version, update,
-			coalesce(last_seen_at > now() - $1::interval, false), coalesce(protocol < $2, false)
+			coalesce(last_seen_at > now() - $1::interval, false), coalesce(protocol < $2, false), relay_off
 			FROM gateways WHERE credential_hash IS NOT NULL ORDER BY created_at`,
 			OnlineWindow, broker.MinGatewayProtocol)
 		var err error
 		out, err = pgx.AppendRows(out, rows, func(row pgx.CollectableRow) (g Gateway, err error) {
 			err = row.Scan(&g.ID, &g.Name, &g.LastSeenAt, &g.LanURL, &g.Version, &g.Update,
-				&g.Online, &g.UpgradeRequired)
+				&g.Online, &g.UpgradeRequired, &g.RelayOff)
 			return g, err
 		})
 		return err

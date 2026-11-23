@@ -11,6 +11,10 @@ export const gatewayLabel = (
   g: { id: string; name: string | null; online: boolean } | undefined,
 ) => (g ? `${g.name ?? g.id}${g.online ? '' : ' (offline)'}` : 'none')
 
+/** The report's `relay forced:` line; a gateway with its relay off skips it. */
+export const relayForcedLine = (relayOff: boolean, forced: string) =>
+  `relay forced: ${relayOff ? 'skipped (relay off for this gateway)' : forced}`
+
 /** The throughput test's line; Auto caps at 70 % of it. */
 export const throughputLine = (mbps: number, dataSaver: boolean) =>
   `throughput: ${mbps.toFixed(1)} Mbps (median of ${dataSaver ? '3 × 1 MiB bursts, data saver on' : '3 ~2 s bursts after a warm-up'}; Auto caps at ${(mbps * 0.7).toFixed(1)} Mbps)`

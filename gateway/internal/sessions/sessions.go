@@ -37,6 +37,9 @@ type Sessions struct {
 	// and the throughput its browser measured (0 = none): the gateway's tunnel history.
 	// nil = none.
 	Ended func(r protocol.Report, user string, start time.Time, kbps int)
+	// Relay: false = direct connections only (the gateway's setting): no TURN of our
+	// own, the browser's relay candidates dropped. nil = on.
+	Relay func() bool
 
 	mu    sync.Mutex
 	pcs   map[string]*webrtc.PeerConnection
@@ -100,10 +103,15 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 
 	switch m.Type {
 	case "offer":
+		if m.SDP != nil && !s.relay() {
+			m.SDP.SDP = dropRelays(m.SDP.SDP)
+		}
 		s.offer(m, pc != nil, send)
 	case "ice":
 		if pc != nil && m.Candidate != nil {
-			cands.saw(m.Candidate.Candidate)
+			if cands.saw(m.Candidate.Candidate) && !s.relay() {
+				return
+			}
 			if err := pc.AddICECandidate(*m.Candidate); err != nil {
 				log.Printf("gateway: session %s: ice: %v", m.Session, err)
 			}
@@ -185,7 +193,7 @@ func (s *Sessions) newPeer(id, user, role string, pre *preAuth, send func(any)) 
 		api = webrtc.NewAPI()
 	}
 	pc, err := api.NewPeerConnection(webrtc.Configuration{
-		ICEServers:   iceServers(),
+		ICEServers:   iceServers(s.relay()),
 		Certificates: []webrtc.Certificate{*s.Cert}, // persistent: browsers pin it
 	})
 	if err != nil {
@@ -218,6 +226,11 @@ func (s *Sessions) newPeer(id, user, role string, pre *preAuth, send func(any)) 
 		log.Printf("gateway: session %s: %s", id, st)
 		if p, err := pc.SCTP().Transport().ICETransport().GetSelectedCandidatePair(); err == nil && p != nil {
 			pair.Store(p)
+			if !s.relay() && relayed(p, &cands) {
+				log.Printf("gateway: session %s: over a relay, but relay is off: closed", id)
+				end(false)
+				return
+			}
 		}
 		if endsSession(st) { // "ice failed" only when it never came up
 			end(st == webrtc.PeerConnectionStateFailed && pair.Load() == nil)
@@ -377,14 +390,46 @@ func (s *Sessions) ended(r protocol.Report, user string, start time.Time, kbps i
 // signaled records which kinds of candidate a browser trickled to us.
 type signaled struct{ relay, other atomic.Bool }
 
-func (c *signaled) saw(candidate string) {
-	if _, typ, ok := strings.Cut(candidate, " typ "); ok {
-		if strings.HasPrefix(typ, "relay") {
-			c.relay.Store(true)
-		} else {
-			c.other.Store(true)
+// saw records candidate's kind; true = a relay.
+func (c *signaled) saw(candidate string) bool {
+	if !strings.Contains(candidate, " typ ") {
+		return false
+	}
+	relay := isRelay(candidate)
+	if relay {
+		c.relay.Store(true)
+	} else {
+		c.other.Store(true)
+	}
+	return relay
+}
+
+// isRelay: candidate (an SDP candidate attribute) is a TURN relay.
+func isRelay(candidate string) bool {
+	_, typ, ok := strings.Cut(candidate, " typ ")
+	return ok && strings.HasPrefix(typ, "relay")
+}
+
+// dropRelays removes the relay candidates from an SDP.
+func dropRelays(sdp string) string {
+	lines := strings.SplitAfter(sdp, "\n")
+	keep := lines[:0]
+	for _, l := range lines {
+		if !strings.HasPrefix(l, "a=candidate:") || !isRelay(l) {
+			keep = append(keep, l)
 		}
 	}
+	return strings.Join(keep, "")
+}
+
+// relayed: relay off, so a relay pair must not stay. A dropped relay candidate can
+// still reach us as prflx (pion learns its address from the checks): a browser that
+// signaled a relay and connects over a prflx counts as relayed. ponytail: that also
+// closes a direct prflx (symmetric NAT) of such a browser, which only a broker that
+// minted a credential against the setting sends.
+func relayed(p *webrtc.ICECandidatePair, cands *signaled) bool {
+	r, _ := classify(p, cands)
+	return r || p.Remote.Typ == webrtc.ICECandidateTypePrflx && cands.relay.Load()
 }
 
 // report reads the tunnel's selected candidate pair and transport bytes from pion
@@ -512,11 +557,14 @@ func answer(pc *webrtc.PeerConnection, offer webrtc.SessionDescription, id strin
 	return nil
 }
 
+// relay is the Relay setting now.
+func (s *Sessions) relay() bool { return s.Relay == nil || s.Relay() }
+
 // iceServers: Google STUN plus optional TURN from env (STREAMIQ_ICE_URLS,
-// STREAMIQ_ICE_USERNAME, STREAMIQ_ICE_CREDENTIAL).
-func iceServers() []webrtc.ICEServer {
+// STREAMIQ_ICE_USERNAME, STREAMIQ_ICE_CREDENTIAL) unless relay is off.
+func iceServers(relay bool) []webrtc.ICEServer {
 	servers := []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}}
-	if urls := os.Getenv("STREAMIQ_ICE_URLS"); urls != "" {
+	if urls := os.Getenv("STREAMIQ_ICE_URLS"); urls != "" && relay {
 		servers = append(servers, webrtc.ICEServer{
 			URLs:       strings.Split(urls, ","),
 			Username:   os.Getenv("STREAMIQ_ICE_USERNAME"),

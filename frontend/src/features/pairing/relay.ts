@@ -3,6 +3,8 @@
 
 const NO_TURN = 'no TURN server from the broker'
 const NO_TLS_TURN = 'no TURN server on TLS 443 from the broker'
+/** `ready` said the gateway's relay is off. */
+export const DIRECT_ONLY = 'this gateway allows direct connections only'
 
 /** The broker's `ready` iceServers include a TURN server (turn: or turns:). */
 export function hasTurn(servers: RTCIceServer[] | undefined): boolean {
@@ -27,12 +29,19 @@ export function tlsOnly(servers: RTCIceServer[]): RTCIceServer[] {
 export function relayServers(
   servers: RTCIceServer[] | undefined,
   tls: boolean,
+  relayOff = false,
 ) {
   const iceServers = tls ? tlsOnly(servers ?? []) : (servers ?? [])
-  const noTurn = hasTurn(iceServers) ? '' : tls ? NO_TLS_TURN : NO_TURN
+  const noTurn = relayOff
+    ? DIRECT_ONLY
+    : hasTurn(iceServers)
+      ? ''
+      : tls
+        ? NO_TLS_TURN
+        : NO_TURN
   return { iceServers, noTurn }
 }
 
 /** The diagnostics report line for a session's relay. */
 export const relayLine = (noTurn: string) =>
-  `relay: ${noTurn ? `unavailable (${noTurn})` : 'available'}`
+  `relay: ${noTurn === DIRECT_ONLY ? `off (${noTurn})` : noTurn ? `unavailable (${noTurn})` : 'available'}`

@@ -18,11 +18,17 @@ test('hasTurn: STUN only, empty or missing list = no relay', () => {
   assert.equal(hasTurn(undefined), false)
 })
 
+const STUN_ONLY = [{ urls: 'stun:s:3478' }]
+
 test('relayLine', () => {
   assert.equal(relayLine(''), 'relay: available')
   assert.equal(
     relayLine('no TURN server from the broker'),
     'relay: unavailable (no TURN server from the broker)',
+  )
+  assert.equal(
+    relayLine(relayServers(STUN_ONLY, false, true).noTurn),
+    'relay: off (this gateway allows direct connections only)',
   )
 })
 

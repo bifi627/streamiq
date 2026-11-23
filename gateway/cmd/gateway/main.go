@@ -114,6 +114,25 @@ func notRunning() error {
 	return nil
 }
 
+// setRelay is "gateway relay on|off".
+func setRelay(on bool) error {
+	if err := notRunning(); err != nil {
+		return err
+	}
+	if err := onboarding.SetRelayFile(stateDir(), on); err != nil {
+		return err
+	}
+	if on {
+		fmt.Println("Relay on: a client that can't connect directly goes through the relay (TURN).")
+	} else {
+		fmt.Println(
+			"Relay off: direct connections only. Clients behind carrier NAT (most cellular) or a strict NAT can't connect.",
+		)
+	}
+	fmt.Println("Start the gateway again (gateway service install, or gateway run).")
+	return nil
+}
+
 // resetIdentity replaces the DTLS cert and clears the allowlist.
 func resetIdentity() error {
 	if err := notRunning(); err != nil {
@@ -291,6 +310,7 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	rt.Handle("GET "+history.TunnelsPath, http.HandlerFunc(tunnels.ServeList))
 	rt.Handle("GET "+history.SummaryPath, http.HandlerFunc(tunnels.ServeSummary), tunnel.AdminOnly)
 	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
+	rt.Handle("POST "+onboarding.RelayPath, http.HandlerFunc(st.ServeRelay), tunnel.AdminOnly)
 	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
 	rt.Handle("GET "+pairing.ClientsPath, http.HandlerFunc(store.ServeClients))
 	rt.Handle("POST "+pairing.ClientsRemovePath, http.HandlerFunc(store.ServeRemove))
@@ -381,7 +401,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	if err != nil {
 		log.Fatalf("gateway: ICE: %v", err)
 	}
-	sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Root: root, API: webAPI,
+	sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Root: root, API: webAPI, Relay: st.Relay,
 		Viewers: func(user string) {
 			viewerCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			defer cancel()

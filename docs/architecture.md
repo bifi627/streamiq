@@ -121,7 +121,10 @@ is not a status log: open work lives in `gh issue list`, history in git.
 - TURN (`api/internal/turn`): credentials minted per broker session in `ready` and revoked at its end; no
   standalone TURN endpoint. Only for the gateway the browser names in `auth` (`gatewayId`), when it is a
   gateway of the user's households and not revoked, online or not (one that comes online right
-  after `ready` still gets a relay); else STUN only, and an offer to another gateway is refused. Each Cloudflare credential carries that gateway's
+  after `ready` still gets a relay), unless its relay is off (#785: the gateway's own setting in
+  `state/gateway.json`, switched on the web gateway card over the tunnel or with `gateway relay
+  on|off`, mirrored as `gateways.relay_off` from the heartbeat; the gateway also drops relay
+  candidates itself, `docs/protocol.md`); else STUN only, and an offer to another gateway is refused. Each Cloudflare credential carries that gateway's
   random `gateways.relay_tag` as `customIdentifier` (relay usage, below). Cloudflare in prod; coturn in dev via TURN REST
   (`STREAMIQ_TURN_SECRET`). `?relay` forces the relay path; `?relay=tls` keeps only the
   `turns:…:443` URLs (TLS 443 relay, #576: checked by the prod smoke only, local coturn has no TLS).

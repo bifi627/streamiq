@@ -103,6 +103,7 @@ func safeLanURL(s *string) *string {
 type heartbeat struct {
 	Protocol                      int
 	LanURL, Version, Update, Name *string
+	RelayOff                      bool // missing (an older gateway) = relay on
 }
 
 // protocolOf: missing or not an integer = 0 (a gateway too old to send it).
@@ -117,6 +118,7 @@ func parseHeartbeat(m Fields) heartbeat {
 		LanURL:   safeLanURL(ptr[string](m, "lanUrl")),
 		Name:     safeName(ptr[string](m, "name")),
 	}
+	h.RelayOff, _ = field[bool](m, "relayOff")
 	if v := ptr[string](m, "version"); v != nil && units(*v) <= 40 {
 		h.Version = v
 	}

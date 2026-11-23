@@ -64,15 +64,17 @@ func TestSafeLanURLAllowsOnlyHTTP(t *testing.T) {
 
 func TestHeartbeatParsesEveryField(t *testing.T) {
 	got := parseHeartbeat(msg(t, `{"type":"heartbeat","protocol":2,"lanUrl":"http://nas.local:8096","version":"1.4.0",
-		"update":"1.6.0","name":" nas "}`))
-	want := heartbeat{2, p("http://nas.local:8096/"), p("1.4.0"), p("1.6.0"), p("nas")}
+		"update":"1.6.0","name":" nas ","relayOff":true}`))
+	want := heartbeat{2, p("http://nas.local:8096/"), p("1.4.0"), p("1.6.0"), p("nas"), true}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("%+v", got)
 	}
 }
 
 func TestHeartbeatFieldsOfTheWrongTypeReadAsMissing(t *testing.T) {
-	got := parseHeartbeat(msg(t, `{"type":"heartbeat","protocol":1,"lanUrl":5,"version":true,"update":[],"name":5}`))
+	got := parseHeartbeat(
+		msg(t, `{"type":"heartbeat","protocol":1,"lanUrl":5,"version":true,"update":[],"name":5,"relayOff":"yes"}`),
+	)
 	if !reflect.DeepEqual(got, heartbeat{Protocol: 1}) {
 		t.Fatalf("%+v", got)
 	}

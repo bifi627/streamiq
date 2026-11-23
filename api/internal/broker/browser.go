@@ -22,8 +22,9 @@ type rawMsg = protocol.Msg[json.RawMessage, json.RawMessage]
 // ID token and the gateway arrive as the first message (never a query parameter: it
 // stays out of logs). `ready` carries this session's ICE servers: TURN only for a
 // gateway of the user's households that isn't revoked, online or not (one that comes
-// online seconds later still gets a relay), tagged as that gateway's (relay usage);
-// else STUN only, the same for an unknown or foreign gateway. A revocable TURN
+// online seconds later still gets a relay), tagged as that gateway's (relay usage),
+// unless its relay is off (direct only: `ready` says so); else STUN only, the same for
+// an unknown or foreign gateway. A revocable TURN
 // credential is revoked when the socket closes, which also ends the session (`bye`).
 func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 	conn, err := accept(w, r)
@@ -36,7 +37,7 @@ func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	servers, revoke, err := b.iceServers(ctx, user, named)
+	servers, revoke, relayOff, err := b.iceServers(ctx, user, named)
 	if err != nil {
 		log.Printf("broker: TURN credential not issued, session gets STUN only: %v", err)
 		servers = turn.StunOnly()
@@ -51,7 +52,7 @@ func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 	}
-	send(conn, protocol.Ready{Type: "ready", ICEServers: servers})
+	send(conn, protocol.Ready{Type: "ready", ICEServers: servers, RelayOff: relayOff})
 
 	var sid string
 	var gw *link
@@ -75,22 +76,26 @@ func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 }
 
 // iceServers mints a TURN credential tagged as gateway's when it is one of user's
-// households' and isn't revoked.
-func (b *Broker) iceServers(ctx context.Context, user, gateway string) ([]json.RawMessage, string, error) {
+// households', isn't revoked and has its relay on; relayOff = it is such a gateway
+// with its relay off.
+func (b *Broker) iceServers(ctx context.Context, user, gateway string) (
+	servers []json.RawMessage, revoke string, relayOff bool, err error,
+) {
 	tag := ""
 	all, err := b.Auth.Households(ctx, user)
 	for _, h := range all {
 		if err == nil && tag == "" && gateway != "" {
 			err = b.DB.InTenant(ctx, h.ID, func(tx pgx.Tx) error {
-				return tx.QueryRow(ctx, `SELECT coalesce(max(relay_tag), '') FROM gateways
-					WHERE id = $1 AND credential_hash IS NOT NULL`, gateway).Scan(&tag)
+				return tx.QueryRow(ctx, `SELECT coalesce(max(relay_tag), ''), coalesce(bool_or(relay_off), false)
+					FROM gateways WHERE id = $1 AND credential_hash IS NOT NULL`, gateway).Scan(&tag, &relayOff)
 			})
 		}
 	}
-	if err != nil || tag == "" {
-		return turn.StunOnly(), "", err
+	if err != nil || tag == "" || relayOff {
+		return turn.StunOnly(), "", relayOff, err
 	}
-	return b.TURN.Issue(ctx, user, tag)
+	servers, revoke, err = b.TURN.Issue(ctx, user, tag)
+	return servers, revoke, false, err
 }
 
 // authenticate reads the auth message within AuthTimeout: the same token verification

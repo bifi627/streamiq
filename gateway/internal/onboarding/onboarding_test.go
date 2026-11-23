@@ -373,3 +373,49 @@ func TestNameAPI(t *testing.T) {
 		t.Fatalf("failed save: %d, want 500", s)
 	}
 }
+
+// POST /streamiq/relay: admin-only, stored in gateway.json (a restart keeps it) with
+// an early heartbeat; a bad body is 400. The CLI's SetRelayFile writes the same file.
+func TestRelayAPI(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gateway.json"),
+		[]byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	if err != nil || !st.Relay() {
+		t.Fatal("relay is on by default", err)
+	}
+	api := tunnel.NewRouter()
+	api.Handle("POST "+RelayPath, http.HandlerFunc(st.ServeRelay), tunnel.AdminOnly)
+	for _, c := range []struct {
+		role, body string
+		want       int
+		reply      string
+	}{
+		{tunnel.Member, `{"relay":false}`, http.StatusForbidden, ""},
+		{tunnel.Admin, `{}`, http.StatusBadRequest, ""},
+		{tunnel.Admin, `{"relay":"off"}`, http.StatusBadRequest, ""},
+		{tunnel.Admin, `{"relay":false}`, 200, `{"relay":false}`},
+	} {
+		if s, _, reply, _ := tunnel.Do(api, tunnel.Session{Role: c.role}, "POST", RelayPath, c.body); s != c.want ||
+			reply != c.reply {
+			t.Errorf("%q %s: %d %s, want %d %s", c.role, c.body, s, reply, c.want, c.reply)
+		}
+	}
+	select {
+	case <-st.beat:
+	default:
+		t.Fatal("no early heartbeat")
+	}
+	again, _ := LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	if again.Relay() || again.CurrentName() != "nas" || again.Credential != "cred-1" {
+		t.Fatalf("stored %+v", again)
+	}
+	if err := SetRelayFile(dir, true); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ = LoadOrEnroll(context.Background(), dir, "", "", "fp"); !again.Relay() {
+		t.Fatal("SetRelayFile didn't store it")
+	}
+}

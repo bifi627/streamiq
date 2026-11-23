@@ -161,7 +161,7 @@ export function describe(e: AppError): {
     case 'direct-only':
       return {
         message:
-          'This gateway allows direct connections only, and this network has no direct route to it.',
+          'This gateway allows direct connections only, and no direct connection reached it.',
         actions: ['retry'],
       }
     case 'not-paired':

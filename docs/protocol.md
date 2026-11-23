@@ -489,7 +489,7 @@ answers `404`; the web app then says to update it.
 
 **`POST /streamiq/relay`** (#785, admin-only) `{ "relay": false }` → `200` `{ "relay":
 <stored> }`; a body without a boolean `relay` is `400`. Off = direct connections only
-(ICE servers, above). Stored in `state/gateway.json` as `relayOff` (on = no field, the
+(ICE servers, above). Stored in `state/gateway.json` as `relayOff` (`false` or no field = on, the
 default), then an early heartbeat. The CLI's `gateway relay on|off` writes the same file
 with the gateway stopped. An older gateway answers `404`; the web app says to update it.
 

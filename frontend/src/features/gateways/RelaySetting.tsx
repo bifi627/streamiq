@@ -8,12 +8,15 @@ import { relayMessage, toAppError } from '../../shared/errors'
 export function RelaySetting({ g, manage }: { g: Gateway; manage: boolean }) {
   const qc = useQueryClient()
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
   if (!manage)
     return g.relayOff ? (
       <p className="meta muted no-tv">Direct connections only (relay off)</p>
     ) : null
   async function toggle(on: boolean) {
+    if (busy) return
     setError('')
+    setBusy(true)
     try {
       const relay = await setGatewayRelay(g.id, on)
       // Shown at once; the gateway tells the API with a heartbeat.
@@ -23,6 +26,8 @@ export function RelaySetting({ g, manage }: { g: Gateway; manage: boolean }) {
       void qc.invalidateQueries({ queryKey: ['gateways'] })
     } catch (e) {
       setError(relayMessage(toAppError(e)))
+    } finally {
+      setBusy(false)
     }
   }
   return (
@@ -31,6 +36,7 @@ export function RelaySetting({ g, manage }: { g: Gateway; manage: boolean }) {
         <input
           type="checkbox"
           checked={!g.relayOff}
+          aria-busy={busy}
           onChange={(e) => toggle(e.target.checked)}
         />{' '}
         Allow the relay (TURN)

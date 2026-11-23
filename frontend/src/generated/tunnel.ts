@@ -4,6 +4,13 @@
 // source: types.go
 
 /**
+ * Throughput is POST ThroughputPath's body: what the browser measured, gateway →
+ * client. Missing, zero or negative = none.
+ */
+export interface Throughput {
+  throughputKbps: number /* int */;
+}
+/**
  * Route is GET RoutePath.
  */
 export interface Route {

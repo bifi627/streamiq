@@ -62,7 +62,7 @@ export function Activity() {
         <HouseholdSummary rows={q.data.summary} names={names} all={all} />
       )}
       {q.isPending && <p role="status">Loading…</p>}
-      {tunnels?.length === 0 && (
+      {tunnels?.length === 0 && !q.data?.unavailable.length && (
         <State icon="empty" title="No tunnels in the last 30 days." />
       )}
       {!!tunnels?.length && (

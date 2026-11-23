@@ -4,7 +4,7 @@ import { tunnelFetch } from '../../shared/tunnel'
 import { measure, type Speed } from '../../shared/speed'
 import { event } from '../../shared/diag'
 import type { Ping } from '../../generated/protocol'
-import type { Throughput } from '../../generated/history'
+import type { Throughput } from '../../generated/tunnel'
 
 export type Session = {
   pc: RTCPeerConnection
@@ -37,11 +37,18 @@ export function lifetime(
     closed = true
     speed?.stop()
     const throughputKbps = kbps(speed?.fresh())
-    if (!throughputKbps) return teardown()
-    void tunnelFetch(pc, '/streamiq/tunnels/throughput', {
-      method: 'POST',
-      body: JSON.stringify({ throughputKbps } satisfies Throughput),
-    })
+    if (!throughputKbps || pc.connectionState !== 'connected') return teardown()
+    // A tunnel dying under the report may never answer it: the close waits REPORT_MS
+    // at most, or the broker socket (TURN credential, tunnel end) would stay open.
+    void Promise.race([
+      tunnelFetch(pc, '/streamiq/tunnels/throughput', {
+        method: 'POST',
+        body: JSON.stringify({ throughputKbps } satisfies Throughput),
+      }),
+      new Promise((_, timedOut) =>
+        setTimeout(() => timedOut(new Error('no answer')), REPORT_MS),
+      ),
+    ])
       .catch((e) => event(`tunnel: throughput report failed: ${e}`))
       .finally(teardown)
   }
@@ -63,5 +70,7 @@ export function lifetime(
     }),
   }
 }
+
+const REPORT_MS = 2000
 
 const kbps = (mbps?: number) => (mbps ? Math.round(mbps * 1000) : null)

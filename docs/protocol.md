@@ -499,7 +499,8 @@ gateway older than this endpoint answers `404`.
 **`GET /streamiq/tunnels[?scope=household]`** (#782) → `200`, the tunnels to this gateway
 the gateway recorded itself, one JSON line per ended tunnel in `state/history/` (a file per
 UTC day, 30 days kept), the same fields the report has plus who and when: `[{ "id" (the
-broker session), "createdAt" (the offer), "endedAt", "relay", "ipv6", "bytesSent",
+broker session), "gatewayId" (the enrollment that wrote it: a re-enrolled gateway, maybe in
+another household, answers none of its earlier lines), "createdAt" (the offer), "endedAt", "relay", "ipv6", "bytesSent",
 "bytesReceived", "throughputKbps", "failure", "use", "activeMs" }]` (null = none). A tunnel
 that failed on the gateway (ICE, auth, busy) is a line too; one that never reached it is
 nowhere. Without `scope`: the session's user's own; `scope=household` (admin only, a member
@@ -515,7 +516,10 @@ default), `relayedBytes` = both directions of every relayed line.
 **`POST /streamiq/tunnels/throughput`** (#782) `{ "throughputKbps": 4200 }` → `204`: the
 gateway → client throughput the browser measured (the tunnel's last burst measurement,
 below), kept for this session's own tunnel and written with its line when it ends; missing,
-zero or negative = none, a later call replaces it. Not JSON → `400`.
+zero or negative = none, a later call replaces it. Not JSON → `400`. Served by the tunnel
+itself (`tunnel.NewRouter`, like burst and route) and counted as neither use nor active time:
+it comes as the tunnel closes, after a shared tunnel's idle wait. The web app sends it only
+on a connected tunnel and closes after 2 s at most without an answer.
 
 **`POST /streamiq/name`** (#310, admin-only) `{ "name": "Living room NAS" }` → `200`
 `{ "name": "<stored>" }`. The name is trimmed, 1–100 characters counted in UTF-16

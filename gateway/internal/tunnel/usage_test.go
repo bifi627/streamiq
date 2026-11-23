@@ -60,6 +60,21 @@ func TestUsageActiveIsTheLatestEnd(t *testing.T) {
 	}
 }
 
+// The throughput report is kept, and counts as neither use nor active time.
+func TestThroughputIsNoUse(t *testing.T) {
+	for body, want := range map[string]int{`{"throughputKbps":4200}`: 4200, `{"throughputKbps":-1}`: 0, `{}`: 0} {
+		u := NewUsage(time.Now())
+		u.SetThroughput(1) // the last report wins, also one without a measurement
+		s, _, _, _ := Do(NewRouter(), Session{Use: u}, "POST", ThroughputPath, body)
+		if use, ms := u.Summary(); s != 204 || u.Throughput() != want || use != "" || ms != nil {
+			t.Errorf("%s: %d, kept %d, use %q %v; want 204, %d, none", body, s, u.Throughput(), use, ms, want)
+		}
+	}
+	if s, _, _, _ := Do(NewRouter(), Session{}, "POST", ThroughputPath, "nope"); s != 400 {
+		t.Fatalf("a bad body: %d", s)
+	}
+}
+
 // serve records each request it ran on the tunnel's Usage.
 func TestServeRecordsUsage(t *testing.T) {
 	u := NewUsage(time.Now())

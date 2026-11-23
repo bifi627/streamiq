@@ -155,7 +155,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Member, "GET", history.HealthPath, "", http.StatusOK},
 		{tunnel.Member, "GET", history.TunnelsPath, "", http.StatusOK},
 		{tunnel.Member, "GET", history.SummaryPath, "", http.StatusForbidden},
-		{tunnel.Member, "POST", history.ThroughputPath, `{"throughputKbps":5}`, http.StatusNoContent},
+		{tunnel.Member, "POST", tunnel.ThroughputPath, `{"throughputKbps":5}`, http.StatusNoContent},
 		{tunnel.Admin, "GET", history.SummaryPath, "", http.StatusOK},
 		{tunnel.Member, "GET", screen.ScreensPath, "", http.StatusOK},
 		{tunnel.Admin, "POST", onboarding.NamePath, `{"name":"Den"}`, http.StatusOK},

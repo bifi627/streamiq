@@ -26,11 +26,12 @@ type Router struct {
 	methods []string // every method a pattern names, for Allow
 }
 
-// NewRouter has the tunnel's own endpoints (burst, route) registered.
+// NewRouter has the tunnel's own endpoints (burst, route, throughput) registered.
 func NewRouter() *Router {
 	r := &Router{mux: http.NewServeMux()}
 	r.Handle("GET "+BurstPath, http.HandlerFunc(serveBurst))
 	r.Handle("GET "+RoutePath, http.HandlerFunc(serveRoute))
+	r.Handle("POST "+ThroughputPath, http.HandlerFunc(serveThroughput))
 	return r
 }
 

@@ -1,7 +1,6 @@
 package history
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -16,12 +15,15 @@ import (
 const TunnelLimit = 200
 
 // Tunnels is the gateway's tunnel history: one line per ended tunnel.
-type Tunnels struct{ Store *Store }
+type Tunnels struct {
+	Store   *Store
+	Gateway string // this enrollment's gateway id: lines of another aren't answered
+}
 
 // Record appends the line of a tunnel that ended at end.
 func (t *Tunnels) Record(r protocol.Report, user string, start, end time.Time, kbps int) error {
 	l := Tunnel{
-		ID: r.Session, CreatedAt: start.UTC(), EndedAt: end.UTC(), UserID: user,
+		ID: r.Session, GatewayID: t.Gateway, CreatedAt: start.UTC(), EndedAt: end.UTC(), UserID: user,
 		Relay: r.Relay, IPv6: r.Ipv6, BytesSent: r.BytesSent, BytesReceived: r.BytesReceived,
 		Failure: r.Failure, ActiveMs: r.ActiveMs,
 	}
@@ -41,11 +43,11 @@ func (t *Tunnels) Ended(r protocol.Report, user string, start time.Time, kbps in
 	}
 }
 
-// recent is the lines of the last TunnelDays, newest first.
+// recent is this enrollment's lines of the last TunnelDays, newest first.
 func (t *Tunnels) recent(now time.Time) ([]Tunnel, error) {
 	rows, err := Read[Tunnel](t.Store)
 	start := now.AddDate(0, 0, -TunnelDays)
-	rows = slices.DeleteFunc(rows, func(l Tunnel) bool { return !l.CreatedAt.After(start) })
+	rows = slices.DeleteFunc(rows, func(l Tunnel) bool { return l.GatewayID != t.Gateway || !l.CreatedAt.After(start) })
 	slices.SortStableFunc(rows, func(a, b Tunnel) int { return b.CreatedAt.Compare(a.CreatedAt) })
 	return rows, err
 }
@@ -121,16 +123,4 @@ func summarize(rows []Tunnel) []Summary {
 	}
 	slices.SortStableFunc(out, func(a, b Summary) int { return b.Tunnels - a.Tunnels })
 	return out
-}
-
-// ServeThroughput is POST /streamiq/tunnels/throughput: the calling session's own
-// tunnel keeps it for its history line; missing, zero or negative = none.
-func ServeThroughput(w http.ResponseWriter, r *http.Request) {
-	var b Throughput
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&b) != nil {
-		tunnel.Fail(w, http.StatusBadRequest, errors.New("tunnels: throughput: bad body"))
-		return
-	}
-	tunnel.SessionOf(r).Use.SetThroughput(b.ThroughputKbps)
-	w.WriteHeader(http.StatusNoContent)
 }

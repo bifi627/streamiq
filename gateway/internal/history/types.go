@@ -23,13 +23,13 @@ const TunnelsPath = "/streamiq/tunnels"
 // SummaryPath is the per-user summary of the tunnel history (admin only).
 const SummaryPath = "/streamiq/tunnels/summary"
 
-// ThroughputPath keeps a throughput for the calling session's own tunnel.
-const ThroughputPath = "/streamiq/tunnels/throughput"
-
 // Tunnel is one ended tunnel to this gateway, a line of the history and a row of
 // GET /streamiq/tunnels.
 type Tunnel struct {
-	ID        string    `json:"id"` // the broker session
+	ID string `json:"id"` // the broker session
+	// GatewayID: the enrollment that wrote it; a re-enrolled gateway (maybe another
+	// household) answers none of its earlier lines.
+	GatewayID string    `json:"gatewayId"`
 	CreatedAt time.Time `json:"createdAt"`
 	EndedAt   time.Time `json:"endedAt"`
 	// UserID: stored on every line, answered in the household scope only.
@@ -53,10 +53,4 @@ type Summary struct {
 	Failed int `json:"failed"`
 	// RelayedBytes: both directions of every relayed tunnel, whatever its use: what the relay costs.
 	RelayedBytes uint64 `json:"relayedBytes"`
-}
-
-// Throughput is POST /streamiq/tunnels/throughput's body: what the browser measured,
-// gateway → client. Missing, zero or negative = none.
-type Throughput struct {
-	ThroughputKbps int `json:"throughputKbps"`
 }

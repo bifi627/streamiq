@@ -137,7 +137,8 @@ a privacy indicator: on your network (the gateway sees the browser on one of its
 **The tunnel history stays on the gateway** (#782, part of #768): `sessions` hands every
 ended tunnel (`Sessions.Ended`: the report, its user, the offer's time, the throughput) to
 `gateway/internal/history` (`Tunnels.Record`), one line in
-`state/history/tunnels-YYYY-MM-DD.jsonl` (30 days kept). The browser posts its measured
+`state/history/tunnels-YYYY-MM-DD.jsonl` (30 days kept), stamped with the gateway id: a
+re-enrolled gateway (maybe in another household) answers none of its earlier lines. The browser posts its measured
 throughput to its own tunnel (`POST /streamiq/tunnels/throughput`, `pairing/session.ts`,
 kept on `tunnel.Usage`). A member's own tunnels to the household's gateways (30 days, ≤ 200
 per gateway) are on the Activity page (`/activity`): `activity/api.ts` asks every gateway that

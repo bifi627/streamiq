@@ -274,7 +274,7 @@ test("activity: an admin sees the household, a member only their own, from the g
   paired,
 }) => {
   const { page: a, user, gateway, gatewayCtx } = paired
-  const [g] = await user.api<{ name: string }[]>('/gateways')
+  const [g] = await user.api<{ id: string; name: string }[]>('/gateways')
   const member = await signUp(uniqueEmail('act-member'), { alias: 'Bob' })
   await join(user, member)
   const m = await signedInPage(browser, member, '/activity', user.tenantId)
@@ -282,7 +282,7 @@ test("activity: an admin sees the household, a member only their own, from the g
   await expect(m.getByText(`${g.name}: history unavailable`)).toBeVisible()
   await m.getByRole('link', { name: 'Gateways', exact: true }).click()
   await pair(m, gatewayCtx, gateway.pageUrl)
-  seedTunnels(gateway.stateDir, [
+  seedTunnels(gateway.stateDir, g.id, [
     { userId: user.userId, use: 'playback', relay: false, bytes: 1000 },
     { userId: member.userId, use: 'playback', relay: true, bytes: 2_000_000 },
   ])
@@ -294,11 +294,11 @@ test("activity: an admin sees the household, a member only their own, from the g
 
   await a.getByRole('link', { name: 'Activity' }).click()
   // Bob's count and failures include his pairing tunnels; only the seeded one was relayed.
+  const summary = a.getByRole('table', { name: "Members' activity" })
   await expect(
-    a
-      .getByRole('table', { name: "Members' activity" })
-      .getByRole('row', { name: /Bob \d+ \d+ 2 MB/ }),
+    summary.getByRole('row', { name: /Bob \d+ \d+ 2 MB/ }),
   ).toBeVisible()
+  await expect(summary.getByRole('row', { name: user.email })).toBeVisible() // the admin's own
   const tunnels = a.getByRole('table', { name: 'Tunnels' })
   await expect(
     tunnels.getByRole('row', { name: new RegExp(`Bob ${g.name} Playback`) }),

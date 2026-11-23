@@ -34,7 +34,9 @@ func NewUsage(start time.Time) *Usage { return &Usage{start: start, rank: len(us
 
 // record notes a request that ended at; nil u (a test session) records nothing.
 func (u *Usage) record(method, path string, at time.Time) {
-	if u == nil {
+	// The throughput report comes as the tunnel closes, after a shared tunnel's idle
+	// wait: neither a use nor active time.
+	if u == nil || strings.EqualFold(path, ThroughputPath) {
 		return
 	}
 	u.mu.Lock()

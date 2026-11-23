@@ -17,7 +17,6 @@ func api(t *Tunnels) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	rt.Handle("GET "+TunnelsPath, http.HandlerFunc(t.ServeList))
 	rt.Handle("GET "+SummaryPath, http.HandlerFunc(t.ServeSummary), tunnel.AdminOnly)
-	rt.Handle("POST "+ThroughputPath, http.HandlerFunc(ServeThroughput))
 	return rt
 }
 
@@ -37,7 +36,7 @@ func ref[T any](v T) *T { return &v }
 
 func TestATunnelLineHasEveryField(t *testing.T) {
 	s := &Store{Dir: t.TempDir(), Kind: "tunnels", Days: TunnelDays}
-	h := &Tunnels{Store: s}
+	h := &Tunnels{Store: s, Gateway: "g1"}
 	end := time.Now().UTC()
 	r := protocol.Report{Session: "s1", Relay: true, Ipv6: true, BytesSent: 10, BytesReceived: 20,
 		Use: "playback", ActiveMs: ref(int64(900))}
@@ -48,9 +47,9 @@ func TestATunnelLineHasEveryField(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(filepath.Join(s.Dir, "tunnels-"+end.Format(day)+".jsonl"))
-	want := fmt.Sprintf(`{"id":"s1","createdAt":%q,"endedAt":%q,"userId":"u1","relay":true,"ipv6":true,`+
+	want := fmt.Sprintf(`{"id":"s1","gatewayId":"g1","createdAt":%q,"endedAt":%q,"userId":"u1","relay":true,"ipv6":true,`+
 		`"bytesSent":10,"bytesReceived":20,"throughputKbps":4200,"failure":null,"use":"playback","activeMs":900}`+"\n"+
-		`{"id":"s2","createdAt":%[2]q,"endedAt":%[2]q,"userId":"u1","relay":false,"ipv6":false,`+
+		`{"id":"s2","gatewayId":"g1","createdAt":%[2]q,"endedAt":%[2]q,"userId":"u1","relay":false,"ipv6":false,`+
 		`"bytesSent":0,"bytesReceived":0,"throughputKbps":null,"failure":"ice failed","use":null,"activeMs":null}`+"\n",
 		end.Add(-time.Minute).Format(time.RFC3339Nano), end.Format(time.RFC3339Nano))
 	if string(b) != want {
@@ -73,7 +72,7 @@ func TestTheTunnelsKeep30Days(t *testing.T) {
 // seed writes lines for users u1 (admin) and u2 (member), one older than 30 days.
 func seed(t *testing.T, n int) *Tunnels {
 	t.Helper()
-	h := &Tunnels{Store: &Store{Dir: t.TempDir(), Kind: "tunnels", Days: 40}}
+	h := &Tunnels{Store: &Store{Dir: t.TempDir(), Kind: "tunnels", Days: 40}, Gateway: "g2"}
 	now := time.Now()
 	add := func(at time.Time, user string, r protocol.Report) {
 		if err := h.Record(r, user, at, at, 0); err != nil {
@@ -81,6 +80,11 @@ func seed(t *testing.T, n int) *Tunnels {
 		}
 	}
 	add(now.AddDate(0, 0, -31), "u2", protocol.Report{Session: "old"})
+	before := *h
+	before.Gateway = "g1" // the same box, enrolled earlier (maybe in another household)
+	if err := before.Record(protocol.Report{Session: "earlier"}, "u0", now, now, 0); err != nil {
+		t.Fatal(err)
+	}
 	for i := range n {
 		at := now.Add(-time.Duration(n-i) * time.Minute)
 		add(at, "u2", protocol.Report{Session: fmt.Sprint("m", i), Use: "playback"})
@@ -138,21 +142,5 @@ func TestTheSummaryCountsEveryLineOf30Days(t *testing.T) {
 	}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("summary %+v, want %+v", got, want)
-	}
-}
-
-func TestThroughputGoesToTheCallersOwnTunnel(t *testing.T) {
-	rt := api(&Tunnels{})
-	for body, want := range map[string]int{`{"throughputKbps":4200}`: 4200, `{"throughputKbps":-1}`: 0, `{}`: 0} {
-		use := tunnel.NewUsage(t0)
-		use.SetThroughput(1) // the last report wins, also one without a measurement
-		status, _, _, _ := tunnel.Do(rt, tunnel.Session{Use: use}, "POST", ThroughputPath, body)
-		if status != http.StatusNoContent || use.Throughput() != want {
-			t.Errorf("%s: %d, kept %d, want %d", body, status, use.Throughput(), want)
-		}
-	}
-	status, _, _, _ := tunnel.Do(rt, tunnel.Session{}, "POST", ThroughputPath, "nope")
-	if status != http.StatusBadRequest {
-		t.Fatalf("a bad body: %d", status)
 	}
 }

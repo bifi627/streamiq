@@ -29,15 +29,16 @@ export const TunnelsPath = "/streamiq/tunnels";
  */
 export const SummaryPath = "/streamiq/tunnels/summary";
 /**
- * ThroughputPath keeps a throughput for the calling session's own tunnel.
- */
-export const ThroughputPath = "/streamiq/tunnels/throughput";
-/**
  * Tunnel is one ended tunnel to this gateway, a line of the history and a row of
  * GET /streamiq/tunnels.
  */
 export interface Tunnel {
   id: string; // the broker session
+  /**
+   * GatewayID: the enrollment that wrote it; a re-enrolled gateway (maybe another
+   * household) answers none of its earlier lines.
+   */
+  gatewayId: string;
   createdAt: string;
   endedAt: string;
   /**
@@ -68,11 +69,4 @@ export interface Summary {
    * RelayedBytes: both directions of every relayed tunnel, whatever its use: what the relay costs.
    */
   relayedBytes: number /* uint64 */;
-}
-/**
- * Throughput is POST /streamiq/tunnels/throughput's body: what the browser measured,
- * gateway → client. Missing, zero or negative = none.
- */
-export interface Throughput {
-  throughputKbps: number /* int */;
 }

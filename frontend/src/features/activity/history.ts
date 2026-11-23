@@ -1,4 +1,3 @@
-import { gatewayName } from '../gateways/list.ts'
 import type { Gateway } from '../../generated/gateways'
 import type { Summary, Tunnel } from '../../generated/history'
 import type { TunnelRow } from './tunnels'
@@ -27,7 +26,7 @@ export function merge(fetched: Fetched[]): History {
   const unavailable: History['unavailable'] = []
   for (const { gateway: g, tunnels, summary } of fetched) {
     if (!tunnels) {
-      unavailable.push({ id: g.id, name: gatewayName(g) })
+      unavailable.push({ id: g.id, name: g.name ?? 'Unnamed gateway' })
       continue
     }
     for (const t of tunnels)

@@ -52,6 +52,7 @@ export function tunnelRow(id: string): Record<string, any> | null {
  * their own browser and Jellyfin playback. */
 export function seedTunnels(
   stateDir: string,
+  gatewayId: string,
   rows: { userId: string; use: string; relay: boolean; bytes: number }[],
 ) {
   const dir = path.join(stateDir, 'history')
@@ -60,6 +61,7 @@ export function seedTunnels(
     const end = new Date()
     const line = JSON.stringify({
       id: randomUUID(),
+      gatewayId,
       createdAt: new Date(end.getTime() - 5 * 60_000).toISOString(),
       endedAt: end.toISOString(),
       userId: r.userId,

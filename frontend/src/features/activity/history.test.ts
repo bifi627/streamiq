@@ -8,6 +8,7 @@ const gw = (id: string, name: string | null = id) =>
   ({ id, name, online: true }) as Gateway
 const line = (id: string, createdAt: string, userId?: string): Tunnel => ({
   id,
+  gatewayId: 'x',
   createdAt,
   endedAt: createdAt,
   userId: userId ?? null,
@@ -66,7 +67,7 @@ test('a gateway without history is named, not counted', () => {
     summary: [],
     unavailable: [
       { id: 'g1', name: 'nas' },
-      { id: 'g2', name: 'gateway' },
+      { id: 'g2', name: 'Unnamed gateway' },
     ],
   })
 })

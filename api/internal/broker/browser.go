@@ -21,8 +21,9 @@ type rawMsg = protocol.Msg[json.RawMessage, json.RawMessage]
 // browser is a browser's signaling socket: one socket = one session to one gateway. The
 // ID token and the gateway arrive as the first message (never a query parameter: it
 // stays out of logs). `ready` carries this session's ICE servers: TURN only for a
-// gateway the offer could reach now, tagged as that gateway's (relay usage), else
-// STUN only, the same for an unknown, offline or foreign gateway. A revocable TURN
+// gateway of the user's households that isn't revoked, online or not (one that comes
+// online seconds later still gets a relay), tagged as that gateway's (relay usage);
+// else STUN only, the same for an unknown or foreign gateway. A revocable TURN
 // credential is revoked when the socket closes, which also ends the session (`bye`,
 // the tunnel's end).
 func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
@@ -74,17 +75,21 @@ func (b *Broker) browser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// iceServers mints a TURN credential tagged as gateway's when user's offer could reach it now.
+// iceServers mints a TURN credential tagged as gateway's when it is one of user's
+// households' and isn't revoked.
 func (b *Broker) iceServers(ctx context.Context, user, gateway string) ([]json.RawMessage, string, error) {
-	b.mu.Lock()
-	gw := b.gateways[gateway]
-	b.mu.Unlock()
-	if gw == nil {
-		return turn.StunOnly(), "", nil
+	tag := ""
+	all, err := b.Auth.Households(ctx, user)
+	for _, h := range all {
+		if err == nil && tag == "" && gateway != "" {
+			err = b.DB.InTenant(ctx, h.ID, func(tx pgx.Tx) error {
+				return tx.QueryRow(ctx, `SELECT coalesce(max(relay_tag), '') FROM gateways
+					WHERE id = $1 AND credential_hash IS NOT NULL`, gateway).Scan(&tag)
+			})
+		}
 	}
-	role, tag := b.access(ctx, user, gw)
-	if role == "" {
-		return turn.StunOnly(), "", nil
+	if err != nil || tag == "" {
+		return turn.StunOnly(), "", err
 	}
 	return b.TURN.Issue(ctx, user, tag)
 }
@@ -128,7 +133,7 @@ func (b *Broker) offer(ctx context.Context, conn *websocket.Conn, user string, m
 	b.mu.Unlock()
 	role := ""
 	if gw != nil {
-		role, _ = b.access(ctx, user, gw)
+		role = b.role(ctx, user, gw)
 	}
 	if role == "" {
 		send(conn, protocol.ErrorMsg{Type: "error", Error: "gateway offline or unknown"})
@@ -146,28 +151,31 @@ func (b *Broker) offer(ctx context.Context, conn *websocket.Conn, user string, m
 	return sid, gw
 }
 
-// access is the user's role in gw's household and gw's relay tag; role "" when they
-// aren't a member or gw's credential is revoked (its socket may still be open).
-func (b *Broker) access(ctx context.Context, user string, gw *link) (role, tag string) {
+// role is the user's role in gw's household, "" when they aren't a member or gw's
+// credential is revoked (its socket may still be open).
+func (b *Broker) role(ctx context.Context, user string, gw *link) string {
 	all, err := b.Auth.Households(ctx, user)
+	role := ""
 	for _, h := range all {
 		if h.ID == gw.tenant {
 			role = h.Role
 		}
 	}
+	live := false
 	if err == nil && role != "" {
 		err = b.DB.InTenant(ctx, gw.tenant, func(tx pgx.Tx) error {
-			return tx.QueryRow(ctx, `SELECT coalesce(max(relay_tag), '') FROM gateways
-				WHERE id = $1 AND credential_hash IS NOT NULL`, gw.gateID).Scan(&tag)
+			return tx.QueryRow(ctx, `SELECT EXISTS (SELECT FROM gateways WHERE id = $1 AND credential_hash IS NOT NULL)`,
+				gw.gateID).
+				Scan(&live)
 		})
 	}
 	if err != nil {
-		log.Printf("broker: %s refused: %v", gw.gateID, err)
+		log.Printf("broker: offer to %s refused: %v", gw.gateID, err)
 	}
-	if tag == "" {
-		return "", ""
+	if !live {
+		return ""
 	}
-	return role, tag
+	return role
 }
 
 // endSession tells the gateway and stamps the tunnel's end, once.

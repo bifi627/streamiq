@@ -4,6 +4,7 @@
 #   api/, scripts/                   -> named somewhere in docs/ (docs/superpowers is history: not counted)
 #   "/streamiq/..." in gateway Go    -> docs/protocol.md
 #   message `type`s (tstype) in protocol/, gateway/internal/sessions, gateway/internal/screen -> docs/protocol.md, both ways
+#   e2e/*.spec.ts names + the area tags (allowedTags) -> the e2e row of CLAUDE.md
 # Tracked files only (git grep), so a local gateway.env, state dir or draft can't make check.sh and CI disagree.
 # Test-only code (_test.go, testdata/) is skipped; test/dev-only names go on scripts/docs-drift-allowlist.txt.
 # ponytail: grep sees names, not meaning; whether the doc is right stays the review's job.
@@ -67,9 +68,20 @@ compare broker protocol "$(grep -vE "$handshake_row|$screen_row" docs/protocol.m
 compare handshake gateway/internal/sessions "$(grep -E "$handshake_row" docs/protocol.md | doc_types)"
 compare screen gateway/internal/screen "$(grep -E "$screen_row" docs/protocol.md | doc_types)"
 
+# e2e: each spec and area tag named in CLAUDE.md's e2e row; what a spec covers is its header comment.
+e2e_row=$(grep -E '^[|] .e2e/. [|]' CLAUDE.md || true)
+[ -n "$e2e_row" ] || { echo "check-docs-drift: no e2e row in CLAUDE.md" >&2; exit 2; }
+for s in $(git ls-files 'e2e/*.spec.ts'); do
+  n=$(basename "$s" .spec.ts)
+  grep -qF "\`$n\`" <<<"$e2e_row" || { echo "  e2e/$n.spec.ts: not in CLAUDE.md's e2e row" >&2; fail=1; }
+done
+for t in $(grep -oE '"@[a-z0-9-]+"' e2e/.oxlintrc.json | tr -d '"' | sort -u); do
+  grep -qE "${t}([^a-z0-9-]|$)" <<<"$e2e_row" || { echo "  e2e area tag $t: not in CLAUDE.md's e2e row" >&2; fail=1; }
+done
+
 if [ "$fail" -ne 0 ]; then
   echo "Docs drift: fix the doc (or the code) in the same diff, or, for a test/dev-only env var, add it to" >&2
   echo "$allowlist with a reason (a review trigger: call it out in the PR)." >&2
   exit 1
 fi
-echo "docs drift: every STREAMIQ_* env var, gateway route and message type is documented"
+echo "docs drift: every STREAMIQ_* env var, gateway route, message type, e2e spec and area tag is documented"

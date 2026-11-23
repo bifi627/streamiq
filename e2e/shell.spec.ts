@@ -1,6 +1,8 @@
 // The app shell and Settings, no gateway or Jellyfin: sign-in, a signed-out
-// deep link, not-found, TV mode on a first visit, the nav, Settings Back, PWA
-// installability, each per-device setting persisted, and the D-pad on Settings. What the settings do to
+// deep link, not-found, the nav, Settings Back, PWA installability, each
+// per-device setting persisted, and the D-pad on Settings. TV mode: the first visit
+// on a TV (webOS turns it on, Android TV asks), the handoff page (/household: QR
+// code, Back), the Settings + nav TV subsets. What the settings do to
 // playback is the player's spec.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'

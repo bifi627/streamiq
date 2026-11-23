@@ -1,4 +1,4 @@
-// The last released gateway against this commit's API: installed gateways
+// The last released gateway (release.ts: `gh release download`) against this commit's API: installed gateways
 // keep running the last release until their owner updates, while the API deploys on
 // merge. Every other spec builds the gateway from this commit, so only this one
 // catches an API-side change (broker messages, /api/gateways/ws, enrollment) that

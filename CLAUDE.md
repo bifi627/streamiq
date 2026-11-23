@@ -68,7 +68,7 @@ really were `r8er`.
 - Go API: package per slice in `api/internal/<slice>/` (one file per use case, request/response
   types inline, colocated `_test.go` on `apitest`); shared kernel `db` (pool + `InTenant` /
   `InClaimedTenant`, the only places the tenant is set), `auth`, `apitest`, `iplimit` (the per-IP
-  budget), `turn` (a package without routes is kernel); `api/cmd/api/main.go` wiring only; schema =
+  budget), `turn` (no routes, so kernel, not a slice); `api/cmd/api/main.go` wiring only; schema =
   numbered SQL in `api/migrations/`. Slices don't import each other (depguard `api-slices`).
 - Gateway: package per feature in `gateway/internal/<slice>/` with colocated `_test.go`;
   `cmd/gateway/main.go` wiring only. Slices don't import each other except shared primitives

@@ -2,7 +2,7 @@
 
 This file is the contract: onboarding, broker, pairing, tunnel. The broker's messages on
 both sockets (`/api/gateways/ws`, `/api/broker/ws`) are Go types in `protocol/` (#727):
-the gateway and the Go API's broker (`api/internal/broker`) use them, the web app's TypeScript
+the gateway and the Go API (the broker; `gateways` for `MinGatewayProtocol`) use them, the web app's TypeScript
 is generated from them (`bash scripts/gen-types.sh` → `frontend/src/generated/`). The
 gateway ↔ browser contracts are Go types in the gateway slice that serves them, one
 types-only file each, generated the same way (#801): the `auth` channel
@@ -66,7 +66,7 @@ command" and retries every 10 minutes. No negotiation: one version at a time.
 **Release order** when raising the minimum: release the gateway that sends the new
 version first (the installers fetch the latest release; the old API ignores the
 new value), deploy the API after. Separate PRs: merging the gateway one releases it
-(#274), the API one follows once that release is out. API first = every gateway refused, and rerunning the
+(#274), the API one (it edits `protocol.MinGatewayProtocol`, a gateway build input: `[skip release]` in its title, or it releases a gateway too) follows once that release is out. API first = every gateway refused, and rerunning the
 installer reinstalls the old release.
 
 **Households (#189).** A user can belong to several households (tenants). Every

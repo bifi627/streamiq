@@ -11,35 +11,20 @@ import (
 	"streamiq/gateway/internal/host"
 	"streamiq/gateway/internal/jellyfin"
 	"streamiq/gateway/internal/pairing"
-	"streamiq/gateway/internal/telemetry"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
 	"streamiq/protocol"
 )
 
-// box reads the gateway box's state: GET /streamiq/status live, the health history,
-// the heartbeat's health at telemetry full.
+// box reads the gateway box's state: GET /streamiq/status live and the health history.
 type box struct {
-	dir     string // state dir
 	setup   *jellyfin.Setup
 	compose string
 	sess    interface{ Active() int }
 	load    *host.Sampler
 }
 
-// beat is the heartbeat's telemetry level and the health it allows, read now:
-// a changed state/telemetry counts from the next heartbeat.
-func (b *box) beat(ctx context.Context) (string, *protocol.Health) {
-	level := telemetry.Read(b.dir)
-	if level != telemetry.Full {
-		return level, nil
-	}
-	h := b.health(ctx)
-	return level, &h
-}
-
-// record adds the box's health to the history every 30 s (the heartbeat's pace), at
-// every telemetry level: the history stays on the gateway.
+// record adds the box's health to the history every 30 s: the history stays on the gateway.
 func (b *box) record(ctx context.Context, h *history.Health) {
 	// Before Jellyfin's first probe the view says unreachable: a restart would record a
 	// "Jellyfin down" that never was. A Jellyfin really down is recorded after 30 s.
@@ -80,7 +65,7 @@ func (b *box) health(ctx context.Context) protocol.Health {
 		pct := 100 * float64(m.Used) / float64(m.Total)
 		h.Memory = &pct
 	}
-	if !v.Reachable { // the heartbeat waits on it: no sign-in into a Jellyfin that's down
+	if !v.Reachable { // the recording waits on it: no sign-in into a Jellyfin that's down
 		return h
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -106,7 +91,6 @@ func (b *box) status(started time.Time, store *pairing.Store, remote *update.Rem
 			Viewer:       b.setup.ViewerState(tunnel.SessionOf(r).User),
 			RemoteUpdate: remoteUpdate(remote),
 			Host:         b.load.Load(b.compose),
-			Telemetry:    telemetry.Read(b.dir),
 		})
 	})
 }

@@ -7,8 +7,8 @@ import (
 )
 
 // uses names what a tunnel was for, highest rank first: a tunnel reports the
-// highest-ranked use among the requests it served (docs/protocol.md, "Telemetry").
-// A new use is a row here; the API stores any word.
+// highest-ranked use among the requests it served (docs/protocol.md, "Tunnel report").
+// A new use is a row here (and a web label).
 var uses = []struct {
 	name string
 	rule func(method, path string) bool

@@ -3,51 +3,42 @@
 // its connection test (direct, forced relay), Copy report, a never-paired
 // browser's report. The panel flag is arranged in localStorage (its Settings
 // toggle is shell.spec's); relay fallback itself stays in the golden path;
-// telemetry edge cases are api/internal/tunnels and api/internal/broker.
-import type { Page, WebSocket } from '@playwright/test'
+// the tunnel report's edge cases are gateway/internal/sessions and history.
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   appUrl,
   openDock,
   openLibrary,
+  historyTunnels,
   signedInPage,
-  tunnelRow,
 } from './helpers.ts'
-import { must } from './must.ts'
 
 const report = (p: Page) =>
   p.locator('pre', { hasText: 'StreamIQ diagnostics' })
 
-/** /diagnostics' Test connection: waits for its throughput line and its ended
- * `tunnels` row; the row. */
-async function testConnection(page: Page) {
-  // This test's tunnel id arrives in its broker `answer`.
-  const tunnel = new Promise<string>((resolve) => {
-    const onWs = (ws: WebSocket) => {
-      if (!ws.url().endsWith('/broker/ws')) return
-      page.off('websocket', onWs)
-      ws.on('framereceived', (f) => {
-        const m = JSON.parse(String(f.payload))
-        if (m.type === 'answer') resolve(m.tunnel)
-      })
-    }
-    page.on('websocket', onWs)
-  })
+/** /diagnostics' Test connection: waits for its throughput line and its line in
+ * the gateway's tunnel history (stateDir); the line. */
+async function testConnection(page: Page, stateDir: string) {
+  const diagnostics = () =>
+    historyTunnels(stateDir).filter((l) => l.use === 'diagnostics')
+  const before = diagnostics().length
   await page.getByRole('button', { name: 'Test connection' }).click()
   await expect(report(page)).toContainText(
     /throughput: [\d.]+ Mbps \(median of 3 ~2 s bursts after a warm-up; Auto caps at [\d.]+ Mbps\)/,
     { timeout: 30_000 },
   )
-  // The row: written by the broker, ended when the browser's socket closed,
-  // route + bytes from the gateway's report.
-  const id = await tunnel
+  // The line: written by the gateway when the browser's socket closed (the
+  // broker's bye), with its route and bytes.
   await expect
-    .poll(() => tunnelRow(id), { timeout: 15_000 })
-    .toMatchObject({
-      ended_at: expect.any(String),
-      bytes_sent: expect.any(Number),
-    })
-  return must(tunnelRow(id), `tunnels row ${id}`)
+    .poll(() => diagnostics().length, { timeout: 15_000 })
+    .toBe(before + 1)
+  const line = diagnostics()[before]
+  expect(line, JSON.stringify(line)).toMatchObject({
+    endedAt: expect.any(String),
+    bytesSent: expect.any(Number),
+  })
+  return line
 }
 
 test('dock (#71, #230): bar, request table + log, stays open, links the report @diagnostics', async ({
@@ -77,27 +68,21 @@ test('dock (#71, #230): bar, request table + log, stays open, links the report @
   await expect(report(page)).toBeVisible()
 })
 
-test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @diagnostics', async ({
+test('report, direct (#90, #115): probe, throughput, path, history line, no email @diagnostics', async ({
   paired,
 }) => {
-  const { page, user } = paired
-  // The broker and the gateway record tunnels; the browser never calls the API's
-  // tunnels: its throughput goes to the gateway over the tunnel.
-  let apiCalls = 0
-  page.on('request', (r) => {
-    if (r.url().includes('/api/tunnels')) apiCalls++
-  })
+  const { page, user, gateway } = paired
   await page.goto(appUrl('/diagnostics'))
   await expect(report(page)).toContainText(/codecs: h264 .* L\d/) // the capability probe
-  const row = await testConnection(page)
+  const row = await testConnection(page, gateway.stateDir)
   await expect(report(page)).toContainText('paired: yes')
   await expect(report(page)).toContainText(/path: direct .* RTT \d+ ms/)
   expect(row, JSON.stringify(row)).toMatchObject({
     relay: false,
     failure: null,
   })
-  expect(row.bytes_sent).toBeGreaterThan(0)
-  expect(row.bytes_received).toBeGreaterThan(0)
+  expect(row.bytesSent).toBeGreaterThan(0)
+  expect(row.bytesReceived).toBeGreaterThan(0)
   await expect(report(page)).not.toContainText(user.email)
   // Activity hides the test's Diagnostics tunnel until the box is ticked, then remembers it.
   await page.getByRole('link', { name: 'Activity' }).click()
@@ -112,16 +97,15 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
   ).toBeVisible()
   await page.reload() // remembered in this browser
   await expect(diag).toHaveCount(1)
-  expect(apiCalls).toBe(0)
 })
 
 test('report, forced relay: relayed (TURN), relay row @diagnostics', async ({
   paired,
 }) => {
-  const { page } = paired
+  const { page, gateway } = paired
   await page.goto(appUrl('/diagnostics'))
   await page.getByLabel('Force relay (TURN)', { exact: true }).check()
-  const row = await testConnection(page)
+  const row = await testConnection(page, gateway.stateDir)
   await expect(report(page)).toContainText(
     // over udp: the e2e coturn is UDP-only; the prod smoke checks `over tls`
     /relay forced: yes[\s\S]*relay: available[\s\S]*path: relayed \(TURN\) over udp/,

@@ -17,7 +17,6 @@ import (
 	"github.com/coder/websocket"
 
 	"streamiq/gateway/internal/tunnel"
-	"streamiq/protocol"
 )
 
 // Enrolls once against a fake control plane, then a second start with the
@@ -77,7 +76,6 @@ func TestRunControlRevokedCredential(t *testing.T) {
 		new(atomic.Int64),
 		nil,
 		nil,
-		nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "revoked") {
 		t.Fatalf("want a revoked-credential error, got %v", err)
@@ -113,7 +111,7 @@ func TestRunControlDialTimeout(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- RunControl(context.Background(), srv.URL, &State{Credential: "hang"}, "", "dev", new(atomic.Int64), nil, nil, nil)
+		done <- RunControl(context.Background(), srv.URL, &State{Credential: "hang"}, "", "dev", new(atomic.Int64), nil, nil)
 	}()
 	select {
 	case err := <-done:
@@ -139,7 +137,6 @@ func TestRunControlDialTimeout(t *testing.T) {
 		"dev",
 		new(atomic.Int64),
 		func() string { return "" },
-		func() (string, *protocol.Health) { return "off", nil },
 		func(raw []byte, _ func(any)) {
 			if raw != nil {
 				got <- raw
@@ -186,7 +183,6 @@ func TestRunControlHeartbeats(t *testing.T) {
 			"1.4.0",
 			&lastBeat,
 			func() string { return "" },
-			func() (string, *protocol.Health) { return "off", nil },
 			func([]byte, func(any)) {},
 		)
 	}()
@@ -194,10 +190,10 @@ func TestRunControlHeartbeats(t *testing.T) {
 	case hb := <-got:
 		if hb["type"] != "heartbeat" || hb["lanUrl"] != "http://192.168.1.20:8097" || hb["version"] != "1.4.0" ||
 			hb["protocol"] != float64(Protocol) ||
-			hb["name"] != "nas" || hb["telemetry"] != "off" {
+			hb["name"] != "nas" {
 			t.Fatalf("heartbeat = %v", hb)
 		}
-		if len(hb) != 6 { // liveness, name and the level; health only at full
+		if len(hb) != 5 { // liveness and name only
 			t.Fatalf("heartbeat has extra fields: %v", hb)
 		}
 		if _, ok := hb["update"]; ok {
@@ -263,7 +259,6 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 			"dev",
 			new(atomic.Int64),
 			func() string { return "" },
-			func() (string, *protocol.Health) { return "off", nil },
 			func([]byte, func(any)) {},
 		)
 	}()
@@ -318,7 +313,6 @@ func TestRunControlUpgradeRequired(t *testing.T) {
 		"1.0.0",
 		new(atomic.Int64),
 		func() string { return "" },
-		func() (string, *protocol.Health) { return "off", nil },
 		func([]byte, func(any)) {},
 	)
 	if !errors.Is(err, ErrUpgradeRequired) {

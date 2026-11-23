@@ -13,7 +13,7 @@ import (
 // Window is how far back GET /streamiq/health reaches.
 const Window = HealthDays * 24 * time.Hour
 
-// entry is one stored health row: the heartbeat's health, stamped.
+// entry is one stored health row: the box's health, stamped.
 type entry struct {
 	At             time.Time `json:"at"`
 	GatewayVersion string    `json:"gatewayVersion"`

@@ -21,7 +21,7 @@ export function lifetime(
   ws: WebSocket,
   gatewayId: string,
 ) {
-  // Tunnel telemetry: the gateway records the tunnel; this browser only adds the
+  // Tunnel history: the gateway records the tunnel; this browser only adds the
   // throughput it measured, over the tunnel itself, before it closes.
   // ponytail: a closed tab skips that report (the line keeps no throughput).
   let speed: Speed | undefined

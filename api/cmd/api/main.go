@@ -27,7 +27,6 @@ import (
 	"streamiq/api/internal/members"
 	"streamiq/api/internal/onboarding"
 	"streamiq/api/internal/relayusage"
-	"streamiq/api/internal/tunnels"
 	"streamiq/api/internal/turn"
 )
 
@@ -69,7 +68,6 @@ func main() {
 	b := broker.New(d, a, turn.FromEnv(), ips)
 	b.Routes(mux)
 	gateways.Routes(mux, a, d, b)
-	tunnels.Routes(mux, a, d)
 	relayusage.Routes(mux, a, d)
 	if job := relayusage.FromEnv(d); job != nil {
 		go job.Run(ctx)
@@ -95,7 +93,7 @@ func main() {
 }
 
 // serve runs srv until ctx is done, then closes the broker's sockets through their normal
-// cleanup (tunnel ends, TURN revokes) and stops srv, within shutdownTimeout.
+// cleanup (TURN revokes) and stops srv, within shutdownTimeout.
 func serve(ctx context.Context, srv *http.Server, b *broker.Broker) {
 	go func() {
 		log.Printf("api: listening on %s", srv.Addr)

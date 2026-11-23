@@ -65,8 +65,6 @@ var page = template.Must(template.New("page").Parse(`<!doctype html>
 {{end}}
 {{with .Offline}}<li>{{if eq . "enforced"}}<b>Offline: enforced</b> (Jellyfin has no internet access){{else}}<b>Online lookups allowed</b>
 (<code>gateway jellyfin offline on</code> cuts Jellyfin off; a file from before the jail: <code>gateway jellyfin upgrade</code>){{end}}</li>{{end}}
-{{with .Telemetry}}<li>Telemetry: <b>{{.Level}}</b> · sends {{.Sends}}<br>
-<small>Change it with <code>gateway telemetry {{if eq .Level "full"}}off{{else}}full{{end}}</code> on this computer, or as a household admin in the web app.</small></li>{{end}}
 </ul>
 {{with .Jellyfin}}{{if .PasswordFile}}
 <p style="border:2px solid #888;padding:.5rem 1rem">This gateway set up Jellyfin. Jellyfin admin:
@@ -138,7 +136,6 @@ type Config struct {
 	Jellyfin                        func() any                                       // status snapshot (jellyfin.View)
 	Login                           func(ctx context.Context, user, pw string) error // connect Jellyfin (viewer token)
 	Offline                         func() string                                    // jellyfin.Offline: "" = no line; nil = none
-	Telemetry                       func() (level, sends string)                     // nil = no line
 	// A managed Jellyfin's libraries (jellyfin.Setup's methods); nil = no list.
 	Libraries   func(ctx context.Context) (any, error)
 	MakeOffline func(ctx context.Context, id string) error
@@ -159,7 +156,7 @@ func Handler(c Config) http.Handler {
 			"Name": c.Name(), "GatewayID": c.GatewayID, "Fingerprint": c.Fingerprint,
 			"Version": c.Version, "Update": *c.Update.Load(), "LastBeat": beat,
 			"Jellyfin": c.Jellyfin(), "Pending": c.Store.Pending(), "Paired": c.Store.Paired(),
-			"Offline": offline(c), "Libraries": c.Libraries != nil, "Telemetry": telemetry(c),
+			"Offline": offline(c), "Libraries": c.Libraries != nil,
 		}))
 	})
 	handleLibraries(mux, c)
@@ -198,14 +195,6 @@ func Handler(c Config) http.Handler {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
 	return mux
-}
-
-func telemetry(c Config) any {
-	if c.Telemetry == nil {
-		return nil
-	}
-	l, s := c.Telemetry()
-	return map[string]string{"Level": l, "Sends": s}
 }
 
 // handleLibraries adds the /libraries page and its posts (only with c.Libraries).

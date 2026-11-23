@@ -46,9 +46,7 @@ type Sessions struct {
 	cands map[string]*signaled            // session id → the kinds of candidate the browser signaled
 	API   *webrtc.API                     // from NewAPI; nil = Pion defaults
 
-	ctl      func(any)         // the control socket that is up (RunControl's handle(nil, send)); nil = none
-	backlog  []protocol.Report // tunnel reports made while none was up, sent on the next one
-	unauthed int               // connections not authenticated yet, at most MaxUnauthed (admit)
+	unauthed int // connections not authenticated yet, at most MaxUnauthed (admit)
 }
 
 // NewAPI builds the one WebRTC API all sessions share. Native runs need
@@ -86,15 +84,11 @@ func (s *Sessions) Active() int {
 }
 
 // Handle processes one broker message; send writes JSON to the current control socket.
-// A nil raw announces the control socket that is up (send), or that it dropped (nil send).
+// Heartbeat acks and anything without a session are not ours.
 func (s *Sessions) Handle(raw []byte, send func(any)) {
-	if raw == nil {
-		s.announce(send)
-		return
-	}
 	var m Msg
 	if json.Unmarshal(raw, &m) != nil || m.Session == "" {
-		return // heartbeat acks etc.: not ours
+		return
 	}
 	s.mu.Lock()
 	if s.pcs == nil {
@@ -118,21 +112,6 @@ func (s *Sessions) Handle(raw []byte, send func(any)) {
 		if end != nil {
 			end(false)
 		}
-	}
-}
-
-// announce records the control socket that is up (send), or that it dropped (nil),
-// and flushes the reports held while none was.
-func (s *Sessions) announce(send func(any)) {
-	s.mu.Lock()
-	s.ctl = send
-	var backlog []protocol.Report
-	if send != nil {
-		backlog, s.backlog = s.backlog, nil
-	}
-	s.mu.Unlock()
-	for _, r := range backlog {
-		send(r)
 	}
 }
 
@@ -216,7 +195,7 @@ func (s *Sessions) newPeer(id, user, role string, pre *preAuth, send func(any)) 
 	var cands signaled
 	var why atomic.Value // last auth outcome short of success ("unpaired", a refusal); the report's failure
 	// The selected pair while connected: pion drops it before it reports Failed,
-	// and the tunnel row keeps the route of a tunnel that came up.
+	// and the history line keeps the route of a tunnel that came up.
 	var pair atomic.Pointer[webrtc.ICECandidatePair]
 	use := tunnel.NewUsage(time.Now())
 	ended := s.ender(id, user, pc, &cands, &pair, &authed, &why, use)
@@ -308,7 +287,6 @@ func (s *Sessions) ender(
 		w, _ := why.Load().(string)
 		r := report(id, pc, cands, pair.Load(), failure(iceFailed, authed.Load(), w))
 		r.Use, r.ActiveMs = use.Summary()
-		s.report(r)
 		s.ended(r, user, use.Start(), use.Throughput())
 		pc.Close()
 	}
@@ -390,21 +368,6 @@ func (s *Sessions) Drop(keyFp string) {
 	}
 }
 
-// report sends r on the control socket that is up now, not the one that carried the
-// offer: a tunnel often ends because that one dropped ("gateway gone"). None up = held
-// for the next. ponytail: capped; a gateway that stays offline past it, or exits, loses them.
-func (s *Sessions) report(r protocol.Report) {
-	s.mu.Lock()
-	send := s.ctl
-	if send == nil && len(s.backlog) < 1000 {
-		s.backlog = append(s.backlog, r)
-	}
-	s.mu.Unlock()
-	if send != nil {
-		send(r)
-	}
-}
-
 func (s *Sessions) ended(r protocol.Report, user string, start time.Time, kbps int) {
 	if s.Ended != nil {
 		s.Ended(r, user, start, kbps)
@@ -433,7 +396,7 @@ func report(
 	last *webrtc.ICECandidatePair,
 	failure *string,
 ) protocol.Report {
-	r := protocol.Report{Type: "tunnel", Session: id, Failure: failure}
+	r := protocol.Report{Session: id, Failure: failure}
 	ice := pc.SCTP().Transport().ICETransport()
 	p, err := ice.GetSelectedCandidatePair()
 	if err != nil || p == nil {

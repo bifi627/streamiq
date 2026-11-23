@@ -1,7 +1,7 @@
 // Package broker is the tenant-scoped signaling broker: /api/gateways/ws (a gateway's
 // control socket) and /api/broker/ws (one browser session to one gateway). It relays SDP
 // and ICE but can't make either side trust the other: pins and pairing do that. It also
-// writes the tunnel rows and the gateways' heartbeats and health rows.
+// stores the gateways' heartbeats; it keeps nothing per tunnel.
 // ponytail: its state is in memory, one API instance; Postgres LISTEN/NOTIFY or Redis
 // when there's a second.
 package broker
@@ -79,8 +79,8 @@ func (b *Broker) tracked(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// Shutdown closes every socket the way a peer's close does (a tunnel's row gets its end,
-// its TURN credential is revoked) and waits for that cleanup, or until ctx is done.
+// Shutdown closes every socket the way a peer's close does (a tunnel's TURN credential is
+// revoked) and waits for that cleanup, or until ctx is done.
 func (b *Broker) Shutdown(ctx context.Context) error {
 	b.mu.Lock()
 	b.closed = true

@@ -1,6 +1,6 @@
 // The gateways page, on a paired browser with its own gateway (fixtures.ts
 // `paired`): rename, Status paired and unpaired, the nav chip's
-// dot, paired clients, the member view, health sharing, the health history, Activity
+// dot, paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
 // local gateway page, a refused broker socket and TV mode.
 // Onboarding, Approve, Test connection and the removes that end sessions are
@@ -202,26 +202,6 @@ test('member view: the gateway, no Add gateway, no Remove (#190) @gateways', asy
   await expect(m.getByLabel('Switch household')).toHaveValue(user.tenantId)
   await expect(m.getByRole('button', { name: 'Add gateway' })).toHaveCount(0)
   await expect(card(m).getByRole('button', { name: 'Remove' })).toHaveCount(0)
-  // Health sharing: the level, no switch.
-  await expect(card(m).getByText('Health sharing: off.')).toBeVisible()
-  await expect(card(m).getByRole('button', { name: 'Turn on' })).toHaveCount(0)
-})
-
-test('health sharing: an admin turns it on and off over the tunnel (#423) @gateways', async ({
-  paired,
-}) => {
-  const c = card(paired.page)
-  // The level comes back with the gateway's next heartbeat (sent at once),
-  // then the list's 5 s poll.
-  await expect(c.getByText('Health sharing: off.')).toBeVisible()
-  await c.getByRole('button', { name: 'Turn on' }).click()
-  await expect(c.getByText('Health sharing: on.')).toBeVisible({
-    timeout: 15_000,
-  })
-  await c.getByRole('button', { name: 'Turn off' }).click()
-  await expect(c.getByText('Health sharing: off.')).toBeVisible({
-    timeout: 15_000,
-  })
 })
 
 test("health history: an incident, a version change and daily peaks from the gateway's own rows (#424, #781) @gateways", async ({
@@ -286,10 +266,6 @@ test("activity: an admin sees the household, a member only their own, from the g
     { userId: user.userId, use: 'playback', relay: false, bytes: 1000 },
     { userId: member.userId, use: 'playback', relay: true, bytes: 2_000_000 },
   ])
-  let apiReads = 0
-  a.on('request', (r) => {
-    if (r.url().includes('/api/tunnels')) apiReads++
-  })
   const playback = new RegExp(`${g.name} Playback`)
 
   await a.getByRole('link', { name: 'Activity' }).click()
@@ -308,7 +284,6 @@ test("activity: an admin sees the household, a member only their own, from the g
     .selectOption({ label: 'Me' })
   await expect(tunnels.getByRole('row', { name: /Bob/ })).toHaveCount(0)
   await expect(tunnels.getByRole('row', { name: playback })).toHaveCount(1)
-  expect(apiReads).toBe(0)
 
   await m.getByRole('link', { name: 'Activity' }).click()
   await expect(m.getByRole('row', { name: playback })).toHaveCount(1) // Bob's own

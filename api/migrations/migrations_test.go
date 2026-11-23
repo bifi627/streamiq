@@ -35,7 +35,9 @@ func rows(t *testing.T, conn *pgx.Conn, sql string) string {
 	return s
 }
 
-func want(t *testing.T, conn *pgx.Conn) { wantTo(t, conn, "\n(0008_relay_usage.sql)") }
+func want(t *testing.T, conn *pgx.Conn) {
+	wantTo(t, conn, "\n(0008_relay_usage.sql)\n(0009_drop_tunnel_telemetry.sql)")
+}
 
 // wantTo: every file up to 0007 was applied, then rest.
 func wantTo(t *testing.T, conn *pgx.Conn, rest string) {

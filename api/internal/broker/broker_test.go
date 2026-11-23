@@ -42,7 +42,7 @@ func TestOfferReachesTheGatewayAndTheAnswerComesBack(t *testing.T) {
 		map[string]any{"type": "answer", "session": sid, "sdp": map[string]any{"type": "answer", "sdp": "v=1"}},
 	)
 	answer := recv(t, browser)
-	if answer["type"] != "answer" || answer["tunnel"] != sid || answer["sdp"].(map[string]any)["sdp"] != "v=1" {
+	if answer["type"] != "answer" || len(answer) != 2 || answer["sdp"].(map[string]any)["sdp"] != "v=1" {
 		t.Fatalf("answer %v", answer)
 	}
 }

@@ -732,9 +732,8 @@ func TestTunnelChannelCap(t *testing.T) {
 // The gateway reports each tunnel once when it ends (#390), read before the
 // PeerConnection closes: a paired one with its route and bytes and no failure,
 // an unpaired one with why it never got the tunnel. A served one names its use and
-// active time, one without requests neither. A second bye sends nothing.
-// Reports go on the control socket that is up, not the offer's: one made while
-// none was up is held until the next is announced.
+// active time, one without requests neither. A second bye reports nothing. The report
+// goes to the history only, never on the control socket.
 func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/Users" {
@@ -752,6 +751,7 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
 	var ended []string // the history's lines: session/user
 	var mu sync.Mutex
+	reps := make(chan protocol.Report, 4)
 	gateway.Ended = func(r protocol.Report, user string, start time.Time, _ int) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -759,8 +759,8 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 			t.Error("a line without its start")
 		}
 		ended = append(ended, r.Session+"/"+user)
+		reps <- r
 	}
-	reps := make(chan protocol.Report, 4)
 	next := func() protocol.Report {
 		select {
 		case r := <-reps:
@@ -789,11 +789,9 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	if b.say(nil)["type"] != "approved" || b.fetch() != "jellyfin" {
 		t.Fatal("want a working tunnel")
 	}
-	gateway.Handle(nil, nil) // the control socket dropped
 	bye("s1")
-	gateway.Handle(nil, func(v any) { reps <- v.(protocol.Report) }) // a new one is up
 	r := next()
-	if r.Type != "tunnel" || r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
+	if r.Session != "s1" || r.Failure != nil || r.LocalCandidateType != "host" ||
 		r.Protocol != "udp" || r.Relay || r.BytesSent == 0 || r.BytesReceived == 0 ||
 		r.Use != "browsing" || r.ActiveMs == nil || *r.ActiveMs <= 0 {
 		t.Fatalf("report of a served tunnel = %+v", r)
@@ -834,7 +832,7 @@ func TestSignaledKinds(t *testing.T) {
 	}
 }
 
-// The tunnel row's relay and IPv6 flags (#520): either side relayed, a prflx
+// The tunnel report's relay and IPv6 flags (#520): either side relayed, a prflx
 // remote only when the browser signaled nothing but relays, and IPv6 on either side.
 func TestClassify(t *testing.T) {
 	relayOnly, mixed, none := &signaled{}, &signaled{}, &signaled{}
@@ -876,7 +874,7 @@ func TestClassify(t *testing.T) {
 func TestBrowserCloseReportsNoFailure(t *testing.T) {
 	gateway, store := newGateway(t)
 	reps := make(chan protocol.Report, 4)
-	gateway.Handle(nil, func(v any) { reps <- v.(protocol.Report) })
+	gateway.Ended = func(r protocol.Report, _ string, _ time.Time, _ int) { reps <- r }
 	b, _ := unpaired(t, gateway, "s1")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})
@@ -942,19 +940,6 @@ func TestSignalingIgnored(t *testing.T) {
 	)
 	handle(Msg{Type: "ice", Session: "s"})
 	handle(Msg{Type: "bye", Session: "s"})
-}
-
-// Reports held while no control socket is up stop at 1000 (#520).
-func TestBacklogCap(t *testing.T) {
-	var s Sessions
-	for range 1001 {
-		s.report(protocol.Report{Type: "tunnel"})
-	}
-	n := 0
-	s.Handle(nil, func(any) { n++ })
-	if n != 1000 {
-		t.Fatalf("backlog sent %d reports, want 1000", n)
-	}
 }
 
 // Drop of a key without open sessions closes nothing and says nothing (#520).

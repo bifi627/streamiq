@@ -21,7 +21,6 @@ import { tvOn } from '../../shared/settings'
 import { EditableName, STORED } from './EditableName'
 import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
-import { HealthSharing } from './HealthSharing'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
 import { canManage, gatewayName, shownError, type ActErr } from './list'
@@ -247,7 +246,6 @@ function GatewayCard({
       {g.version && (
         <span className="meta muted no-tv">Version {g.version}</span>
       )}
-      <HealthSharing g={g} manage={manage} />
       {g.upgradeRequired ? (
         <p className="notice no-tv">
           Update required: rerun the install command on the gateway.

@@ -31,12 +31,12 @@ type GatewayError struct {
 	Error   string `json:"error"`
 }
 
-// Report is the gateway's account of a tunnel, sent once when its PeerConnection
-// ends ("Telemetry"): the broker fills that tunnel's row with it.
+// Report is the gateway's account of a tunnel, made once when its PeerConnection
+// ends: its line in the gateway's tunnel history. Never sent to the API (older
+// gateways sent it as `tunnel`; the broker ignores it).
 // local = the gateway's side of the selected pair, remote = the browser's; bytes as
 // the gateway counted them on the ICE transport (sent = gateway → client).
 type Report struct {
-	Type                string  `json:"type"                          tstype:"'tunnel'"`
 	Session             string  `json:"session"`
 	Relay               bool    `json:"relay"`
 	Ipv6                bool    `json:"ipv6"`
@@ -51,7 +51,7 @@ type Report struct {
 }
 
 // Heartbeat is the gateway's liveness message: on connect, every 30 s, and early on a
-// change of what the API mirrors (name, telemetry level).
+// change of what the API mirrors (name).
 type Heartbeat struct {
 	Type     string `json:"type"             tstype:"'heartbeat'"`
 	LanURL   string `json:"lanUrl"`
@@ -59,13 +59,10 @@ type Heartbeat struct {
 	Update   string `json:"update,omitempty"` // newer release version, "" = up to date
 	Protocol int    `json:"protocol"`
 	Name     string `json:"name"`
-	// Telemetry is the level; Health what it allows (none at off). Older APIs ignore both.
-	Telemetry string  `json:"telemetry"        tstype:"'off' | 'full'"`
-	Health    *Health `json:"health,omitempty"`
 }
 
-// Health is the heartbeat's `health` at telemetry full. Counts and versions only: never
-// names, users, client keys, media titles, file names or paths.
+// Health is the box's health as the gateway records it in its own history. Counts and
+// versions only: never names, users, client keys, media titles, file names or paths.
 type Health struct {
 	Jellyfin    Jellyfin `json:"jellyfin"`
 	OS          string   `json:"os"`
@@ -112,12 +109,10 @@ type Offer[S any] struct {
 	SDP       *S     `json:"sdp"       tstype:",required"`
 }
 
-// Answer is the gateway's answer as the browser gets it. Tunnel is the tunnel's id
-// (the broker session), for the browser's throughput PATCH.
+// Answer is the gateway's answer as the browser gets it.
 type Answer[S any] struct {
-	Type   string `json:"type"   tstype:"'answer'"`
-	SDP    *S     `json:"sdp"    tstype:",required"`
-	Tunnel string `json:"tunnel"`
+	Type string `json:"type" tstype:"'answer'"`
+	SDP  *S     `json:"sdp"  tstype:",required"`
 }
 
 // Ice is one trickled candidate between browser and broker, either way.

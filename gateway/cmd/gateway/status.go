@@ -22,7 +22,6 @@ type Status struct {
 	Viewer         jellyfin.ViewerStatus `json:"viewer"`                                // the calling session's
 	RemoteUpdate   any                   `json:"remoteUpdate"   tstype:"true | string"` // the update button works, or why not
 	Host           host.Load             `json:"host"`                                  // live only, never cached
-	Telemetry      string                `json:"telemetry"      tstype:"'off' | 'full'"`
 }
 
 type JellyfinStatus struct {

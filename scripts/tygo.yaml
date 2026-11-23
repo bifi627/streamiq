@@ -30,19 +30,13 @@ packages:
       import type * as auth from './auth'
   - path: "streamiq/api/internal/gateways"
     output_path: "frontend/src/generated/gateways.ts"
-    include_files: ["list.go", "health.go"]
+    include_files: ["list.go"]
     optional_type: "null"
     type_mappings:
       time.Time: "string"
   - path: "streamiq/api/internal/onboarding"
     output_path: "frontend/src/generated/onboarding.ts"
     include_files: ["token.go"]
-    optional_type: "null"
-    type_mappings:
-      time.Time: "string"
-  - path: "streamiq/api/internal/tunnels"
-    output_path: "frontend/src/generated/tunnels.ts"
-    include_files: ["list.go", "summary.go"]
     optional_type: "null"
     type_mappings:
       time.Time: "string"
@@ -97,9 +91,6 @@ packages:
       time.Time: "string"
   - path: "streamiq/gateway/internal/onboarding"
     output_path: "frontend/src/generated/gateway-onboarding.ts"
-    include_files: ["types.go"]
-  - path: "streamiq/gateway/internal/telemetry"
-    output_path: "frontend/src/generated/telemetry.ts"
     include_files: ["types.go"]
   - path: "streamiq/gateway/internal/update"
     output_path: "frontend/src/generated/update.ts"

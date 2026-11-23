@@ -6,7 +6,7 @@ import { tunnelsPath } from './household'
 import type { Summary, Tunnel } from '../../generated/history'
 
 // Activity reads each gateway's own history over the tunnel: the API keeps none
-// (docs/architecture.md, "Tunnel telemetry"). A gateway that can't be asked or
+// (docs/architecture.md, "Tunnel history"). A gateway that can't be asked or
 // fails is named as unavailable.
 export async function loadHistory(admin: boolean) {
   const gateways = await getGateways()

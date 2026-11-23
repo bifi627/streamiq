@@ -12,8 +12,8 @@ import (
 )
 
 // revoke removes a gateway: its credential stops working at once, its socket and every
-// session through it are closed. ponytail: revoked = credential hash nulled, row kept,
-// so its tunnel rows survive (they cascade on a gateway delete). Re-adding the box =
+// session through it are closed. ponytail: revoked = credential hash nulled, row kept.
+// Re-adding the box =
 // delete its state/gateway.json and enroll again.
 func revoke(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB, b *broker.Broker) {
 	if c.Role != "admin" {

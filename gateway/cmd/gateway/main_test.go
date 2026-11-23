@@ -14,7 +14,6 @@ import (
 	"streamiq/gateway/internal/onboarding"
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/screen"
-	"streamiq/gateway/internal/telemetry"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
 )
@@ -110,7 +109,7 @@ func TestRemoteUpdateStatus(t *testing.T) {
 	}
 }
 
-// The shipped route table (#434): name, update and telemetry are admin-only (a member gets
+// The shipped route table (#434): name and update are admin-only (a member gets
 // 403 and nothing happens), the rest answer a member too.
 func TestGatewayAPIRoutes(t *testing.T) {
 	dir := t.TempDir()
@@ -139,7 +138,6 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		remote,
 		store,
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }),
-		&telemetry.Switch{Dir: dir, Changed: st.Beat},
 		&history.Health{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "health"}},
 		&history.Tunnels{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "tunnels"}},
 	)
@@ -149,7 +147,6 @@ func TestGatewayAPIRoutes(t *testing.T) {
 	}{
 		{tunnel.Member, "POST", onboarding.NamePath, `{"name":"mine"}`, http.StatusForbidden},
 		{tunnel.Member, "POST", update.Path, "", http.StatusForbidden},
-		{tunnel.Member, "POST", telemetry.Path, `{"level":"full"}`, http.StatusForbidden},
 		{tunnel.Member, "GET", tunnel.StatusPath, "", http.StatusNoContent},
 		{tunnel.Member, "GET", pairing.ClientsPath, "", http.StatusOK},
 		{tunnel.Member, "GET", history.HealthPath, "", http.StatusOK},
@@ -160,7 +157,6 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Member, "GET", screen.ScreensPath, "", http.StatusOK},
 		{tunnel.Admin, "POST", onboarding.NamePath, `{"name":"Den"}`, http.StatusOK},
 		{tunnel.Admin, "POST", update.Path, "", http.StatusAccepted},
-		{tunnel.Admin, "POST", telemetry.Path, `{"level":"full"}`, http.StatusOK},
 	} {
 		if s, _, _, _ := tunnel.Do(rt, tunnel.Session{Role: c.role}, c.method, c.path, c.body); s != c.want {
 			t.Errorf("%s %s %s: %d, want %d", c.role, c.method, c.path, s, c.want)

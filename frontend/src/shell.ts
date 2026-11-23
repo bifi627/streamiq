@@ -23,3 +23,11 @@ export function libraryTarget(
 
 /** The player is full screen: no top bar, title row or tab bar. */
 export const chromeless = (pathname: string) => pathname.includes('/play/')
+
+/** TV mode's Use as screen in the top bar: the active gateway (the badge's),
+ * none while its screen page is shown. */
+export const screenTarget = (
+  tv: boolean,
+  active: string | null,
+  pathname: string,
+) => (tv && active && !pathname.endsWith('/screen') ? active : null)

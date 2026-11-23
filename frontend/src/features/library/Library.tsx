@@ -11,7 +11,6 @@ import {
   useCanGoBack,
   useNavigate,
   useRouter,
-  useRouterState,
 } from '@tanstack/react-router'
 import { share, type Session } from '../pairing/connect'
 import { Pairing } from '../pairing/Pairing'
@@ -39,7 +38,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useGuestStatus } from './queries'
 import { PlayOn } from '../screen/Screen'
 import { arrowFocus } from '../../shared/focus'
-import { tvOn } from '../../shared/settings'
 import {
   Tunnel,
   backdrop,
@@ -58,9 +56,6 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [err, setErr] = useState<AppError | null>(null)
   const [attempt, setAttempt] = useState(0) // bumped after an inline re-pair
   const qc = useQueryClient()
-  const screenMode = useRouterState({
-    select: (r) => r.location.pathname.endsWith('/screen'),
-  })
 
   useEffect(() => {
     const { session, release } = share(gatewayId)
@@ -94,16 +89,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
     >
       <p className="lib-top">
         <Link to="/gateways">← Gateways</Link>
-        <span className="lib-actions">
-          {session && <LiveRoute gatewayId={gatewayId} pc={session.pc} />}
-          {/* Up front only in TV mode; every device keeps the gateway
-              card's entry (Gateways.tsx). */}
-          {!screenMode && tvOn() && (
-            <Link to="/g/$gatewayId/screen" params={{ gatewayId }}>
-              Use as screen
-            </Link>
-          )}
-        </span>
+        {session && <LiveRoute gatewayId={gatewayId} pc={session.pc} />}
       </p>
       {err && (
         <ErrorView

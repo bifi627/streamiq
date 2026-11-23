@@ -1,7 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
-import { authed } from '../../shared/api'
-import { toAppError } from '../../shared/errors'
-import { ErrorView } from '../../shared/ErrorView'
 import { memberLabel, shownTunnels, type SummaryRow } from './household'
 import { bytes } from './tunnels'
 
@@ -33,15 +29,11 @@ export function MemberSelect(p: {
 
 // Admin only: per member over the last 30 days; the count follows the checkbox.
 export function HouseholdSummary(p: {
+  rows: SummaryRow[]
   names: Map<string, string> | undefined
   all: boolean
 }) {
-  const q = useQuery({
-    queryKey: ['tunnels', 'summary'],
-    queryFn: () => authed<SummaryRow[]>('/tunnels/summary'),
-  })
-  if (q.error) return <ErrorView error={toAppError(q.error)} />
-  if (!q.data?.length) return null
+  if (!p.rows.length) return null
   return (
     <div className="table-scroll">
       <table aria-label="Members' activity">
@@ -54,8 +46,8 @@ export function HouseholdSummary(p: {
           </tr>
         </thead>
         <tbody>
-          {q.data.map((s) => (
-            <tr key={s.userId ?? ''}>
+          {p.rows.map((s) => (
+            <tr key={s.userId}>
               <td>{memberLabel(s.userId, p.names)}</td>
               <td>{shownTunnels(s, p.all).toLocaleString()}</td>
               <td>{s.failed.toLocaleString()}</td>

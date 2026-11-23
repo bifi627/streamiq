@@ -181,7 +181,7 @@ gateway survives ends it too: rare, and the next open makes a fresh session.
 | broker → browser | `{type:"error", error:"gateway offline or unknown"}` — also for a gateway of a household the user isn't a member of (no existence oracle) |
 | broker → browser | `{type:"error", error:"gateway busy"}` — relayed from the gateway: it refused the offer ("Limits before auth" below); a retry may get through |
 | browser → broker | `{type:"ice", candidate}` |
-| broker → browser | `{type:"answer", sdp, tunnel}` (`tunnel` = this tunnel's id, for the throughput PATCH below) · `{type:"ice", candidate}` |
+| broker → browser | `{type:"answer", sdp, tunnel}` (`tunnel` = this tunnel's id; the web app no longer reads it, #783 drops it) · `{type:"ice", candidate}` |
 | browser → broker | `{type:"ping"}` — every 25 s while the socket is open, ignored by the broker: keeps an idle session's socket from being dropped by a proxy (#178, #180) |
 
 **Gateway side** (on `/api/gateways/ws`): broker → gateway `{type:"offer", session, user, role, sdp}`,
@@ -274,10 +274,13 @@ never connected) = candidate fields absent. `failure`:
   shared tunnel's idle wait before it closes is not in it). Both absent when no request was
   served. Stored on `tunnels` (`use`, `active_ms`) under the first-report rule; returned by
   `GET /api/tunnels`.
-- **Browser**: only its measured throughput, `PATCH /api/tunnels/{id}` `{throughputKbps}`
-  (the tunnel's last burst measurement, below; `id` from the `answer`), before it closes the
-  socket. Only the caller's own tunnel (another user's or tenant's → `404`). A closed tab
-  skips it.
+- **Browser**: only its measured throughput, to the gateway over the tunnel itself
+  (`POST /streamiq/tunnels/throughput`, below), before it closes the socket; a closed tab
+  skips it. The API's `PATCH /api/tunnels/{id}` `{throughputKbps}` stays until #783, nothing
+  calls it.
+- **The gateway's own history** (#782): the gateway also writes each tunnel's end to
+  `state/history/tunnels-YYYY-MM-DD.jsonl` (below), which Activity reads; `tunnels` is
+  recorded until #783 and read by nothing.
 
 Rate queries: up = `bytes_sent IS NOT NULL AND failure IS NULL`; unreported (a gateway
 below protocol 2, a lost report, one that never answered the offer) = `bytes_sent IS NULL`,
@@ -492,6 +495,27 @@ kept): its rows of the last 7 days, oldest first, led by the latest row before t
 `gateway_health` rule above (every 30 s the gateway checks; a change of `jellyfin`, `os`,
 `arch`, `transcoding`, `offline` or its version, else every 5 min, never within 25 s). A
 gateway older than this endpoint answers `404`.
+
+**`GET /streamiq/tunnels[?scope=household]`** (#782) → `200`, the tunnels to this gateway
+the gateway recorded itself, one JSON line per ended tunnel in `state/history/` (a file per
+UTC day, 30 days kept), the same fields the report has plus who and when: `[{ "id" (the
+broker session), "createdAt" (the offer), "endedAt", "relay", "ipv6", "bytesSent",
+"bytesReceived", "throughputKbps", "failure", "use", "activeMs" }]` (null = none). A tunnel
+that failed on the gateway (ICE, auth, busy) is a line too; one that never reached it is
+nowhere. Without `scope`: the session's user's own; `scope=household` (admin only, a member
+gets `403`; another value `400`): every member's, each with `userId`. The last 30 days,
+newest first, at most 200. The user and role are the session's (the broker's offer), never
+the request's. A gateway older than this answers `404`.
+
+**`GET /streamiq/tunnels/summary`** (#782, admin-only) → `200` `[{ "userId", "tunnels",
+"hidden", "failed", "relayedBytes" }]`: per user over every line of the 30 days, most
+tunnels first. `hidden` = management or diagnostics without a failure (what Activity hides by
+default), `relayedBytes` = both directions of every relayed line.
+
+**`POST /streamiq/tunnels/throughput`** (#782) `{ "throughputKbps": 4200 }` → `204`: the
+gateway → client throughput the browser measured (the tunnel's last burst measurement,
+below), kept for this session's own tunnel and written with its line when it ends; missing,
+zero or negative = none, a later call replaces it. Not JSON → `400`.
 
 **`POST /streamiq/name`** (#310, admin-only) `{ "name": "Living room NAS" }` → `200`
 `{ "name": "<stored>" }`. The name is trimmed, 1–100 characters counted in UTF-16

@@ -60,7 +60,7 @@ export type Effect =
   | { do: 'auth' } // the token, then the keep-alive
   | { do: 'relayLine'; noTurn: string }
   | { do: 'offer'; iceServers: RTCIceServer[] }
-  | { do: 'answer'; tunnel?: string; sdp: RTCSessionDescriptionInit }
+  | { do: 'answer'; sdp: RTCSessionDescriptionInit }
   | { do: 'addIce'; candidate: RTCIceCandidateInit }
   | { do: 'challenge'; n: string; fp: string; pair: boolean }
   | { do: 'commit' }
@@ -158,7 +158,7 @@ function onBroker(s: State, m: BrokerMessage): Step {
       }))
       return {
         state,
-        fx: [{ do: 'answer', tunnel: m.tunnel, sdp: m.sdp }, ...ice],
+        fx: [{ do: 'answer', sdp: m.sdp }, ...ice],
       }
     }
     case 'ice':

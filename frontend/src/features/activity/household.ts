@@ -1,4 +1,4 @@
-import type { Summary as SummaryRow } from '../../generated/tunnels'
+import type { Summary as SummaryRow } from '../../generated/history'
 import type { TunnelRow } from './tunnels'
 
 export type { SummaryRow }
@@ -23,4 +23,4 @@ export const shownTunnels = (s: SummaryRow, all: boolean) =>
 
 /** An admin's Activity opens on the whole household. */
 export const tunnelsPath = (admin: boolean) =>
-  admin ? '/tunnels?scope=household' : '/tunnels'
+  admin ? '/streamiq/tunnels?scope=household' : '/streamiq/tunnels'

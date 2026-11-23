@@ -2,8 +2,7 @@
 // members and roles, remove and leave, rename, invites,
 // join, invite-first sign-up and life without a household, a second
 // household of one's own, the alias, the switcher, and a membership
-// lost while the app is open, an admin's household Activity (tunnel
-// rows seeded in Postgres). Permission and edge cases (member refused, last admin, single-use,
+// lost while the app is open. Permission and edge cases (member refused, last admin, single-use,
 // expired) are the Go API tests (members, invites, household).
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
@@ -12,7 +11,6 @@ import {
   join,
   newPage,
   password,
-  seedTunnel,
   signedInPage,
   signUp,
   uniqueEmail,
@@ -125,37 +123,6 @@ test('rename: an admin renames, a member sees no Rename @households', async ({
   await expect(h1(b)).toHaveText('The A family')
   await expect(b.getByText('You are a member')).toBeVisible()
   await expect(b.getByRole('button', { name: 'Rename' })).toHaveCount(0)
-})
-
-test('activity: an admin sees the household, a member only their own @households', async ({
-  browser,
-}) => {
-  const { A, B, a } = await adminWithMember(browser)
-  seedTunnel(A.tenantId, A.userId, 'alice-nas')
-  seedTunnel(A.tenantId, B.userId, 'bob-tv')
-  await a.getByRole('link', { name: 'Activity' }).click()
-  const summary = a.getByRole('table', { name: "Members' activity" })
-  await expect(summary.getByRole('row', { name: /Bob 1 0 2 MB/ })).toBeVisible()
-  await expect(summary.getByRole('row', { name: /Alice 1 0/ })).toBeVisible()
-  const tunnels = a.getByRole('table', { name: 'Tunnels' })
-  await expect(
-    tunnels.getByRole('row', { name: /Bob bob-tv Playback/ }),
-  ).toBeVisible()
-  await a
-    .getByRole('combobox', { name: 'Member' })
-    .selectOption({ label: 'Me' })
-  await expect(tunnels.getByRole('row', { name: /bob-tv/ })).toHaveCount(0)
-  await expect(
-    tunnels.getByRole('row', { name: /Alice alice-nas/ }),
-  ).toBeVisible()
-
-  const b = await signedInPage(browser, B, '/activity', A.tenantId)
-  await expect(b.getByRole('row', { name: /bob-tv Playback/ })).toBeVisible()
-  await expect(b.getByRole('row', { name: /alice-nas/ })).toHaveCount(0)
-  await expect(b.getByRole('table', { name: "Members' activity" })).toHaveCount(
-    0,
-  )
-  await expect(b.getByRole('combobox', { name: 'Member' })).toHaveCount(0)
 })
 
 test('invites: make, revoke, make another; a member sees none @households', async ({

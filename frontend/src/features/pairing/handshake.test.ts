@@ -92,7 +92,7 @@ test('an ICE candidate before the answer waits for it', () => {
     broker({ type: 'ice', candidate: c2 }),
   )
   assert.deepEqual(r.fx, [
-    { do: 'answer', tunnel: undefined, sdp },
+    { do: 'answer', sdp },
     { do: 'addIce', candidate: c1 },
     { do: 'addIce', candidate: c2 },
   ])

@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { authed } from '../../shared/api'
 import { toAppError } from '../../shared/errors'
 import { ErrorView, State } from '../../shared/ErrorView'
 import { flag, setFlag } from '../../shared/diag'
 import { arrowFocus } from '../../shared/focus'
 import { useHousehold } from '../households/household'
-import { byMember, memberLabel, tunnelsPath } from './household'
+import { loadHistory } from './api'
+import { byMember, memberLabel } from './household'
 import { HouseholdSummary, MemberSelect } from './HouseholdSummary'
 import { useMembers } from './useMembers'
 import {
@@ -23,21 +23,25 @@ import {
   type TunnelRow,
 } from './tunnels'
 
-// Tunnels in this household, the last 30 days, ≤ 200: a member's own; an
-// admin's opens on everyone's, with a per-member summary and a member filter.
+// Tunnels in this household, the last 30 days, ≤ 200 per gateway, read from each
+// gateway: a member's own; an admin's opens on everyone's, with a per-member summary
+// and a member filter.
 // oxlint-disable-next-line complexity -- render branching; the filters' decisions live in tunnels.ts
 export function Activity() {
   const { me, current } = useHousehold()
   const admin = current?.role === 'admin'
   const q = useQuery({
     queryKey: ['tunnels', admin],
-    queryFn: () => authed<TunnelRow[]>(tunnelsPath(admin)),
+    queryFn: () => loadHistory(admin),
+    retry: false, // each try opens a tunnel per gateway
+    refetchOnWindowFocus: false,
   })
+  const tunnels = q.data?.rows
   const { names, others } = useMembers(admin, me?.userId)
   const [gateway, setGateway] = useState('')
   const [member, setMember] = useState('')
   const [all, setAll] = useState(() => flag('activityAll'))
-  const rows = byUse(byMember(byGateway(q.data ?? [], gateway), member), all)
+  const rows = byUse(byMember(byGateway(tunnels ?? [], gateway), member), all)
 
   return (
     <section className="settings activity" onKeyDown={arrowFocus}>
@@ -49,16 +53,23 @@ export function Activity() {
         </p>
       </div>
       {q.error && <ErrorView error={toAppError(q.error)} />}
-      {admin && <HouseholdSummary names={names} all={all} />}
+      {q.data?.unavailable.map((g) => (
+        <p key={g.id} className="muted">
+          {g.name}: history unavailable
+        </p>
+      ))}
+      {admin && q.data && (
+        <HouseholdSummary rows={q.data.summary} names={names} all={all} />
+      )}
       {q.isPending && <p role="status">Loading…</p>}
-      {q.data?.length === 0 && (
+      {tunnels?.length === 0 && (
         <State icon="empty" title="No tunnels in the last 30 days." />
       )}
-      {!!q.data?.length && (
+      {!!tunnels?.length && (
         <>
           <div className="filters">
             <GatewaySelect
-              rows={q.data}
+              rows={tunnels}
               value={gateway}
               onChange={setGateway}
             />
@@ -88,7 +99,7 @@ export function Activity() {
             <p className="muted">No connections to show.</p>
           )}
           <p className="muted meta">
-            Showing the last 30 days (up to 200 tunnels).
+            Showing the last 30 days (up to 200 tunnels per gateway).
           </p>
         </>
       )}

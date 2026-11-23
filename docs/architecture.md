@@ -127,22 +127,30 @@ is not a status log: open work lives in `gh issue list`, history in git.
 
 One row per tunnel in `tunnels`: the broker writes the row and its end, the gateway
 reports route, bytes, what the tunnel was used for (playback / browsing / diagnostics /
-management) and its active time, the browser adds only its measured throughput
-(`PATCH /api/tunnels/{id}`, its own tunnel only). A stop (SIGTERM) closes every broker
+management) and its active time. Until #783 removes it, nothing reads this table: Activity
+reads the gateways (below). A stop (SIGTERM) closes every broker
 socket through its normal cleanup within 8 s (`shutdownTimeout`): each open tunnel gets its
 end and its TURN credential is revoked. A killed or crashed process can't: the next start
 ends every row still open at its own start time (`api/internal/db`, one instance). During a
 deploy the old one still runs: its rows are ended early, then stamped again by its own stop. The web app shows
 a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, or relayed.
-A member's own tunnels in the household (30 days, ≤ 200) are on the Activity page
-(`/activity`, `GET /api/tunnels`, `api/internal/tunnels`): use, route,
-duration (the active time when reported), data, throughput, a failure in plain words; no
-candidate types. Management and diagnostics rows hide behind a checkbox (remembered per browser) unless
-they failed.
+**The tunnel history stays on the gateway** (#782, part of #768): `sessions` hands every
+ended tunnel (`Sessions.Ended`: the report, its user, the offer's time, the throughput) to
+`gateway/internal/history` (`Tunnels.Record`), one line in
+`state/history/tunnels-YYYY-MM-DD.jsonl` (30 days kept). The browser posts its measured
+throughput to its own tunnel (`POST /streamiq/tunnels/throughput`, `pairing/session.ts`,
+kept on `tunnel.Usage`). A member's own tunnels to the household's gateways (30 days, ≤ 200
+per gateway) are on the Activity page (`/activity`): `activity/api.ts` asks every gateway that
+is online and paired with this browser (`GET /streamiq/tunnels` over the tunnel; those are
+management tunnels) and `history.ts` merges the rows; any other gateway, or one that fails,
+is named with "history unavailable". Use, route, duration (the active time when reported),
+data, throughput, a failure in plain words; no candidate types. Management and diagnostics
+rows hide behind a checkbox (remembered per browser) unless they failed.
 An admin's Activity opens on the whole household (`?scope=household`, admin only, rows carry
-`userId`): a per-member summary over every row of the 30 days (`GET /api/tunnels/summary`:
-tunnels, failures, relayed bytes), a member filter and a Member column,
-names from the members endpoint ("Former member" / "Deleted account" otherwise).
+`userId`): a per-member summary over every line of the 30 days (`GET
+/streamiq/tunnels/summary` per gateway, added up per user: tunnels, failures, relayed
+bytes), a member filter and a Member column, names from the members endpoint ("Former
+member" otherwise).
 
 **Gateway health** (#423): at telemetry `full` the heartbeat carries the box's health, kept
 in `gateway_health` (`api/internal/broker`, `storeHealth`): a row when Jellyfin, OS/arch,

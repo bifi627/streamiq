@@ -1,14 +1,15 @@
 // A tunnel's lifetime on this browser: the broker keep-alive, the throughput
 // report on close, and the Session handle connect() resolves with.
-import { authed } from '../../shared/api'
+import { tunnelFetch } from '../../shared/tunnel'
 import { measure, type Speed } from '../../shared/speed'
 import { event } from '../../shared/diag'
 import type { Ping } from '../../generated/protocol'
+import type { Throughput } from '../../generated/history'
 
 export type Session = {
   pc: RTCPeerConnection
   close: () => void
-  /** close() ran (the pc closes a moment later, after the throughput PATCH). */
+  /** close() ran (the pc closes a moment later, after the throughput report). */
   closed: boolean
   /** gateway → client throughput: measures only when Auto playback or
    * /diagnostics asks (speed.ts). */
@@ -20,10 +21,9 @@ export function lifetime(
   ws: WebSocket,
   gatewayId: string,
 ) {
-  // Tunnel telemetry: the broker and the gateway record the tunnel; this
-  // browser only adds the throughput it measured, to the tunnel id from the answer.
-  // ponytail: a closed tab skips that PATCH (the row keeps no throughput).
-  let tunnel: string | undefined
+  // Tunnel telemetry: the gateway records the tunnel; this browser only adds the
+  // throughput it measured, over the tunnel itself, before it closes.
+  // ponytail: a closed tab skips that report (the line keeps no throughput).
   let speed: Speed | undefined
   let ping: ReturnType<typeof setInterval> | undefined
   const teardown = () => {
@@ -37,20 +37,16 @@ export function lifetime(
     closed = true
     speed?.stop()
     const throughputKbps = kbps(speed?.fresh())
-    if (!tunnel || !throughputKbps) return teardown()
-    void authed(`/tunnels/${tunnel}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ throughputKbps }),
+    if (!throughputKbps) return teardown()
+    void tunnelFetch(pc, '/streamiq/tunnels/throughput', {
+      method: 'POST',
+      body: JSON.stringify({ throughputKbps } satisfies Throughput),
     })
       .catch((e) => event(`tunnel: throughput report failed: ${e}`))
       .finally(teardown)
   }
   return {
     close,
-    /** The tunnel id from the gateway's answer. */
-    setTunnel: (id: string | undefined) => {
-      tunnel = id
-    },
     // The socket lives as long as the session, often idle (a screen
     // waiting); a proxy (Railway edge, Cloudflare tunnel) may drop a quiet one,
     // and that ends the tunnel too. The broker ignores the ping.

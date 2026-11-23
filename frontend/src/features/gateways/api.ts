@@ -49,7 +49,7 @@ export async function renameGateway(id: string, name: string) {
 
 // Paired clients, gateway API over the shared session: the list and
 // the allowlist live on the gateway only, the API never sees them.
-async function viaTunnel<T>(id: string, url: string, body?: unknown) {
+export async function viaTunnel<T>(id: string, url: string, body?: unknown) {
   const { session, release } = share(id)
   try {
     return await tunnelJson<T>((await session).pc, url, body)

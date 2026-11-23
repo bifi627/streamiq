@@ -160,7 +160,7 @@ test('onboard gateway, pair, pin, re-pair after cert swap, remove, revoke @golde
         a.getByRole('cell', { name: 'Playback', exact: true }).first(),
       ).toBeVisible()
       await expect(
-        a.getByText('Showing the last 30 days (up to 200 tunnels).'),
+        a.getByText('Showing the last 30 days (up to 200 tunnels per gateway).'),
       ).toBeVisible()
       await a.getByRole('link', { name: 'Gateways', exact: true }).click()
     })

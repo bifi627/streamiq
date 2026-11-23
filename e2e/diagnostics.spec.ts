@@ -18,11 +18,10 @@ import { must } from './must.ts'
 const report = (p: Page) =>
   p.locator('pre', { hasText: 'StreamIQ diagnostics' })
 
-/** /diagnostics' Test connection: waits for its throughput line, its PATCH and
- * its ended `tunnels` row; the PATCH body and the row. */
+/** /diagnostics' Test connection: waits for its throughput line and its ended
+ * `tunnels` row; the row. */
 async function testConnection(page: Page) {
-  // This test's tunnel id arrives in its broker `answer`; other
-  // sessions (the pairing's) PATCH theirs too.
+  // This test's tunnel id arrives in its broker `answer`.
   const tunnel = new Promise<string>((resolve) => {
     const onWs = (ws: WebSocket) => {
       if (!ws.url().endsWith('/broker/ws')) return
@@ -34,17 +33,11 @@ async function testConnection(page: Page) {
     }
     page.on('websocket', onWs)
   })
-  // Closing the test's session sends its measurement to telemetry.
-  const end = page.waitForRequest(
-    async (r) =>
-      r.method() === 'PATCH' && r.url().endsWith(`/tunnels/${await tunnel}`),
-  )
   await page.getByRole('button', { name: 'Test connection' }).click()
   await expect(report(page)).toContainText(
     /throughput: [\d.]+ Mbps \(median of 3 ~2 s bursts after a warm-up; Auto caps at [\d.]+ Mbps\)/,
     { timeout: 30_000 },
   )
-  const patch = (await end).postDataJSON()
   // The row: written by the broker, ended when the browser's socket closed,
   // route + bytes from the gateway's report.
   const id = await tunnel
@@ -54,7 +47,7 @@ async function testConnection(page: Page) {
       ended_at: expect.any(String),
       bytes_sent: expect.any(Number),
     })
-  return { patch, row: must(tunnelRow(id), `tunnels row ${id}`) }
+  return must(tunnelRow(id), `tunnels row ${id}`)
 }
 
 test('dock (#71, #230): bar, request table + log, stays open, links the report @diagnostics', async ({
@@ -88,25 +81,23 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
   paired,
 }) => {
   const { page, user } = paired
-  // The broker and the gateway record tunnels; the browser never creates one.
-  let posts = 0
+  // The broker and the gateway record tunnels; the browser never calls the API's
+  // tunnels: its throughput goes to the gateway over the tunnel (#782).
+  let apiCalls = 0
   page.on('request', (r) => {
-    if (r.method() === 'POST' && r.url().includes('/tunnels')) posts++
+    if (r.url().includes('/api/tunnels')) apiCalls++
   })
   await page.goto(appUrl('/diagnostics'))
   await expect(report(page)).toContainText(/codecs: h264 .* L\d/) // the capability probe
-  const { patch, row } = await testConnection(page)
-  expect(patch.throughputKbps).toBeGreaterThan(0)
+  const row = await testConnection(page)
   await expect(report(page)).toContainText('paired: yes')
   await expect(report(page)).toContainText(/path: direct .* RTT \d+ ms/)
   expect(row, JSON.stringify(row)).toMatchObject({
     relay: false,
     failure: null,
-    throughput_kbps: expect.any(Number),
   })
   expect(row.bytes_sent).toBeGreaterThan(0)
   expect(row.bytes_received).toBeGreaterThan(0)
-  expect(posts).toBe(0)
   await expect(report(page)).not.toContainText(user.email)
   // Activity hides the test's Diagnostics tunnel until the box is ticked, then remembers it.
   await page.getByRole('link', { name: 'Activity' }).click()
@@ -115,8 +106,13 @@ test('report, direct (#90, #115): probe, throughput, path, telemetry, no email @
   await expect(diag).toHaveCount(0)
   await page.getByLabel('Show management and diagnostics connections').check()
   await expect(diag).toHaveCount(1)
+  // The measured throughput, kept with the gateway's history line.
+  await expect(
+    page.getByRole('row', { name: /Diagnostics .* [\d.,]+\s?[kMG]b/ }),
+  ).toBeVisible()
   await page.reload() // remembered in this browser
   await expect(diag).toHaveCount(1)
+  expect(apiCalls).toBe(0)
 })
 
 test('report, forced relay: relayed (TURN), relay row @diagnostics', async ({
@@ -125,7 +121,7 @@ test('report, forced relay: relayed (TURN), relay row @diagnostics', async ({
   const { page } = paired
   await page.goto(appUrl('/diagnostics'))
   await page.getByLabel('Force relay (TURN)', { exact: true }).check()
-  const { row } = await testConnection(page)
+  const row = await testConnection(page)
   await expect(report(page)).toContainText(
     // over udp: the e2e coturn is UDP-only; the prod smoke checks `over tls`
     /relay forced: yes[\s\S]*relay: available[\s\S]*path: relayed \(TURN\) over udp/,

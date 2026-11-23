@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"streamiq/api/internal/auth"
-	"streamiq/api/internal/broker"
 	"streamiq/api/internal/db"
+	"streamiq/protocol"
 )
 
 // Gateway is a row of GET /api/gateways: liveness; the details come from the gateway API
@@ -36,7 +36,7 @@ func list(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
 		rows, _ := tx.Query(r.Context(), `SELECT id::text, name, last_seen_at, lan_url, version, update,
 			coalesce(last_seen_at > now() - $1::interval, false), coalesce(protocol < $2, false), relay_off
 			FROM gateways WHERE credential_hash IS NOT NULL ORDER BY created_at`,
-			OnlineWindow, broker.MinGatewayProtocol)
+			OnlineWindow, protocol.MinGatewayProtocol)
 		var err error
 		out, err = pgx.AppendRows(out, rows, func(row pgx.CollectableRow) (g Gateway, err error) {
 			err = row.Scan(&g.ID, &g.Name, &g.LastSeenAt, &g.LanURL, &g.Version, &g.Update,

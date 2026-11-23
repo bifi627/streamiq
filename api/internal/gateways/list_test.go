@@ -10,10 +10,8 @@ import (
 
 	"streamiq/api/internal/apitest"
 	"streamiq/api/internal/auth"
-	"streamiq/api/internal/broker"
 	"streamiq/api/internal/gateways"
-	"streamiq/api/internal/iplimit"
-	"streamiq/api/internal/turn"
+	"streamiq/protocol"
 )
 
 type server struct {
@@ -30,7 +28,7 @@ func newServer(t *testing.T) *server {
 	}
 	a := auth.New(v, apitest.DB)
 	mux := http.NewServeMux()
-	gateways.Routes(mux, a, apitest.DB, broker.New(apitest.DB, a, &turn.Issuer{}, iplimit.New(1000, "")))
+	gateways.Routes(mux, a, apitest.DB, func(string) {})
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	return &server{ts.URL, a}
@@ -117,9 +115,9 @@ func TestTheListIsOldestFirstWithoutRevokedOnesAndSaysOnlineAndUpgradeRequired(t
 	apitest.Exec(t, `UPDATE gateways SET credential_hash = NULL WHERE name = 'revoked'`)
 	apitest.Exec(t, `UPDATE gateways SET last_seen_at = now() - interval '89 seconds', protocol = $1,
 		lan_url = 'http://nas.lan:8097', version = '1.2.0', update = '1.3.0', relay_off = true
-		WHERE name = 'a-old'`, broker.MinGatewayProtocol-1)
+		WHERE name = 'a-old'`, protocol.MinGatewayProtocol-1)
 	apitest.Exec(t, `UPDATE gateways SET last_seen_at = now() - interval '91 seconds', protocol = $1
-		WHERE name = 'b-new'`, broker.MinGatewayProtocol)
+		WHERE name = 'b-new'`, protocol.MinGatewayProtocol)
 	_, body := s.get(t, alice, "", "/api/gateways")
 	var raw []map[string]any
 	if err := json.Unmarshal([]byte(body), &raw); err != nil || len(raw) != 2 ||

@@ -8,8 +8,8 @@ linters:
   # gosec, limited to the HTTP-server checks below, nolintlint (a //nolint
   # that suppresses nothing fails, like oxlint's unused-directive check in the frontend),
   # gocritic (only commentedOutCode), predeclared (a local named min, len, new ...) and
-  # forbidigo (time.Sleep in tests)
-  enable: [gocyclo, funlen, gosec, nolintlint, gocritic, predeclared, forbidigo]
+  # forbidigo (time.Sleep in tests) and depguard (the Go API's slices don't import each other)
+  enable: [gocyclo, funlen, gosec, nolintlint, gocritic, predeclared, forbidigo, depguard]
   exclusions:
     # errcheck skips Close, fmt.Fprint*, os.Remove*, os.Setenv and the like; test
     # files are checked too
@@ -42,6 +42,23 @@ linters:
       # testwait.Until for real sockets and WebRTC connections
       forbid:
         - pattern: ^time\.Sleep$
+    depguard:
+      rules:
+        # A Go API package imports only the shared kernel (and stdlib, protocol, modules); a
+        # package without routes is kernel. A slice another one needs is handed in by main.go
+        # as a func. Tests may import a slice (broker's mount the gateways routes).
+        api-slices:
+          files: ["**/api/internal/**", "!$test"]
+          list-mode: lax
+          deny:
+            - pkg: streamiq/api/internal/
+              desc: "another slice: let api/cmd/api/main.go hand in what it needs (CLAUDE.md)"
+          allow:
+            - streamiq/api/internal/db$
+            - streamiq/api/internal/auth$
+            - streamiq/api/internal/apitest$
+            - streamiq/api/internal/iplimit$
+            - streamiq/api/internal/turn$
     gocyclo:
       # reports a function over 15, like oxlint's complexity and CA1502;
       # split into pieces that take and return values. A //nolint:gocyclo names the issue that

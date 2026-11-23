@@ -20,6 +20,7 @@ import (
 	"streamiq/api/internal/gateways"
 	"streamiq/api/internal/iplimit"
 	"streamiq/api/internal/turn"
+	"streamiq/protocol"
 )
 
 func TestMain(m *testing.M) { os.Exit(apitest.Run(m)) }
@@ -47,7 +48,7 @@ func newStack(t *testing.T, issuer *turn.Issuer, perMinute int) *stack {
 	b := broker.New(apitest.DB, a, issuer, iplimit.New(perMinute, "X-Real-IP"))
 	mux := http.NewServeMux()
 	b.Routes(mux)
-	gateways.Routes(mux, a, apitest.DB, b)
+	gateways.Routes(mux, a, apitest.DB, b.Revoke)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	return &stack{t, ts.URL, b, a, map[string]string{}}
@@ -135,7 +136,7 @@ func (s *stack) dial(path string, h http.Header) (*websocket.Conn, *http.Respons
 func (s *stack) heartbeat(g *gw, extra map[string]any) {
 	s.t.Helper()
 	apitest.Exec(s.t, `UPDATE gateways SET last_seen_at = NULL WHERE id = $1`, g.id)
-	msg := map[string]any{"type": "heartbeat", "protocol": broker.MinGatewayProtocol}
+	msg := map[string]any{"type": "heartbeat", "protocol": protocol.MinGatewayProtocol}
 	for k, v := range extra {
 		msg[k] = v
 	}

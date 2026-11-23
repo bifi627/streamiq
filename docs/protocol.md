@@ -225,7 +225,7 @@ API keeps no per-tunnel data (#783) and the browser can't create, alter or skip 
   gateway's pin: it hangs up before auth), `"not authenticated within 30s"` or `"gateway busy"`
   ("Limits before auth" below); null = the tunnel came up and passed auth. A gateway crash
   mid-tunnel loses that tunnel's line. Older gateways also sent it to the broker as
-  `{type:"tunnel", session, …}`: the broker ignores it.
+  a `tunnel` message: the broker ignores it.
 - **Use + active time** (#681). `use` = what the tunnel was for, the highest-ranked use among
   the requests it served (the gateway's table in `tunnel/usage.go`, highest first):
   `playback` (a GET under `/Videos/{id}/`: playlists, segments, subtitles), `browsing` (any

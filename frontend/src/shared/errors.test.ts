@@ -21,6 +21,18 @@ test('broker socket: closed before open is unreachable, after is a drop', () => 
     brokerClosed(true, {}, 'gateway revoked').kind,
     'gateway-removed',
   )
+  // The broker's refusals of the auth frame, before or after open alike.
+  for (const opened of [false, true]) {
+    const kind = (reason: string) => brokerClosed(opened, {}, reason).kind
+    assert.equal(kind('unauthorized'), 'unauthorized')
+    assert.equal(kind('no household'), 'no-household')
+    assert.equal(kind('rate limited'), 'rate-limited')
+  }
+  // A retry can help these: a slow token fetch, a client bug.
+  assert.equal(brokerClosed(true, {}, 'auth first').kind, 'broker-lost')
+  assert.equal(brokerClosed(true, {}, 'auth timeout').kind, 'broker-lost')
+  assert.equal(brokerClosed(false, {}, 'whatever').kind, 'broker-unreachable')
+  assert.equal(brokerClosed(true, {}, 'toString').kind, 'broker-lost')
 })
 
 test('broker error text', () => {
@@ -84,6 +96,8 @@ test('every kind: a message and the buttons it shows', () => {
   const actions: Record<Kind, string[]> = {
     'broker-unreachable': ['retry'],
     'broker-lost': ['retry'],
+    'no-household': ['reload'],
+    'rate-limited': [], // a retry now is refused again
     'gateway-offline': ['retry', 'gateways'],
     'gateway-removed': ['gateways'],
     'gateway-busy': ['retry'],

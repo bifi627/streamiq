@@ -1,11 +1,21 @@
 // The app's one error model. Producers (connect, api, tunnel) throw an
 // AppError with a kind; views render it through describe() / <ErrorView>. The
 // message is the technical detail (what diagnostics log); user text lives in
-// describe(). No imports, so node:test can drive it.
+// describe(). Imports only generated constants, so node:test can drive it.
+
+import {
+  CloseGatewayGone,
+  CloseGatewayRevoked,
+  CloseNoHousehold,
+  CloseRateLimited,
+  CloseUnauthorized,
+} from '../generated/protocol.ts'
 
 export type Kind =
   | 'broker-unreachable' // broker socket closed before it opened: offline or rate-limited (a 429 is invisible to JS)
   | 'broker-lost' // broker socket dropped after it opened
+  | 'no-household' // the broker refused: the user is in no household (anymore)
+  | 'rate-limited' // the broker closed the socket: too many messages
   | 'gateway-offline'
   | 'gateway-removed' // the broker closed the session: its gateway was removed from the household
   | 'gateway-busy' // the gateway refused for now: too many unauthenticated connections, or its pairing slots are taken
@@ -66,25 +76,28 @@ export function httpError(
   return new AppError(kind, detail, { ...context, status })
 }
 
-/** The broker socket closed. Before open: offline, or the upgrade was refused
- * (a 429 rate limit is invisible to JS). After: a drop. */
+const closeKind: Record<string, Kind> = {
+  [CloseGatewayGone]: 'gateway-offline',
+  [CloseGatewayRevoked]: 'gateway-removed',
+  [CloseUnauthorized]: 'unauthorized',
+  [CloseNoHousehold]: 'no-household',
+  [CloseRateLimited]: 'rate-limited',
+}
+
+/** The broker socket closed, with the broker's reason (docs/protocol.md). Any
+ * other reason: before open, offline or the upgrade was refused (a 429 rate
+ * limit is invisible to JS); after, a drop ("auth first" / "auth timeout" too:
+ * a retry can help). */
 export const brokerClosed = (
   opened: boolean,
   context: Context = {},
   reason = '',
 ) =>
-  // The broker closes a session whose gateway's socket dropped, or was removed.
-  reason === 'gateway gone'
-    ? new AppError('gateway-offline', 'gateway disconnected', context)
-    : reason === 'gateway revoked'
-      ? new AppError('gateway-removed', 'gateway revoked', context)
-      : opened
-        ? new AppError('broker-lost', 'broker connection closed', context)
-        : new AppError(
-            'broker-unreachable',
-            'broker connection failed',
-            context,
-          )
+  Object.hasOwn(closeKind, reason)
+    ? new AppError(closeKind[reason], `broker closed: ${reason}`, context)
+    : opened
+      ? new AppError('broker-lost', 'broker connection closed', context)
+      : new AppError('broker-unreachable', 'broker connection failed', context)
 
 /** The broker's `{type:"error"}` text (docs/protocol.md). */
 export const brokerError = (text: string, context: Context = {}) =>
@@ -118,7 +131,7 @@ export const relayMessage = (e: AppError) =>
     ? 'This gateway is too old for this setting: update it.'
     : describe(e).message
 
-export type Action = 'retry' | 'pair' | 'gateways' | 'sign-in'
+export type Action = 'retry' | 'pair' | 'gateways' | 'sign-in' | 'reload'
 
 // Exhaustive: a new Kind doesn't compile until it's mapped here.
 export function describe(e: AppError): {
@@ -137,6 +150,18 @@ export function describe(e: AppError): {
       return {
         message: 'Lost the connection to StreamIQ.',
         actions: ['retry'],
+      }
+    case 'no-household':
+      // A reload shows the no-household screen (create or join one).
+      return {
+        message: "You're not in a household (anymore).",
+        actions: ['reload'],
+      }
+    case 'rate-limited':
+      // Retry right away would only be refused again.
+      return {
+        message: 'Too many requests. Wait a minute, then reload.',
+        actions: [],
       }
     case 'gateway-offline':
       return {

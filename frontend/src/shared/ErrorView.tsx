@@ -15,6 +15,7 @@ const label: Record<Action, string> = {
   pair: 'Pair this browser',
   gateways: 'Gateways',
   'sign-in': 'Sign in again',
+  reload: 'Reload',
 }
 
 // 24×24 stroke icons (State's).
@@ -99,7 +100,9 @@ export function ErrorView({
     ? 'retry'
     : actions.includes('sign-in')
       ? 'sign-in'
-      : null
+      : actions.includes('reload')
+        ? 'reload'
+        : null
   const links = actions.filter(
     (a) => a === 'gateways' || (a === 'pair' && pair === undefined),
   )
@@ -119,7 +122,13 @@ export function ErrorView({
               type="button"
               className="primary"
               autoFocus={focus}
-              onClick={button === 'retry' ? onRetry : () => signOut(auth)}
+              onClick={
+                button === 'retry'
+                  ? onRetry
+                  : button === 'reload'
+                    ? () => location.reload()
+                    : () => signOut(auth)
+              }
             >
               {label[button]}
             </button>

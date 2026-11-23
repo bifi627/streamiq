@@ -69,7 +69,7 @@ func (b *Broker) gateway(w http.ResponseWriter, r *http.Request) {
 	// Its sessions are dead (a restart takes the pcs with it): close their browsers'
 	// sockets now instead of letting ICE notice in ~30 s.
 	for _, c := range dead {
-		go kill(c, "gateway gone") // a dead peer's close can take ~10 s each
+		go kill(c, protocol.CloseGatewayGone) // a dead peer's close can take ~10 s each
 	}
 }
 

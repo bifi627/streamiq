@@ -36,6 +36,13 @@ export interface Msg<S extends any, C extends any> {
   sdp?: S; // offer, answer
   candidate?: C; // ice
 }
+export const CloseAuthFirst = "auth first";
+export const CloseAuthTimeout = "auth timeout";
+export const CloseUnauthorized = "unauthorized";
+export const CloseNoHousehold = "no household";
+export const CloseRateLimited = "rate limited";
+export const CloseGatewayGone = "gateway gone";
+export const CloseGatewayRevoked = "gateway revoked";
 /**
  * GatewayBusy is the one GatewayError the broker relays: the gateway holds as many
  * unauthenticated connections as it takes; a retry may get through.

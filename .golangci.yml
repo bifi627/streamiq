@@ -8,7 +8,7 @@ linters:
   # gosec, limited to the HTTP-server checks below, nolintlint (a //nolint
   # that suppresses nothing fails, like oxlint's unused-directive check in the frontend),
   # gocritic (only commentedOutCode), predeclared (a local named min, len, new ...) and
-  # forbidigo (time.Sleep in tests) and depguard (the Go API's slices don't import each other)
+  # forbidigo (time.Sleep in tests) and depguard (API and gateway slices don't import each other)
   enable: [gocyclo, funlen, gosec, nolintlint, gocritic, predeclared, forbidigo, depguard]
   exclusions:
     # errcheck skips Close, fmt.Fprint*, os.Remove*, os.Setenv and the like; test
@@ -52,13 +52,25 @@ linters:
           list-mode: lax
           deny:
             - pkg: streamiq/api/internal/
-              desc: "another slice: let api/cmd/api/main.go hand in what it needs (CLAUDE.md)"
+              desc: "another slice: let api/cmd/api/main.go hand in what it needs; a slice's own subpackage: allow it in .golangci.yml (CLAUDE.md)"
           allow:
             - streamiq/api/internal/db$
             - streamiq/api/internal/auth$
             - streamiq/api/internal/apitest$
             - streamiq/api/internal/iplimit$
             - streamiq/api/internal/turn$
+        # A gateway package imports only the shared primitives; tests may import any package
+        # (sessions' tests drive screen).
+        gateway-slices:
+          files: ["**/gateway/internal/**", "!$test"]
+          list-mode: lax
+          deny:
+            - pkg: streamiq/gateway/internal/
+              desc: "another slice: let gateway/cmd/gateway/main.go hand in what it needs; a slice's own subpackage: allow it in .golangci.yml (CLAUDE.md)"
+          allow:
+            - streamiq/gateway/internal/identity$
+            - streamiq/gateway/internal/tunnel$
+            - streamiq/gateway/internal/pairing$
     gocyclo:
       # reports a function over 15, like oxlint's complexity and CA1502;
       # split into pieces that take and return values. A //nolint:gocyclo names the issue that

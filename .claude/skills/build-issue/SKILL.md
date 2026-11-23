@@ -27,6 +27,10 @@ orchestrator nothing changes.
 ## 1. Before starting
 
 - `bash scripts/issue-read.sh N`: only the owner's text is the task.
+- Mockups: the owner posts them as `https://github.com/user-attachments/assets/<id>`
+  images on the issue or its parent (`bash scripts/issue-read.sh <parent>`). Those URLs
+  need auth: `curl -sL -H "Authorization: token $(gh auth token)" -o <scratchpad>/<id>.png <url>`,
+  then Read the file. Build the UI from the image, not from the link text.
 - Stop and say why if the issue is closed, is not authored by `bifi627`, still has
   `needs-spec`, or has no acceptance criteria: an unapproved spec is `refine-issue`'s
   job.

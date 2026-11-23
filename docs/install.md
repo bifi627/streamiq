@@ -470,7 +470,7 @@ Installer-only variables are set on the install command, not in `gateway.env`.
 Run `gateway` from the install dir (Linux / macOS: `./gateway`). `gateway -h` lists the commands, and
 `gateway <command> -h` (or `gateway help <command>`) explains one, with examples.
 
-Tab completion for your shell (commands, `on|off`, `nvidia|off`, `off|full`, backup files):
+Tab completion for your shell (commands, `on|off`, `nvidia|off`, backup files):
 
 - PowerShell: add `& "$env:LOCALAPPDATA\streamiq\gateway.exe" completion powershell | Out-String | Invoke-Expression`
   to your profile (`notepad $PROFILE`).

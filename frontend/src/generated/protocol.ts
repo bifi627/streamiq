@@ -51,26 +51,6 @@ export interface GatewayError {
   error: string;
 }
 /**
- * Report is the gateway's account of a tunnel, made once when its PeerConnection
- * ends: its line in the gateway's tunnel history. Never sent to the API (older
- * gateways sent it as `tunnel`; the broker ignores it).
- * local = the gateway's side of the selected pair, remote = the browser's; bytes as
- * the gateway counted them on the ICE transport (sent = gateway → client).
- */
-export interface Report {
-  session: string;
-  relay: boolean;
-  ipv6: boolean;
-  localCandidateType?: string;
-  remoteCandidateType?: string;
-  protocol?: string;
-  bytesSent: number /* uint64 */;
-  bytesReceived: number /* uint64 */;
-  failure: string | null; // nil = the tunnel came up and passed auth
-  use?: string; // what it was for; "" = no request served
-  activeMs?: number /* int64 */; // from the offer to its last request's end; nil = none served
-}
-/**
  * Heartbeat is the gateway's liveness message: on connect, every 30 s, and early on a
  * change of what the API mirrors (name, relay setting).
  */
@@ -82,28 +62,6 @@ export interface Heartbeat {
   protocol: number /* int */;
   name: string;
   relayOff?: boolean; // direct connections only: the broker mints no TURN credential
-}
-/**
- * Health is the box's health as the gateway records it in its own history. Counts and
- * versions only: never names, users, client keys, media titles, file names or paths.
- */
-export interface Health {
-  jellyfin: Jellyfin;
-  os: string;
-  arch: string;
-  transcoding: string; // hardware acceleration, as in GET /streamiq/status
-  offline?: string; // jail state; none without a compose Jellyfin
-  tunnels: number /* int */; // active tunnels
-  transcodes?: number /* int */; // none when Jellyfin's /Sessions couldn't be read
-  cpu?: number /* float64 */; // busy %, 0–100
-  memory?: number /* float64 */; // used %, 0–100
-}
-/**
- * Jellyfin is Health's Jellyfin part.
- */
-export interface Jellyfin {
-  reachable: boolean;
-  version: string;
 }
 /**
  * Auth is the browser's first message on /api/broker/ws.

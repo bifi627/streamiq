@@ -14,7 +14,6 @@ import (
 	"streamiq/gateway/internal/host"
 	"streamiq/gateway/internal/jellyfin"
 	"streamiq/gateway/internal/testwait"
-	"streamiq/protocol"
 )
 
 type tunnels int
@@ -71,7 +70,7 @@ func TestTheFirstHistoryRowWaitsForTheJellyfinProbe(t *testing.T) {
 		rows, _ = history.Read[json.RawMessage](store)
 		return len(rows) > 0
 	}, "no history row")
-	var first protocol.Health
+	var first history.Sample
 	if json.Unmarshal(rows[0], &first) != nil || !first.Jellyfin.Reachable {
 		t.Fatalf("first row %s, want Jellyfin reachable", rows)
 	}

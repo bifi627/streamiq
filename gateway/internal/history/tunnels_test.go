@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"streamiq/gateway/internal/tunnel"
-	"streamiq/protocol"
 )
 
 func api(t *Tunnels) *tunnel.Router {
@@ -38,12 +37,12 @@ func TestATunnelLineHasEveryField(t *testing.T) {
 	s := &Store{Dir: t.TempDir(), Kind: "tunnels", Days: TunnelDays}
 	h := &Tunnels{Store: s, Gateway: "g1"}
 	end := time.Now().UTC()
-	r := protocol.Report{Session: "s1", Relay: true, Ipv6: true, BytesSent: 10, BytesReceived: 20,
+	r := tunnel.Report{Session: "s1", Relay: true, Ipv6: true, BytesSent: 10, BytesReceived: 20,
 		Use: "playback", ActiveMs: ref(int64(900))}
 	if err := h.Record(r, "u1", end.Add(-time.Minute), end, 4200); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.Record(protocol.Report{Session: "s2", Failure: ref("ice failed")}, "u1", end, end, 0); err != nil {
+	if err := h.Record(tunnel.Report{Session: "s2", Failure: ref("ice failed")}, "u1", end, end, 0); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(filepath.Join(s.Dir, "tunnels-"+end.Format(day)+".jsonl"))
@@ -75,24 +74,24 @@ func seed(t *testing.T, n int) *Tunnels {
 	t.Helper()
 	h := &Tunnels{Store: &Store{Dir: t.TempDir(), Kind: "tunnels", Days: 40}, Gateway: "g2"}
 	now := time.Now()
-	add := func(at time.Time, user string, r protocol.Report) {
+	add := func(at time.Time, user string, r tunnel.Report) {
 		if err := h.Record(r, user, at, at, 0); err != nil {
 			t.Fatal(err)
 		}
 	}
-	add(now.AddDate(0, 0, -31), "u2", protocol.Report{Session: "old"})
+	add(now.AddDate(0, 0, -31), "u2", tunnel.Report{Session: "old"})
 	before := *h
 	before.Gateway = "g1" // the same box, enrolled earlier (maybe in another household)
-	if err := before.Record(protocol.Report{Session: "earlier"}, "u0", now, now, 0); err != nil {
+	if err := before.Record(tunnel.Report{Session: "earlier"}, "u0", now, now, 0); err != nil {
 		t.Fatal(err)
 	}
 	for i := range n {
 		at := now.Add(-time.Duration(n-i) * time.Minute)
-		add(at, "u2", protocol.Report{Session: fmt.Sprint("m", i), Use: "playback"})
+		add(at, "u2", tunnel.Report{Session: fmt.Sprint("m", i), Use: "playback"})
 	}
-	add(now.Add(-time.Hour), "u1", protocol.Report{Session: "a1", Use: "management"})
-	add(now.Add(-2*time.Hour), "u1", protocol.Report{Session: "a2", Use: "diagnostics", Failure: ref("ice failed")})
-	add(now.Add(-3*time.Hour), "u1", protocol.Report{Session: "a3", Relay: true, BytesSent: 5, BytesReceived: 7})
+	add(now.Add(-time.Hour), "u1", tunnel.Report{Session: "a1", Use: "management"})
+	add(now.Add(-2*time.Hour), "u1", tunnel.Report{Session: "a2", Use: "diagnostics", Failure: ref("ice failed")})
+	add(now.Add(-3*time.Hour), "u1", tunnel.Report{Session: "a3", Relay: true, BytesSent: 5, BytesReceived: 7})
 	return h
 }
 

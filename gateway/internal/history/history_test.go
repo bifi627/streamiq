@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"streamiq/protocol"
 )
 
 var t0 = time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
@@ -56,13 +54,13 @@ func TestATornLineIsSkippedAndNotGluedOnto(t *testing.T) {
 func TestTheRateRule(t *testing.T) {
 	dir := t.TempDir()
 	h := func() *Health { return &Health{Store: &Store{Dir: dir, Kind: "health"}, Version: "1.4.0"} }
-	up := protocol.Health{Jellyfin: protocol.Jellyfin{Reachable: true, Version: "10.11.2"}, OS: "linux"}
+	up := Sample{Jellyfin: Jellyfin{Reachable: true, Version: "10.11.2"}, OS: "linux"}
 	down := up
 	down.Jellyfin.Reachable = false
 	r := h()
 	for _, c := range []struct {
 		after time.Duration
-		h     protocol.Health
+		h     Sample
 	}{
 		{0, up},                              // first: a row
 		{30 * time.Second, up},               // nothing changed: none
@@ -112,8 +110,8 @@ func TestTheEndpointAnswersTodaysShape(t *testing.T) {
 	s := &Store{Dir: t.TempDir(), Kind: "health"}
 	cpu := 12.5
 	for _, e := range []entry{
-		{At: now.Add(-time.Minute), GatewayVersion: "1.4.0", Health: protocol.Health{
-			Jellyfin: protocol.Jellyfin{Reachable: true, Version: "10.11.2"}, Tunnels: 2, CPU: &cpu,
+		{At: now.Add(-time.Minute), GatewayVersion: "1.4.0", Sample: Sample{
+			Jellyfin: Jellyfin{Reachable: true, Version: "10.11.2"}, Tunnels: 2, CPU: &cpu,
 		}},
 		{At: now},
 	} {

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"streamiq/gateway/internal/tunnel"
-	"streamiq/protocol"
 )
 
 // TunnelLimit caps GET /streamiq/tunnels.
@@ -21,7 +20,7 @@ type Tunnels struct {
 }
 
 // Record appends the line of a tunnel that ended at end.
-func (t *Tunnels) Record(r protocol.Report, user string, start, end time.Time, kbps int) error {
+func (t *Tunnels) Record(r tunnel.Report, user string, start, end time.Time, kbps int) error {
 	l := Tunnel{
 		ID: r.Session, GatewayID: t.Gateway, CreatedAt: start.UTC(), EndedAt: end.UTC(), UserID: user,
 		Relay: r.Relay, IPv6: r.Ipv6, BytesSent: r.BytesSent, BytesReceived: r.BytesReceived,
@@ -37,7 +36,7 @@ func (t *Tunnels) Record(r protocol.Report, user string, start, end time.Time, k
 }
 
 // Ended records a tunnel that ends now (sessions.Sessions.Ended); a failed write is logged.
-func (t *Tunnels) Ended(r protocol.Report, user string, start time.Time, kbps int) {
+func (t *Tunnels) Ended(r tunnel.Report, user string, start time.Time, kbps int) {
 	if err := t.Record(r, user, start, time.Now(), kbps); err != nil {
 		log.Printf("gateway: tunnel history: %v", err)
 	}

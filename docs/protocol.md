@@ -221,7 +221,7 @@ API keeps no per-tunnel data (#783) and the browser can't create, alter or skip 
 - **Report**: when a session's PeerConnection fails or closes (any path: ICE, `bye`, a
   removed client), the gateway reads once, from pion before `pc.Close()`, `relay`, `ipv6`,
   the candidate types, `protocol`, `bytesSent`, `bytesReceived`, `failure`, `use` and
-  `activeMs` (`protocol.Report`) and writes its line to
+  `activeMs` (`tunnel.Report`) and writes its line to
   `state/history/tunnels-YYYY-MM-DD.jsonl` (below), which Activity reads. From the gateway's
   side: `local` = the gateway's selected candidate, `remote` = the browser's, `bytesSent` =
   gateway → client (ICE transport totals). `relay` = either side of the pair is a relay, or

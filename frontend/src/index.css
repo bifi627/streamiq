@@ -1958,7 +1958,7 @@ progress::-moz-progress-bar {
 }
 .setting > input,
 .setting > .choice,
-.setting > .pick {
+.setting > .picker {
   order: 1;
   margin: 0 0 0 auto;
 }

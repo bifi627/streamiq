@@ -96,7 +96,7 @@ export function GatewayBadge({
       {!isRoute(part) && lead}
       {note && (
         <span className="muted" aria-hidden="true">
-          {n.name && '· '}
+          {(n.name || n.initial) && '· '}
           {note}
         </span>
       )}

@@ -30,5 +30,5 @@ export const badgeNames = (
 ) => ({
   name: gateways > 1 ? gateway : null,
   initial: households > 1 ? ([...household][0] ?? '').toUpperCase() : null,
-  heading: `${gateway} in ${household}`,
+  heading: household ? `${gateway} in ${household}` : gateway, // before /me
 })

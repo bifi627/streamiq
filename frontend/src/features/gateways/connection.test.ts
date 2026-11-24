@@ -34,4 +34,5 @@ test('badgeNames: names only what tells things apart, the heading always', () =>
   assert.equal(badgeNames('NAS', 1, 'familie', 2).initial, 'F')
   assert.equal(badgeNames('NAS', 1, 'Household …a1b2c3', 3).initial, 'H')
   assert.equal(badgeNames('NAS', 1, '😀 Club', 2).initial, '😀') // not half a surrogate pair
+  assert.equal(badgeNames('NAS', 1, '', 0).heading, 'NAS')
 })

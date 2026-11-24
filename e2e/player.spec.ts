@@ -179,7 +179,9 @@ test('controls: ±10 s and Play / Pause, by button and by key @player', async ({
   const paused = () => video.evaluate((v: HTMLVideoElement) => v.paused)
   const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime)
   // Paused while seeking: the playhead moves by the skip alone.
-  // Keys first: focus outside the bar (←/→ seek, Space play-pause).
+  // Keys first: focus in the player, outside the bar (←/→ seek, Space
+  // play-pause); inline, keys from the page body are mostly the page's.
+  await page.locator('.player').focus()
   await page.keyboard.press('Space')
   await expect.poll(paused).toBe(true)
   let t = await at()

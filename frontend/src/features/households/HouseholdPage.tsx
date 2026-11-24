@@ -8,6 +8,7 @@ import { arrowFocus } from '../../shared/focus'
 import { EditableName, STORED } from '../gateways/EditableName'
 import {
   householdLabel,
+  membershipLabel,
   SetMeContext,
   switchHousehold,
   useHousehold,
@@ -86,7 +87,7 @@ function Switcher({ me }: { me: Me }) {
     >
       {me.memberships.map((m) => (
         <option key={m.id} value={m.id}>
-          {householdLabel(m)} ({m.role})
+          {membershipLabel(m)}
         </option>
       ))}
     </select>

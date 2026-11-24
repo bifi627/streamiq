@@ -6,7 +6,7 @@
 #   bash scripts/review-level.sh [PR number]    # no number = this branch vs origin/main
 #
 # Prints `<level> <risk> <why>` on the first line (level = xhigh | high | low, risk =
-# low | mid | critical, why = the rule that set the risk), then the evidence, one line
+# low | mid | high | critical, why = the rule that set the risk), then the evidence, one line
 # each: `path: <file> (+added -removed)` for a crown-jewel path, `content: <file>:
 # <pattern>` for an added line matching a risky pattern anywhere.
 #
@@ -21,7 +21,9 @@
 # or content hit (worth a human read); critical for a `!` title (breaks installed
 # gateways; rule breaking-title) and for a destructive migration (rule
 # one-way-migration, ONE_WAY below: no redeploy brings the data back). high (CI can't
-# check it) is only the reviewer's call. No device:* rule: those PRs stay draft until
+# check it) is the reviewer's call, and with a PR number also rule manual-proof: the
+# issue its body names with `Fixes #N` has an unchecked `(proof: manual` criterion
+# (evidence `manual: #N: <criterion>`). No device:* rule: those PRs stay draft until
 # the owner's device test.
 set -euo pipefail
 
@@ -109,6 +111,19 @@ scan() {
 }
 scan 1 content '' 0 "$CONTENT"
 scan 3 one-way-migration '^api/migrations/.*[.]sql$' 1 "$ONE_WAY"
+
+if [ $# -gt 0 ]; then
+  issue=$(gh pr view "$1" --json body --jq .body | { grep -oiE 'fixes #[0-9]+' || true; } | head -1 | tr -dc 0-9)
+  if [ -n "$issue" ]; then
+    # The criterion's own tag is its last `(proof: `: its text may quote another.
+    while IFS= read -r c; do
+      [[ $c == *'(proof: '* && ${c##*(proof: } == manual* ]] || continue
+      raise 2 manual-proof
+      evidence+="manual: #$issue: $c"$'\n'
+    done < <(gh issue view "$issue" --json body --jq .body | tr -d '\r' |
+      sed -n 's/^[[:space:]]*[-*] \[ \] //p')
+  fi
+fi
 
 # `type!:` / `type(scope)!:` marks a breaking change (same pattern as next-gateway-version.sh).
 [[ ${title:-} =~ ^[a-zA-Z]+(\([^\)]*\))?!: ]] && rank=3 why=breaking-title

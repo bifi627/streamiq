@@ -129,7 +129,7 @@ export function Player({
             : []),
         ]}
         onBack={() => onExit(item)}
-        noBack={inline}
+        inline={inline}
         onNext={next && onNext && (() => onNext(next))}
         top={
           <>

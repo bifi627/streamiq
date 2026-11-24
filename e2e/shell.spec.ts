@@ -5,7 +5,7 @@
 // per-device setting persisted, and the D-pad on Playback. TV mode: the first visit
 // on a TV (webOS turns it on, Android TV asks), the handoff page (/household: QR
 // code, Back), the Settings + nav TV subsets, the D-pad up to the title row and
-// along the nav. What the settings do to playback is the player's spec.
+// along the nav, the TV's Household & gateway pickers (gateway list rows faked). What the settings do to playback is the player's spec.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -171,6 +171,90 @@ test('TV mode: /household hands off, the nav keeps Library + Settings, D-pad to 
   await expect(nav.getByRole('link', { name: 'Household' })).toBeVisible()
 })
 
+test('TV Settings: Household & gateway pickers with 2+ of each, by D-pad; absent with one of each and outside TV mode (#871) @shell', async ({
+  browser,
+}) => {
+  const user = await signUp(uniqueEmail('shell'))
+  const p = await signedInPage(browser, user, '/settings')
+  // List rows only, no gateway behind them: Library just opens the route.
+  const gw = (id: string, name: string, online: boolean) => ({
+    id,
+    name,
+    online,
+    lastSeenAt: null,
+    lanUrl: null,
+    version: null,
+    update: null,
+    upgradeRequired: false,
+    relayOff: false,
+  })
+  let gateways = [gw('den-gw', 'Den', true)]
+  await p.route('**/api/gateways', (r) => r.fulfill({ json: gateways }))
+  const category = p.locator('summary', { hasText: 'Household & gateway' })
+  await openCategory(p, 'Display')
+  await p.getByLabel('TV mode').check()
+  await p.reload()
+  await expect(p.getByRole('heading', { level: 1 })).toHaveText('Settings')
+  await expect(category).toHaveCount(0) // one household, one gateway
+
+  gateways = [...gateways, gw('cabin-gw', 'Cabin', false)]
+  const { householdId: other } = await user.api('/households', {
+    method: 'POST',
+  })
+  await p.reload()
+  await expect(category.locator('..')).toHaveAttribute('open', '') // own card, open on load
+  const household = p.getByRole('button', { name: /^Household: / })
+  const gateway = p.getByRole('button', { name: /^Gateway: / })
+  await expect(household).toHaveAccessibleName(
+    `Household: Household …${user.tenantId.slice(-6)} (admin)`,
+  )
+  await expect(gateway).toHaveAccessibleName('Gateway: Den (online)')
+
+  // D-pad: Down from the category to both rows; OK opens the gateway's list,
+  // Down past the current one to Cabin, OK picks it and returns to the row.
+  await category.focus()
+  await p.keyboard.press('ArrowDown')
+  await expect(household).toBeFocused()
+  await p.keyboard.press('ArrowDown')
+  await expect(gateway).toBeFocused()
+  await p.keyboard.press('Enter')
+  const list = p.getByRole('dialog', { name: 'Gateway' })
+  await expect(
+    list.getByRole('button', { name: 'Den (online)' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await p.keyboard.press('ArrowDown')
+  await p.keyboard.press('ArrowDown')
+  await expect(
+    list.getByRole('button', { name: 'Cabin (offline)' }),
+  ).toBeFocused()
+  await p.keyboard.press('Enter')
+  await expect(list).toHaveCount(0)
+  await expect(gateway).toHaveAccessibleName('Gateway: Cabin (offline)')
+  await expect(gateway).toBeFocused()
+  await p
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Library' })
+    .click()
+  await expect(p).toHaveURL(/\/g\/cabin-gw$/)
+
+  // Household: a pick reloads into it.
+  await p.goto(appUrl('/settings'))
+  await household.click()
+  await p
+    .getByRole('dialog', { name: 'Household' })
+    .getByRole('button', { name: `Household …${other.slice(-6)} (admin)` })
+    .click()
+  await expect(p).not.toHaveURL(/\/settings$/) // home, in the other household
+  await p.goto(appUrl('/settings'))
+  await expect(household).toHaveAccessibleName(
+    `Household: Household …${other.slice(-6)} (admin)`,
+  )
+
+  await openCategory(p, 'Display')
+  await p.getByLabel('TV mode').uncheck()
+  await expect(category).toHaveCount(0)
+})
+
 /** A signed-out browser at the sign-in page whose user agent says ua. */
 async function visitAs(browser: Browser, ua: string) {
   const p = await newPage(browser)
@@ -228,9 +312,9 @@ test('Settings overview: categories, Playback page, expandables, D-pad @shell', 
   const h1 = p.getByRole('heading', { level: 1 })
   const rows = p.locator('.categories > li > a, .categories summary')
   await expect(rows).toHaveText([
+    `Account${user.email}`,
     'Playback',
     'Display',
-    `Account${user.email}`,
     'Diagnostics',
   ])
   await expect(p.locator('details[open]')).toHaveCount(0)
@@ -241,14 +325,14 @@ test('Settings overview: categories, Playback page, expandables, D-pad @shell', 
   const playback = p.getByRole('link', { name: 'Playback' })
   await expect(playback).toBeFocused()
   await p.keyboard.press('ArrowDown')
-  await expect(rows.nth(1)).toBeFocused()
+  await expect(rows.nth(2)).toBeFocused()
   await p.keyboard.press('Enter')
   const tv = p.getByLabel('TV mode')
   await expect(tv).toBeVisible()
   await p.keyboard.press('ArrowDown')
   await expect(tv).toBeFocused()
   await p.keyboard.press('ArrowDown')
-  await expect(rows.nth(2)).toBeFocused()
+  await expect(rows.nth(3)).toBeFocused()
   await p.keyboard.press('ArrowUp')
   await expect(tv).toBeFocused()
   await p.keyboard.press('ArrowUp')

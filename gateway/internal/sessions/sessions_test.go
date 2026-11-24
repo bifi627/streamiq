@@ -1030,7 +1030,14 @@ func TestRelayOffDropsRemoteRelayCandidates(t *testing.T) {
 		gateway.mu.Lock()
 		pc := gateway.pcs["s1"]
 		gateway.mu.Unlock()
-		if got := remoteRelays(pc); got != on {
+		// pion adds a remote candidate in a goroutine (ice Agent.AddRemoteCandidate): wait
+		// for it to land. With the relay off it is never handed to pion, so no wait.
+		got := remoteRelays(pc)
+		for deadline := time.Now().Add(2 * time.Second); on && !got && time.Now().Before(deadline); {
+			time.Sleep(10 * time.Millisecond)
+			got = remoteRelays(pc)
+		}
+		if got != on {
 			t.Errorf("relay %v: pion has the relay candidate %v", on, got)
 		}
 	}

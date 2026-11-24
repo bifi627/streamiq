@@ -74,7 +74,7 @@ chat questions only if the tool isn't there.
     and technique terms (process, git, CI, refactoring patterns) are never asked. A new
     concept the issue introduces that no glossary word fits (not an existing feature
     the glossary just lacks): ask the owner for its word; the draft gets the
-    criterion "glossary line added in CLAUDE.md".
+    criterion "glossary line added in CLAUDE.md (proof: run)".
   - Claims: an owner claim the code contradicts is shown (file link, what the code
     does) and asked: which holds.
   - Done when no question is open, not when the rounds run out: list in chat the

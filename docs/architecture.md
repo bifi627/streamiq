@@ -272,7 +272,9 @@ peaks per local day.
   (`libraryTarget` in `shell.ts`). Switch sets it; the card's Test (`probe` in `api.ts`, the
   badge's check) also feeds the badge. Add gateway and Pair open as a modal
   (`shared/Dialog.tsx`, native `<dialog>`). A card's link opens `/gateways/<id>`
-  (`GatewayDetail.tsx`: every detail and action), off TV mode's allowlist.
+  (`GatewayDetail.tsx`: Rename/Remove in the title row's ⋮ menu, the update banner, Pair this
+  browser, and the collapsed Status / Health / Paired clients tiles; no Open, no Use as
+  screen: that is TV mode's top bar), off TV mode's allowlist.
 - Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its
   first-visit default (`features/tv/tv.ts`: known TV → on, Android box → ask once, #309). Its routes
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the

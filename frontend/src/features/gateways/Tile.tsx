@@ -16,14 +16,14 @@ export function Tile({
 }) {
   return (
     <details
-      className="card tile"
+      className="card gw-tile"
       onToggle={(e) => onOpen(e.currentTarget.open)}
     >
       <summary ref={summaryRef}>
         {title}
         <Chevron />
       </summary>
-      <div className="tile-body">{children}</div>
+      <div className="gw-tile-body">{children}</div>
     </details>
   )
 }

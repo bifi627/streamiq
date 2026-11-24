@@ -269,8 +269,8 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… is
   )[1]
   await viaTunnel(phone, `/streamiq/screens/${screen}`, { type: 'stop' })
   await expect(tv.getByRole('heading', { name: /^Screen: / })).toBeVisible()
-  await tv.keyboard.press('Escape') // back where it was opened: the gateway's page
-  await expect(tv).toHaveURL(/\/gateways\/[^/]+$/)
+  await tv.keyboard.press('Escape') // back where it was opened: the library
+  await expect(tv).toHaveURL(/\/g\/[^/]+$/)
   for (const p of [phone, phone2])
     await expect(p.getByText('Screen closed.')).toBeVisible()
   expect(

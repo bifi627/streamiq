@@ -149,7 +149,11 @@ function GatewayPage({
         }
         actions={
           actions.length > 0 && (
-            <ActionMenu label="Gateway actions" actions={actions} button={menu} />
+            <ActionMenu
+              label="Gateway actions"
+              actions={actions}
+              button={menu}
+            />
           )
         }
       />
@@ -178,9 +182,12 @@ function GatewayPage({
           onPaired={() => setUnpaired(false)}
         />
       )}
-      <div className="tiles">
+      <div className="gw-tiles">
         <StatusDetails g={g} manage={manage} />
-        <HealthHistory g={g} paired={pinned === true} /* removedSelf unpins */ />
+        <HealthHistory
+          g={g}
+          paired={pinned === true} /* removedSelf unpins */
+        />
         {/* A member's list is just this browser. */}
         <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
       </div>

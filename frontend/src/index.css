@@ -759,7 +759,7 @@ html.tv .no-tv {
   padding-left: var(--sp-5);
 }
 /* Gateway page (GatewayDetail.tsx): the tiles stacked on a phone, two columns
-   where they fit; each a <details> whose whole <summary> row toggles it. */
+   from 52rem; each a <details> whose whole <summary> row toggles it. */
 .gateway-page {
   display: flex;
   flex-direction: column;
@@ -769,17 +769,21 @@ html.tv .no-tv {
 .gateway-page > .actions {
   margin: 0;
 }
-.tiles {
+.gw-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
   align-items: start;
   gap: var(--sp-4);
 }
-.card.tile {
+@media (min-width: 52rem) {
+  .gw-tiles {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.card.gw-tile {
   padding: 0 var(--sp-5);
   gap: 0;
 }
-.card.tile > summary {
+.card.gw-tile > summary {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -790,16 +794,17 @@ html.tv .no-tv {
   font-weight: 600;
   list-style: none;
 }
-.card.tile > summary::-webkit-details-marker {
+.card.gw-tile > summary::-webkit-details-marker {
   display: none;
 }
-.card.tile > summary .chevron {
+.card.gw-tile > summary .chevron {
   transform: rotate(90deg);
 }
-.card.tile[open] > summary .chevron {
+.card.gw-tile[open] > summary .chevron {
   transform: rotate(-90deg);
 }
-.tile-body {
+.gw-tile-body {
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
@@ -807,15 +812,15 @@ html.tv .no-tv {
   color: var(--text-muted);
   font-size: 0.875rem;
 }
-.tile-body > p,
-.tile-body h3 {
+.gw-tile-body > p,
+.gw-tile-body h3 {
   margin: 0;
 }
-.tile-body ul {
+.gw-tile-body ul {
   margin: 0;
   padding-left: var(--sp-5);
 }
-.tile-body h3 {
+.gw-tile-body h3 {
   color: var(--text);
   font-size: inherit;
 }

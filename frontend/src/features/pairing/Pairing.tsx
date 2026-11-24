@@ -22,7 +22,6 @@ import { connKey } from '../gateways/connection'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
 // and tunnel one request through it ("Test connection": a cheap diagnostic).
-// oxlint-disable-next-line complexity -- render branching + effect wiring
 export function Pairing({
   gatewayId,
   lanUrl,

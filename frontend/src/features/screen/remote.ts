@@ -1,4 +1,4 @@
-// The phone remote's decisions (RemotePage in Screen.tsx): plain data in and out.
+// The phone's decisions on screens (Play on… and RemotePage in Screen.tsx): plain data in and out.
 import type { Screen } from '../gateways/api'
 
 /** Seconds, kept in 0 … dur; unbounded while dur is unknown (0). */
@@ -19,3 +19,22 @@ export function polled(
   const screen = screens && (screens.find((x) => x.id === screenId) ?? null)
   return { screen, again: screen !== null, recovered: !!wasDown && !down }
 }
+
+/** Play on…'s choices: each open screen plays the item; one already playing
+ * also offers its remote. */
+export const playOnOptions = (screens: Screen[]) => [
+  ...screens.map((s) => ({
+    value: `play:${s.id}`,
+    label: s.name,
+    screenId: s.id,
+    remote: false,
+  })),
+  ...screens
+    .filter((s) => s.state?.itemId)
+    .map((s) => ({
+      value: `remote:${s.id}`,
+      label: `Remote: ${s.name}`,
+      screenId: s.id,
+      remote: true,
+    })),
+]

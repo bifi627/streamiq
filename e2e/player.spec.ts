@@ -513,8 +513,8 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
   const now = (ep: string) => a.locator('.now p', { hasText: ep })
   const playing = (secs = 0) =>
     expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(secs)
-  // The focused primary button names the episode to play; OK plays it.
-  const primary = a.locator('button.primary')
+  // The focused hero card names the episode to play; OK plays it.
+  const primary = a.locator('button.hero')
   await expect(primary).toBeFocused()
   expect(await primary.textContent()).toContain('S1 · E1')
   await a.keyboard.press('Enter')
@@ -524,7 +524,7 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
     .locator('video')
     .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
   await a.waitForFunction(() => document.querySelector('video')?.ended)
-  // Finished episode → back: the first primary button shown already
+  // Finished episode → back: the first hero card shown already
   // names the next one (no stale "S1 · E1").
   await a.goBack()
   await expect(primary).toBeFocused()

@@ -34,22 +34,25 @@ async function useAsScreen(tv: Page) {
   )
 }
 
-/** A phone: a new tab on the TV's gateway library, Movies, the clip's page with its Play on… open. */
+/** A phone: a new tab on the TV's gateway library, Movies, the clip's page. */
 async function phoneAt(tv: Page) {
   const phone = await tv.context().newPage()
   await keepPcs(phone) // viaTunnel
   await phone.goto(tv.url().replace(/\/screen$/, ''))
   await phone.getByRole('button', { name: /Movies/ }).click()
   await phone.getByRole('button', { name: /streamiq e2e clip/ }).click()
-  await phone.getByRole('button', { name: 'Play on…' }).click()
   return phone
 }
+
+/** Play on…'s native picker on the phone's title page. */
+const playOn = (phone: Page) =>
+  phone.getByRole('combobox', { name: 'Play on…' })
 
 /** The TV as a screen, a phone playing the clip on it: the phone's Remote open. */
 async function cast(tv: Page) {
   const name = await useAsScreen(tv)
   const phone = await phoneAt(tv)
-  await phone.getByRole('button', { name, exact: true }).click()
+  await playOn(phone).selectOption({ label: name })
   await expect(
     phone.getByRole('heading', { name: `Remote: ${name}` }),
   ).toBeVisible()
@@ -57,10 +60,10 @@ async function cast(tv: Page) {
   return { name, phone }
 }
 
-/** A second phone on the playing screen: Play on… → Remote. */
-async function secondPhone(tv: Page) {
+/** A second phone on the playing screen: Play on… → its Remote. */
+async function secondPhone(tv: Page, name: string) {
   const phone = await phoneAt(tv)
-  await phone.getByRole('link', { name: 'Remote' }).click()
+  await playOn(phone).selectOption({ label: `Remote: ${name}` })
   return phone
 }
 
@@ -111,7 +114,7 @@ test('Play on… (#180): the waiting screen, a phone plays on it @player', async
   const name = await useAsScreen(tv)
   await expect(tv.getByText(`Play on ${name}`)).toBeVisible()
   const phone = await phoneAt(tv)
-  await phone.getByRole('button', { name, exact: true }).click()
+  await playOn(phone).selectOption({ label: name })
   await expect(
     phone.getByRole('heading', { name: `Remote: ${name}` }),
   ).toBeVisible()
@@ -212,8 +215,8 @@ test("two phones (#181): either one's command reaches the TV, both show it; so d
   paired,
 }) => {
   const { page: tv } = paired
-  const { phone } = await cast(tv)
-  const phone2 = await secondPhone(tv)
+  const { name, phone } = await cast(tv)
+  const phone2 = await secondPhone(tv, name)
   const both = (name: string, timeout?: number) =>
     Promise.all(
       [phone, phone2].map((p) =>
@@ -244,12 +247,12 @@ test("two phones (#181): either one's command reaches the TV, both show it; so d
   await expect(phone.getByText(/^0:2\d \/ 0:30$/)).toBeVisible()
 })
 
-test('closing: Back on the TV ends screen mode; the phones say so, Play on… lists none @player', async ({
+test('closing: Back on the TV ends screen mode; the phones say so, Play on… is gone @player', async ({
   paired,
 }) => {
   const { page: tv } = paired
-  const { phone } = await cast(tv)
-  const phone2 = await secondPhone(tv)
+  const { name, phone } = await cast(tv)
+  const phone2 = await secondPhone(tv, name)
   // Arranged over the tunnel: back to the waiting screen.
   const screen = must(
     phone.url().match(/\/remote\/([^/]+)$/),
@@ -267,6 +270,8 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… li
   await phone.getByRole('alert').getByRole('link', { name: 'Library' }).click() // not the nav's
   await phone.getByRole('button', { name: /Movies/ }).click()
   await phone.getByRole('button', { name: /streamiq e2e clip/ }).click()
-  await phone.getByRole('button', { name: 'Play on…' }).click()
-  await expect(phone.getByText(/No screen open/)).toBeVisible()
+  await expect(
+    phone.getByRole('button', { name: /^(Play|Resume)$/ }),
+  ).toBeVisible()
+  await expect(playOn(phone)).toHaveCount(0)
 })

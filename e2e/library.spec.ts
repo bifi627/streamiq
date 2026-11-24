@@ -3,6 +3,7 @@
 // online one, then the last opened), the nav's Library link, the
 // shared session, folder deep links (title row + Back) + cache, Recently added,
 // Continue watching's order (the spot; a phone's row) and click-through guard, season tabs
+// (with the title page's D-pad order)
 // and watched marks, no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
@@ -251,7 +252,7 @@ test('continue watching: newest first; the click-through guard keeps the order (
   await expect(spot).toBeHidden()
 })
 
-test('seasons: tabs, Season 1 first with its episodes, Season 2 on a click @library', async ({
+test('seasons: tabs, Season 1 first with its episodes, D-pad hero → tabs → episodes, Season 2 on a click @library', async ({
   paired,
 }) => {
   const { page } = paired
@@ -264,6 +265,12 @@ test('seasons: tabs, Season 1 first with its episodes, Season 2 on a click @libr
   await expect(tabs.getByRole('tab')).toHaveText(['Season 1', 'Season 2'])
   await expect(tabs.getByRole('tab', { selected: true })).toHaveText('Season 1')
   await expect(episodes).toHaveText([/S01E01/, /S01E02/])
+  // D-pad: the hero card has first focus; Down → the season tabs → episodes.
+  await expect(page.locator('button.hero')).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(tabs.getByRole('tab', { selected: true })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(episodes.first().getByRole('button').first()).toBeFocused()
   await tabs.getByRole('tab', { name: 'Season 2' }).click()
   await expect(tabs.getByRole('tab', { selected: true })).toHaveText('Season 2')
   await expect(episodes).toHaveText([/S02E01/, /S02E02/])

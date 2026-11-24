@@ -25,10 +25,12 @@ import {
   inProgress,
   pageItem,
   playable,
+  playLabel,
   playsAtOnce,
   progress,
   runtime,
   TICKS_PER_SECOND,
+  titleInfo,
   upNext,
   type Item,
 } from './items'
@@ -132,15 +134,15 @@ export function ItemPage({ itemId }: { itemId: string }) {
   if (!shown)
     return (
       <div className="title" role="status" aria-label="Loading">
-        <div className="title-side">
-          <div className="ph title-poster" />
-          <div className="ph ph-h1" />
-          <div className="ph ph-line" />
-          <div className="ph ph-line short" />
+        <div className="title-top">
+          <div className="ph hero" />
+          <div className="title-info">
+            <div className="ph ph-h1" />
+            <div className="ph ph-line" />
+            <div className="ph ph-line short" />
+          </div>
         </div>
-        <div className="title-main">
-          <EpisodesPlaceholder />
-        </div>
+        <EpisodesPlaceholder />
       </div>
     )
   const { item, season } = shown
@@ -162,11 +164,12 @@ function EpisodesPlaceholder() {
 const seasonName = (s: Item) =>
   s.Name || (s.IndexNumber != null ? `Season ${s.IndexNumber}` : 'Season')
 
-// Series / movie page: the left column (poster, title, meta, overview,
-// the one primary button); a series adds season tabs + its episodes, a movie
-// its backdrop. The primary button takes first focus (one OK press plays);
-// nothing moves focus after that, on re-renders or tab changes. Data from
-// before the last playback doesn't drive it: it waits for the refetch.
+// Series / movie / other video page: the hero card plays (first focus on
+// load: one OK press plays), the info column beside it (phone: under it,
+// shortened, with More and its own Play button); a series adds its season
+// tabs + episodes below. Nothing moves focus after that, on re-renders or tab
+// changes. Data from before the last playback doesn't drive play: it waits for
+// the refetch.
 // oxlint-disable-next-line complexity -- render branching
 function Title({
   item,
@@ -181,6 +184,7 @@ function Title({
   const navigate = useNavigate()
   const series = item.Type === 'Series'
   const [tab, setTab] = useState(season)
+  const [more, setMore] = useState(false)
   // ponytail: every episode in one request; per season if huge shows lag.
   const ss = useTunnelQuery<{ Items: Item[] }>(
     series ? jf.seasons(item.Id) : null,
@@ -203,56 +207,79 @@ function Title({
   )
   const next = series ? lists && upNext(lists.episodes) : item
   const ready = current(gatewayId, series ? es.dataUpdatedAt : updatedAt)
-  const resumes =
-    !!next &&
-    !next.UserData?.Played &&
-    (next.UserData?.PlaybackPositionTicks ?? 0) > 0
-  const where =
-    next && series
-      ? ` S${next.ParentIndexNumber ?? '?'} · E${next.IndexNumber ?? '?'}`
-      : ''
+  const go = next && ready ? next : null
   const shown = tab ?? next?.SeasonId ?? lists?.seasons[0]?.Id
   const episodes = lists?.episodes.filter((e) => e.SeasonId === shown) ?? []
-  const count = lists?.seasons.length
-  const meta = [
-    item.ProductionYear,
-    series
-      ? count && `${count} ${count === 1 ? 'season' : 'seasons'}`
-      : runtime(item),
-    item.Genres?.[0],
-  ].filter(Boolean)
+  const info = titleInfo(item, lists?.seasons.length)
+  const genres = item.Genres ?? []
+  const hasMore = !!item.Overview || genres.length > 1
+  const art = (
+    <Artwork
+      art={backdrop(item) ?? primary(item)}
+      card={item}
+      width={1280}
+      className="hero-art"
+    />
+  )
 
   return (
     <div className="title">
       <PageBar title={item.Name} onBack={back} />
-      <div className="title-side">
-        <Artwork
-          art={primary(item)}
-          card={item}
-          width={360}
-          className="title-poster"
-        />
-        {meta.length > 0 && <p className="muted">{meta.join(' · ')}</p>}
-        {item.Overview && <p className="overview">{item.Overview}</p>}
-        {next && ready && (
-          <>
-            <button
-              type="button"
-              className="primary"
-              autoFocus
-              onClick={() => play(next)}
-            >
+      <div className="title-top">
+        {go ? (
+          <button
+            type="button"
+            className="hero"
+            autoFocus
+            onClick={() => play(go)}
+          >
+            {art}
+            <span className="hero-play">
               <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="M7 4v16l13-8z" />
               </svg>
-              {resumes ? 'Resume' : 'Play'}
-              {where}
-            </button>
-            <PlayOn pc={pc} item={next} />
-          </>
+              {playLabel(go)}
+            </span>
+          </button>
+        ) : (
+          <div className="hero">{art}</div>
         )}
+        <div className="title-info">
+          <p className="title-name">{item.Name}</p>
+          {info && <p className="muted">{info}</p>}
+          {hasMore && (
+            <button
+              type="button"
+              className="phone-only more-toggle"
+              aria-expanded={more}
+              onClick={() => setMore(!more)}
+            >
+              {more ? 'Less' : 'More'}
+            </button>
+          )}
+          {hasMore && (
+            <div className={more ? 'more open' : 'more'}>
+              {item.Overview && <p className="overview">{item.Overview}</p>}
+              {genres.length > 1 && (
+                <p className="muted">{genres.join(', ')}</p>
+              )}
+            </div>
+          )}
+          {go && (
+            <>
+              <button
+                type="button"
+                className="primary phone-only"
+                onClick={() => play(go)}
+              >
+                {playLabel(go)}
+              </button>
+              <PlayOn pc={pc} item={go} />
+            </>
+          )}
+        </div>
       </div>
-      {series ? (
+      {series && (
         <div className="title-main">
           {err && <ErrorView error={err} />}
           {!lists && !err && <EpisodesPlaceholder />}
@@ -293,14 +320,6 @@ function Title({
             </ul>
           )}
         </div>
-      ) : (
-        backdrop(item) && (
-          <Artwork
-            art={backdrop(item)}
-            width={1280}
-            className="title-backdrop"
-          />
-        )
       )}
     </div>
   )

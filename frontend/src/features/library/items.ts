@@ -188,3 +188,26 @@ export const folderUp = (i: Item) =>
   i.Type === 'CollectionFolder' || i.Type === 'UserView'
     ? null
     : (i.ParentId ?? null)
+
+/** The title page's info line: year · runtime (a series: its season count) ·
+ * the first genre; what's missing is left out. */
+export function titleInfo(item: Item, seasons?: number) {
+  const length =
+    item.Type === 'Series'
+      ? seasons && `${seasons} ${seasons === 1 ? 'season' : 'seasons'}`
+      : runtime(item)
+  return [item.ProductionYear, length, item.Genres?.[0]]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** The title page's play label for the item it plays: "Play", or "Resume"
+ * with progress; an episode adds "· S1 · E3". */
+export function playLabel(next: Item) {
+  const resumes =
+    !next.UserData?.Played && (next.UserData?.PlaybackPositionTicks ?? 0) > 0
+  const verb = resumes ? 'Resume' : 'Play'
+  return next.Type === 'Episode'
+    ? `${verb} · S${next.ParentIndexNumber ?? '?'} · E${next.IndexNumber ?? '?'}`
+    : verb
+}

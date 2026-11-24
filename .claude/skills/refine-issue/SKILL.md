@@ -72,7 +72,8 @@ chat questions only if the tool isn't there.
     product or a user has, and it is an old word, is used differently from the CLAUDE.md
     glossary, or could mean two glossary words: which glossary word is meant. Tooling
     and technique terms (process, git, CI, refactoring patterns) are never asked. A new
-    concept no glossary word fits: ask the owner for its word; the draft gets the
+    concept the issue introduces that no glossary word fits (not an existing feature
+    the glossary just lacks): ask the owner for its word; the draft gets the
     criterion "glossary line added in CLAUDE.md".
   - Claims: an owner claim the code contradicts is shown (file link, what the code
     does) and asked: which holds.

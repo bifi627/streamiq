@@ -22,7 +22,8 @@ questions, split or not, approval, what to do next) goes through the AskUserQues
 overlay: one question per decision, 2–4 options, your recommendation first with
 "(Recommended)". The dialog may be all the owner sees, so each question names the
 issue and the facts it depends on. Drafts, findings and the issue link go in chat
-before the overlay. Plain chat questions only if the tool isn't there.
+in an earlier call than the overlay, never in the same batch as AskUserQuestion. Plain
+chat questions only if the tool isn't there.
 
 ## 1. Read
 
@@ -107,14 +108,23 @@ The topic is a group (CLAUDE.md "Group related issues"): N becomes the parent.
 
 - Propose in chat: the sub-issues in build order, each with title, one-line
   scope, labels (type, `area:*`, `p*`, `size:*`, `device:*`) and what it depends on.
-  Each is one reviewable PR. Plus what the parent keeps: Why, the decisions shared by
-  all of them, out of scope for the whole group. Then ask with AskUserQuestion: agree
-  with the split / change something.
+  Each is one reviewable PR. "Depends on" names only a real dependency (it needs the
+  other's code or decision), not build order. Plus what the parent keeps: Why, the
+  decisions shared by all of them, out of scope for the whole group. Then ask with
+  AskUserQuestion: agree with the split / change something.
+- A refactor too big for one PR whose callers are all in this repo splits as
+  expand–contract: expand (the new shape next to the old, both work) → migrate the
+  callers in batches (one PR each, `main` green after each) → contract (remove the old).
+  Not for what installed gateways see (gateway↔API protocol, `gateway.env`, state dir,
+  CLI): that is one `!` change (CLAUDE.md), no aliases.
 - After the owner agrees:
   - Create each sub-issue (template structure; body = Why + its one-line scope; label
     `needs-spec`) and link it to N:
     `gh api repos/bifi627/streamiq/issues/N/sub_issues -F sub_issue_id=<id>`, where
     `<id>` is `gh api repos/bifi627/streamiq/issues/<M> --jq .id` (the id, not the number).
+  - For each dependency the agreed proposal names (M depends on B), and only those, set
+    GitHub's native edge: `gh api repos/bifi627/streamiq/issues/<M>/dependencies/blocked_by
+    -F issue_id=<B's id>`. No chain that mirrors `Order:`: independent sub-issues get none.
   - Rewrite N's body: Why, the numbered list of sub-issues, an `Order:` line with the
     reason for it, acceptance criterion "All sub-issues closed", Out of scope. Remove
     its `needs-spec` and `bash scripts/issue-status.sh N Ready`: the approved split is

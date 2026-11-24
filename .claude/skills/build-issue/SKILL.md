@@ -39,7 +39,9 @@ orchestrator nothing changes.
   job.
 - Stop and ask the owner (AskUserQuestion: go on / stop, naming what holds) if any of
   these holds:
-  - the issue names a blocker that is still open;
+  - the issue names a blocker that is still open, or has a native "blocked by" edge to
+    an open issue (`gh api repos/bifi627/streamiq/issues/N/dependencies/blocked_by
+    --jq '.[] | select(.state=="open") | .number'`); the question names that issue;
   - a merged PR already references it (it may be open on purpose);
   - none of its criteria is a change to the repo (a hardware run, a decision);
   - it is a sub-issue and its parent's order puts a still-open sub-issue before it,

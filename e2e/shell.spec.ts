@@ -1,7 +1,8 @@
 // The app shell and Settings, no gateway or Jellyfin: sign-in, a signed-out
 // deep link, not-found, the nav (five tabs, Library disabled without a
-// gateway), the title row's Back (Diagnostics), PWA installability, each
-// per-device setting persisted, and the D-pad on Settings. TV mode: the first visit
+// gateway), the title row's Back (Diagnostics), PWA installability, the
+// Settings overview (categories, the Playback page, expandables, D-pad), each
+// per-device setting persisted, and the D-pad on Playback. TV mode: the first visit
 // on a TV (webOS turns it on, Android TV asks), the handoff page (/household: QR
 // code, Back), the Settings + nav TV subsets, the D-pad up to the title row and
 // along the nav. What the settings do to playback is the player's spec.
@@ -10,6 +11,7 @@ import { expect, test } from './fixtures.ts'
 import {
   appUrl,
   newPage,
+  openCategory,
   signedInPage,
   signUp,
   uniqueEmail,
@@ -122,7 +124,9 @@ test('TV mode: /household hands off, the nav keeps Library + Settings, D-pad to 
   const nav = p.getByRole('navigation', { name: 'Main' })
   const h1 = p.getByRole('heading', { level: 1 })
   const alias = p.getByText('What members of your households see')
+  await openCategory(p, 'Account')
   await expect(alias).toBeVisible()
+  await openCategory(p, 'Display')
   await p.getByLabel('TV mode').check() // applies at once, no reload
   // Account keeps Sign out; the alias is a phone/PC's to change.
   await expect(alias).toBeHidden()
@@ -160,6 +164,7 @@ test('TV mode: /household hands off, the nav keeps Library + Settings, D-pad to 
 
   await p.goto(appUrl('/settings'))
   await expect(h1).toHaveText('Settings')
+  await openCategory(p, 'Display')
   await p.getByLabel('TV mode').uncheck()
   await p.goto(appUrl('/household'))
   await expect(h1).toHaveText(/^Household/)
@@ -215,32 +220,97 @@ test('first visit on an Android TV: asks once, answered by remote @shell', async
   await expect(yes).toHaveCount(0)
 })
 
+test('Settings overview: categories, Playback page, expandables, D-pad @shell', async ({
+  browser,
+}) => {
+  const user = await signUp(uniqueEmail('shell'))
+  const p = await signedInPage(browser, user, '/settings')
+  const h1 = p.getByRole('heading', { level: 1 })
+  const rows = p.locator('.categories > li > a, .categories summary')
+  await expect(rows).toHaveText([
+    'Playback',
+    'Display',
+    `Account${user.email}`,
+    'Diagnostics',
+  ])
+  await expect(p.locator('details[open]')).toHaveCount(0)
+  await expect(p.getByText('These apply to this device only')).toHaveCount(0)
+
+  // D-pad: Down along the rows, OK toggles an expandable, Down from its row
+  // reaches the setting at the row's end.
+  const playback = p.getByRole('link', { name: 'Playback' })
+  await expect(playback).toBeFocused()
+  await p.keyboard.press('ArrowDown')
+  await expect(rows.nth(1)).toBeFocused()
+  await p.keyboard.press('Enter')
+  const tv = p.getByLabel('TV mode')
+  await expect(tv).toBeVisible()
+  await p.keyboard.press('ArrowDown')
+  await expect(tv).toBeFocused()
+  await p.keyboard.press('ArrowDown')
+  await expect(rows.nth(2)).toBeFocused()
+  await p.keyboard.press('ArrowUp')
+  await expect(tv).toBeFocused()
+  await p.keyboard.press('ArrowUp')
+  await p.keyboard.press('Enter')
+  await expect(tv).toBeHidden()
+
+  // OK opens the Playback page; Back returns to the overview.
+  await p.keyboard.press('ArrowUp')
+  await expect(playback).toBeFocused()
+  await p.keyboard.press('Enter')
+  await expect(p).toHaveURL(/\/settings\/playback$/)
+  await expect(h1).toHaveText('Playback')
+  await expect(p.getByText('These apply to this device only.')).toBeVisible()
+  await p.goBack() // a TV remote's Back
+  await expect(p).toHaveURL(/\/settings$/)
+  await p.goto(appUrl('/settings/playback')) // no in-app history
+  await p.getByRole('button', { name: 'Back' }).click()
+  await expect(p).toHaveURL(/\/settings$/)
+  await expect(h1).toHaveText('Settings')
+})
+
 // Each toggle once, then a reload: per-device settings live in localStorage.
 test('Settings toggles persist across a reload @shell', async ({ browser }) => {
   const p = await signedIn(browser, '/settings')
-  const saver = p.getByRole('group', { name: 'Data saver' })
+  const tv = p.getByLabel('TV mode')
+  const panel = p.getByLabel('Diagnostics panel')
   const dock = p.getByRole('complementary', { name: 'Diagnostics' })
+  const expand = async () => {
+    await openCategory(p, 'Display')
+    await openCategory(p, 'Diagnostics')
+  }
+  await expand()
+  await expect(dock).toHaveCount(0)
+  await tv.check()
+  await expect(p.locator('html')).toHaveClass(/\btv\b/)
+  await panel.check()
+  await expect(dock).toBeVisible()
+  await p.reload()
+  await expand()
+  await expect(tv).toBeChecked()
+  await expect(p.locator('html')).toHaveClass(/\btv\b/)
+  await expect(panel).toBeChecked()
+  await expect(dock).toBeVisible()
+})
+
+test('Playback settings persist across a reload @shell', async ({ browser }) => {
+  const p = await signedIn(browser, '/settings/playback')
+  const saver = p.getByRole('group', { name: 'Data saver' })
   // Desktop Chrome: no saveData, not cellular, so Automatic is off.
   await expect(
     saver.getByRole('button', { name: 'Automatic' }),
   ).toHaveAttribute('aria-pressed', 'true')
   await expect(p.getByText(/^Off now:/)).toBeVisible()
-  await expect(dock).toHaveCount(0)
 
-  await p.getByLabel('TV mode').check()
-  await expect(p.locator('html')).toHaveClass(/\btv\b/)
   await p.getByLabel('Compatible mode').check()
   await saver.getByRole('button', { name: 'On' }).click()
   await expect(p.getByText(/^On now:/)).toBeVisible()
   const speed = p.getByRole('group', { name: 'Measure connection speed' })
   await speed.getByRole('button', { name: 'Every day' }).click()
   await p.getByLabel('Raw quality option').check()
-  await p.getByLabel('Diagnostics panel').check()
-  await expect(dock).toBeVisible()
 
   await p.reload()
-  await expect(p.getByLabel('TV mode')).toBeChecked()
-  await expect(p.locator('html')).toHaveClass(/\btv\b/)
   await expect(p.getByLabel('Compatible mode')).toBeChecked()
   await expect(saver.getByRole('button', { name: 'On' })).toHaveAttribute(
     'aria-pressed',
@@ -251,8 +321,6 @@ test('Settings toggles persist across a reload @shell', async ({ browser }) => {
     speed.getByRole('button', { name: 'Every day' }),
   ).toHaveAttribute('aria-pressed', 'true')
   await expect(p.getByLabel('Raw quality option')).toBeChecked()
-  await expect(p.getByLabel('Diagnostics panel')).toBeChecked()
-  await expect(dock).toBeVisible()
 
   // Back to Automatic: the line follows.
   await saver.getByRole('button', { name: 'Automatic' }).click()
@@ -260,14 +328,14 @@ test('Settings toggles persist across a reload @shell', async ({ browser }) => {
 })
 
 // The D-pad leaves a checkbox, Left/Right too (no caret to keep
-// them), and Down goes on past Data saver and Measure connection speed. Right isn't driven: every Settings
+// them), and Down goes on past Data saver and Measure connection speed. Right isn't driven: every Playback
 // checkbox ends its row, so Right has no target.
-test('Settings D-pad: off a checkbox, Down past Data saver and Measure to Raw @shell', async ({
+test('Playback D-pad: off a checkbox, Down past Data saver and Measure to Raw @shell', async ({
   browser,
 }) => {
-  const p = await signedIn(browser, '/settings')
+  const p = await signedIn(browser, '/settings/playback')
   const compatible = p.getByLabel('Compatible mode')
-  await compatible.focus()
+  await expect(compatible).toBeFocused() // the page's first setting
   await p.keyboard.press('ArrowLeft')
   await expect(compatible).not.toBeFocused()
   await compatible.focus()
@@ -325,5 +393,6 @@ test('Google sign-up: picks its alias, prefilled with the Google name @shell', a
   await p.reload()
   await expect(app).toBeVisible()
   await p.goto(appUrl('/settings'))
+  await openCategory(p, 'Account')
   await expect(p.getByText('Your name Gina Google')).toBeVisible()
 })

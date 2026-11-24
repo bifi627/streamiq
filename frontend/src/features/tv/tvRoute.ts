@@ -2,7 +2,9 @@
 // TV-off until it's added (a new manage page can't leak onto the TV).
 export type TvRoute = 'allow' | 'handoff'
 
-const ALLOWED = ['/settings', '/diagnostics', '/gateways']
+const ALLOWED = ['/settings', '/settings/playback', '/diagnostics', '/gateways']
+// Open in no household: the per-device settings and /join (the way in).
+const HOMELESS = ['/settings', '/settings/playback', '/join']
 
 export function tvRoute(pathname: string): TvRoute {
   const p = pathname.replace(/\/+$/, '') || '/'
@@ -21,8 +23,7 @@ export function shellPage(
   tv: boolean,
   homeless: boolean,
 ): ShellPage {
-  // In no household only Settings and /join (the way in) still open.
-  if (homeless && pathname !== '/settings' && pathname !== '/join')
+  if (homeless && !HOMELESS.includes(pathname))
     return tv ? 'handoffHousehold' : 'noHousehold'
   return tv && tvRoute(pathname) === 'handoff' ? 'handoff' : 'outlet'
 }

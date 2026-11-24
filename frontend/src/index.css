@@ -1762,6 +1762,61 @@ progress::-moz-progress-bar {
   padding-bottom: 0;
 }
 
+/* Settings overview: a row per category, the whole row the link or the
+   <summary>; its chevron at the right end. */
+.categories {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-5);
+  gap: 0;
+  list-style: none;
+}
+.categories > li + li {
+  border-top: 1px solid var(--border);
+}
+.categories > li > a,
+.categories summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--target);
+  padding: var(--sp-2) 0;
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  list-style: none;
+}
+.categories summary::-webkit-details-marker {
+  display: none;
+}
+.categories summary .muted {
+  overflow: hidden;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chevron {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-left: auto;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.15s;
+}
+.categories summary .chevron {
+  transform: rotate(90deg);
+}
+.categories details[open] summary .chevron {
+  transform: rotate(-90deg);
+}
+.categories details > .rows {
+  padding-bottom: var(--sp-3);
+}
+
 /* Diagnostics page: Settings' layout (.settings), the report as a
    selectable monospace box. */
 .diagnostics .card > button {

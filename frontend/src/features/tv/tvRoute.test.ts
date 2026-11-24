@@ -12,6 +12,7 @@ test('allowed routes', () => {
     '/g/abc/screen',
     '/g/abc/remote/s1',
     '/settings',
+    '/settings/playback',
     '/diagnostics',
     '/gateways',
   ])
@@ -36,6 +37,7 @@ test('shell page: TV on', () => {
   assert.equal(shellPage('/gateways', true, true), 'handoffHousehold')
   assert.equal(shellPage('/join', true, true), 'handoff') // its invite URL
   assert.equal(shellPage('/settings', true, true), 'outlet')
+  assert.equal(shellPage('/settings/playback', true, true), 'outlet')
 })
 
 test('handoff Back with no history: /, or /settings when / hands off too', () => {

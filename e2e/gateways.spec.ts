@@ -22,6 +22,7 @@ import {
   signUp,
   uniqueEmail,
   type User,
+  openCategory,
 } from './helpers.ts'
 import { must } from './must.ts'
 
@@ -495,6 +496,7 @@ test('TV mode: the card keeps Open, Use as screen and Status; managing is hidden
   ]
   for (const l of managing) await expect(l).toBeVisible() // an admin, paired
   await page.goto(appUrl('/settings'))
+  await openCategory(page, 'Display')
   await page.getByLabel('TV mode').check()
   await page.goto(appUrl('/gateways'))
   await expect(c.getByRole('button', { name: 'Open' })).toBeVisible()
@@ -530,6 +532,7 @@ test('TV mode: no update notice, the pairing code names the gateway page URL (#6
   await expect(card(b).getByText('Update available')).toBeVisible()
   await expect(box.getByRole('link', { name: 'gateway page' })).toBeVisible()
   await b.goto(appUrl('/settings'))
+  await openCategory(b, 'Display')
   await b.getByLabel('TV mode').check()
   await pairCode()
   await expect(card(b).getByText('Update available')).toHaveCount(0) // not mounted: no status call

@@ -13,6 +13,7 @@ import {
   signUp,
   uniqueEmail,
   videoTime,
+  openCategory,
 } from './helpers.ts'
 import { jellyfinAdminGet } from './jellyfin.ts'
 import { envVar } from './must.ts'
@@ -86,6 +87,7 @@ test(
       await resume(/0:0[5-9]/) // A's, over A's open tunnel
       await a.evaluate(() => ((window as { mark?: 1 }).mark = 1))
       await a.getByRole('link', { name: 'Settings' }).click() // sign out lives there
+      await openCategory(a, 'Account')
       await a.getByRole('button', { name: 'Sign out' }).click()
       await expect(a.getByLabel('Email')).toBeVisible()
       expect(

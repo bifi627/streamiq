@@ -144,7 +144,14 @@ export function onKey(
   const a = document.activeElement as HTMLElement
   const bar = r.bar.current
   const pop = r.menuRow.current
-  const rows = Array.from(bar?.querySelectorAll('[data-row]') ?? [])
+  // Rendered items only: inline, the top row's badge is display: none.
+  const items = (x: Element) =>
+    Array.from(x.querySelectorAll<HTMLElement>('button, input')).filter(
+      (i) => i.getClientRects().length,
+    )
+  const rows = Array.from(bar?.querySelectorAll('[data-row]') ?? []).filter(
+    (x) => items(x).length,
+  )
   const row = rows.findIndex((x) => x.contains(a))
   // Down from the last row: the diagnostics dock, if it's on; not
   // in fullscreen, where it isn't shown.
@@ -171,8 +178,6 @@ export function onKey(
   e.preventDefault() // also Back: the browser's own would leave the player
   const move = (its: HTMLElement[], by: number) =>
     its[clamp(its.indexOf(a) + by, its.length)]?.focus()
-  const items = (x: Element) =>
-    Array.from(x.querySelectorAll<HTMLElement>('button, input'))
   const run: {
     [K in Action['do']]: (x: Extract<Action, { do: K }>) => unknown
   } = {

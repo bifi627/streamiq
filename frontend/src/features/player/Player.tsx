@@ -45,8 +45,8 @@ export function Player({
   /** Plays another item; unset (screen mode) = no "Next episode". */
   onNext?: (item: Item) => void
   onEnded?: () => void
-  /** On the detail page, under its title row and the shell's badge: the
-   * overlay shows only an episode's line, no Back button or badge. */
+  /** On the detail page, under its title row and the shell's badge: no Back
+   * button; outside fullscreen the title and badge are hidden (Player.css). */
   inline?: boolean
 }) {
   const { gatewayId } = useTunnel()
@@ -132,21 +132,13 @@ export function Player({
         noBack={inline}
         onNext={next && onNext && (() => onNext(next))}
         top={
-          inline ? (
-            item?.SeriesName && (
-              <hgroup className="now">
-                <p>{episodeLine(item)}</p>
-              </hgroup>
-            )
-          ) : (
-            <>
-              <hgroup className="now">
-                <h2>{item?.SeriesName ?? item?.Name}</h2>
-                {item?.SeriesName && <p>{episodeLine(item)}</p>}
-              </hgroup>
-              <Privacy gatewayId={gatewayId} pc={pc} />
-            </>
-          )
+          <>
+            <hgroup className="now">
+              <h2>{item?.SeriesName ?? item?.Name}</h2>
+              {item?.SeriesName && <p>{episodeLine(item)}</p>}
+            </hgroup>
+            <Privacy gatewayId={gatewayId} pc={pc} />
+          </>
         }
       >
         <video ref={video} onEnded={onEnded} />

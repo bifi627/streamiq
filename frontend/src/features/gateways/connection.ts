@@ -15,3 +15,20 @@ export const routeOf = (relay: boolean, lan: boolean): Route =>
  * "Checking…" until a check or the library's tunnel answers. */
 export const connPart = (dot: string, conn?: Conn) =>
   dot !== 'online' ? null : (conn?.route ?? 'checking')
+
+export const isRoute = (part: ReturnType<typeof connPart>): part is Route =>
+  part === 'lan' || part === 'direct' || part === 'relay'
+
+/** What the shell badge names: the gateway only when its household
+ * has more than one, the household's initial only when the user is in more
+ * than one; the popover always names both. */
+export const badgeNames = (
+  gateway: string,
+  gateways: number,
+  household: string,
+  households: number,
+) => ({
+  name: gateways > 1 ? gateway : null,
+  initial: households > 1 ? ([...household][0] ?? '').toUpperCase() : null,
+  heading: household ? `${gateway} in ${household}` : gateway, // before /me
+})

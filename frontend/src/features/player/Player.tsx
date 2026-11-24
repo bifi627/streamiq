@@ -26,6 +26,7 @@ export function Player({
   onState,
   onExit,
   onNext,
+  onEnded,
 }: {
   pc: RTCPeerConnection
   speed?: Speed
@@ -38,6 +39,7 @@ export function Player({
   onExit: (item: Item | null) => void
   /** Plays another item; unset (screen mode) = no "Next episode". */
   onNext?: (item: Item) => void
+  onEnded?: () => void
 }) {
   const { gatewayId } = useTunnel()
   const video = useRef<HTMLVideoElement>(null)
@@ -135,7 +137,7 @@ export function Player({
           </>
         }
       >
-        <video ref={video} />
+        <video ref={video} onEnded={onEnded} />
       </Controls>
       {view.blocked && <p>Press play to start.</p>}
       {view.err && <ErrorView error={view.err} />}

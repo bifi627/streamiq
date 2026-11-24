@@ -11,6 +11,7 @@ import {
   playable,
   playLabel,
   playsAtOnce,
+  playTarget,
   progress,
   rangeHeader,
   runtime,
@@ -196,4 +197,32 @@ test('playLabel: Resume with progress; an episode names its place', () => {
     playLabel({ ...ep, UserData: { Played: true, PlaybackPositionTicks: 5 } }),
     'Play · S1 · E3',
   )
+})
+
+test('playTarget: TV mode → player page; else the detail page playing it', () => {
+  const ep: Item = { Id: 'e', Name: 'E', Type: 'Episode', SeriesId: 's' }
+  const movie: Item = { Id: 'm', Name: 'M', Type: 'Movie' }
+  const video: Item = { Id: 'v', Name: 'V', Type: 'Video' }
+  assert.deepEqual(playTarget(ep, true), { to: 'player', itemId: 'e' })
+  assert.deepEqual(playTarget(movie, true), { to: 'player', itemId: 'm' })
+  assert.deepEqual(playTarget(ep, false), {
+    to: 'page',
+    itemId: 's',
+    play: 'e',
+  })
+  assert.deepEqual(playTarget(movie, false), {
+    to: 'page',
+    itemId: 'm',
+    play: 'm',
+  })
+  assert.deepEqual(playTarget(video, false), {
+    to: 'page',
+    itemId: 'v',
+    play: 'v',
+  })
+  // An episode without a series: no page to land on.
+  assert.deepEqual(playTarget({ ...ep, SeriesId: undefined }, false), {
+    to: 'player',
+    itemId: 'e',
+  })
 })

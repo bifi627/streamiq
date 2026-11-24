@@ -23,11 +23,33 @@ import {
   clock,
   playable,
   playsAtOnce,
+  playTarget,
   TICKS_PER_SECOND,
   timeLeft,
   type Item,
 } from './items'
 import * as jf from './jellyfin'
+import { tvOn } from '../../shared/settings'
+
+/** Plays an item from outside its page (playTarget): TV mode's player page,
+ * else its detail page playing it, one history step. */
+export function usePlay() {
+  const { gatewayId } = useTunnel()
+  const navigate = useNavigate()
+  return (i: Item) => {
+    const t = playTarget(i, tvOn())
+    return t.to === 'player'
+      ? navigate({
+          to: '/g/$gatewayId/play/$itemId',
+          params: { gatewayId, itemId: t.itemId },
+        })
+      : navigate({
+          to: '/g/$gatewayId/i/$itemId',
+          params: { gatewayId, itemId: t.itemId },
+          search: { play: t.play },
+        })
+  }
+}
 
 const title = (i: Item) => i.SeriesName ?? i.Name
 function meta(i: Item) {
@@ -65,21 +87,15 @@ function Shelves() {
   const [warm] = useState(() => !!added && !!views)
   const lists = homeLists(added, views, resume, warm)
 
-  const open = (i: Item) =>
+  const play = usePlay()
+  const page = (i: Item) =>
     navigate({
-      to: playable(i)
-        ? '/g/$gatewayId/play/$itemId'
-        : '/g/$gatewayId/i/$itemId',
+      to: '/g/$gatewayId/i/$itemId',
       params: { gatewayId, itemId: i.Id },
     })
+  const open = (i: Item) => (playable(i) ? play(i) : page(i))
   // Recently added + Library: a movie opens its page.
-  const pick = (i: Item) =>
-    navigate({
-      to: playsAtOnce(i)
-        ? '/g/$gatewayId/play/$itemId'
-        : '/g/$gatewayId/i/$itemId',
-      params: { gatewayId, itemId: i.Id },
-    })
+  const pick = (i: Item) => (playsAtOnce(i) ? play(i) : page(i))
   const episodes = (i: Item) =>
     navigate({
       to: '/g/$gatewayId/i/$itemId',

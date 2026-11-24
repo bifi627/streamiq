@@ -1,5 +1,5 @@
 // The player, on a paired browser with its own gateway (fixtures.ts
-// `paired`): the privacy badge, the profile line, the deep link + Back key,
+// `paired`): the privacy badge, the profile line, the deep link (inline + the old /play/) + Back key,
 // the bar's controls, volume, quality, compatible mode, Auto on a slow link, the
 // speed test's cache and Off setting, data saver, audio, auto audio, subtitles and next episode. Per-device settings
 // are arranged in localStorage before the app loads (their toggles on /settings/playback are
@@ -96,12 +96,12 @@ test("profile line (#115): the probe and Jellyfin's decision in the dock @player
   ).toBeVisible()
 })
 
-test('deep link: /play/<id> reloads at the saved position; Back key in a new tab @player', async ({
+test('deep link: ?play=<id> reloads at the saved position; the old /play/<id> and its Back key in a new tab @player', async ({
   paired,
 }) => {
   const { page } = paired
   await play(page, CLIP, 3)
-  await expect(page).toHaveURL(/\/play\/[^/]+$/) // the player has its own route
+  await expect(page).toHaveURL(/\/i\/([^/?]+)\?play=\1$/) // inline on the movie's page
   // Pause and a seek to a later second save the position (each a
   // `req:/UserItems/<id>/UserData` channel; the seek's second is always new, so
   // at least one saves): wait for one, or the reload could cut it off. Either
@@ -136,9 +136,10 @@ test('deep link: /play/<id> reloads at the saved position; Back key in a new tab
     .toBeGreaterThanOrEqual(0)
   expect(await videoTime(page)).toBeGreaterThan(2.5)
 
-  // Opened in a new tab (no in-app history): Back goes to the item's folder.
+  // The player page's old link in a new tab (no in-app history): Back goes
+  // to the item's folder.
   const tab = await page.context().newPage()
-  await tab.goto(page.url())
+  await tab.goto(page.url().replace(/\/i\/[^?]+\?play=/, '/play/'))
   await expect(tab.getByRole('heading', { name: CLIP })).toBeVisible() // item loaded: Back knows its folder
   // The Back key (Escape / TV remote) hides a shown bar first, then exits.
   await expect(async () => {
@@ -524,9 +525,8 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
     .locator('video')
     .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
   await a.waitForFunction(() => document.querySelector('video')?.ended)
-  // Finished episode → back: the first hero card shown already
-  // names the next one (no stale "S1 · E1").
-  await a.goBack()
+  // Finished episode: inline playback stops; the first hero card shown
+  // already names the next one (no stale "S1 · E1").
   await expect(primary).toBeFocused()
   expect(await primary.textContent()).toContain('S1 · E2')
   await a.keyboard.press('Enter')
@@ -540,4 +540,11 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
   await playing(1)
   // The series' last episode: no button.
   await expect(a.getByRole('button', { name: 'Next episode' })).toHaveCount(0)
+  // Next episode swapped in place: one Back stops, the next leaves.
+  await a.goBack()
+  await expect(primary).toBeVisible()
+  await a.goBack()
+  await expect(
+    a.getByRole('button', { name: /StreamIQ Test Series/ }),
+  ).toBeVisible()
 })

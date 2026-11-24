@@ -156,6 +156,10 @@ the posted `Merge risk:` line (the build's own reviewer has a reason to go easy)
 `device:*` label on the PR or its issue is a separate gate (draft until the owner's
 device test): don't raise for it; a device-only check without that label is `risk:high`.
 
+The PR body's `## Merge danger` states a door: `one-way` with your label below
+`risk:critical`, or `two-way` with `risk:critical`, is a mismatch: say which side you
+believe in the `Merge risk:` line (`door: one-way stated, label risk:mid — <why>`).
+
 ## 6. Earlier agent threads
 
 List the review threads (GraphQL
@@ -183,8 +187,8 @@ repos/bifi627/streamiq/pulls/N/reviews --input <file>`, `commit_id` = headRefOid
    risk:high and up the manual check / what to watch>`.
 4. `Acceptance criteria: all met` or `Acceptance criteria: not met — <which>`.
 5. A short answer to what the PR body asked reviewers to check.
-6. Built by an agent (body ends with the agent signature) and no `## Noticed` section:
-   `Noticed: missing`.
+6. Built by an agent (body ends with the agent signature) and no `## Noticed` or no
+   `## Merge danger` section: `Noticed: missing` / `Merge danger: missing`.
 7. CI from `gh pr checks N`: pass / failing check names / pending / `skipped (draft)`
    (CI runs once the PR is marked ready: no result yet, not a failure).
 8. Any `security` finding: "<k> finding(s) sent to owner privately".

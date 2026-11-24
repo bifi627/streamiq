@@ -158,7 +158,8 @@ device test): don't raise for it; a device-only check without that label is `ris
 
 The PR body's `## Merge danger` states a door: `one-way` with your label below
 `risk:critical`, or `two-way` with `risk:critical`, is a mismatch: say which side you
-believe in the `Merge risk:` line (`door: one-way stated, label risk:mid — <why>`).
+believe in the `Merge risk:` line (`door: one-way stated, label risk:mid — <why>`). A
+match needs no words.
 
 ## 6. Earlier agent threads
 

@@ -86,7 +86,8 @@ two); keep them current through later rounds:
 - `## Summary`: the smallest view that makes the change clear: a call tree, diff
   sketch, file tree or a few lines of pseudocode (one, rarely two). No prose recap.
 - `## Evidence`: what CLAUDE.md "Done means" asks for (the flow driven, test output),
-  as before → after where there is a before.
+  as before → after where there is a before. It is the one place for it (no separate
+  `## Verification`).
 - `## Merge danger`: `Door: one-way` (a destructive migration, or a `!` title: what
   `review-level.sh` marks `critical`) or `Door: two-way`; `Blast radius:` one line;
   for a one-way door, what the owner watches on merge / release.

@@ -49,23 +49,27 @@ test('home: with two gateways, / opens the online one, then the last opened (#86
   paired,
 }) => {
   const { page, user } = paired
-  const [g] = await user.api<{ id: string }[]>('/gateways')
+  const list = await user.api<{ id: string }[]>('/gateways')
+  const g = list[0]
   const away = '00000000-0000-4000-8000-000000000861'
-  // A second, offline gateway, listed first.
-  await page.route('**/api/gateways', async (route) => {
-    const res = await route.fetch()
-    const list = (await res.json()) as { id: string }[]
-    await route.fulfill({
-      response: res,
-      json: [{ ...list[0], id: away, name: 'Away', online: false }, ...list],
-    })
-  })
+  // A second, offline gateway, listed first. A fixed list: a fetch through
+  // the route races the navigations below (its response gets disposed).
+  await page.route('**/api/gateways', (route) =>
+    route.fulfill({
+      json: [{ ...g, id: away, name: 'Away', online: false }, ...list],
+    }),
+  )
   // None opened on this device yet.
   await page.evaluate(() => localStorage.removeItem('streamiq.lastGateway'))
   await page.goto(appUrl('/'))
   await expect(page).toHaveURL(appUrl(`/g/${g.id}`))
   await expect(movies(page)).toBeVisible()
   await page.goto(appUrl(`/g/${away}`))
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem('streamiq.lastGateway')),
+    )
+    .toBe(away)
   await page.goto(appUrl('/'))
   await expect(page).toHaveURL(appUrl(`/g/${away}`))
 })

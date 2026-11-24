@@ -141,7 +141,7 @@ export function applyTv() {
   else document.documentElement.classList.toggle('tv', tvOn())
 }
 
-/** The last opened gateway: the nav's Library link outside its routes. */
+/** The last opened gateway: the active one outside its routes (shell.ts). */
 const LAST_GATEWAY_KEY = 'streamiq.lastGateway'
 export function lastGateway() {
   try {
@@ -154,6 +154,6 @@ export function setLastGateway(id: string) {
   try {
     localStorage.setItem(LAST_GATEWAY_KEY, id)
   } catch {
-    /* not saved: the link shows with one gateway only */
+    /* not saved: the active gateway falls back to the first online one */
   }
 }

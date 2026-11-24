@@ -14,10 +14,10 @@ export function Dialog({
   children: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  // No close() on unmount: its close event would call onClose (and dev's
+  // StrictMode re-runs this effect). Chrome 87 throws on a second showModal.
   useEffect(() => {
-    const d = ref.current
-    d?.showModal()
-    return () => d?.close()
+    if (!ref.current?.open) ref.current?.showModal()
   }, [])
   return (
     <dialog

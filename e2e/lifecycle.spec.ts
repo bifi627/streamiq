@@ -118,10 +118,7 @@ test('evicted client key (#174): message → re-pair right there → stream @gat
 }) => {
   const { page: a, user, gateway, gatewayCtx } = paired
   await a.addInitScript(() => localStorage.setItem('streamiq.debug', '1')) // the dock's log
-  const id = must(
-    await a.locator('li code').first().textContent(),
-    'gateway id',
-  )
+  const [{ id }] = await user.api<{ id: string }[]>('/gateways')
   // What Safari's 7-day cap or disk pressure does: all IndexedDB gone (client
   // key, pins, and Firebase's sign-in with them).
   const cdp = await a.context().newCDPSession(a)

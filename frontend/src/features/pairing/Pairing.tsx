@@ -64,8 +64,12 @@ export function Pairing({
   // now, not after its 5-minute expiry.
   const attempt = useRef<AbortController>(undefined)
   useEffect(() => () => attempt.current?.abort(), [])
+  // A tick later: dev's StrictMode mounts twice, and the abort above would
+  // end the first attempt (its slot freed only later: "busy").
   useEffect(() => {
-    if (autoPair) void run(true)
+    if (!autoPair) return
+    const t = setTimeout(() => void run(true))
+    return () => clearTimeout(t)
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
   }, [])
   const busy = s.step === 'connecting' || s.step === 'code'

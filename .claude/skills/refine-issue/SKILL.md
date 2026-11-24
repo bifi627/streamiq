@@ -107,8 +107,8 @@ chat questions only if the tool isn't there.
 The topic is a group (CLAUDE.md "Group related issues"): N becomes the parent.
 
 - Propose in chat: the sub-issues in build order, each with title, one-line
-  scope, labels (type, `area:*`, `p*`, `size:*`, `device:*`) and what it depends on.
-  Each is one reviewable PR. "Depends on" names only a real dependency (it needs the
+  scope, labels (type: `bug` / `idea` / `tech-debt`, `area:*`, `p*`, `size:*`,
+  `device:*`) and what it depends on. Each is one reviewable PR. "Depends on" names only a real dependency (it needs the
   other's code or decision), not build order. Plus what the parent keeps: Why, the
   decisions shared by all of them, out of scope for the whole group. Then ask with
   AskUserQuestion: agree with the split / change something.
@@ -124,7 +124,9 @@ The topic is a group (CLAUDE.md "Group related issues"): N becomes the parent.
     `<id>` is `gh api repos/bifi627/streamiq/issues/<M> --jq .id` (the id, not the number).
   - For each dependency the agreed proposal names (M depends on B), and only those, set
     GitHub's native edge: `gh api repos/bifi627/streamiq/issues/<M>/dependencies/blocked_by
-    -F issue_id=<B's id>`. No chain that mirrors `Order:`: independent sub-issues get none.
+    -F issue_id=<B's id>`. Direct dependencies only: no chain that mirrors `Order:`
+    (independent sub-issues get none), and no edge another edge already implies (S4
+    needs S3, S3 needs S1 → no S4→S1 edge).
   - Rewrite N's body: Why, the numbered list of sub-issues, an `Order:` line with the
     reason for it, acceptance criterion "All sub-issues closed", Out of scope. Remove
     its `needs-spec` and `bash scripts/issue-status.sh N Ready`: the approved split is

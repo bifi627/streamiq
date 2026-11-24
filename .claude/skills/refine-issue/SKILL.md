@@ -61,6 +61,9 @@ before the overlay. Plain chat questions only if the tool isn't there.
   the kind only (no file or test name): `(proof: e2e)`, `(proof: go)`,
   `(proof: unit)` (`node --test`), `(proof: run)` (a command's output in the PR's
   `## Evidence`: scripts, skills, docs) or `(proof: manual: <what the owner does>)`.
+  The kind is the one that reaches the changed behavior (a `unit` test of a helper
+  doesn't prove the component that calls it). It replaces naming the test, not the
+  rest: docs the change invalidates stay a criterion of their own.
   Before the approval question, list the `manual` criteria in chat, or say there are
   none: each one is a manual run before the merge.
 - If the issue can't be finished without a test on the owner's TV or a real phone

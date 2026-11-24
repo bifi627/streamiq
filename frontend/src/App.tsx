@@ -29,7 +29,7 @@ import {
   lastGateway,
   onLastGateway,
   setLastGateway,
-  TV_EVENT,
+  onTv,
   tvOn,
 } from './shared/settings'
 import { TvAsk } from './features/tv/TvMode'
@@ -103,7 +103,7 @@ function Shell() {
   const current = me?.memberships.find((m) => m.id === me.tenantId)
   const household = current ? householdLabel(current) : ''
   const { pathname } = useLocation()
-  const tv = useSyncExternalStore(onTvChange, tvOn)
+  const tv = useSyncExternalStore(onTv, tvOn)
   const home = handoffHome(tv, homeless)
   const page = {
     outlet: <Outlet />,
@@ -194,11 +194,6 @@ function Shell() {
       <Diagnostics />
     </div>
   )
-}
-
-const onTvChange = (cb: () => void) => {
-  addEventListener(TV_EVENT, cb)
-  return () => removeEventListener(TV_EVENT, cb)
 }
 
 // Code-based route tree. Client routes never start with /api or /healthz (the

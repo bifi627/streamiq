@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useSyncExternalStore, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PageBar } from '../../shared/PageBar'
 import { Chevron } from '../../shared/Chevron'
@@ -8,6 +8,23 @@ import { TvToggle } from '../tv/TvMode'
 import { arrowFocus } from '../../shared/focus'
 import { AliasSetting } from '../../shared/Alias'
 import { DiagnosticsToggle } from '../diagnostics/Diagnostics'
+import {
+  lastGateway,
+  onLastGateway,
+  onTv,
+  setLastGateway,
+  tvOn,
+} from '../../shared/settings'
+import {
+  membershipLabel,
+  switchHousehold,
+  useHousehold,
+} from '../households/household'
+import { useGateways } from '../gateways/api'
+import { gatewayName } from '../gateways/list'
+import { libraryTarget } from '../../shell'
+import { Picker } from './Picker'
+import { tvPickers } from './switches'
 
 // React's autoFocus skips links; a stable ref runs once, on mount.
 const focus = (a: HTMLAnchorElement | null) => a?.focus()
@@ -25,6 +42,7 @@ export function Settings() {
             <Chevron />
           </Link>
         </li>
+        <Switches />
         <Category name="Display">
           <li>
             <TvToggle />
@@ -69,6 +87,47 @@ export function Settings() {
         </Category>
       </ul>
     </section>
+  )
+}
+
+// TV mode has no Household or Gateways page: which household it acts in and
+// which gateway its Library tab opens are picked here.
+function Switches() {
+  const tv = useSyncExternalStore(onTv, tvOn)
+  const { me } = useHousehold()
+  const gateways = useGateways().data ?? []
+  const last = useSyncExternalStore(onLastGateway, lastGateway)
+  const show = tvPickers(tv, me?.memberships.length ?? 0, gateways.length)
+  if (!show.household && !show.gateway) return null
+  return (
+    <Category name="Household & gateway">
+      {show.household && me && (
+        <li>
+          <Picker
+            label="Household"
+            current={me.tenantId}
+            choices={me.memberships.map((m) => ({
+              id: m.id,
+              text: membershipLabel(m),
+            }))}
+            pick={switchHousehold}
+          />
+        </li>
+      )}
+      {show.gateway && (
+        <li>
+          <Picker
+            label="Gateway"
+            current={libraryTarget(undefined, last, gateways)}
+            choices={gateways.map((g) => ({
+              id: g.id,
+              text: `${gatewayName(g)} (${g.online ? 'online' : 'offline'})`,
+            }))}
+            pick={setLastGateway}
+          />
+        </li>
+      )}
+    </Category>
   )
 }
 

@@ -2,7 +2,12 @@ import { createContext, useContext } from 'react'
 import { setHousehold, type Me } from '../../shared/api'
 import { clearArtThen } from '../../shared/leave'
 import { noop } from '../../shared/noop'
-export { householdLabel } from '../../shared/api'
+import { householdLabel } from '../../shared/api'
+export { householdLabel }
+
+/** A household in a switcher: its name and the user's role there. */
+export const membershipLabel = (m: Me['memberships'][number]) =>
+  `${householdLabel(m)} (${m.role})`
 
 // The one /me of this page load (Shell fetches it) and the household it acts in.
 // null until /me is in.

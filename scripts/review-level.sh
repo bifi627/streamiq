@@ -19,8 +19,10 @@
 # reviewer finds otherwise); mid for gateway/** but its tests (what
 # next-gateway-version.sh releases to installed gateways) and for a crown-jewel path
 # or content hit (worth a human read); critical for a `!` title (breaks installed
-# gateways). high (CI can't check it) is only the reviewer's call. No device:* rule:
-# those PRs stay draft until the owner's device test.
+# gateways; rule breaking-title) and for a destructive migration (rule
+# one-way-migration, ONE_WAY below: no redeploy brings the data back). high (CI can't
+# check it) is only the reviewer's call. No device:* rule: those PRs stay draft until
+# the owner's device test.
 set -euo pipefail
 
 # xhigh + mid: a changed file is under one of these paths (the crown jewels). Paths,
@@ -47,6 +49,16 @@ gateway/install/install.ps1
 CONTENT='pull_request_target
 secrets.
 permissions:'
+# critical: an added line in api/migrations/*.sql matches one of these (EREs on the
+# lowercased line). squawk (check-migrations.sh) makes a real drop carry
+# `squawk-ignore ban-drop-…`; DROP INDEX / POLICY / FUNCTION redeploy, so they don't hit.
+ONE_WAY='squawk-ignore ban-drop
+drop table
+drop column
+truncate
+delete from
+^ *update 
+alter column .* type( |$)'
 # low level: docs only (docs/ and *.md; the agent's own rules, CLAUDE.md and .claude/,
 # are not docs). Everything else: high, however small.
 
@@ -84,14 +96,21 @@ while IFS=$'\t' read -r f a r; do
   [ "$rank" -gt 0 ] || why=other
   case "$f" in gateway/*_test.go) ;; gateway/*) raise 1 gateway-release ;; esac
 done <<<"$stats"
-while IFS= read -r pat; do
-  hits=$(awk -v p="$pat" '{i = index($0, "\t")} index(substr($0, i + 1), p) {print substr($0, 1, i - 1)}' <<<"$added" | sort -u)
-  [ -n "$hits" ] || continue
-  level=xhigh; raise 1 content
-  while IFS= read -r f; do evidence+="content: $f: $pat"$'\n'; done <<<"$hits"
-done <<<"$CONTENT"
+# scan <rank> <rule> <file ERE> <regex 0|1> <patterns>: evidence per pattern and file
+# with an added line containing it (a fixed string, or with 1 an ERE on the lowercased line).
+scan() {
+  while IFS= read -r pat; do
+    hits=$(awk -v p="$pat" -v fp="$3" -v re="$4" '{i = index($0, "\t"); f = substr($0, 1, i - 1); l = substr($0, i + 1)}
+      f ~ fp && (re ? tolower(l) ~ p : index(l, p)) {print f}' <<<"$added" | sort -u)
+    [ -n "$hits" ] || continue
+    level=xhigh; raise "$1" "$2"
+    while IFS= read -r f; do evidence+="content: $f: $pat"$'\n'; done <<<"$hits"
+  done <<<"$5"
+}
+scan 1 content '' 0 "$CONTENT"
+scan 3 one-way-migration '^api/migrations/.*\.sql$' 1 "$ONE_WAY"
 
 # `type!:` / `type(scope)!:` marks a breaking change (same pattern as next-gateway-version.sh).
-[[ ${title:-} =~ ^[a-zA-Z]+(\([^\)]*\))?!: ]] && raise 3 breaking-title
+[[ ${title:-} =~ ^[a-zA-Z]+(\([^\)]*\))?!: ]] && rank=3 why=breaking-title
 echo "$level ${names[$rank]} $why"
 printf '%s' "$evidence"

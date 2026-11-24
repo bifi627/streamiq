@@ -991,7 +991,6 @@ html.tv .rows li.no-tv:first-child + li {
   gap: 8px;
 }
 
-
 /* Privacy badge: on your network / direct / relayed; focus or click shows the line. */
 .privacy {
   --c: var(--direct);

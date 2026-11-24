@@ -239,7 +239,7 @@ test('continue watching: newest first; the click-through guard keeps the order (
   await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '0'))
   await a.reload()
   await expect(spot).toHaveText('streamiq e2e mp2 default')
-  // A phone: a row of cards in the same order, no spot (#864).
+  // A phone: a row of cards in the same order, no spot.
   await a.setViewportSize({ width: 400, height: 800 })
   const row = a.locator('section.shelf', {
     has: a.getByRole('heading', { name: 'Continue watching' }),

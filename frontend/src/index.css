@@ -1566,7 +1566,7 @@ progress::-moz-progress-bar {
   font-size: var(--fs-section);
   font-weight: 600;
 }
-.more {
+.title-more {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
@@ -1674,7 +1674,7 @@ progress::-moz-progress-bar {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .more:not(.open) {
+  .title-more:not(.open) {
     display: none;
   }
   .more-toggle {

@@ -258,7 +258,7 @@ function Title({
             </button>
           )}
           {hasMore && (
-            <div className={more ? 'more open' : 'more'}>
+            <div className={more ? 'title-more open' : 'title-more'}>
               {item.Overview && <p className="overview">{item.Overview}</p>}
               {genres.length > 1 && (
                 <p className="muted">{genres.join(', ')}</p>

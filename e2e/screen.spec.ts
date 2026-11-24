@@ -253,6 +253,8 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… is
   const { page: tv } = paired
   const { name, phone } = await cast(tv)
   const phone2 = await secondPhone(tv, name)
+  const browsing = await phoneAt(tv) // a third tab on the clip's page
+  await expect(playOn(browsing)).toBeVisible()
   // Arranged over the tunnel: back to the waiting screen.
   const screen = must(
     phone.url().match(/\/remote\/([^/]+)$/),
@@ -267,11 +269,12 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… is
   expect(
     JSON.parse((await viaTunnel(phone, '/streamiq/screens')).body),
   ).toEqual([])
+  // The open title page's poll (10 s) drops the closed screen.
+  await expect(playOn(browsing)).toHaveCount(0, { timeout: 15_000 })
   await phone.getByRole('alert').getByRole('link', { name: 'Library' }).click() // not the nav's
   await phone.getByRole('button', { name: /Movies/ }).click()
   await phone.getByRole('button', { name: /streamiq e2e clip/ }).click()
   await expect(
     phone.getByRole('button', { name: /^(Play|Resume)$/ }),
   ).toBeVisible()
-  await expect(playOn(phone)).toHaveCount(0)
 })

@@ -7,7 +7,14 @@
 // controls player.spec's.
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
-import { keepPcs, openLibrary, pitch, videoTime, viaTunnel } from './helpers.ts'
+import {
+  keepPcs,
+  openGateway,
+  openLibrary,
+  pitch,
+  videoTime,
+  viaTunnel,
+} from './helpers.ts'
 import { must } from './must.ts'
 
 const CLIP = 'streamiq e2e clip' // 30 s, English 440 Hz + German 880 Hz, .en.srt
@@ -23,8 +30,9 @@ test.beforeEach(async ({ paired: { page } }) => {
   await page.reload()
 })
 
-/** TV on /gateways → the card's Use as screen; the screen's name. */
+/** TV on /gateways → its gateway's page → Use as screen; the screen's name. */
 async function useAsScreen(tv: Page) {
+  await openGateway(tv)
   await tv.getByRole('link', { name: 'Use as screen' }).click()
   const waiting = tv.getByRole('heading', { name: /^Screen: / })
   await expect(waiting).toBeVisible()
@@ -80,7 +88,7 @@ const cue = (tv: Page) =>
       .join(),
   )
 
-test('entry (#248, #872): the gateway card always, the top bar only in TV mode @player', async ({
+test("entry (#248, #872): the gateway's page always, the top bar only in TV mode @player", async ({
   paired,
 }) => {
   const { page } = paired
@@ -93,6 +101,7 @@ test('entry (#248, #872): the gateway card always, the top bar only in TV mode @
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: 'Gateways' })
     .click()
+  await openGateway(page)
   await expect(
     page.locator('li.card').getByRole('link', { name: 'Use as screen' }),
   ).toBeVisible()
@@ -262,8 +271,8 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… is
   )[1]
   await viaTunnel(phone, `/streamiq/screens/${screen}`, { type: 'stop' })
   await expect(tv.getByRole('heading', { name: /^Screen: / })).toBeVisible()
-  await tv.keyboard.press('Escape') // back where it was opened: Gateways
-  await expect(tv.getByRole('heading', { name: 'Gateways' })).toBeVisible()
+  await tv.keyboard.press('Escape') // back where it was opened: the gateway's page
+  await expect(tv).toHaveURL(/\/gateways\/[^/]+$/)
   for (const p of [phone, phone2])
     await expect(p.getByText('Screen closed.')).toBeVisible()
   expect(

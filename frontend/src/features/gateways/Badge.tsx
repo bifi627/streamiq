@@ -7,13 +7,11 @@
 import { useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { connect } from '../pairing/connect'
 import { getPin } from '../pairing/store'
-import { pairInfo } from '../../shared/stats'
 import { event } from '../../shared/diag'
 import { RouteBadge } from '../player/Privacy'
 import { useOnLan, usePairInfo } from '../library/queries'
-import { routeOn, type Gateway } from './api'
+import { probe, type Gateway } from './api'
 import {
   badgeNames,
   connKey,
@@ -23,25 +21,12 @@ import {
   type Conn,
 } from './connection'
 
-// One tunnel, closed once it has its answer: one line in the gateway's
-// tunnel history. A gateway without /streamiq/route: not on your network.
+// One short tunnel per check: one line in the gateway's tunnel history.
 // No pin: no tunnel (the gateway would refuse it and log a failed line).
 async function check(gatewayId: string, direct: boolean): Promise<Conn> {
   try {
     if (!(await getPin(gatewayId))) return { route: 'unpaired' }
-    const s = await connect(gatewayId, undefined, undefined, direct)
-    try {
-      const [stats, lan] = await Promise.all([
-        s.pc.getStats(),
-        routeOn(s.pc).then(
-          (r) => r.route === 'lan',
-          () => false,
-        ),
-      ])
-      return { route: routeOf(!!pairInfo(stats)?.relay, lan) }
-    } finally {
-      s.close()
-    }
+    return { route: await probe(gatewayId, direct) }
   } catch (e) {
     event(`connection check failed: ${e}`)
     return { route: 'failed' }

@@ -10,7 +10,12 @@ import { tunnelJson } from '../../shared/tunnel'
 import { pairInfo } from '../../shared/stats'
 import { arrowFocus } from '../../shared/focus'
 import { tvOn } from '../../shared/settings'
-import { routeLine, showPair as pairShown, type State } from './pairState'
+import {
+  pinUnusable,
+  routeLine,
+  showPair as pairShown,
+  type State,
+} from './pairState'
 import { event } from '../../shared/diag'
 import { useQueryClient } from '@tanstack/react-query'
 import { connKey } from '../gateways/connection'
@@ -22,6 +27,7 @@ export function Pairing({
   gatewayId,
   lanUrl,
   needsPair,
+  autoPair,
   onPaired,
   open,
   children,
@@ -30,6 +36,8 @@ export function Pairing({
   lanUrl: string | null
   /** The caller already knows the pin is no good (library error): always offer Pair. */
   needsPair?: boolean
+  /** Starts pairing on mount (the overview's Pair dialog). */
+  autoPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
   /** Gateway card: Open takes Pair's place once this browser is paired. */
@@ -61,6 +69,14 @@ export function Pairing({
   // now, not after its 5-minute expiry.
   const attempt = useRef<AbortController>(undefined)
   useEffect(() => () => attempt.current?.abort(), [])
+  // A tick later: dev's StrictMode mounts twice, and the abort above would
+  // end the first attempt (its slot freed only later: "busy").
+  useEffect(() => {
+    if (!autoPair) return
+    const t = setTimeout(() => void run(true))
+    return () => clearTimeout(t)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, [])
   const busy = s.step === 'connecting' || s.step === 'code'
   async function run(pair: boolean) {
     if (busy) return
@@ -91,8 +107,7 @@ export function Pairing({
     } catch (e) {
       const err = toAppError(e)
       // No usable pin: Pair stays, not Open, through a retest or a refused pairing.
-      if (err.kind === 'not-paired' || err.kind === 'pin-mismatch')
-        setPinned(false)
+      if (pinUnusable(err)) setPinned(false)
       setS({ step: 'failed', err })
     }
   }

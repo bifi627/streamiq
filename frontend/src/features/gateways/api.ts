@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { authed } from '../../shared/api'
-import { share } from '../pairing/connect'
+import { connect, share } from '../pairing/connect'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../shared/tunnel'
 import { httpError } from '../../shared/errors'
 import { nextAsk } from './host'
+import { routeOf } from './connection'
+import { pairInfo } from '../../shared/stats'
 import type { Gateway } from '../../generated/gateways'
 import type { EnrollmentToken as Install } from '../../generated/onboarding'
 import type { Name, Relay } from '../../generated/gateway-onboarding'
@@ -166,6 +168,25 @@ export const clientsOn = (pc: PC) =>
 // GET /streamiq/route: 'lan' when the gateway sees this device on one of
 // its own subnets. Older gateways answer 404.
 export const routeOn = (pc: PC) => tunnelJson<Route>(pc, '/streamiq/route')
+
+// One tunnel, closed once it has its answer: one line in the gateway's
+// tunnel history. A gateway without /streamiq/route: not on your network.
+// Throws what connect throws (the card's Test shows it).
+export async function probe(gatewayId: string, direct: boolean) {
+  const s = await connect(gatewayId, undefined, undefined, direct)
+  try {
+    const [stats, lan] = await Promise.all([
+      s.pc.getStats(),
+      routeOn(s.pc).then(
+        (r) => r.route === 'lan',
+        () => false,
+      ),
+    ])
+    return routeOf(!!pairInfo(stats)?.relay, lan)
+  } finally {
+    s.close()
+  }
+}
 
 // GET /streamiq/burst: the raw response, so the speed test times it.
 export const burstOn = (pc: PC, size: number) =>

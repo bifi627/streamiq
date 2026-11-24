@@ -96,7 +96,7 @@ test('the last released gateway works with this API, or is told to update @compa
     const gatewayCtx = await newContext(browser)
     ctxs.push(gatewayCtx)
     await pair(page, gatewayCtx, pageUrl)
-    await page.getByRole('button', { name: 'Open' }).click()
+    await page.getByRole('link', { name: 'Library' }).click()
     await page.getByRole('button', { name: /Movies/ }).click()
     await page.getByRole('button', { name: /streamiq e2e clip/ }).click()
     await page.getByRole('button', { name: /^(Play|Resume)$/ }).click()

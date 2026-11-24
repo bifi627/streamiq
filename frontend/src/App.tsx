@@ -15,6 +15,7 @@ import { getMe, householdLabel, takeNotice, type Me } from './shared/api'
 import { AppError, toAppError } from './shared/errors'
 import { ErrorView, UncaughtErrors } from './shared/ErrorView'
 import { Gateways, Home } from './features/gateways/Gateways'
+import { GatewayDetail } from './features/gateways/GatewayDetail'
 import {
   GatewayLibrary,
   ItemPage,
@@ -26,6 +27,7 @@ import { Diagnostics } from './features/diagnostics/Diagnostics'
 import {
   askTv,
   lastGateway,
+  onLastGateway,
   setLastGateway,
   TV_EVENT,
   tvOn,
@@ -85,7 +87,8 @@ function Shell() {
     // cancelRefetch false: joins the mount's fetch instead of a second one.
     void qc.refetchQueries({ queryKey: ['gateways'] }, { cancelRefetch: false })
   }, [gatewayId, qc])
-  const library = libraryTarget(gatewayId, lastGateway(), gateways)
+  const last = useSyncExternalStore(onLastGateway, lastGateway)
+  const library = libraryTarget(gatewayId, last, gateways)
   const gateway = gateways.find((g) => g.id === library)
   // The dot: loading / failed are not "offline". The Gateways list /
   // library show their own errors.
@@ -254,6 +257,15 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: 'gateways',
     component: Gateways,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    // $id, not $gatewayId: viewing a gateway doesn't make it the active one.
+    path: 'gateways/$id',
+    component: function Detail() {
+      const { id } = useParams({ from: '/gateways/$id' })
+      return <GatewayDetail key={id} id={id} />
+    },
   }),
   createRoute({
     getParentRoute: () => rootRoute,

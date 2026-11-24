@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { routeLine, showPair, type State } from './pairState.ts'
+import { pinUnusable, routeLine, showPair, type State } from './pairState.ts'
+import type { AppError } from '../../shared/errors.ts'
 
 const failed = (kind: string) =>
   ({ step: 'failed', err: { kind } }) as unknown as State
@@ -28,4 +29,11 @@ test('route line', () => {
     routeLine({ ...path, relay: true, rttMs: 12 }),
     `relayed (TURN) · ${(12).toLocaleString()} ms round trip`,
   )
+})
+
+test('pinUnusable: only a refused pin', () => {
+  const e = (kind: string) => ({ kind }) as unknown as AppError
+  assert.equal(pinUnusable(e('not-paired')), true)
+  assert.equal(pinUnusable(e('pin-mismatch')), true)
+  assert.equal(pinUnusable(e('gateway-offline')), false)
 })

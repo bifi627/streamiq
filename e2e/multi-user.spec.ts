@@ -8,6 +8,8 @@ import {
   appUrl,
   join,
   newPage,
+  openGateway,
+  openLibrary,
   pair,
   signIn,
   signUp,
@@ -45,8 +47,7 @@ test(
     const connect = async (p: Page) => {
       await p.goto(appUrl('/gateways'))
       if (p !== a) await pair(p, gatewayCtx, gateway.pageUrl)
-      await p.getByRole('button', { name: 'Open' }).click()
-      await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible() // a live session
+      await openLibrary(p) // a live session
     }
     const b = await newPage(browser) // own client key
 
@@ -101,6 +102,7 @@ test(
     // The one test with a paired member: its card lists only itself (the 403 on another's key: pairing/api_test.go).
     await test.step('B (member) unpairs its own browser from the card (#341)', async () => {
       await b.goto(appUrl('/gateways'))
+      await openGateway(b)
       const card = b.locator('li.card')
       await card.getByText('Paired clients', { exact: true }).click()
       const clients = card.locator('.clients li')

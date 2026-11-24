@@ -10,6 +10,10 @@ export type State =
   | { step: 'done'; paired: boolean; info: SystemInfo; path: PairInfo | null }
   | { step: 'failed'; err: AppError }
 
+/** The gateway refused this browser's pin: Pair again, not Test. */
+export const pinUnusable = (e: AppError) =>
+  e.kind === 'not-paired' || e.kind === 'pin-mismatch'
+
 /** Pair takes Open's place while this browser has no usable pin. */
 export const showPair = (
   s: State,
@@ -18,8 +22,7 @@ export const showPair = (
 ) =>
   !!needsPair ||
   pinned === false ||
-  (s.step === 'failed' &&
-    (s.err.kind === 'not-paired' || s.err.kind === 'pin-mismatch')) ||
+  (s.step === 'failed' && pinUnusable(s.err)) ||
   (s.step === 'connecting' && s.pair) || // stays put while it runs
   s.step === 'code'
 

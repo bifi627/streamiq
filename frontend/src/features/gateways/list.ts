@@ -77,3 +77,33 @@ export const profileLine = (p: Profile | null) =>
   p
     ? `${describeProbe(p.probe)}${p.compatible ? ' · Compatible mode' : ''} · probed ${new Date(p.probedAt).toLocaleString()}`
     : 'Not probed yet'
+
+// The overview card's status dot: what a gateway can't do first.
+export type Dot = 'required' | 'offline' | 'update' | 'online'
+export const dotOf = (g: {
+  online: boolean
+  update: string | null
+  upgradeRequired: boolean
+}): Dot =>
+  g.upgradeRequired
+    ? 'required'
+    : !g.online
+      ? 'offline'
+      : g.update
+        ? 'update'
+        : 'online'
+export const dotLabel: Record<Dot, string> = {
+  required: 'Update required',
+  offline: 'Offline',
+  update: 'Update available',
+  online: 'Online',
+}
+
+/** The overview's order: the active gateway first, the rest as listed. */
+export const activeFirst = <G extends { id: string }>(
+  gateways: G[],
+  active: string | null,
+) => [
+  ...gateways.filter((g) => g.id === active),
+  ...gateways.filter((g) => g.id !== active),
+]

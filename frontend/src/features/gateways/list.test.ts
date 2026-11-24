@@ -2,11 +2,13 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { AppError } from '../../shared/errors.ts'
 import {
+  activeFirst,
   canManage,
   clientRenameMessage,
   clientsMessage,
   clientsNote,
   detailsMessage,
+  dotOf,
   gatewayName,
   profileLine,
   removeOutcome,
@@ -87,5 +89,28 @@ test('profileLine: the probe, Compatible mode, when; none yet', () => {
       probedAt: at,
     }),
     `h264 high/main L5.1 · hevc L5.1 10bit ≤1080p · av1 no · audio aac,ac3 · 5.1 · Compatible mode · probed ${new Date(at).toLocaleString()}`,
+  )
+})
+
+test('dotOf: required, then offline, then update, then online', () => {
+  const g = { online: true, update: null, upgradeRequired: false }
+  assert.equal(dotOf(g), 'online')
+  assert.equal(dotOf({ ...g, update: '1.2.0' }), 'update')
+  assert.equal(dotOf({ ...g, online: false, update: '1.2.0' }), 'offline')
+  assert.equal(
+    dotOf({ ...g, online: false, update: '1.2.0', upgradeRequired: true }),
+    'required',
+  )
+})
+
+test('activeFirst: the active one leads, the rest keep their order', () => {
+  const gs = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+  assert.deepEqual(
+    activeFirst(gs, 'b').map((g) => g.id),
+    ['b', 'a', 'c'],
+  )
+  assert.deepEqual(
+    activeFirst(gs, null).map((g) => g.id),
+    ['a', 'b', 'c'],
   )
 })

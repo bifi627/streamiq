@@ -102,14 +102,13 @@ test('library → back → library within 30 s: one shared session (#152) @libra
     a.locator('header .chip').getByRole('button', { name: 'On your network' }),
   ).toBeVisible()
   a.on('websocket', count)
-  await a.getByRole('button', { name: 'Open' }).click()
+  await open(a)
   await expect(movies(a)).toBeVisible()
   await a
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: 'Gateways' })
     .click()
-  await a.getByRole('button', { name: 'Open' }).click()
-  await expect(movies(a)).toBeVisible()
+  await open(a)
   a.off('websocket', count)
   expect(rows).toBe(1)
 })

@@ -13,6 +13,7 @@
   --direct: #34d3a0;
   --relayed: #f5b941;
   --border: #2e2e33;
+  --danger: #f26b6b;
   --link: #9dbbff;
 
   /* type: title 34 / section 20 / body 16 / meta 13 (px at the default root) */
@@ -242,14 +243,22 @@ input[type='radio'] {
   gap: var(--sp-2);
   white-space: nowrap;
 }
-.titlerow .back {
+.titlerow .back,
+.titlerow .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: var(--target);
   padding: 0;
 }
-.titlerow .back svg {
+.titlerow .icon-btn svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.titlerow .back svg,
+.titlerow .icon-btn svg {
   width: 1.25rem;
   height: 1.25rem;
 }
@@ -590,6 +599,97 @@ html.tv .no-tv {
   padding: 0;
   list-style: none;
 }
+/* Gateways overview (OverviewCard.tsx): the name's link covers the card,
+   the buttons sit above it. One column on a phone, 2–3 on a desktop (.cards). */
+.card.gw {
+  position: relative;
+  gap: var(--sp-2);
+}
+.card.gw.active {
+  border-color: var(--accent);
+}
+.gw-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-section);
+  font-weight: 600;
+}
+.gw-link {
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.gw-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+}
+.card.gw .actions,
+.card.gw .state,
+.card.gw .gw-test {
+  position: relative; /* above the link's cover */
+  margin: 0;
+}
+.card.gw .dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+}
+.dot.offline {
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--text-muted);
+}
+.dot.update {
+  background: var(--relayed);
+}
+.dot.required {
+  background: var(--danger);
+}
+.active-chip {
+  min-height: var(--target);
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+/* Shared/Dialog.tsx: centered on a desktop, a full-screen sheet on a phone. */
+.dialog {
+  width: min(36rem, calc(100% - 2 * var(--sp-4)));
+  max-height: calc(100% - 2 * var(--sp-6));
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.dialog-head h2 {
+  margin: 0;
+  font-size: var(--fs-section);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .dialog {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+}
 .card-head {
   display: flex;
   align-items: center;
@@ -671,8 +771,12 @@ html.tv .no-tv {
   flex-basis: 100%;
 }
 .install {
-  align-items: stretch;
-  margin-bottom: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.install p {
+  margin: 0;
 }
 .cmd-head {
   display: flex;

@@ -64,7 +64,8 @@ before the overlay. Plain chat questions only if the tool isn't there.
   - Rejected before: `gh -R bifi627/streamiq issue list --state closed --search
     "<words> reason:\"not planned\""` for the same request.
   - A `bug` issue: a cheap repro only: read the code path, run an existing test, curl
-    a stack that is already up. Never e2e, Jellyfin or the dev stack, never a new test.
+    a stack that is already up. Never start e2e, Jellyfin or the dev stack, never write a
+    new test.
     Result: reproduced / not reproduced / not tried, each with why.
   - Show what each check found in chat (file or issue link, a rejection's reason), or
     one line "nothing found". A hit asks with AskUserQuestion before any draft: go on /

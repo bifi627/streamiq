@@ -1,7 +1,8 @@
-// The player page: the video, its controls and settings menus, and the next
-// episode button. Playback itself (loads, fallbacks, resume, screen mode) is
-// the Engine's (engine.ts); `remote` feeds it a phone's commands and
-// `onState` gets the playback state about once a second and on every change.
+// The player (its page, or inline on the detail page): the video, its
+// controls and settings menus, and the next episode button. Playback itself
+// (loads, fallbacks, resume, screen mode) is the Engine's (engine.ts); `remote`
+// feeds it a phone's commands and `onState` gets the playback state about once
+// a second and on every change.
 import { useEffect, useRef, useState } from 'react'
 import { ErrorView } from '../../shared/ErrorView'
 import { compatibleOn, quality, rawOn, setQuality } from '../../shared/settings'

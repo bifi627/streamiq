@@ -6,7 +6,7 @@
 #   bash scripts/review-level.sh [PR number]    # no number = this branch vs origin/main
 #
 # Prints `<level> <risk> <why>` on the first line (level = xhigh | high | low, risk =
-# low | mid | critical, why = the rule that set the risk), then the evidence, one line
+# low | mid | high | critical, why = the rule that set the risk), then the evidence, one line
 # each: `path: <file> (+added -removed)` for a crown-jewel path, `content: <file>:
 # <pattern>` for an added line matching a risky pattern anywhere.
 #
@@ -113,7 +113,7 @@ scan 1 content '' 0 "$CONTENT"
 scan 3 one-way-migration '^api/migrations/.*[.]sql$' 1 "$ONE_WAY"
 
 if [ $# -gt 0 ]; then
-  issue=$(gh pr view "$1" --json body --jq .body | grep -oiE 'fixes #[0-9]+' | head -1 | tr -dc 0-9)
+  issue=$(gh pr view "$1" --json body --jq .body | { grep -oiE 'fixes #[0-9]+' || true; } | head -1 | tr -dc 0-9)
   if [ -n "$issue" ]; then
     # The criterion's own tag is its last `(proof: `: its text may quote another.
     while IFS= read -r c; do

@@ -101,13 +101,18 @@ dropped (BLOCKER) or LOW (SPEC): a posted finding blocks the merge and costs a r
   have (oxlint with our plugin `frontend/lint/streamiq.js`,
   golangci-lint, actionlint, shellcheck, the e2e `tsc`) would have caught it, else
   `lint: no (<why, a few words>)` (#556).
-- **SPEC**: an acceptance criterion not met; out-of-scope work / a drive-by fix in the
-  diff; docs the change invalidated left stale (`docs/tools.md` for tools/credentials,
-  `docs/protocol.md` for protocol); a new dependency with no justification in the PR
-  body; a new or changed test that doesn't actually prove the acceptance criterion it
-  is there for, or that can hang instead of fail (no timeout on a wait); new branching /
-  ordering / timer logic in a `.tsx` without a `.ts` + `node --test` beside it (CLAUDE.md
-  "Frontend decision logic lives in `.ts`"; render branching doesn't count).
+- **SPEC**: an acceptance criterion not met (one ending `(proof: <kind>)` is not met
+  without that kind in the diff or the PR's `## Evidence`: a `go` criterion with only an
+  e2e spec, a `run` one with no output shown; a `manual` one runs after the review, so
+  it is met when the diff does what it describes and section 5 names its check; a
+  criterion without a proof kind is judged as before, the missing kind is no finding);
+  out-of-scope work / a drive-by fix in the diff; docs the change invalidated left stale
+  (`docs/tools.md` for tools/credentials, `docs/protocol.md` for protocol); a new
+  dependency with no justification in the PR body; a new or changed test that doesn't
+  actually prove the acceptance criterion it is there for, or that can hang instead of
+  fail (no timeout on a wait); new branching / ordering / timer logic in a `.tsx`
+  without a `.ts` + `node --test` beside it (CLAUDE.md "Frontend decision logic lives in
+  `.ts`"; render branching doesn't count).
 - **LOW**: everything else (style, naming, simplification, defensive checks for
   impossible states, speculative edge cases, nits, "consider…"), each with one category
   of `style naming dead-code simplify defensive test docs race error-handling drift ux
@@ -141,7 +146,8 @@ needs a read, not a manual run). One label:
 | `risk:critical` | hard to undo: a migration that drops or rewrites data (rule `one-way-migration`), a protocol / `gateway.env` / state dir / CLI change that reaches installed gateways (a `!` title, rule `breaking-title`) | merges when they can watch the release |
 
 What decides it: which test drives the changed behavior? Name it, or the label is at
-least `risk:high`. Strictly:
+least `risk:high`. An issue with `(proof: manual: …)` criteria is at least `risk:high`,
+and they are the manual check the `Merge risk:` line names. Strictly:
 
 - A helper's unit test doesn't drive the code that calls it: the caller's changed
   path needs its own test.

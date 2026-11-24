@@ -46,10 +46,11 @@ import {
   backdrop,
   current,
   primary,
+  usePlay,
   useTunnel,
   useTunnelQuery,
 } from './art'
-import { Artwork, usePlay, Watched } from './Home'
+import { Artwork, Watched } from './Home'
 import { tvOn } from '../../shared/settings'
 export { Home as LibraryHome } from './Home'
 

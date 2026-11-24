@@ -291,7 +291,6 @@ test('watched marks: a finished episode reads Watched, a part-played one its tim
   await a
     .locator('video')
     .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
-  await a.waitForFunction(() => document.querySelector('video')?.ended)
   // The end stops inline playback: the hero card is back.
   await expect(a.locator('button.hero')).toBeVisible()
   await second.getByRole('button').first().click()
@@ -321,8 +320,8 @@ test('inline playback: in the hero box, Back stops and stays; an episode from Co
   await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(2)
   await expect(a).toHaveURL(/\/i\/[^/]+\?play=/)
   // In the hero's box, the info column beside it, the title row kept.
-  const box = must(await a.locator('.hero-player').boundingBox())
-  const video = must(await inline.boundingBox())
+  const box = must(await a.locator('.hero-player').boundingBox(), 'hero box')
+  const video = must(await inline.boundingBox(), 'inline video box')
   expect(video.y + video.height).toBeLessThanOrEqual(box.y + box.height + 1)
   await expect(a.locator('.title-info')).toBeVisible()
   await expect(

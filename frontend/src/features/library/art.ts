@@ -4,7 +4,9 @@
 // keeps its size (index.css `.art`) until the image arrives.
 import { createContext, useContext } from 'react'
 import { skipToken, useQuery } from '@tanstack/react-query'
-import type { Item } from './items'
+import { playTarget, type Item } from './items'
+import { useNavigate } from '@tanstack/react-router'
+import { tvOn } from '../../shared/settings'
 import { image } from './jellyfin'
 import { tunnelFetch, tunnelJson } from '../../shared/tunnel'
 import { ART_PREFIX, artCleared } from '../../shared/leave'
@@ -165,3 +167,23 @@ export const backdrop = (i: Item): Art | null =>
           tag: i.ParentBackdropImageTags[0],
         }
       : null
+
+/** Plays an item from outside its page (playTarget): TV mode's player page,
+ * else its detail page playing it, one history step. */
+export function usePlay() {
+  const { gatewayId } = useTunnel()
+  const navigate = useNavigate()
+  return (i: Item) => {
+    const t = playTarget(i, tvOn())
+    return t.to === 'player'
+      ? navigate({
+          to: '/g/$gatewayId/play/$itemId',
+          params: { gatewayId, itemId: t.itemId },
+        })
+      : navigate({
+          to: '/g/$gatewayId/i/$itemId',
+          params: { gatewayId, itemId: t.itemId },
+          search: { play: t.play },
+        })
+  }
+}

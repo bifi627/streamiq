@@ -77,9 +77,11 @@ test('privacy badge (#205, #428): On your network, never leaves the house @playe
 }) => {
   const { page } = paired
   await play(page)
-  await page.getByRole('button', { name: 'On your network' }).click()
+  // The player's own badge (the shell's is on the page too, inline).
+  const player = page.locator('.player')
+  await player.getByRole('button', { name: 'On your network' }).click()
   await expect(
-    page.getByText(/end-to-end encrypted · never leaves the house/),
+    player.getByText(/end-to-end encrypted · never leaves the house/),
   ).toBeVisible() // same host: the gateway sees the browser on its own subnet
 })
 
@@ -299,7 +301,9 @@ test('a final playback error (#552): the load stops once, the stuck check stays 
   await play(page)
   // ?fail=9: every load looks stuck (diag.ts), so remux → video transcode →
   // compatible → the error. Every later video append would be stuck again.
-  await page.goto(`${page.url()}?fail=9`)
+  const url = new URL(page.url())
+  url.searchParams.set('fail', '9')
+  await page.goto(url.href)
   await expect(
     page.getByText('Playback failed (even in compatible mode)'),
   ).toBeVisible({ timeout: 60_000 })
@@ -524,7 +528,6 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
   await a
     .locator('video')
     .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
-  await a.waitForFunction(() => document.querySelector('video')?.ended)
   // Finished episode: inline playback stops; the first hero card shown
   // already names the next one (no stale "S1 · E1").
   await expect(primary).toBeFocused()

@@ -14,6 +14,7 @@ import {
   backdrop,
   items,
   primary,
+  usePlay,
   useTunnel,
   useArt,
   useTunnelQuery,
@@ -23,34 +24,11 @@ import {
   clock,
   playable,
   playsAtOnce,
-  playTarget,
   TICKS_PER_SECOND,
   timeLeft,
   type Item,
 } from './items'
 import * as jf from './jellyfin'
-import { tvOn } from '../../shared/settings'
-
-/** Plays an item from outside its page (playTarget): TV mode's player page,
- * else its detail page playing it, one history step. */
-export function usePlay() {
-  const { gatewayId } = useTunnel()
-  const navigate = useNavigate()
-  return (i: Item) => {
-    const t = playTarget(i, tvOn())
-    return t.to === 'player'
-      ? navigate({
-          to: '/g/$gatewayId/play/$itemId',
-          params: { gatewayId, itemId: t.itemId },
-        })
-      : navigate({
-          to: '/g/$gatewayId/i/$itemId',
-          params: { gatewayId, itemId: t.itemId },
-          search: { play: t.play },
-        })
-  }
-}
-
 const title = (i: Item) => i.SeriesName ?? i.Name
 function meta(i: Item) {
   const left = timeLeft(i)

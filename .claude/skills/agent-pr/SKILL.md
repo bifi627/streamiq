@@ -109,8 +109,8 @@ dropped (BLOCKER) or LOW (SPEC): a posted finding blocks the merge and costs a r
   out-of-scope work / a drive-by fix in the diff; docs the change invalidated left stale
   (`docs/tools.md` for tools/credentials, `docs/protocol.md` for protocol); a new
   dependency with no justification in the PR body; a new or changed test that doesn't
-  actually prove the acceptance criterion it is there for, or that can hang instead of
-  fail (no timeout on a wait); new branching / ordering / timer logic in a `.tsx`
+  actually prove the acceptance criterion it is there for (the two shapes under
+  **Tests** below), or that can hang instead of fail (no timeout on a wait); new branching / ordering / timer logic in a `.tsx`
   without a `.ts` + `node --test` beside it (CLAUDE.md "Frontend decision logic lives in
   `.ts`"; render branching doesn't count).
 - **LOW**: everything else (style, naming, simplification, defensive checks for
@@ -124,6 +124,14 @@ dropped (BLOCKER) or LOW (SPEC): a posted finding blocks the merge and costs a r
   ("added in #N", "was X", an issue cited as a changelog entry) or commented-out code is
   a **BLOCKER** (`lint: no (needs reading; check-comments.sh and, in TS, oxlint's streamiq/no-low-value-comments catch issue refs; the oxlint rule also the usual commented-out shapes; in Go, golangci-lint gocritic commentedOutCode catches commented-out code)`);
   one that restates the code, copies `docs/` or is a banner is **LOW** (`style`).
+- **Tests** the diff adds or changes (a test it doesn't touch is no finding):
+  - *tautological*: the expected value is computed the way the code under test computes
+    it (the same formula, the same helper, the production function called to build the
+    expectation), so it passes by construction: **SPEC**.
+  - *implementation-coupled*: asserts on internals (private state, call counts, mocks of
+    our own code; a mock of what we don't own, like Firebase, Jellyfin or the network,
+    isn't one). Only internals, no observable outcome of its criterion: **SPEC**; it
+    also asserts that outcome: **LOW** (`test`).
 - **Security-sensitive** (exploitable now): mark it `security`; CLAUDE.md's security
   rule applies (owner only, in the thread).
 

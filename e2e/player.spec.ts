@@ -215,33 +215,12 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
   paired,
 }) => {
   const { page } = paired
-  page.on('console', (m) => m.text().startsWith('[vol]') && console.log(m.text()))
-  await page.addInitScript(() => {
-    const log = (...a: unknown[]) => console.log('[vol]', Math.round(performance.now()), ...a)
-    const set = Storage.prototype.setItem
-    Storage.prototype.setItem = function (this: Storage, k: string, v: string) {
-      if (k === 'streamiq.volume' || k === 'streamiq.muted')
-        log('set', k, v, new Error().stack?.split(String.fromCharCode(10)).slice(2, 6).join(' | '))
-      return set.call(this, k, v)
-    }
-    document.addEventListener('volumechange', (e) => {
-      const v = e.target as HTMLVideoElement
-      log('vc', v.volume, v.muted, v.isConnected)
-    }, true)
-    for (const n of ['loadstart', 'emptied'])
-      document.addEventListener(n, () => log(n), true)
-    document.addEventListener('keydown', (e) => log('key', e.key, document.activeElement?.tagName), true)
-    new MutationObserver((ms) => ms.forEach((m) => {
-      m.addedNodes.forEach((n) => n.nodeName === 'VIDEO' && log('video+'))
-      m.removedNodes.forEach((n) => n.nodeName === 'VIDEO' && log('video-'))
-    })).observe(document, { childList: true, subtree: true })
-  })
   await play(page)
   const video = page.locator('video')
   const vol = () =>
     video.evaluate((v: HTMLVideoElement) => [v.volume, v.muted] as const)
-  // The player stores the level on volumechange, after the element has it:
-  // reloading before that brings the old level back.
+  // What comes back after a reload is what was stored: checked first, so a
+  // lost save fails here, not as a wrong level later.
   const reload = async () => {
     const saved = () =>
       video.evaluate(
@@ -249,13 +228,7 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
           localStorage.getItem('streamiq.volume') === String(v.volume) &&
           localStorage.getItem('streamiq.muted') === (v.muted ? '1' : '0'),
       )
-    try {
-      await expect.poll(saved).toBe(true)
-    } catch (e) {
-      console.log('[vol] FAIL', await video.evaluate((v: HTMLVideoElement) => JSON.stringify({ vol: v.volume, muted: v.muted, ls: localStorage.getItem('streamiq.volume'), lm: localStorage.getItem('streamiq.muted'), n: document.querySelectorAll('video').length })))
-      throw e
-    }
-    console.log('[vol] reload')
+    await expect.poll(saved).toBe(true)
     await page.reload()
   }
   await expect.poll(vol).toEqual([0.5, false])

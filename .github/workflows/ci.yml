@@ -208,7 +208,7 @@ jobs:
           until grep -q '^pulled all' "$RUNNER_TEMP/pull.log" || ! kill -0 "$(cat "$RUNNER_TEMP/pull.pid")" 2> /dev/null; do sleep 1; done
           cat "$RUNNER_TEMP/pull.log"
           grep -q '^pulled all' "$RUNNER_TEMP/pull.log"
-      - run: npx playwright test --grep "volume \(#479\)" --repeat-each 30
+      - run: npx playwright test
         working-directory: e2e
         env:
           GH_TOKEN: ${{ github.token }} # compat.spec.ts downloads the last gateway release (#459)

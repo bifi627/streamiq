@@ -15,11 +15,15 @@ test('tabs: all five, TV keeps Library + Settings, no household keeps what opens
   assert.deepEqual(tabs(true, true), ['settings'])
 })
 
-test('libraryTarget: open, else last if listed, else the only one', () => {
-  assert.equal(libraryTarget('a', 'b', ['a', 'b']), 'a')
-  assert.equal(libraryTarget(undefined, 'b', ['a', 'b']), 'b')
-  assert.equal(libraryTarget(undefined, 'gone', ['a', 'b']), null)
-  assert.equal(libraryTarget(undefined, 'gone', ['a']), 'a')
+test('libraryTarget: open, else last if listed, else first online, else first', () => {
+  const up = (id: string) => ({ id, online: true })
+  const down = (id: string) => ({ id, online: false })
+  const both = [down('a'), up('b')]
+  assert.equal(libraryTarget('x', 'a', both), 'x')
+  assert.equal(libraryTarget(undefined, 'a', both), 'a')
+  assert.equal(libraryTarget(undefined, 'gone', both), 'b')
+  assert.equal(libraryTarget(undefined, null, both), 'b')
+  assert.equal(libraryTarget(undefined, null, [down('a'), down('b')]), 'a')
   assert.equal(libraryTarget(undefined, null, []), null)
 })
 

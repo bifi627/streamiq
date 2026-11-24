@@ -9,16 +9,17 @@ export function tabs(tv: boolean, homeless: boolean): Tab[] {
     : ['gateways', 'activity', 'library', 'household', 'settings']
 }
 
-/** The Library tab's gateway: the open one, else the last opened on this
- * device (if still listed), else the only one; null = the tab is disabled. */
+/** The active gateway (the Library tab's, the badge's, Use as screen's): the
+ * open one, else the last opened on this device (if still listed), else the
+ * first online, else the first; null only without a gateway. */
 export function libraryTarget(
   open: string | undefined,
   last: string | null,
-  ids: string[],
+  gateways: { id: string; online: boolean }[],
 ): string | null {
   if (open) return open
-  if (last && ids.includes(last)) return last
-  return ids.length === 1 ? ids[0] : null
+  if (last && gateways.some((g) => g.id === last)) return last
+  return (gateways.find((g) => g.online) ?? gateways[0])?.id ?? null
 }
 
 /** The player is full screen: no top bar, title row or tab bar. */

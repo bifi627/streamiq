@@ -84,11 +84,7 @@ function Shell() {
     // cancelRefetch false: joins the mount's fetch instead of a second one.
     void qc.refetchQueries({ queryKey: ['gateways'] }, { cancelRefetch: false })
   }, [gatewayId, qc])
-  const library = libraryTarget(
-    gatewayId,
-    lastGateway(),
-    gateways.map((g) => g.id),
-  )
+  const library = libraryTarget(gatewayId, lastGateway(), gateways)
   const gateway = gateways.find((g) => g.id === library)
   // The dot: loading / failed are not "offline". The Gateways list /
   // library show their own errors.

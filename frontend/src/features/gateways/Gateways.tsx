@@ -18,7 +18,8 @@ import { copyText } from '../../shared/clipboard'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../shared/focus'
-import { tvOn } from '../../shared/settings'
+import { lastGateway, tvOn } from '../../shared/settings'
+import { libraryTarget } from '../../shell'
 import { EditableName, STORED } from './EditableName'
 import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
@@ -28,19 +29,16 @@ import { RelaySetting } from './RelaySetting'
 import { canManage, gatewayName, shownError, type ActErr } from './list'
 import { event } from '../../shared/diag'
 
-// `/`: straight into the library when the household has exactly one
-// gateway, else the list. History replace both ways, so Back doesn't bounce.
+// `/`: straight into the active gateway's library, the list without a
+// gateway. History replace both ways, so Back doesn't bounce.
 export function Home() {
   const navigate = useNavigate()
   const { data, isError } = useGateways()
   useEffect(() => {
     if (!data && !isError) return // the list shows the error
-    if (data?.length === 1)
-      navigate({
-        to: '/g/$gatewayId',
-        params: { gatewayId: data[0].id },
-        replace: true,
-      })
+    const id = data && libraryTarget(undefined, lastGateway(), data)
+    if (id)
+      navigate({ to: '/g/$gatewayId', params: { gatewayId: id }, replace: true })
     else navigate({ to: '/gateways', replace: true })
   }, [data, isError, navigate])
   return null

@@ -54,9 +54,25 @@ before the overlay. Plain chat questions only if the tool isn't there.
   still match the code? A criterion without a proof kind (below) gets one proposed as
   an edit. Report what is stale and the edits you propose (or "nothing"), then go to
   section 4.
-- **Not drafted** (a group's sub-issue stub too): first the pre-draft checks, then ask
-  the owner the open questions (AskUserQuestion, up to 4 per call), then draft Why,
-  Acceptance criteria, Out of scope, Notes and go to section 4.
+- **Not drafted** (a group's sub-issue stub too): first the pre-draft checks, then the
+  interview, then draft Why, Acceptance criteria, Out of scope, Notes and go to section 4.
+- **Interview** (not drafted only), until no question is open:
+  - The tree first: before the first question, list in chat every open question you
+    see and which ones wait on which answer. Send it in a call before the question,
+    never in the same batch.
+  - Facts aren't questions: what the code does, what an issue decided, what a doc
+    says, you look up (a subagent when the search is wide); the pre-draft checks'
+    findings are such facts.
+  - Rounds: a round is the questions whose prerequisites are settled, asked with
+    AskUserQuestion, up to 4 per call, as many calls as the round needs. A question an
+    answer opens joins a later round; one an answer makes moot is dropped.
+  - Words and claims: a term in the issue or an answer that the CLAUDE.md glossary
+    doesn't have, or uses differently, is asked: which glossary word is meant. An owner
+    claim the code contradicts is shown (file link, what the code does) and asked:
+    which holds.
+  - Done when no question is open, not when the rounds run out: list in chat the
+    decisions the draft rests on, then draft. No confirm question: section 4's approval
+    is the confirmation.
 - **Pre-draft checks** (not drafted only), so nothing built, rejected or not real gets
   a spec:
   - Already built: search the code for the issue's domain concept, in the CLAUDE.md

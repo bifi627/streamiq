@@ -1798,6 +1798,7 @@ progress::-moz-progress-bar {
   display: none;
 }
 .categories summary .muted {
+  min-width: 0;
   overflow: hidden;
   font-weight: 400;
   text-overflow: ellipsis;

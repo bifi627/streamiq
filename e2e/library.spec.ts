@@ -1,9 +1,10 @@
 // The library, on a paired browser with its own gateway (fixtures.ts
-// `paired`): `/` → the one gateway's library, the nav's Library link, the
+// `paired`): `/` → the active gateway's library (one gateway; with two, the
+// online one, then the last opened), the nav's Library link, the
 // shared session, folder deep links + cache, Recently added,
 // Continue watching's order and click-through guard, season tabs
 // and watched marks, no speed test while browsing. Folder → movie → Play and the Resume spot are
-// smoke.spec's; `/` with no gateway or several, artwork caching and the guest banner
+// smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
@@ -42,6 +43,35 @@ test('home: with one gateway, / opens its library (#225) @library', async ({
   await page.goto(appUrl('/'))
   await expect(page).toHaveURL(appUrl(`/g/${g.id}`))
   await expect(movies(page)).toBeVisible()
+})
+
+test('home: with two gateways, / opens the online one, then the last opened (#861) @library', async ({
+  paired,
+}) => {
+  const { page, user } = paired
+  const list = await user.api<{ id: string }[]>('/gateways')
+  const g = list[0]
+  const away = '00000000-0000-4000-8000-000000000861'
+  // A second, offline gateway, listed first. A fixed list: a fetch through
+  // the route races the navigations below (its response gets disposed).
+  await page.route('**/api/gateways', (route) =>
+    route.fulfill({
+      json: [{ ...g, id: away, name: 'Away', online: false }, ...list],
+    }),
+  )
+  // None opened on this device yet.
+  await page.evaluate(() => localStorage.removeItem('streamiq.lastGateway'))
+  await page.goto(appUrl('/'))
+  await expect(page).toHaveURL(appUrl(`/g/${g.id}`))
+  await expect(movies(page)).toBeVisible()
+  await page.goto(appUrl(`/g/${away}`))
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem('streamiq.lastGateway')),
+    )
+    .toBe(away)
+  await page.goto(appUrl('/'))
+  await expect(page).toHaveURL(appUrl(`/g/${away}`))
 })
 
 test("nav: the Library link leads back to the gateway's library @library", async ({

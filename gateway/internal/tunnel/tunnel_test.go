@@ -390,7 +390,12 @@ func TestBlockedStreamEndsOnClose(t *testing.T) {
 			j := &Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 			j.SetKey(key, uid)
 
-			browser, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
+			// The browser takes at most 64 KB (+ the frame its stuck handler holds)
+			// before its window closes, so the gateway's buffer, once past
+			// 3/4 MaxBuffered, can't drain to the low-water mark again.
+			var se webrtc.SettingEngine
+			se.SetSCTPMaxReceiveBufferSize(64 << 10)
+			browser, _ := webrtc.NewAPI(webrtc.WithSettingEngine(se)).NewPeerConnection(webrtc.Configuration{})
 			gateway, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
 			hold := make(chan struct{})
 			t.Cleanup(func() { close(hold); browser.Close(); gateway.Close() })
@@ -433,18 +438,10 @@ func TestBlockedStreamEndsOnClose(t *testing.T) {
 			case <-time.After(30 * time.Second):
 				t.Fatal("no data channel on the gateway")
 			}
-			// Waiting on backpressure: the buffer went over MaxBuffered and now sits,
-			// unchanged, above the low-water mark that would wake the sender.
-			var was uint64
-			var sampled time.Time
+			// Past 3/4 MaxBuffered the sender is blocked, or blocks once it has
+			// written past MaxBuffered: nothing wakes it from then on but a close.
 			testwait.Until(t, 30*time.Second, func() bool {
-				if time.Since(sampled) < 300*time.Millisecond {
-					return false
-				}
-				now := gd.BufferedAmount()
-				blocked := was > MaxBuffered/2 && was == now
-				was, sampled = now, time.Now()
-				return blocked
+				return gd.BufferedAmount() > MaxBuffered*3/4
 			}, "sender never blocked")
 			select {
 			case <-upstreamDone:

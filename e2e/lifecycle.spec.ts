@@ -169,8 +169,9 @@ test('Remove in the web app: the gateway is revoked and disconnected @gateways',
   let out = ''
   gateway.proc.stderr.on('data', (d) => (out += d))
   await openGateway(a)
+  await a.getByRole('button', { name: 'Gateway actions' }).click()
   a.once('dialog', (d) => d.accept())
-  await a.getByRole('button', { name: 'Remove' }).click()
+  await a.getByRole('menuitem', { name: 'Remove' }).click()
   await expect(a.getByText('No gateways yet.')).toBeVisible() // back on the overview
   // Its socket was closed and the reconnect is refused (401). A miss shows the
   // gateway's stderr since Remove: the reconnecting / dial control lines.

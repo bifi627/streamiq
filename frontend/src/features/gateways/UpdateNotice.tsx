@@ -13,7 +13,7 @@ import {
 import { gatewayName } from './list'
 import { event } from '../../shared/diag'
 
-// How long the card waits for the gateway to come back on the new version
+// How long the notice waits for the gateway to come back on the new version
 // before it says the update didn't finish.
 const UPDATE_WAIT = 2 * 60_000
 
@@ -61,7 +61,7 @@ export function UpdateNotice({
 
   // An update started here can unmount the focused control (the button on a
   // 409, the Updating line once done): focus then falls to <body>, outside the
-  // D-pad container. Put it on the card's Status, which always renders (as
+  // D-pad container. Put it on the page's Status tile, which always renders (as
   // Pairing does). Only on this notice's own state changes, not the poll.
   const keep = useRef(false)
   useEffect(() => {

@@ -8,6 +8,8 @@ import {
 import { toAppError } from '../../shared/errors'
 import { detailsMessage } from './list'
 import { loadHints, loadLine } from './host'
+import { RelaySetting } from './RelaySetting'
+import { Tile } from './Tile'
 
 const tokenText = {
   ok: 'token set',
@@ -15,12 +17,11 @@ const tokenText = {
 }
 
 // Liveness from the heartbeat (works unpaired); the details from the gateway API
-// over the tunnel, which needs this browser paired.
-export function StatusDetails({ g }: { g: Gateway }) {
+// over the tunnel, which needs this browser paired. manage: the relay switch.
+export function StatusDetails({ g, manage }: { g: Gateway; manage: boolean }) {
   const [open, setOpen] = useState(false)
   return (
-    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>Status</summary>
+    <Tile title="Status" onOpen={setOpen}>
       <ul>
         <li>
           ID <code>{g.id}</code>
@@ -32,9 +33,19 @@ export function StatusDetails({ g }: { g: Gateway }) {
             : 'not connected'}
         </li>
         <li>Version {g.version ?? 'unknown'}</li>
+        {g.lanUrl && (
+          <li>
+            <a href={g.lanUrl} target="_blank" rel="noreferrer">
+              Gateway page
+            </a>{' '}
+            (on your home network)
+          </li>
+        )}
         {open && <Details g={g} />}
       </ul>
-    </details>
+      <h3>Connection</h3>
+      <RelaySetting g={g} manage={manage} />
+    </Tile>
   )
 }
 

@@ -14,7 +14,7 @@ export type State =
 export const pinUnusable = (e: AppError) =>
   e.kind === 'not-paired' || e.kind === 'pin-mismatch'
 
-/** Pair takes Open's place while this browser has no usable pin. */
+/** Pair shows while this browser has no usable pin. */
 export const showPair = (
   s: State,
   pinned: boolean | null,

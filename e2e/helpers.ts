@@ -333,8 +333,8 @@ export async function gatewayTab(ctx: BrowserContext, url: string) {
 }
 
 /** Pair from the web app; approve on the gateway page only if the codes match.
- * From the overview card's Pair (its dialog closes after, unless keep: the
- * name prompt) or the gateway page's Pair this browser. */
+ * From the overview card's Pair or the gateway page's Pair this browser, both
+ * a dialog (closed after, unless keep: the name prompt). */
 export async function pair(
   app: Page,
   ctx: BrowserContext,
@@ -356,7 +356,7 @@ export async function pair(
     await dialog.getByRole('button', { name: 'Close' }).click()
 }
 
-/** From the overview: the (only) gateway's page, with every detail and action. */
+/** From the overview: the (only) gateway's page, its tiles collapsed. */
 export async function openGateway(p: Page) {
   await p.locator('li.card .gw-link').click()
   await expect(p).toHaveURL(/\/gateways\/[^/]+$/)

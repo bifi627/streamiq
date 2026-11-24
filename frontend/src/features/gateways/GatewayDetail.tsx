@@ -1,8 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { removeGateway, renameGateway, type Gateway, useGateways } from './api'
-import { Pairing } from '../pairing/Pairing'
 import { dropShared } from '../pairing/connect'
 import { deletePin, usePin } from '../pairing/store'
 import { renameMessage, toAppError, type AppError } from '../../shared/errors'
@@ -10,18 +9,18 @@ import { ErrorView, State } from '../../shared/ErrorView'
 import { PageBar } from '../../shared/PageBar'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../shared/focus'
-import { tvOn } from '../../shared/settings'
-import { EditableName, STORED } from './EditableName'
+import { NameForm, STORED } from './EditableName'
 import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
-import { RelaySetting } from './RelaySetting'
+import { PairDialog } from './PairDialog'
+import { ActionMenu, type Action } from './ActionMenu'
 import { canManage, gatewayName, shownError, type ActErr } from './list'
 import { event } from '../../shared/diag'
 
-// `/gateways/$id`: one gateway's card with every detail and action.
-// TODO(#870) the detail page replaces it. Rename/Remove are admin-only.
+// `/gateways/$id`: one gateway's page: the update banner, Pair, and the Status,
+// Health and Paired clients tiles; Rename and Remove in the title row's menu.
 export function GatewayDetail({ id }: { id: string }) {
   const q = useGateways(5000)
   const qc = useQueryClient()
@@ -62,10 +61,9 @@ export function GatewayDetail({ id }: { id: string }) {
 
   return (
     <section className="gateways" onKeyDown={arrowFocus}>
-      <PageBar
-        title={g ? gatewayName(g) : 'Gateway'}
-        onBack={() => navigate({ to: '/gateways' })}
-      />
+      {!g && (
+        <PageBar title="Gateway" onBack={() => navigate({ to: '/gateways' })} />
+      )}
       {err && <ErrorView error={err} />}
       {q.data && !g && (
         <State icon="gateway" title="This gateway isn't in the household.">
@@ -75,21 +73,19 @@ export function GatewayDetail({ id }: { id: string }) {
         </State>
       )}
       {g && (
-        <ul className="cards">
-          <GatewayCard
-            g={g}
-            admin={admin}
-            onRename={(n) => rename(g, n)}
-            onRemove={() => removing.mutate(g.id)}
-          />
-        </ul>
+        <GatewayPage
+          g={g}
+          admin={admin}
+          onRename={(n) => rename(g, n)}
+          onRemove={() => removing.mutate(g.id)}
+        />
       )}
     </section>
   )
 }
 
-// One gateway's card. onRename / onRemove: the list's, it owns the query.
-function GatewayCard({
+// The page itself. onRename / onRemove: GatewayDetail's, it owns the query.
+function GatewayPage({
   g,
   admin,
   onRename,
@@ -105,8 +101,11 @@ function GatewayCard({
   // they show only then.
   const [pinned, setPinned] = usePin(g.id)
   const manage = canManage(admin, g.online, !!pinned)
-  // This browser removed itself from it: Pair shows again.
+  // This browser removed itself from it: Paired clients says so.
   const [unpaired, setUnpaired] = useState(false)
+  const [pairing, setPairing] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const menu = useRef<HTMLButtonElement>(null)
   async function removedSelf() {
     await deletePin(g.id).catch((e) =>
       event(`pairing: pin delete failed: ${e}`),
@@ -123,81 +122,68 @@ function GatewayCard({
     )
       onRemove()
   }
+  const actions: Action[] = [
+    ...(manage ? [{ label: 'Rename', run: () => setRenaming(true) }] : []),
+    ...(admin ? [{ label: 'Remove', run: remove }] : []),
+  ]
   return (
-    <li className="card" data-gateway={g.id}>
-      <div className="card-head">
-        <EditableName
-          name={gatewayName(g)}
-          label="Gateway name"
-          hint={STORED}
-          rename={manage ? onRename : undefined}
-        />
-        <span className="chip">
-          <span className={g.online ? 'dot online' : 'dot'} />
-          {g.online ? 'Online' : 'Offline'}
-        </span>
-      </div>
-      {g.version && (
-        <span className="meta muted no-tv">Version {g.version}</span>
-      )}
+    <div className="gateway-page" data-gateway={g.id}>
+      <PageBar
+        onBack={() => navigate({ to: '/gateways' })}
+        title={
+          // !manage: went offline mid-edit, so the name only.
+          renaming && manage ? (
+            <NameForm
+              name={gatewayName(g)}
+              label="Gateway name"
+              hint={STORED}
+              rename={onRename}
+              onClose={() => {
+                setRenaming(false)
+                menu.current?.focus() // the form had it: keep the D-pad's place
+              }}
+            />
+          ) : (
+            gatewayName(g)
+          )
+        }
+        actions={
+          actions.length > 0 && (
+            <ActionMenu label="Gateway actions" actions={actions} button={menu} />
+          )
+        }
+      />
       {g.upgradeRequired ? (
-        <p className="notice no-tv">
+        <p className="notice">
           Update required: rerun the install command on the gateway.
         </p>
       ) : (
-        // Not mounted on a TV: hidden there, and its status call would go unseen.
-        !tvOn() && <UpdateNotice g={g} canUpdate={manage} />
+        <UpdateNotice g={g} canUpdate={manage} />
       )}
-      {g.online ? (
-        // Pair this browser stands where Open is until it's paired.
-        <Pairing
-          gatewayId={g.id}
-          lanUrl={g.lanUrl}
-          needsPair={unpaired}
-          onPaired={() => {
-            setPinned(true)
-            setUnpaired(false)
-          }}
-          open={() =>
-            navigate({ to: '/g/$gatewayId', params: { gatewayId: g.id } })
-          }
-        >
-          {/* Every device; TV mode also has it in the top bar (App.tsx). */}
-          {!unpaired && (
-            <Link to="/g/$gatewayId/screen" params={{ gatewayId: g.id }}>
-              Use as screen
-            </Link>
-          )}
-          {g.lanUrl && (
-            <a
-              className="no-tv"
-              href={g.lanUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Gateway page
-            </a>
-          )}
-          {admin && <RemoveButton onClick={remove} />}
-        </Pairing>
-      ) : (
-        admin && (
-          <div className="actions no-tv">
-            <RemoveButton onClick={remove} />
-          </div>
-        )
+      {g.online && pinned === false && (
+        <p className="actions">
+          <button
+            type="button"
+            className="primary"
+            onClick={() => setPairing(true)}
+          >
+            Pair this browser
+          </button>
+        </p>
       )}
-      <RelaySetting g={g} manage={manage} />
-      <StatusDetails g={g} />
-      <HealthHistory g={g} paired={pinned === true} /* removedSelf unpins */ />
-      {/* A member's list is just this browser. */}
-      <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
-    </li>
+      {pairing && (
+        <PairDialog
+          g={g}
+          onClose={() => setPairing(false)}
+          onPaired={() => setUnpaired(false)}
+        />
+      )}
+      <div className="tiles">
+        <StatusDetails g={g} manage={manage} />
+        <HealthHistory g={g} paired={pinned === true} /* removedSelf unpins */ />
+        {/* A member's list is just this browser. */}
+        <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
+      </div>
+    </div>
   )
 }
-
-const RemoveButton = ({ onClick }: { onClick: () => void }) => (
-  <button type="button" className="end no-tv" onClick={onClick}>
-    Remove
-  </button>
-)

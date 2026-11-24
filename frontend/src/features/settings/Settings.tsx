@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PageBar } from '../../shared/PageBar'
+import { Chevron } from '../../shared/Chevron'
 import { signOut } from '@firebase/auth'
 import { auth } from '../../shared/firebase'
 import { TvToggle } from '../tv/TvMode'
@@ -92,14 +93,5 @@ function Category({
         <ul className="rows">{children}</ul>
       </details>
     </li>
-  )
-}
-
-// › on a page row; turned to ⌄ (and up when open) on an expandable (index.css).
-function Chevron() {
-  return (
-    <svg className="chevron" aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M9 6l6 6-6 6" />
-    </svg>
   )
 }

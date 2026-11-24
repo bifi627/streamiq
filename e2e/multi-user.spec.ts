@@ -99,12 +99,12 @@ test(
       await resume(/0:1[5-9]/)
     })
 
-    // The one test with a paired member: its card lists only itself (the 403 on another's key: pairing/api_test.go).
-    await test.step('B (member) unpairs its own browser from the card (#341)', async () => {
+    // The one test with a paired member: its list shows only itself (the 403 on another's key: pairing/api_test.go).
+    await test.step('B (member) unpairs its own browser from the gateway page (#341)', async () => {
       await b.goto(appUrl('/gateways'))
       await openGateway(b)
-      const card = b.locator('li.card')
-      await card.getByText('Paired clients', { exact: true }).click()
+      const card = b.locator('.gateway-page')
+      await card.locator('summary', { hasText: 'Paired clients' }).click()
       const clients = card.locator('.clients li')
       await expect(clients).toHaveCount(1)
       await expect(clients).toContainText('(this browser)')

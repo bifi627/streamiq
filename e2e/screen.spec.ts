@@ -30,10 +30,11 @@ test.beforeEach(async ({ paired: { page } }) => {
   await page.reload()
 })
 
-/** TV on /gateways → its gateway's page → Use as screen; the screen's name. */
+/** TV on its gateway's library → the screen route (TV mode's top bar link,
+ * without TV mode: the phones share its localStorage); the screen's name. */
 async function useAsScreen(tv: Page) {
-  await openGateway(tv)
-  await tv.getByRole('link', { name: 'Use as screen' }).click()
+  await openLibrary(tv)
+  await tv.goto(`${tv.url()}/screen`)
   const waiting = tv.getByRole('heading', { name: /^Screen: / })
   await expect(waiting).toBeVisible()
   return must(await waiting.textContent(), 'screen heading text').replace(
@@ -88,7 +89,7 @@ const cue = (tv: Page) =>
       .join(),
   )
 
-test("entry (#248, #872): the gateway's page always, the top bar only in TV mode @player", async ({
+test('entry (#248, #872, #870): the top bar in TV mode only, not on the gateway page @player', async ({
   paired,
 }) => {
   const { page } = paired
@@ -102,10 +103,7 @@ test("entry (#248, #872): the gateway's page always, the top bar only in TV mode
     .getByRole('link', { name: 'Gateways' })
     .click()
   await openGateway(page)
-  await expect(
-    page.locator('li.card').getByRole('link', { name: 'Use as screen' }),
-  ).toBeVisible()
-  await expect(bar).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Use as screen' })).toHaveCount(0)
   await page.addInitScript(() =>
     localStorage.setItem('streamiq.settings.tv', '1'),
   )

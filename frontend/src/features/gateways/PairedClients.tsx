@@ -8,6 +8,7 @@ import {
 } from './api'
 import { toAppError } from '../../shared/errors'
 import { EditableName } from './EditableName'
+import { Tile } from './Tile'
 import {
   clientRenameMessage,
   clientsMessage,
@@ -18,7 +19,7 @@ import {
 
 // The gateway's paired clients (a member sees only its own) over the shared tunnel
 // session, loaded each time the section opens. Removing one ends its sessions;
-// removing this browser closes the tunnel, and the card offers Pair again.
+// removing this browser closes the tunnel, and the page offers Pair again.
 export function PairedClients({
   g,
   unpaired,
@@ -100,8 +101,7 @@ export function PairedClients({
   }
 
   return (
-    <details className="no-tv" onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary ref={summary}>Paired clients</summary>
+    <Tile title="Paired clients" onOpen={setOpen} summaryRef={summary}>
       {note && <p role="status">{note}</p>}
       {shown?.length === 0 && <p>No paired clients.</p>}
       {!!shown?.length && (
@@ -127,6 +127,6 @@ export function PairedClients({
           ))}
         </ul>
       )}
-    </details>
+    </Tile>
   )
 }

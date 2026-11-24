@@ -80,10 +80,20 @@ orchestrator nothing changes.
 
 ## 3. Review
 
-Before the review, give the PR body a `## Noticed` section (the review checks for it):
-what you noticed outside the task but didn't touch (ranked, at most 3 plus a line of
-nits, each with the issue you proposed or why not), or `none`. Keep it current through
-later rounds. Security items never go there (CLAUDE.md).
+Before the review, the PR body gets these sections (the review checks for the last
+two); keep them current through later rounds:
+
+- `## Summary`: the smallest view that makes the change clear: a call tree, diff
+  sketch, file tree or a few lines of pseudocode (one, rarely two). No prose recap.
+- `## Evidence`: what CLAUDE.md "Done means" asks for (the flow driven, test output),
+  as before → after where there is a before. It is the one place for it (no separate
+  `## Verification`).
+- `## Merge danger`: `Door: one-way` (a destructive migration, or a `!` title: what
+  `review-level.sh` marks `critical`) or `Door: two-way`; `Blast radius:` one line;
+  for a one-way door, what the owner watches on merge / release.
+- `## Noticed`: what you noticed outside the task but didn't touch (ranked, at most 3
+  plus a line of nits, each with the issue you proposed or why not), or `none`.
+  Security items never go there (CLAUDE.md).
 
 On a `bug` issue, and for every BLOCKER you fix in a review round, also a `## Lint rule`
 section, one line per fix: "would be caught by `<linter>: <rule>`, proposed as an

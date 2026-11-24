@@ -202,7 +202,7 @@ test('TV Settings: Household & gateway pickers with 2+ of each, by D-pad; absent
     method: 'POST',
   })
   await p.reload()
-  await category.click()
+  await expect(category.locator('..')).toHaveAttribute('open', '') // own card, open on load
   const household = p.getByRole('button', { name: /^Household: / })
   const gateway = p.getByRole('button', { name: /^Gateway: / })
   await expect(household).toHaveAccessibleName(
@@ -239,7 +239,6 @@ test('TV Settings: Household & gateway pickers with 2+ of each, by D-pad; absent
 
   // Household: a pick reloads into it.
   await p.goto(appUrl('/settings'))
-  await category.click()
   await household.click()
   await p
     .getByRole('dialog', { name: 'Household' })
@@ -247,7 +246,6 @@ test('TV Settings: Household & gateway pickers with 2+ of each, by D-pad; absent
     .click()
   await expect(p).not.toHaveURL(/\/settings$/) // home, in the other household
   await p.goto(appUrl('/settings'))
-  await category.click()
   await expect(household).toHaveAccessibleName(
     `Household: Household …${other.slice(-6)} (admin)`,
   )
@@ -314,9 +312,9 @@ test('Settings overview: categories, Playback page, expandables, D-pad @shell', 
   const h1 = p.getByRole('heading', { level: 1 })
   const rows = p.locator('.categories > li > a, .categories summary')
   await expect(rows).toHaveText([
+    `Account${user.email}`,
     'Playback',
     'Display',
-    `Account${user.email}`,
     'Diagnostics',
   ])
   await expect(p.locator('details[open]')).toHaveCount(0)
@@ -327,14 +325,14 @@ test('Settings overview: categories, Playback page, expandables, D-pad @shell', 
   const playback = p.getByRole('link', { name: 'Playback' })
   await expect(playback).toBeFocused()
   await p.keyboard.press('ArrowDown')
-  await expect(rows.nth(1)).toBeFocused()
+  await expect(rows.nth(2)).toBeFocused()
   await p.keyboard.press('Enter')
   const tv = p.getByLabel('TV mode')
   await expect(tv).toBeVisible()
   await p.keyboard.press('ArrowDown')
   await expect(tv).toBeFocused()
   await p.keyboard.press('ArrowDown')
-  await expect(rows.nth(2)).toBeFocused()
+  await expect(rows.nth(3)).toBeFocused()
   await p.keyboard.press('ArrowUp')
   await expect(tv).toBeFocused()
   await p.keyboard.press('ArrowUp')

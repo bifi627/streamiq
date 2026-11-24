@@ -35,23 +35,8 @@ export function Settings() {
   return (
     <section className="settings" onKeyDown={arrowFocus}>
       <PageBar title="Settings" />
+      <Switches />
       <ul className="card categories">
-        <li>
-          <Link to="/settings/playback" ref={focus}>
-            Playback
-            <Chevron />
-          </Link>
-        </li>
-        <Switches />
-        <Category name="Display">
-          <li>
-            <TvToggle />
-            <p className="muted">
-              Larger text and a margin for TVs that crop the picture edges. This
-              device only.
-            </p>
-          </li>
-        </Category>
         <Category
           name="Account"
           detail={<span className="muted">{auth.currentUser?.email}</span>}
@@ -68,6 +53,21 @@ export function Settings() {
             <button type="button" onClick={() => signOut(auth)}>
               Sign out
             </button>
+          </li>
+        </Category>
+        <li>
+          <Link to="/settings/playback" ref={focus}>
+            Playback
+            <Chevron />
+          </Link>
+        </li>
+        <Category name="Display">
+          <li>
+            <TvToggle />
+            <p className="muted">
+              Larger text and a margin for TVs that crop the picture edges. This
+              device only.
+            </p>
           </li>
         </Category>
         <Category name="Diagnostics">
@@ -91,7 +91,8 @@ export function Settings() {
 }
 
 // TV mode has no Household or Gateways page: which household it acts in and
-// which gateway its Library tab opens are picked here.
+// which gateway its Library tab opens are picked here, in a card of its own
+// above the rest, open on load.
 function Switches() {
   const tv = useSyncExternalStore(onTv, tvOn)
   const { me } = useHousehold()
@@ -100,50 +101,54 @@ function Switches() {
   const show = tvPickers(tv, me?.memberships.length ?? 0, gateways.length)
   if (!show.household && !show.gateway) return null
   return (
-    <Category name="Household & gateway">
-      {show.household && me && (
-        <li>
-          <Picker
-            label="Household"
-            current={me.tenantId}
-            choices={me.memberships.map((m) => ({
-              id: m.id,
-              text: membershipLabel(m),
-            }))}
-            pick={switchHousehold}
-          />
-        </li>
-      )}
-      {show.gateway && (
-        <li>
-          <Picker
-            label="Gateway"
-            current={libraryTarget(undefined, last, gateways)}
-            choices={gateways.map((g) => ({
-              id: g.id,
-              text: `${gatewayName(g)} (${g.online ? 'online' : 'offline'})`,
-            }))}
-            pick={setLastGateway}
-          />
-        </li>
-      )}
-    </Category>
+    <ul className="card categories">
+      <Category name="Household & gateway" open>
+        {show.household && me && (
+          <li>
+            <Picker
+              label="Household"
+              current={me.tenantId}
+              choices={me.memberships.map((m) => ({
+                id: m.id,
+                text: membershipLabel(m),
+              }))}
+              pick={switchHousehold}
+            />
+          </li>
+        )}
+        {show.gateway && (
+          <li>
+            <Picker
+              label="Gateway"
+              current={libraryTarget(undefined, last, gateways)}
+              choices={gateways.map((g) => ({
+                id: g.id,
+                text: `${gatewayName(g)} (${g.online ? 'online' : 'offline'})`,
+              }))}
+              pick={setLastGateway}
+            />
+          </li>
+        )}
+      </Category>
+    </ul>
   )
 }
 
-// A category that expands in place; closed on load.
+// A category that expands in place; closed on load unless open.
 function Category({
   name,
   detail,
+  open,
   children,
 }: {
   name: string
   detail?: ReactNode
+  open?: boolean
   children: ReactNode
 }) {
   return (
     <li>
-      <details>
+      <details open={open}>
         <summary>
           {name}
           {detail}

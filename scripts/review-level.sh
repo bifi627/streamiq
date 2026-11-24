@@ -108,7 +108,7 @@ scan() {
   done <<<"$5"
 }
 scan 1 content '' 0 "$CONTENT"
-scan 3 one-way-migration '^api/migrations/.*\.sql$' 1 "$ONE_WAY"
+scan 3 one-way-migration '^api/migrations/.*[.]sql$' 1 "$ONE_WAY"
 
 # `type!:` / `type(scope)!:` marks a breaking change (same pattern as next-gateway-version.sh).
 [[ ${title:-} =~ ^[a-zA-Z]+(\([^\)]*\))?!: ]] && rank=3 why=breaking-title

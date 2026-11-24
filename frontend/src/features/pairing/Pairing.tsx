@@ -33,7 +33,7 @@ export function Pairing({
   lanUrl: string | null
   /** The caller already knows the pin is no good (library error): always offer Pair. */
   needsPair?: boolean
-  /** Starts pairing on mount (the overview's Pair dialog). */
+  /** Starts pairing on mount (PairDialog). */
   autoPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void

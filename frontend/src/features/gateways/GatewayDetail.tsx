@@ -105,6 +105,8 @@ function GatewayPage({
   const [unpaired, setUnpaired] = useState(false)
   const [pairing, setPairing] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  // Offline mid-edit drops the form: it doesn't come back on reconnect.
+  if (renaming && !manage) setRenaming(false)
   const menu = useRef<HTMLButtonElement>(null)
   async function removedSelf() {
     await deletePin(g.id).catch((e) =>
@@ -131,8 +133,7 @@ function GatewayPage({
       <PageBar
         onBack={() => navigate({ to: '/gateways' })}
         title={
-          // !manage: went offline mid-edit, so the name only.
-          renaming && manage ? (
+          renaming ? (
             <NameForm
               name={gatewayName(g)}
               label="Gateway name"

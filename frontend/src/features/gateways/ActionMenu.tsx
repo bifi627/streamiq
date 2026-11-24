@@ -57,6 +57,8 @@ export function ActionMenu({
               role="menuitem"
               onClick={() => {
                 setOpen(false)
+                // The item unmounts: keep the D-pad's place (a cancelled confirm).
+                button.current?.focus()
                 a.run()
               }}
             >

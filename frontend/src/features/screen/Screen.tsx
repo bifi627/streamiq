@@ -18,12 +18,10 @@ import {
   commandScreen,
   postScreenState,
   screenFeed,
-  screensOn,
-  type Screen,
   type ScreenCommand,
   type ScreenState,
 } from '../gateways/api'
-import { clampSeek, polled } from './remote'
+import { clampSeek, playOnOptions, polled } from './remote'
 import { serial } from './serial'
 import { Player } from '../player/Player'
 import {
@@ -37,7 +35,8 @@ import {
 import { Icon } from '../player/Controls'
 import { ICON } from '../player/icons'
 import { backdrop, primary, useTunnel, useTunnelQuery } from '../library/art'
-import { useScreens } from '../library/queries'
+import { useOpenScreens, useScreens } from '../library/queries'
+import { tvOn } from '../../shared/settings'
 import { Artwork } from '../library/Home'
 
 // Screen mode (docs/protocol.md "Screens"): this device holds GET
@@ -207,76 +206,49 @@ export function ScreenPage() {
   )
 }
 
-// "Play on…": the gateway's open screens. Only a device in screen mode
-// is one, so nothing else can be picked.
+// "Play on…": a native picker of the gateway's open screens (only a device in
+// screen mode is one); none open, or this is a TV: nothing.
 export function PlayOn({ pc, item }: { pc: RTCPeerConnection; item: Item }) {
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()
-  const [screens, setScreens] = useState<Screen[] | null>(null)
-  const [open, setOpen] = useState(false)
+  const tv = tvOn()
+  const screens = useOpenScreens(gatewayId, pc, !tv)
   const [msg, setMsg] = useState('')
-  const toggle = () => {
-    setOpen(!open)
-    setScreens(null)
+  if (tv || !screens?.length) return null
+  const options = playOnOptions(screens)
+  const remote = (screenId: string) =>
+    navigate({
+      to: '/g/$gatewayId/remote/$screenId',
+      params: { gatewayId, screenId },
+    })
+  const pick = (value: string) => {
+    const o = options.find((x) => x.value === value)
+    if (!o) return
     setMsg('')
-    if (!open)
-      screensOn(pc).then(setScreens, (e) => setMsg(toAppError(e).message))
-  }
-  const send = (s: Screen) => {
+    if (o.remote) return remote(o.screenId)
     // No startTicks: the TV resumes from fresh UserData (this listing may be stale).
-    const play: ScreenCommand = {
-      type: 'play',
-      itemId: item.Id,
-    }
-    commandScreen(pc, s.id, play).then(
-      () =>
-        navigate({
-          to: '/g/$gatewayId/remote/$screenId',
-          params: { gatewayId, screenId: s.id },
-        }),
+    const play: ScreenCommand = { type: 'play', itemId: item.Id }
+    commandScreen(pc, o.screenId, play).then(
+      () => remote(o.screenId),
       (e) => setMsg(toAppError(e).message),
     )
   }
   return (
-    // A secondary action under the tile: outlined, not filled.
     <div className="play-on">
-      <button
-        type="button"
-        className="secondary"
-        onClick={toggle}
-        aria-expanded={open}
+      <select
+        aria-label="Play on…"
+        value=""
+        onChange={(e) => pick(e.target.value)}
       >
-        <Icon d={ICON.cast} />
-        Play on…
-      </button>
-      {open &&
-        screens &&
-        (screens.length ? (
-          <ul>
-            {screens.map((s) => (
-              <li key={s.id}>
-                <button type="button" onClick={() => send(s)}>
-                  {s.name}
-                </button>
-                {s.state?.itemId && (
-                  <Link
-                    to="/g/$gatewayId/remote/$screenId"
-                    params={{ gatewayId, screenId: s.id }}
-                  >
-                    Remote
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">
-            <small>
-              No screen open. On the TV, go to Gateways in StreamIQ and choose
-              “Use as screen” on this gateway.
-            </small>
-          </p>
+        <option value="" disabled>
+          Play on…
+        </option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
         ))}
+      </select>
       {msg && (
         <p>
           <small>{msg}</small>

@@ -1,7 +1,8 @@
 // Run: node --test src/features/screen/remote.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { clampSeek, polled } from './remote.ts'
+import { clampSeek, playOnOptions, polled } from './remote.ts'
+import type { Screen } from '../gateways/api.ts'
 
 test('clampSeek keeps a seek in 0 … duration', () => {
   assert.equal(clampSeek(-5, 100), 0)
@@ -48,4 +49,10 @@ test('the first good poll after an error: recovered (#553)', () => {
   assert.equal(polled('s1', [tv], '', 'Gateway offline').recovered, true)
   assert.equal(polled('s1', [tv], '', '').recovered, false)
   assert.equal(polled('s1', [tv], 'x', 'Gateway offline').recovered, false)
+})
+
+test('playOnOptions: every screen plays; a playing one also offers its remote', () => {
+  const busy = { id: 's2', name: 'Bedroom', state: { itemId: 'i1' } }
+  const labels = playOnOptions([tv, busy] as Screen[]).map((o) => o.label)
+  assert.deepEqual(labels, ['TV', 'Bedroom', 'Remote: Bedroom'])
 })

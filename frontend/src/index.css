@@ -1067,38 +1067,10 @@ button.secondary:hover {
   flex: none;
 }
 
-/* Play on…: the screens drop down as a list. Episode rows and the title
-   side space it themselves. */
-.play-on > button {
+/* Play on…: a native picker, full width under the title's info; an
+   episode row's sits at the row's end. */
+.play-on select {
   width: 100%;
-}
-.play-on ul {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  margin: var(--sp-2) 0 0;
-  padding: var(--sp-2);
-  border-radius: var(--radius);
-  background: var(--surface);
-  list-style: none;
-}
-.play-on li {
-  display: flex;
-  flex-wrap: wrap; /* a narrow tile puts Remote under the name */
-  align-items: center;
-  gap: var(--sp-1) var(--sp-2);
-}
-.play-on li button {
-  flex: 1 1 8rem;
-  padding-top: var(--sp-2);
-  padding-bottom: var(--sp-2);
-  text-align: left;
-}
-.play-on li a {
-  display: flex;
-  align-items: center;
-  min-height: var(--target);
-  padding: 0 var(--sp-2);
 }
 .play-on p {
   margin: var(--sp-2) 0 0;
@@ -1528,69 +1500,85 @@ progress::-moz-progress-bar {
   }
 }
 
-/* Series / movie page: left column + season tabs and episodes; a
-   movie shows its backdrop on the right. Phone: the column stacks on top. */
+/* Title page (Library.tsx Title): the hero card + the info column beside
+   it, a series' seasons and episodes full width below. Phone: stacked, the
+   info shortened to title + one line until More. */
 .title {
   display: flex;
-  align-items: flex-start;
-  gap: var(--sp-6);
-}
-.title-side {
-  flex: none;
-  width: 27.5rem;
-  max-width: 40%;
-  display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-3);
-  padding: var(--sp-5) var(--sp-6);
+  gap: var(--sp-5);
+}
+.title-top {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-5);
+}
+.hero {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 26rem;
+  padding: 0;
   border-radius: 16px;
-  background: #141416;
+  overflow: hidden;
+  background: var(--surface);
 }
-.title-side h1 {
-  margin: 0;
-  font-size: var(--fs-title);
-  letter-spacing: -0.5px;
+.hero-art {
+  width: 100%;
+  height: 100%;
 }
-.title-side p {
-  margin: 0;
+.hero-art img {
+  object-fit: cover;
 }
-.overview {
-  color: #cfcfd4;
-}
-.title-side button {
+.hero-play {
+  position: absolute;
+  left: var(--sp-4);
+  bottom: var(--sp-4);
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-}
-.title-side button.primary {
-  padding: 0 var(--sp-5);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
   font-weight: 600;
 }
-.title-side svg {
+.hero-play svg {
   width: 1rem;
   height: 1rem;
   fill: currentColor;
+}
+.title-info {
+  flex: none;
+  width: 22rem;
+  max-width: 35%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border-radius: 16px;
+  background: #141416;
+}
+.title-info p {
+  margin: 0;
+}
+.title-name {
+  font-size: var(--fs-section);
+  font-weight: 600;
+}
+.title-more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.overview {
+  color: #cfcfd4;
 }
 .back svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
-}
-.title-poster {
-  width: 9rem;
-  height: 13.5rem;
-  border-radius: var(--radius);
-}
-.title-main,
-.title-backdrop {
-  flex: 1;
-  min-width: 0;
-}
-.title-backdrop {
-  height: 22rem;
-  border-radius: 16px;
 }
 .seasons {
   display: flex;
@@ -1618,15 +1606,8 @@ progress::-moz-progress-bar {
   justify-content: flex-end;
   gap: var(--sp-2);
 }
-.ep-row > div {
-  display: contents; /* Play on…: its list opens below as a full row */
-}
-.ep-row .play-on > button {
-  flex: none;
+.ep-row .play-on select {
   width: auto;
-}
-.ep-row .play-on > :not(button) {
-  flex-basis: 100%;
 }
 .episode {
   flex: 1 1 18rem;
@@ -1669,23 +1650,35 @@ progress::-moz-progress-bar {
 .ep-left {
   color: var(--accent);
 }
-@media (max-width: 40rem) {
-  .title {
-    flex-direction: column;
-    align-items: stretch;
+@media (min-width: 601px) {
+  .phone-only {
+    display: none;
   }
-  .title-side {
+}
+@media (max-width: 600px) {
+  .title-top {
+    flex-direction: column;
+  }
+  .hero {
+    flex: none;
+    height: 12rem;
+  }
+  .title-info {
     width: auto;
     max-width: none;
     padding: var(--sp-4);
   }
-  .title-poster {
-    width: 8rem;
-    height: 12rem;
+  .title-name,
+  .title-info > .muted {
+    white-space: nowrap; /* title + one info line until More */
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .title-backdrop {
-    flex: none;
-    height: 12rem;
+  .title-more:not(.open) {
+    display: none;
+  }
+  .more-toggle {
+    align-self: flex-end;
   }
   .still-art {
     width: 8rem;

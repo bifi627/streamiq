@@ -52,6 +52,17 @@ export const useScreens = (gatewayId: string, pc: PC, screenId: string) =>
     gcTime: 0,
   })
 
+/** The gateway's open screens for Play on…; a screen opened meanwhile
+ * shows within 10 s. ponytail: a poll per gateway page, not pushed. */
+export const useOpenScreens = (gatewayId: string, pc: PC, enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryKey: ['openScreens', gatewayId],
+    queryFn: () => screensOn(pc),
+    refetchInterval: 10_000,
+    gcTime: 0,
+  }).data
+
 /** The series' episode after itemId, if any. */
 export function useNext(itemId: string, series?: string) {
   // This episode and the one after it, not the whole series.

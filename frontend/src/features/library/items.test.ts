@@ -9,12 +9,14 @@ import {
   inProgress,
   pageItem,
   playable,
+  playLabel,
   playsAtOnce,
   progress,
   rangeHeader,
   runtime,
   subtitleTracks,
   TICKS_PER_SECOND,
+  titleInfo,
   upNext,
   type Item,
 } from './items.ts'
@@ -160,4 +162,38 @@ test('folderUp: a library goes home, a folder inside it to its parent', () => {
   assert.equal(f('UserView', 'root'), null)
   assert.equal(f('Folder', 'lib'), 'lib')
   assert.equal(f('Folder'), null)
+})
+
+test('titleInfo: year · runtime or seasons · first genre, gaps left out', () => {
+  const movie = {
+    Id: 'm',
+    Name: 'M',
+    Type: 'Movie',
+    ProductionYear: 2020,
+    RunTimeTicks: 42 * 60 * TICKS_PER_SECOND,
+    Genres: ['Drama', 'Crime'],
+  }
+  assert.equal(titleInfo(movie), `2020 · ${runtime(movie)} · Drama`)
+  const show = { Id: 's', Name: 'S', Type: 'Series', Genres: ['Comedy'] }
+  assert.equal(titleInfo(show, 1), '1 season · Comedy')
+  assert.equal(titleInfo(show, 3), '3 seasons · Comedy')
+  assert.equal(titleInfo({ Id: 'v', Name: 'V', Type: 'Video' }), '')
+})
+
+test('playLabel: Resume with progress; an episode names its place', () => {
+  const v = { Id: 'v', Name: 'V', Type: 'Video' }
+  assert.equal(playLabel(v), 'Play')
+  const ep = {
+    Id: 'e',
+    Name: 'E',
+    Type: 'Episode',
+    ParentIndexNumber: 1,
+    IndexNumber: 3,
+    UserData: { PlaybackPositionTicks: 5 },
+  }
+  assert.equal(playLabel(ep), 'Resume · S1 · E3')
+  assert.equal(
+    playLabel({ ...ep, UserData: { Played: true, PlaybackPositionTicks: 5 } }),
+    'Play · S1 · E3',
+  )
 })

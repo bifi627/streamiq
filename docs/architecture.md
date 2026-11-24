@@ -257,8 +257,9 @@ peaks per local day.
 - App shell (`App.tsx` `Shell`, tabs in `shell.ts`, `Nav.tsx`): a top bar (logo, nav,
   gateway chip), a title row (back · title · actions) the page fills with `<PageBar>`
   (`shared/PageBar.tsx`, portals into the row) and on a phone (≤ 600 px) the nav as a bottom
-  tab bar above the safe-area inset. TV mode's nav: Library and Settings. The player hides
-  all of it.
+  tab bar above the safe-area inset. TV mode's nav: Library and Settings. The player page
+  (`/play/<id>`, TV mode's) hides all of it; elsewhere a title plays inline on its detail
+  page (`/i/<id>?play=<id>`, an episode on its series' page; `playTarget` in `items.ts`).
 - Connection badge (`features/gateways/Badge.tsx`), the top bar's right end: the active
   gateway (the route's, else the Library tab's) with its dot and the connection type
   (the player's `RouteBadge`). Library routes feed it from their live tunnel (`LiveRoute`);

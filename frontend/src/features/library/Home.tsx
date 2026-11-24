@@ -14,6 +14,7 @@ import {
   backdrop,
   items,
   primary,
+  usePlay,
   useTunnel,
   useArt,
   useTunnelQuery,
@@ -28,7 +29,6 @@ import {
   type Item,
 } from './items'
 import * as jf from './jellyfin'
-
 const title = (i: Item) => i.SeriesName ?? i.Name
 function meta(i: Item) {
   const left = timeLeft(i)
@@ -65,21 +65,15 @@ function Shelves() {
   const [warm] = useState(() => !!added && !!views)
   const lists = homeLists(added, views, resume, warm)
 
-  const open = (i: Item) =>
+  const play = usePlay()
+  const page = (i: Item) =>
     navigate({
-      to: playable(i)
-        ? '/g/$gatewayId/play/$itemId'
-        : '/g/$gatewayId/i/$itemId',
+      to: '/g/$gatewayId/i/$itemId',
       params: { gatewayId, itemId: i.Id },
     })
+  const open = (i: Item) => (playable(i) ? play(i) : page(i))
   // Recently added + Library: a movie opens its page.
-  const pick = (i: Item) =>
-    navigate({
-      to: playsAtOnce(i)
-        ? '/g/$gatewayId/play/$itemId'
-        : '/g/$gatewayId/i/$itemId',
-      params: { gatewayId, itemId: i.Id },
-    })
+  const pick = (i: Item) => (playsAtOnce(i) ? play(i) : page(i))
   const episodes = (i: Item) =>
     navigate({
       to: '/g/$gatewayId/i/$itemId',

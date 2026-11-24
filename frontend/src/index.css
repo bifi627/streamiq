@@ -1502,7 +1502,7 @@ progress::-moz-progress-bar {
 
 /* Title page (Library.tsx Title): the hero card + the info column beside
    it, a series' seasons and episodes full width below. Phone: stacked, the
-   info shortened to title + one line until More. */
+   info shortened to one line until More (the name is the title row's). */
 .title {
   display: flex;
   flex-direction: column;
@@ -1561,10 +1561,6 @@ progress::-moz-progress-bar {
 }
 .title-info p {
   margin: 0;
-}
-.title-name {
-  font-size: var(--fs-section);
-  font-weight: 600;
 }
 .title-more {
   display: flex;
@@ -1668,9 +1664,8 @@ progress::-moz-progress-bar {
     max-width: none;
     padding: var(--sp-4);
   }
-  .title-name,
   .title-info > .muted {
-    white-space: nowrap; /* title + one info line until More */
+    white-space: nowrap; /* one info line until More */
     overflow: hidden;
     text-overflow: ellipsis;
   }

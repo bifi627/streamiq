@@ -62,6 +62,24 @@ export function upNext(episodes: Item[]) {
  * Play on…. The Resume spot plays at once regardless. */
 export const playsAtOnce = (i: Item) => i.Type === 'Episode'
 
+/** Where playing an item from outside its page goes: TV mode's player page;
+ * else its detail page playing it (an episode: its series' page). */
+export function playTarget(i: Item, tv: boolean) {
+  const page = i.Type === 'Episode' ? i.SeriesId : i.Id
+  return tv || !page
+    ? ({ to: 'player', itemId: i.Id } as const)
+    : ({ to: 'page', itemId: page, play: i.Id } as const)
+}
+
+/** Play on the detail page: TV mode's player page; else ?play=, its own
+ * history step, unless something plays already (a swap replaces it). */
+export const inlinePlay = (tv: boolean, playing: boolean) =>
+  tv ? 'player' : playing ? 'replace' : 'push'
+
+/** Stopping inline playback: Back over the step Play pushed; landed already
+ * playing (a link, a reload, from outside): drop ?play= in place. */
+export const inlineStop = (pushed: boolean) => (pushed ? 'back' : 'replace')
+
 /** Opens in the player, not as a listing. */
 export const playable = (i: Item) =>
   !i.IsFolder && i.Type !== 'Series' && i.Type !== 'Season'

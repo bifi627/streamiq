@@ -214,9 +214,13 @@ const gatewayRoute = createRoute({
 const itemRoute = createRoute({
   getParentRoute: () => gatewayRoute,
   path: 'i/$itemId',
+  // ?play=<item id>: that item plays inline on the page (Library.tsx Title).
+  validateSearch: (s: Record<string, unknown>): { play?: string } =>
+    typeof s.play === 'string' && s.play ? { play: s.play } : {},
   component: function Item() {
     const { itemId } = itemRoute.useParams()
-    return <ItemPage key={itemId} itemId={itemId} />
+    const { play } = itemRoute.useSearch()
+    return <ItemPage key={itemId} itemId={itemId} play={play} />
   },
 })
 const playRoute = createRoute({

@@ -4,7 +4,8 @@
 // shared session, folder deep links (title row + Back) + cache, Recently added,
 // Continue watching's order (the spot; a phone's row) and click-through guard, season tabs
 // (with the title page's D-pad order)
-// and watched marks, no speed test while browsing. Folder → movie → Play and the Resume spot are
+// and watched marks (the end stops inline playback), inline playback (an episode from Continue
+// watching on its series' page, Back stops and stays, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'
@@ -290,8 +291,8 @@ test('watched marks: a finished episode reads Watched, a part-played one its tim
   await a
     .locator('video')
     .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
-  await a.waitForFunction(() => document.querySelector('video')?.ended)
-  await a.goBack()
+  // The end stops inline playback: the hero card is back.
+  await expect(a.locator('button.hero')).toBeVisible()
   await second.getByRole('button').first().click()
   await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(2)
   await a.goBack()
@@ -302,6 +303,73 @@ test('watched marks: a finished episode reads Watched, a part-played one its tim
   await expect(
     second.getByRole('progressbar', { name: / watched$/ }),
   ).toBeVisible()
+})
+
+test('inline playback: in the hero box, Back stops and stays; an episode from Continue watching plays on its series page, also on a phone @library', async ({
+  paired,
+}) => {
+  const { page: a } = paired
+  const id = await open(a)
+  await recent(a).getByRole('button', { name: 'StreamIQ Test Series' }).click()
+  const tabs = a.getByRole('tablist', { name: 'Seasons' })
+  const selected = tabs.getByRole('tab', { selected: true })
+  const hero = a.locator('button.hero')
+  const inline = a.locator('.hero-player video')
+  await tabs.getByRole('tab', { name: 'Season 2' }).click()
+  await a.getByRole('tabpanel').getByRole('button').first().click()
+  await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(2)
+  await expect(a).toHaveURL(/\/i\/[^/]+\?play=/)
+  // In the hero's box, the info column beside it, the title row kept.
+  const box = must(await a.locator('.hero-player').boundingBox(), 'hero box')
+  const video = must(await inline.boundingBox(), 'inline video box')
+  expect(video.y + video.height).toBeLessThanOrEqual(box.y + box.height + 1)
+  // The name only in the title row; the overlay: the episode's line, no
+  // Back button or badge (the title row's Back and the shell's badge).
+  await expect(a.locator('.title-info')).toBeVisible()
+  await expect(
+    a.getByText('StreamIQ Test Series', { exact: true }),
+  ).toHaveCount(1)
+  const overlay = a.locator('.player')
+  await expect(overlay.locator('.now')).toHaveText(/^S2 · E1 /)
+  await expect(overlay.getByRole('button', { name: 'Back' })).toHaveCount(0)
+  await expect(overlay.locator('.badge')).toHaveCount(0)
+  // Keys as before (focus on the page): Escape hides a shown bar, then stops.
+  await a.evaluate(() => (document.activeElement as HTMLElement).blur())
+  await expect(async () => {
+    await a.keyboard.press('Escape')
+    await expect(hero).toBeVisible({ timeout: 1000 })
+  }).toPass()
+  await a.goForward() // playing again: the step Play pushed
+  await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(3)
+  await expect(
+    a.getByRole('heading', { level: 1, name: 'StreamIQ Test Series' }),
+  ).toBeVisible()
+  await a.goBack() // stops, stays on the page
+  await expect(hero).toBeVisible()
+  await expect(inline).toHaveCount(0)
+  await expect(a).toHaveURL(/\/i\/[^/?]+$/)
+  await a.goBack() // leaves it
+  await expect(a).toHaveURL(appUrl(`/g/${id}`))
+
+  // A phone: Continue watching's card → the series page playing that
+  // episode on its season's tab; a reload keeps it playing; Back → home.
+  await a.setViewportSize({ width: 400, height: 800 })
+  await a.reload()
+  await a
+    .locator('section.shelf', {
+      has: a.getByRole('heading', { name: 'Continue watching' }),
+    })
+    .getByRole('button', { name: /StreamIQ Test Series/ })
+    .click()
+  await expect(a).toHaveURL(/\/i\/[^/]+\?play=/)
+  await expect(selected).toHaveText('Season 2')
+  await expect(inline).toBeVisible()
+  await expect(a.locator('.now p', { hasText: 'S2 · E1' })).toBeVisible()
+  await a.reload()
+  await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(0)
+  await expect(selected).toHaveText('Season 2')
+  await a.goBack()
+  await expect(a).toHaveURL(appUrl(`/g/${id}`))
 })
 
 test('browsing sends no speed test burst @library', async ({ paired }) => {

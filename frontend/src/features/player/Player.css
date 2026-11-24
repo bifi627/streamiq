@@ -298,3 +298,23 @@
     padding: 0 var(--sp-3);
   }
 }
+
+/* Inline on the detail page (Library.tsx Title): the video takes the hero's
+   height, letterboxed (no 65vh cap); "Press play" and an error grow the box
+   below it. */
+.hero.hero-player {
+  height: auto;
+  background: black;
+}
+.hero-player .player video {
+  height: 26rem;
+  max-height: none;
+}
+@media (max-width: 600px) {
+  .hero-player .player video {
+    height: 12rem;
+  }
+}
+.hero-player .player:fullscreen video {
+  height: 100%;
+}

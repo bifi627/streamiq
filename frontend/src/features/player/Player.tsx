@@ -1,7 +1,8 @@
-// The player page: the video, its controls and settings menus, and the next
-// episode button. Playback itself (loads, fallbacks, resume, screen mode) is
-// the Engine's (engine.ts); `remote` feeds it a phone's commands and
-// `onState` gets the playback state about once a second and on every change.
+// The player (its page, or inline on the detail page): the video, its
+// controls and settings menus, and the next episode button. Playback itself
+// (loads, fallbacks, resume, screen mode) is the Engine's (engine.ts); `remote`
+// feeds it a phone's commands and `onState` gets the playback state about once
+// a second and on every change.
 import { useEffect, useRef, useState } from 'react'
 import { ErrorView } from '../../shared/ErrorView'
 import { compatibleOn, quality, rawOn, setQuality } from '../../shared/settings'
@@ -16,6 +17,9 @@ import { qualityOptions } from './quality'
 import type { Quality } from './profile'
 import { TICKS_PER_SECOND, type Item } from '../library/items'
 
+const episodeLine = (i: Item) =>
+  `S${i.ParentIndexNumber ?? '?'} · E${i.IndexNumber ?? '?'} ${i.Name}`
+
 // oxlint-disable-next-line complexity -- render branching
 export function Player({
   pc,
@@ -26,6 +30,8 @@ export function Player({
   onState,
   onExit,
   onNext,
+  onEnded,
+  inline,
 }: {
   pc: RTCPeerConnection
   speed?: Speed
@@ -38,6 +44,10 @@ export function Player({
   onExit: (item: Item | null) => void
   /** Plays another item; unset (screen mode) = no "Next episode". */
   onNext?: (item: Item) => void
+  onEnded?: () => void
+  /** On the detail page, under its title row and the shell's badge: the
+   * overlay shows only an episode's line, no Back button or badge. */
+  inline?: boolean
 }) {
   const { gatewayId } = useTunnel()
   const video = useRef<HTMLVideoElement>(null)
@@ -119,23 +129,27 @@ export function Player({
             : []),
         ]}
         onBack={() => onExit(item)}
+        noBack={inline}
         onNext={next && onNext && (() => onNext(next))}
         top={
-          <>
-            <hgroup className="now">
-              <h2>{item?.SeriesName ?? item?.Name}</h2>
-              {item?.SeriesName && (
-                <p>
-                  S{item.ParentIndexNumber ?? '?'} · E{item.IndexNumber ?? '?'}{' '}
-                  {item.Name}
-                </p>
-              )}
-            </hgroup>
-            <Privacy gatewayId={gatewayId} pc={pc} />
-          </>
+          inline ? (
+            item?.SeriesName && (
+              <hgroup className="now">
+                <p>{episodeLine(item)}</p>
+              </hgroup>
+            )
+          ) : (
+            <>
+              <hgroup className="now">
+                <h2>{item?.SeriesName ?? item?.Name}</h2>
+                {item?.SeriesName && <p>{episodeLine(item)}</p>}
+              </hgroup>
+              <Privacy gatewayId={gatewayId} pc={pc} />
+            </>
+          )
         }
       >
-        <video ref={video} />
+        <video ref={video} onEnded={onEnded} />
       </Controls>
       {view.blocked && <p>Press play to start.</p>}
       {view.err && <ErrorView error={view.err} />}

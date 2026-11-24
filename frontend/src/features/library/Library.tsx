@@ -1,8 +1,9 @@
 // Library browsing over the tunnel: the gateway shell (GatewayLibrary), the item
-// page (title, seasons, folders) and the player page; home lives in Home.tsx.
+// page (title, seasons, folders, inline playback) and the player page; home lives
+// in Home.tsx.
 // Routes (App.tsx): /g/$gatewayId owns the tunnel; its children (home, /i, /play,
 // /screen, /remote) render through <Outlet /> and share it.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PageBar } from '../../shared/PageBar'
 import { useBack } from '../../shared/slots'
 import {
@@ -22,6 +23,8 @@ import { Player } from '../player/Player'
 import {
   clock,
   folderUp,
+  inlinePlay,
+  inlineStop,
   inProgress,
   pageItem,
   playable,
@@ -45,10 +48,12 @@ import {
   backdrop,
   current,
   primary,
+  usePlay,
   useTunnel,
   useTunnelQuery,
 } from './art'
 import { Artwork, Watched } from './Home'
+import { tvOn } from '../../shared/settings'
 export { Home as LibraryHome } from './Home'
 
 // Layout route: the gateway's shared tunnel, held while navigating inside
@@ -124,7 +129,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
 
 // Folder / series / movie or other video by Jellyfin item ID, so a reload or deep link
 // restores it. A season opens its series' page on that season's tab.
-export function ItemPage({ itemId }: { itemId: string }) {
+export function ItemPage({ itemId, play }: { itemId: string; play?: string }) {
   const it = useTunnelQuery<Item>(jf.item(itemId))
   const seriesId = it.data?.Type === 'Season' ? it.data.SeriesId : undefined
   const series = useTunnelQuery<Item>(seriesId ? jf.item(seriesId) : null)
@@ -147,7 +152,14 @@ export function ItemPage({ itemId }: { itemId: string }) {
     )
   const { item, season } = shown
   if (item.Type === 'Series' || playable(item))
-    return <Title item={item} season={season} updatedAt={it.dataUpdatedAt} />
+    return (
+      <Title
+        item={item}
+        season={season}
+        updatedAt={it.dataUpdatedAt}
+        playing={tvOn() ? undefined : play} // TV mode: the player page only
+      />
+    )
   return <Browse item={item} />
 }
 
@@ -169,18 +181,20 @@ const seasonName = (s: Item) =>
 // beside it (phone: under it, shortened, with More); a series adds its season
 // tabs + episodes below. Nothing moves focus after that, on re-renders or tab
 // changes. Data from before the last playback doesn't drive play: it waits for
-// the refetch.
+// the refetch. Outside TV mode the video plays in the hero's place (?play=).
 // oxlint-disable-next-line complexity -- render branching
 function Title({
   item,
   season,
   updatedAt,
+  playing,
 }: {
   item: Item
   season?: string
   updatedAt: number
+  playing?: string
 }) {
-  const { gatewayId, pc } = useTunnel()
+  const { gatewayId, pc, speed } = useTunnel()
   const navigate = useNavigate()
   const series = item.Type === 'Series'
   const [tab, setTab] = useState(season)
@@ -197,18 +211,15 @@ function Title({
   const failed = ss.error ?? es.error
   const err = failed && !lists ? toAppError(failed) : null
 
-  const play = (i: Item) =>
-    navigate({
-      to: '/g/$gatewayId/play/$itemId',
-      params: { gatewayId, itemId: i.Id },
-    })
+  const { play, stop } = useInline(playing)
   const back = useBack(() =>
     navigate({ to: '/g/$gatewayId', params: { gatewayId } }),
   )
   const next = series ? lists && upNext(lists.episodes) : item
   const ready = current(gatewayId, series ? es.dataUpdatedAt : updatedAt)
   const go = next && ready ? next : null
-  const shown = tab ?? next?.SeasonId ?? lists?.seasons[0]?.Id
+  const now = lists?.episodes.find((e) => e.Id === playing)
+  const shown = tab ?? now?.SeasonId ?? next?.SeasonId ?? lists?.seasons[0]?.Id
   const episodes = lists?.episodes.filter((e) => e.SeasonId === shown) ?? []
   const info = titleInfo(item, lists?.seasons.length)
   const genres = item.Genres ?? []
@@ -226,7 +237,20 @@ function Title({
     <div className="title">
       <PageBar title={item.Name} onBack={back} />
       <div className="title-top">
-        {go ? (
+        {playing ? (
+          <div className="hero hero-player">
+            <Player
+              key={playing}
+              pc={pc}
+              speed={speed}
+              itemId={playing}
+              onExit={stop}
+              onEnded={stop}
+              inline
+              onNext={play}
+            />
+          </div>
+        ) : go ? (
           <button
             type="button"
             className="hero"
@@ -245,7 +269,6 @@ function Title({
           <div className="hero">{art}</div>
         )}
         <div className="title-info">
-          <p className="title-name">{item.Name}</p>
           {info && <p className="muted">{info}</p>}
           {hasMore && (
             <button
@@ -343,6 +366,36 @@ function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
   )
 }
 
+// Play / stop on the detail page: inlinePlay / inlineStop (items.ts) on the router.
+function useInline(playing?: string) {
+  const { gatewayId } = useTunnel()
+  const navigate = useNavigate()
+  const router = useRouter()
+  const pushed = useRef(false)
+  const play = (i: Item) => {
+    const how = inlinePlay(tvOn(), !!playing)
+    if (how === 'player')
+      return navigate({
+        to: '/g/$gatewayId/play/$itemId',
+        params: { gatewayId, itemId: i.Id },
+      })
+    if (how === 'push') pushed.current = true
+    return navigate({
+      to: '.',
+      search: { play: i.Id },
+      replace: how === 'replace',
+    })
+  }
+  const stop = () => {
+    if (inlineStop(pushed.current) === 'back') {
+      pushed.current = false
+      return router.history.back()
+    }
+    return navigate({ to: '.', search: {}, replace: true })
+  }
+  return { play, stop }
+}
+
 // Player route: leaving it any way unmounts the Player, whose cleanup saves the
 // position. Back goes back in history; after a deep link (no in-app history)
 // it goes to the item's listing instead of leaving the app.
@@ -380,6 +433,7 @@ export function PlayerPage({ itemId }: { itemId: string }) {
 function Browse({ item }: { item: Item }) {
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()
+  const play = usePlay()
   const up = folderUp(item)
   const back = useBack(() =>
     navigate(
@@ -389,12 +443,12 @@ function Browse({ item }: { item: Item }) {
     ),
   )
   const open = (i: Item) =>
-    navigate({
-      to: playsAtOnce(i)
-        ? '/g/$gatewayId/play/$itemId'
-        : '/g/$gatewayId/i/$itemId',
-      params: { gatewayId, itemId: i.Id },
-    })
+    playsAtOnce(i)
+      ? play(i)
+      : navigate({
+          to: '/g/$gatewayId/i/$itemId',
+          params: { gatewayId, itemId: i.Id },
+        })
 
   return (
     <>

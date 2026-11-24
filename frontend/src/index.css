@@ -991,14 +991,6 @@ html.tv .rows li.no-tv:first-child + li {
   gap: 8px;
 }
 
-/* Library */
-.lib-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
 /* Privacy badge: on your network / direct / relayed; focus or click shows the line. */
 .privacy {
   --c: var(--direct);
@@ -1075,11 +1067,8 @@ button.secondary:hover {
   flex: none;
 }
 
-/* Play on…: the screens drop down as a list. The gap only
-   under a tile; episode rows and the title side space it themselves. */
-.tiles .play-on {
-  margin-top: var(--sp-2);
-}
+/* Play on…: the screens drop down as a list. Episode rows and the title
+   side space it themselves. */
 .play-on > button {
   width: 100%;
 }
@@ -1514,6 +1503,21 @@ progress::-moz-progress-bar {
 .pick .frame {
   height: 7.3125rem;
   border-radius: 10px;
+}
+/* Continue watching: the Resume spot, or on a phone a row of cards. */
+.shelf.phone {
+  display: none;
+}
+@media (max-width: 600px) {
+  .shelf.phone {
+    display: block;
+  }
+  .resume {
+    display: none;
+  }
+  .tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 @media (max-width: 40rem) {
   .resume {

@@ -5,6 +5,7 @@ import {
   audioTracks,
   clock,
   covers,
+  folderUp,
   inProgress,
   pageItem,
   playable,
@@ -121,6 +122,8 @@ test('playable / playsAtOnce: what a tile opens', () => {
   }
   assert.deepEqual(at('Episode'), [true, true])
   assert.deepEqual(at('Movie'), [true, false]) // its page first
+  assert.deepEqual(at('Video'), [true, false]) // its page: Play on…
+  assert.deepEqual(at('MusicVideo'), [true, false])
   assert.deepEqual(at('Series'), [false, false])
   assert.deepEqual(at('Season'), [false, false])
   assert.deepEqual(at('BoxSet', true), [false, false])
@@ -148,4 +151,13 @@ test('pageItem: a season shows its series on that tab', () => {
   assert.deepEqual(pageItem(season, series), { item: series, season: 'n' })
   const orphan = { Id: 'o', Type: 'Season' } as Item
   assert.deepEqual(pageItem(orphan), { item: orphan })
+})
+
+test('folderUp: a library goes home, a folder inside it to its parent', () => {
+  const f = (Type: string, ParentId?: string) =>
+    folderUp({ Id: 'x', Name: 'x', Type, ParentId })
+  assert.equal(f('CollectionFolder', 'root'), null)
+  assert.equal(f('UserView', 'root'), null)
+  assert.equal(f('Folder', 'lib'), 'lib')
+  assert.equal(f('Folder'), null)
 })

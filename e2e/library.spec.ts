@@ -1,8 +1,8 @@
 // The library, on a paired browser with its own gateway (fixtures.ts
 // `paired`): `/` → the active gateway's library (one gateway; with two, the
 // online one, then the last opened), the nav's Library link, the
-// shared session, folder deep links + cache, Recently added,
-// Continue watching's order and click-through guard, season tabs
+// shared session, folder deep links (title row + Back) + cache, Recently added,
+// Continue watching's order (the spot; a phone's row) and click-through guard, season tabs
 // and watched marks, no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
@@ -102,7 +102,10 @@ test('library → back → library within 30 s: one shared session (#152) @libra
   a.on('websocket', count)
   await a.getByRole('button', { name: 'Open' }).click()
   await expect(movies(a)).toBeVisible()
-  await a.getByRole('link', { name: '← Gateways' }).click()
+  await a
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Gateways' })
+    .click()
   await a.getByRole('button', { name: 'Open' }).click()
   await expect(movies(a)).toBeVisible()
   a.off('websocket', count)
@@ -113,10 +116,18 @@ test('folders: a deep link that survives a reload, back from the cache (#360) @l
   paired,
 }) => {
   const { page: a } = paired
-  await open(a)
+  const id = await open(a)
   await movies(a).click()
   await expect(a).toHaveURL(/\/g\/[^/]+\/i\/[^/]+$/) // folder deep link
   await a.reload() // restores the folder: item loaded by ID over a new tunnel
+  // Title row: the folder's name + Back (to the library home), no breadcrumb.
+  await expect(
+    a.getByRole('heading', { level: 1, name: 'Movies' }),
+  ).toBeVisible()
+  await expect(a.getByRole('link', { name: 'Movies' })).toHaveCount(0)
+  await a.getByRole('button', { name: 'Back' }).click()
+  await expect(a).toHaveURL(appUrl(`/g/${id}`))
+  await movies(a).click()
   await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
   // Back to a folder seen < 5 min ago: from the query cache, no "Loading…"
   // and no tunnel request on the way.
@@ -228,6 +239,16 @@ test('continue watching: newest first; the click-through guard keeps the order (
   await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '0'))
   await a.reload()
   await expect(spot).toHaveText('streamiq e2e mp2 default')
+  // A phone: a row of cards in the same order, no spot.
+  await a.setViewportSize({ width: 400, height: 800 })
+  const row = a.locator('section.shelf', {
+    has: a.getByRole('heading', { name: 'Continue watching' }),
+  })
+  const cards = row.getByRole('button')
+  await expect(cards).toHaveCount(2)
+  await expect(cards.nth(0)).toHaveAccessibleName('streamiq e2e mp2 default')
+  await expect(cards.nth(1)).toHaveAccessibleName('streamiq e2e clip')
+  await expect(spot).toBeHidden()
 })
 
 test('seasons: tabs, Season 1 first with its episodes, Season 2 on a click @library', async ({

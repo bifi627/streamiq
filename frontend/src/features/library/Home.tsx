@@ -1,7 +1,9 @@
-// Library home: the Resume spot (the first in-progress item; its Resume
-// button takes first focus, so one OK press resumes), up to 3 more in progress,
-// Recently added, and the libraries (the shell nav has no tunnel, so they live
-// here). Arrow keys: GatewayLibrary's D-pad container (Library.tsx).
+// Library home: Continue watching, Recently added and the libraries (the shell
+// nav has no tunnel, so they live here), each a row that scrolls sideways.
+// Desktop/TV: Continue watching is the Resume spot (the first in-progress item;
+// its Resume button takes first focus, so one OK press resumes) + up to 3 more;
+// a phone gets a row of cards instead (index.css shows one of the two).
+// Arrow keys: GatewayLibrary's D-pad container (Library.tsx).
 import { PageBar } from '../../shared/PageBar'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
@@ -70,7 +72,7 @@ function Shelves() {
         : '/g/$gatewayId/i/$itemId',
       params: { gatewayId, itemId: i.Id },
     })
-  // Recently added + Libraries: a movie opens its page.
+  // Recently added + Library: a movie opens its page.
   const pick = (i: Item) =>
     navigate({
       to: playsAtOnce(i)
@@ -89,8 +91,10 @@ function Shelves() {
   if (empty) return <State icon="empty" title="Nothing here." />
   return (
     <div className="home">
-      <Row title="Continue watching" error={lists.resume}>
-        {[]}
+      <Row title="Continue watching" error={lists.resume} phone>
+        {ok(lists.resume).map((i) => (
+          <Pick key={i.Id} item={i} art={primary(i)} onOpen={open} />
+        ))}
       </Row>
       {spot && (
         <div className="resume">
@@ -154,7 +158,7 @@ function Shelves() {
           />
         ))}
       </Row>
-      <Row title="Libraries" error={lists.views}>
+      <Row title="Library" error={lists.views}>
         {ok(lists.views).map((i, n) => (
           <Pick
             key={i.Id}
@@ -187,19 +191,22 @@ function HomePlaceholder() {
   )
 }
 
+/** `phone`: a phone's row only, unless it shows its error. */
 function Row({
   title,
   error,
+  phone,
   children,
 }: {
   title: string
   error: Shelf
+  phone?: boolean
   children: ReactNode[]
 }) {
   const failed = error instanceof AppError
   if (!failed && !children.length) return null
   return (
-    <section className="shelf">
+    <section className={phone && !failed ? 'shelf phone' : 'shelf'}>
       <h2>{title}</h2>
       {failed ? <ErrorView error={error} /> : <ul>{children}</ul>}
     </section>
@@ -216,7 +223,7 @@ function Pick({
   item: Item
   art: Art | null
   wide?: boolean
-  first: boolean
+  first?: boolean
   onOpen: (i: Item) => void
 }) {
   return (
@@ -233,7 +240,7 @@ function Pick({
           width={wide ? 416 : 248}
           className={wide ? 'frame' : 'cover'}
         />
-        <span>{item.Name}</span>
+        <span>{title(item)}</span>
       </button>
     </li>
   )

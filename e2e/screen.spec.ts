@@ -34,13 +34,14 @@ async function useAsScreen(tv: Page) {
   )
 }
 
-/** A phone: a new tab on the TV's gateway library, Movies, the clip's Play on… open. */
+/** A phone: a new tab on the TV's gateway library, Movies, the clip's page with its Play on… open. */
 async function phoneAt(tv: Page) {
   const phone = await tv.context().newPage()
   await keepPcs(phone) // viaTunnel
   await phone.goto(tv.url().replace(/\/screen$/, ''))
   await phone.getByRole('button', { name: /Movies/ }).click()
-  await phone.getByRole('button', { name: 'Play on…' }).first().click() // the clip
+  await phone.getByRole('button', { name: /streamiq e2e clip/ }).click()
+  await phone.getByRole('button', { name: 'Play on…' }).click()
   return phone
 }
 
@@ -85,7 +86,10 @@ test('entry (#248, #872): the gateway card always, the top bar only in TV mode @
   })
   await openLibrary(page)
   await expect(page.getByRole('link', { name: 'Use as screen' })).toHaveCount(0)
-  await page.getByRole('link', { name: '← Gateways' }).click()
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Gateways' })
+    .click()
   await expect(
     page.locator('li.card').getByRole('link', { name: 'Use as screen' }),
   ).toBeVisible()
@@ -262,6 +266,7 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… li
   ).toEqual([])
   await phone.getByRole('alert').getByRole('link', { name: 'Library' }).click() // not the nav's
   await phone.getByRole('button', { name: /Movies/ }).click()
-  await phone.getByRole('button', { name: 'Play on…' }).first().click()
+  await phone.getByRole('button', { name: /streamiq e2e clip/ }).click()
+  await phone.getByRole('button', { name: 'Play on…' }).click()
   await expect(phone.getByText(/No screen open/)).toBeVisible()
 })

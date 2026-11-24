@@ -57,9 +57,10 @@ export function upNext(episodes: Item[]) {
   )
 }
 
-/** A tile opens the player, not a page: a movie has its page with
- * Play / Resume. The Resume spot plays at once regardless. */
-export const playsAtOnce = (i: Item) => playable(i) && i.Type !== 'Movie'
+/** A tile opens the player, not a page: an episode (its Play on… is on the
+ * series page). A movie or other video has its page with Play / Resume and
+ * Play on…. The Resume spot plays at once regardless. */
+export const playsAtOnce = (i: Item) => i.Type === 'Episode'
 
 /** Opens in the player, not as a listing. */
 export const playable = (i: Item) =>
@@ -180,3 +181,10 @@ export const isBack = (e: KeyboardEvent) =>
   e.key === 'GoBack' ||
   e.key === 'BrowserBack' ||
   e.keyCode === 461 // webOS remote
+
+/** A folder's Back without in-app history: its parent folder, or null for
+ * the library home (a library's own parent is Jellyfin's hidden root). */
+export const folderUp = (i: Item) =>
+  i.Type === 'CollectionFolder' || i.Type === 'UserView'
+    ? null
+    : (i.ParentId ?? null)

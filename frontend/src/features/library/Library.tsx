@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react'
 import { PageBar } from '../../shared/PageBar'
 import { useBack } from '../../shared/slots'
 import {
-  Link,
   Outlet,
   useCanGoBack,
   useNavigate,
@@ -22,6 +21,7 @@ import { guestNotice } from './guest'
 import { Player } from '../player/Player'
 import {
   clock,
+  folderUp,
   inProgress,
   pageItem,
   playable,
@@ -87,10 +87,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         !(e.target as Element).closest('.player') && arrowFocus(e)
       }
     >
-      <p className="lib-top">
-        <Link to="/gateways">← Gateways</Link>
-        {session && <LiveRoute gatewayId={gatewayId} pc={session.pc} />}
-      </p>
+      {session && <LiveRoute gatewayId={gatewayId} pc={session.pc} />}
       {err && (
         <ErrorView
           error={err}
@@ -123,7 +120,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   )
 }
 
-// Folder / series / movie by Jellyfin item ID, so a reload or deep link
+// Folder / series / movie or other video by Jellyfin item ID, so a reload or deep link
 // restores it. A season opens its series' page on that season's tab.
 export function ItemPage({ itemId }: { itemId: string }) {
   const it = useTunnelQuery<Item>(jf.item(itemId))
@@ -147,7 +144,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
       </div>
     )
   const { item, season } = shown
-  if (item.Type === 'Series' || item.Type === 'Movie')
+  if (item.Type === 'Series' || playable(item))
     return <Title item={item} season={season} updatedAt={it.dataUpdatedAt} />
   return <Browse item={item} />
 }
@@ -371,17 +368,17 @@ export function PlayerPage({ itemId }: { itemId: string }) {
   )
 }
 
-// A folder: breadcrumbs from the item itself + the listing.
+// A folder: its name + Back in the title row, the listing as a grid.
 function Browse({ item }: { item: Item }) {
-  const { gatewayId, pc } = useTunnel()
+  const { gatewayId } = useTunnel()
   const navigate = useNavigate()
-  const crumb = (itemId: string, name: string) => (
-    <>
-      {' / '}
-      <Link to="/g/$gatewayId/i/$itemId" params={{ gatewayId, itemId }}>
-        {name}
-      </Link>
-    </>
+  const up = folderUp(item)
+  const back = useBack(() =>
+    navigate(
+      up
+        ? { to: '/g/$gatewayId/i/$itemId', params: { gatewayId, itemId: up } }
+        : { to: '/g/$gatewayId', params: { gatewayId } },
+    ),
   )
   const open = (i: Item) =>
     navigate({
@@ -393,30 +390,13 @@ function Browse({ item }: { item: Item }) {
 
   return (
     <>
-      <PageBar title={item.Name} />
-      <p>
-        <Link to="/g/$gatewayId" params={{ gatewayId }}>
-          Library
-        </Link>
-        {item.SeriesId &&
-          item.SeriesId !== item.Id &&
-          crumb(item.SeriesId, item.SeriesName ?? 'Series')}
-        {crumb(item.Id, item.Name)}
-      </p>
-      <Listing pc={pc} item={item} onOpen={open} />
+      <PageBar title={item.Name} onBack={back} />
+      <Listing item={item} onOpen={open} />
     </>
   )
 }
 
-function Listing({
-  pc,
-  item,
-  onOpen,
-}: {
-  pc: RTCPeerConnection
-  item: Item
-  onOpen: (i: Item) => void
-}) {
+function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
   const q = useTunnelQuery<{ Items: Item[] }>(jf.children(item.Id))
   const items = q.data?.Items
   if (q.error && !items) return <ErrorView error={toAppError(q.error)} focus />
@@ -433,31 +413,23 @@ function Listing({
     )
   if (!items.length) return <State icon="empty" title="Nothing here." />
   return (
-    <>
-      <ul className="tiles">
-        {items.map((i) => (
-          <li key={i.Id}>
-            <button type="button" onClick={() => onOpen(i)} className="tile">
-              <Artwork
-                art={primary(i)}
-                card={i}
-                width={280}
-                className="poster"
-              />
-              <div>
-                {i.IndexNumber != null &&
-                  i.Type === 'Episode' &&
-                  `${i.IndexNumber}. `}
-                {i.Name}
-                {i.ProductionYear && ` (${i.ProductionYear})`}
-              </div>
-              <small>{label(i)}</small>
-            </button>
-            {playable(i) && <PlayOn pc={pc} item={i} />}
-          </li>
-        ))}
-      </ul>
-    </>
+    <ul className="tiles">
+      {items.map((i) => (
+        <li key={i.Id}>
+          <button type="button" onClick={() => onOpen(i)} className="tile">
+            <Artwork art={primary(i)} card={i} width={280} className="poster" />
+            <div>
+              {i.IndexNumber != null &&
+                i.Type === 'Episode' &&
+                `${i.IndexNumber}. `}
+              {i.Name}
+              {i.ProductionYear && ` (${i.ProductionYear})`}
+            </div>
+            <small>{label(i)}</small>
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }
 

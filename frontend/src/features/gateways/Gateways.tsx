@@ -38,7 +38,11 @@ export function Home() {
     if (!data && !isError) return // the list shows the error
     const id = data && libraryTarget(undefined, lastGateway(), data)
     if (id)
-      navigate({ to: '/g/$gatewayId', params: { gatewayId: id }, replace: true })
+      navigate({
+        to: '/g/$gatewayId',
+        params: { gatewayId: id },
+        replace: true,
+      })
     else navigate({ to: '/gateways', replace: true })
   }, [data, isError, navigate])
   return null

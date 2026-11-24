@@ -57,7 +57,8 @@ before the overlay. Plain chat questions only if the tool isn't there.
 - **Not drafted** (a group's sub-issue stub too): first the pre-draft checks, then the
   interview, then draft Why, Acceptance criteria, Out of scope, Notes and go to section 4.
 - **Interview** (not drafted only), until no question is open:
-  - The tree first: before the first question, list in chat every open question you
+  - The tree first: after the pre-draft checks are settled and before the first
+    interview question, list in chat every open question you
     see and which ones wait on which answer. Send it in a call before the question,
     never in the same batch.
   - Facts aren't questions: what the code does, what an issue decided, what a doc

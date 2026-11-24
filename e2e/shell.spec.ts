@@ -294,7 +294,9 @@ test('Settings toggles persist across a reload @shell', async ({ browser }) => {
   await expect(dock).toBeVisible()
 })
 
-test('Playback settings persist across a reload @shell', async ({ browser }) => {
+test('Playback settings persist across a reload @shell', async ({
+  browser,
+}) => {
   const p = await signedIn(browser, '/settings/playback')
   const saver = p.getByRole('group', { name: 'Data saver' })
   // Desktop Chrome: no saveData, not cellular, so Automatic is off.

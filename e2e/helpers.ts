@@ -446,4 +446,7 @@ export const pitch = (p: Page) =>
 /** Expands a Settings category that opens in place (Display, Account,
  * Diagnostics): they start closed. */
 export const openCategory = (p: Page, name: string) =>
-  p.locator('summary').filter({ hasText: new RegExp(`^${name}`) }).click()
+  p
+    .locator('summary')
+    .filter({ hasText: new RegExp(`^${name}`) })
+    .click()

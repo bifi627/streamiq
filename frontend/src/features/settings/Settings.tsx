@@ -25,8 +25,8 @@ export function Settings() {
           <li>
             <TvToggle />
             <p className="muted">
-              Larger text and a margin for TVs that crop the picture edges.
-              This device only.
+              Larger text and a margin for TVs that crop the picture edges. This
+              device only.
             </p>
           </li>
         </Category>

@@ -106,12 +106,13 @@ dropped (BLOCKER) or LOW (SPEC): a posted finding blocks the merge and costs a r
   e2e spec, a `run` one with no output shown; a `manual` one runs after the review, so
   it is met when the diff does what it describes and section 5 names its check; a
   criterion without a proof kind is judged as before, the missing kind is no finding);
-  out-of-scope work / a drive-by fix in the diff; docs the change invalidated left
-  stale (`docs/tools.md` for tools/credentials, `docs/protocol.md` for protocol); a new dependency with no justification in the PR
-  body; a new or changed test that doesn't actually prove the acceptance criterion it
-  is there for, or that can hang instead of fail (no timeout on a wait); new branching /
-  ordering / timer logic in a `.tsx` without a `.ts` + `node --test` beside it (CLAUDE.md
-  "Frontend decision logic lives in `.ts`"; render branching doesn't count).
+  out-of-scope work / a drive-by fix in the diff; docs the change invalidated left stale
+  (`docs/tools.md` for tools/credentials, `docs/protocol.md` for protocol); a new
+  dependency with no justification in the PR body; a new or changed test that doesn't
+  actually prove the acceptance criterion it is there for, or that can hang instead of
+  fail (no timeout on a wait); new branching / ordering / timer logic in a `.tsx`
+  without a `.ts` + `node --test` beside it (CLAUDE.md "Frontend decision logic lives in
+  `.ts`"; render branching doesn't count).
 - **LOW**: everything else (style, naming, simplification, defensive checks for
   impossible states, speculative edge cases, nits, "consider…"), each with one category
   of `style naming dead-code simplify defensive test docs race error-handling drift ux

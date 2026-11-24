@@ -49,6 +49,7 @@ import { Household, NoHousehold } from './features/households/HouseholdPage'
 import { HouseholdContext, SetMeContext } from './features/households/household'
 import { SignIn } from './features/signin/SignIn'
 import { Settings } from './features/settings/Settings'
+import { Playback } from './features/settings/Playback'
 import { Activity } from './features/activity/Activity'
 import { event } from './shared/diag'
 
@@ -254,6 +255,11 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: () => rootRoute,
     path: 'settings',
     component: Settings,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'settings/playback',
+    component: Playback,
   }),
   createRoute({
     getParentRoute: () => rootRoute,

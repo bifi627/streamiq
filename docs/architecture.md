@@ -273,6 +273,9 @@ peaks per local day.
 - Library home (`features/library/Home.tsx`): Resume spot, Recently added, libraries.
   Artwork through `art.ts`: loads only on screen, cached per gateway in the Cache API,
   deleted on sign-out and household switch.
+- Settings (`features/settings/`): `/settings` is a list of categories; one with more than
+  2 settings is its own page (`/settings/playback`, row ends in ›), a smaller one expands in
+  place (`<details>`, ⌄, closed on load).
 
 ## Hosting and operations
 

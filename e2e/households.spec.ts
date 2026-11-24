@@ -15,6 +15,7 @@ import {
   signUp,
   uniqueEmail,
   type User,
+  openCategory,
 } from './helpers.ts'
 
 // householdLabel() in api.ts: an unnamed household (none renamed yet).
@@ -296,6 +297,7 @@ test('alias: asked first, others see it not the email, renamed in Settings @hous
 
   // Renamed later in Settings.
   await c.getByRole('link', { name: 'Settings' }).click()
+  await openCategory(c, 'Account')
   await c.getByRole('button', { name: 'Rename' }).click()
   await alias.fill('Caro')
   await c.getByRole('button', { name: 'Save' }).click()

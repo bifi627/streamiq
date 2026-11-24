@@ -34,9 +34,17 @@ test('up and left: straight beats a closer diagonal too', () => {
   assert.equal(nearest(box(0, 0), [box(40, 0), box(20, 20)], 'ArrowRight'), 0)
 })
 
-test('drift is measured between centres: a wide row straight below wins', () => {
+test('drift is measured to the centre: a wide row straight below wins', () => {
   const wide = { left: -95, top: 40, right: 105, bottom: 50 } // centre x 5
   assert.equal(nearest(box(0, 0), [box(40, 40), wide], 'ArrowDown'), 1)
+})
+
+test('from a wide row, down reaches a control at its end before the next row', () => {
+  const summary = { left: 0, top: 0, right: 700, bottom: 40 }
+  const toggle = { left: 670, top: 60, right: 690, bottom: 80 }
+  const nextRow = { left: 0, top: 140, right: 700, bottom: 180 }
+  assert.equal(nearest(summary, [nextRow, toggle], 'ArrowDown'), 1)
+  assert.equal(nearest(nextRow, [summary, toggle], 'ArrowUp'), 1)
 })
 
 test('other keys move nothing', () => {

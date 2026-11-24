@@ -12,16 +12,20 @@ type Box = { left: number; top: number; right: number; bottom: number }
 const dirs = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
 
 /** Index of the box nearest to `from` in the arrow's direction, -1 = none.
- * Distance along the arrow counts once, sideways drift twice. */
+ * Distance along the arrow counts once, sideways drift twice. Drift is from
+ * the box's centre to `from`'s span: 0 under a wide row (a <summary>), so Down
+ * reaches a control at its right end before the next row. */
 export function nearest(from: Box, boxes: Box[], key: string) {
   const cx = (b: Box) => (b.left + b.right) / 2
   const cy = (b: Box) => (b.top + b.bottom) / 2
+  const drift = (c: number, lo: number, hi: number) =>
+    c < lo ? c - lo : c > hi ? c - hi : 0
   const across = key === 'ArrowLeft' || key === 'ArrowRight'
   let best = -1
   let score = Infinity
   boxes.forEach((b, i) => {
-    const dx = cx(b) - cx(from)
-    const dy = cy(b) - cy(from)
+    const dx = across ? cx(b) - cx(from) : drift(cx(b), from.left, from.right)
+    const dy = across ? drift(cy(b), from.top, from.bottom) : cy(b) - cy(from)
     const along = {
       ArrowLeft: -dx,
       ArrowRight: dx,
@@ -64,7 +68,15 @@ export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
     return
   const els = [
     ...e.currentTarget.querySelectorAll<HTMLElement>(focusable),
-  ].filter((el) => el !== from && el.getClientRects().length > 0)
+  ].filter(
+    (el) =>
+      el !== from &&
+      el.getClientRects().length > 0 &&
+      // A closed <details>' content keeps its boxes in current Chrome
+      // (content-visibility: hidden); Chrome 87 has neither those boxes nor
+      // checkVisibility.
+      (el.checkVisibility?.() ?? true),
+  )
   const i = nearest(
     from.getBoundingClientRect(),
     els.map((el) => el.getBoundingClientRect()),

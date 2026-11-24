@@ -20,9 +20,8 @@ import { RelaySetting } from './RelaySetting'
 import { canManage, gatewayName, shownError, type ActErr } from './list'
 import { event } from '../../shared/diag'
 
-// `/gateways/$id`: one gateway's card with every detail and action, as the
-// list showed it before the overview. ponytail: TODO(#870) the detail page
-// replaces it. Rename/Remove are admin-only, as on the list.
+// `/gateways/$id`: one gateway's card with every detail and action.
+// TODO(#870) the detail page replaces it. Rename/Remove are admin-only.
 export function GatewayDetail({ id }: { id: string }) {
   const q = useGateways(5000)
   const qc = useQueryClient()

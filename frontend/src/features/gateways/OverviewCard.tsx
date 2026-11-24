@@ -6,6 +6,7 @@ import { connKey, type Conn, type Route } from './connection'
 import { dotLabel, dotOf, gatewayName } from './list'
 import { usePin } from '../pairing/store'
 import { Pairing } from '../pairing/Pairing'
+import { pinUnusable } from '../pairing/pairState'
 import { RouteBadge } from '../player/Privacy'
 import { Dialog } from '../../shared/Dialog'
 import { ErrorView } from '../../shared/ErrorView'
@@ -37,9 +38,9 @@ export function OverviewCard({ g, active }: { g: Gateway; active: boolean }) {
     } catch (e) {
       const err = toAppError(e)
       // No usable pin: Pair takes Test's place, as on the Pairing block.
-      if (err.kind === 'not-paired' || err.kind === 'pin-mismatch')
-        setPinned(false)
-      feed({ route: 'failed' })
+      if (pinUnusable(err)) setPinned(false)
+      // Offline: the badge shows that itself; a failed check would stick.
+      if (g.online) feed({ route: 'failed' })
       setTest({ err })
     }
   }
@@ -77,6 +78,7 @@ export function OverviewCard({ g, active }: { g: Gateway; active: boolean }) {
           <button
             type="button"
             className="primary"
+            disabled={!g.online} // pairing needs the gateway
             onClick={() => setPairing(true)}
           >
             Pair
@@ -101,7 +103,10 @@ export function OverviewCard({ g, active }: { g: Gateway; active: boolean }) {
             gatewayId={g.id}
             lanUrl={g.lanUrl}
             autoPair
-            onPaired={() => setPinned(true)}
+            onPaired={() => {
+              setPinned(true)
+              setTest(null) // an earlier refusal is moot
+            }}
           />
         </Dialog>
       )}

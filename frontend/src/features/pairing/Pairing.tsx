@@ -10,7 +10,12 @@ import { tunnelJson } from '../../shared/tunnel'
 import { pairInfo } from '../../shared/stats'
 import { arrowFocus } from '../../shared/focus'
 import { tvOn } from '../../shared/settings'
-import { routeLine, showPair as pairShown, type State } from './pairState'
+import {
+  pinUnusable,
+  routeLine,
+  showPair as pairShown,
+  type State,
+} from './pairState'
 import { event } from '../../shared/diag'
 import { useQueryClient } from '@tanstack/react-query'
 import { connKey } from '../gateways/connection'
@@ -102,8 +107,7 @@ export function Pairing({
     } catch (e) {
       const err = toAppError(e)
       // No usable pin: Pair stays, not Open, through a retest or a refused pairing.
-      if (err.kind === 'not-paired' || err.kind === 'pin-mismatch')
-        setPinned(false)
+      if (pinUnusable(err)) setPinned(false)
       setS({ step: 'failed', err })
     }
   }

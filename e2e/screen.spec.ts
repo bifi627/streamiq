@@ -85,7 +85,10 @@ test('entry (#248, #872): the gateway card always, the top bar only in TV mode @
   })
   await openLibrary(page)
   await expect(page.getByRole('link', { name: 'Use as screen' })).toHaveCount(0)
-  await page.getByRole('link', { name: '← Gateways' }).click()
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Gateways' })
+    .click()
   await expect(
     page.locator('li.card').getByRole('link', { name: 'Use as screen' }),
   ).toBeVisible()

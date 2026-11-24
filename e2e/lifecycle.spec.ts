@@ -103,7 +103,10 @@ test("Remove on the local gateway page: the open session dies, then it's refused
   // The gateway closed the PeerConnection: the next request on it fails.
   await movies.click()
   await expect(a.locator('[role=alert][data-kind="tunnel-lost"]')).toBeVisible()
-  await a.getByRole('link', { name: '← Gateways' }).click()
+  await a
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Gateways' })
+    .click()
   await a.getByRole('button', { name: 'Test connection' }).click()
   await refused(a).toBeVisible()
 })

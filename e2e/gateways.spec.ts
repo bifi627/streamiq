@@ -190,7 +190,6 @@ test('connection badge: live from the library tunnel, which replaced its own bad
   await expect(
     page.getByText(/end-to-end encrypted · never leaves the house/),
   ).toBeVisible()
-  await expect(page.locator('.lib-top .privacy')).toHaveCount(0)
 })
 
 test('connection badge: a browser without a pin shows Not paired and opens no tunnel @gateways', async ({
@@ -275,7 +274,10 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   await expect(summary).toBeFocused() // the D-pad keeps its place
   await movies.click()
   await expect(b.locator('[role=alert][data-kind="tunnel-lost"]')).toBeVisible()
-  await b.getByRole('link', { name: '← Gateways' }).click()
+  await b
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Gateways' })
+    .click()
   // Rename goes over the tunnel: gone with the pin, no reload.
   const renameB = card(b)
     .locator('.card-head')

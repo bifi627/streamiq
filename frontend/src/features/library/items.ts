@@ -180,3 +180,10 @@ export const isBack = (e: KeyboardEvent) =>
   e.key === 'GoBack' ||
   e.key === 'BrowserBack' ||
   e.keyCode === 461 // webOS remote
+
+/** A folder's Back without in-app history: its parent folder, or null for
+ * the library home (a library's own parent is Jellyfin's hidden root). */
+export const folderUp = (i: Item) =>
+  i.Type === 'CollectionFolder' || i.Type === 'UserView'
+    ? null
+    : (i.ParentId ?? null)

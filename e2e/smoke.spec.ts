@@ -89,7 +89,10 @@ test('first run: sign up, add a gateway, pair, play, resume, Activity, direct + 
       ).toHaveAttribute('aria-valuetext', /^0:0[3-9] of/)
       await a.getByRole('button', { name: 'Resume' }).click()
       await expect.poll(() => videoTime(a)).toBeGreaterThan(2.5) // starts there, not at 0
-      await a.getByRole('link', { name: '← Gateways' }).click()
+      await a
+        .getByRole('navigation', { name: 'Main' })
+        .getByRole('link', { name: 'Gateways' })
+        .click()
     })
 
     await test.step('Activity lists the tunnels so far as Direct, one for Playback', async () => {

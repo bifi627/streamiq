@@ -5,7 +5,7 @@
 // Continue watching's order (the spot; a phone's row) and click-through guard, season tabs
 // (with the title page's D-pad order)
 // and watched marks (the end stops inline playback), inline playback (an episode from Continue
-// watching on its series' page, Back stops and stays, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
+// watching on its series' page, Back stops and stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'
@@ -332,13 +332,41 @@ test('inline playback: in the hero box, Back stops and stays; an episode from Co
     overlay.getByRole('button', { name: 'Back', exact: true }),
   ).toHaveCount(0)
   await expect(overlay.locator('.badge')).toBeHidden()
-  // Keys as before (focus on the page): Escape hides a shown bar, then stops.
-  await a.evaluate(() => (document.activeElement as HTMLElement).blur())
-  await expect(async () => {
-    await a.keyboard.press('Escape')
-    await expect(hero).toBeVisible({ timeout: 1000 })
-  }).toPass()
-  await a.goForward() // playing again: the step Play pushed
+  // Focus on the page: Space, ↓ and Escape stay the page's (not
+  // prevented, playback goes on, focus stays); K is still the player's.
+  await a.evaluate(() => {
+    ;(document.activeElement as HTMLElement).blur()
+    const w = window as unknown as { prevented: boolean[] }
+    w.prevented = []
+    window.addEventListener('keydown', (e) =>
+      w.prevented.push(e.defaultPrevented),
+    )
+  })
+  for (const key of ['Space', 'ArrowDown', 'Escape', 'k'])
+    await a.keyboard.press(key)
+  expect(
+    await a.evaluate(
+      () => (window as unknown as { prevented: boolean[] }).prevented,
+    ),
+  ).toEqual([false, false, false, true])
+  expect(await a.evaluate(() => document.activeElement === document.body)).toBe(
+    true,
+  )
+  await expect(hero).toBeHidden()
+  await expect
+    .poll(() => inline.evaluate((v: HTMLVideoElement) => v.paused))
+    .toBe(true)
+  // Fullscreen (F from the page, focus still on the body): Space is the
+  // player's again.
+  await a.keyboard.press('f')
+  await expect
+    .poll(() => a.evaluate(() => !!document.fullscreenElement))
+    .toBe(true)
+  await a.keyboard.press('Space')
+  await expect
+    .poll(() => inline.evaluate((v: HTMLVideoElement) => v.paused))
+    .toBe(false)
+  await a.evaluate(() => document.exitFullscreen())
   await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(3)
   await expect(
     a.getByRole('heading', { level: 1, name: 'StreamIQ Test Series' }),

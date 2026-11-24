@@ -138,6 +138,7 @@ export function onKey(
   r: Refs,
   ui: Ui,
   setPage: (p: Page) => void,
+  inline: boolean,
 ) {
   const t = e.target as Element
   if (t !== document.body && !r.root.current?.contains(t)) return // other UI
@@ -157,6 +158,8 @@ export function onKey(
   // in fullscreen, where it isn't shown.
   const dock = document.querySelector<HTMLElement>('.dock-bar')
   const goBack = isBack(e)
+  // Fullscreen hides the page: every key is the player's again.
+  const onPage = inline && t === document.body && !document.fullscreenElement
   const action = keyAction({
     back: goBack,
     key: e.key.toLowerCase(),
@@ -172,8 +175,9 @@ export function onKey(
     meta: e.metaKey,
     alt: e.altKey,
     repeat: e.repeat,
+    onPage,
   })
-  if (!goBack) ui.poke()
+  if (!goBack && (action || !onPage)) ui.poke() // a page key leaves the bar be
   if (!action) return
   e.preventDefault() // also Back: the browser's own would leave the player
   const move = (its: HTMLElement[], by: number) =>

@@ -165,8 +165,8 @@ const seasonName = (s: Item) =>
   s.Name || (s.IndexNumber != null ? `Season ${s.IndexNumber}` : 'Season')
 
 // Series / movie / other video page: the hero card plays (first focus on
-// load: one OK press plays), the info column beside it (phone: under it,
-// shortened, with More and its own Play button); a series adds its season
+// load: one OK press plays; its Play / Resume on every size), the info column
+// beside it (phone: under it, shortened, with More); a series adds its season
 // tabs + episodes below. Nothing moves focus after that, on re-renders or tab
 // changes. Data from before the last playback doesn't drive play: it waits for
 // the refetch.
@@ -265,18 +265,7 @@ function Title({
               )}
             </div>
           )}
-          {go && (
-            <>
-              <button
-                type="button"
-                className="primary phone-only"
-                onClick={() => play(go)}
-              >
-                {playLabel(go)}
-              </button>
-              <PlayOn pc={pc} item={go} />
-            </>
-          )}
+          {go && <PlayOn pc={pc} item={go} />}
         </div>
       </div>
       {series && (

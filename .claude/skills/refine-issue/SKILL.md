@@ -54,9 +54,22 @@ before the overlay. Plain chat questions only if the tool isn't there.
   still match the code? A criterion without a proof kind (below) gets one proposed as
   an edit. Report what is stale and the edits you propose (or "nothing"), then go to
   section 4.
-- **Not drafted:** ask the owner the open questions (AskUserQuestion, up to 4
-  per call), then draft Why, Acceptance criteria, Out of scope, Notes and go to
-  section 4.
+- **Not drafted** (a group's sub-issue stub too): first the pre-draft checks, then ask
+  the owner the open questions (AskUserQuestion, up to 4 per call), then draft Why,
+  Acceptance criteria, Out of scope, Notes and go to section 4.
+- **Pre-draft checks** (not drafted only), so nothing built, rejected or not real gets
+  a spec:
+  - Already built: search the code for the issue's domain concept, in the CLAUDE.md
+    glossary's words, not only the issue's.
+  - Rejected before: `gh -R bifi627/streamiq issue list --state closed --search
+    "<words> reason:\"not planned\""` for the same request.
+  - A `bug` issue: a cheap repro only: read the code path, run an existing test, curl
+    a stack that is already up. Never e2e, Jellyfin or the dev stack, never a new test.
+    Result: reproduced / not reproduced / not tried, each with why.
+  - Show what each check found in chat (file or issue link, a rejection's reason), or
+    one line "nothing found". A hit asks with AskUserQuestion before any draft: go on /
+    narrow the issue to what is missing / close it; "not reproduced" without such a hit:
+    go on / close.
 - **Proof kinds.** Every acceptance criterion you draft ends with how it is proven,
   the kind only (no file or test name): `(proof: e2e)`, `(proof: go)`,
   `(proof: unit)` (`node --test`), `(proof: run)` (a command's output in the PR's

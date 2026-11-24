@@ -1786,6 +1786,14 @@ progress::-moz-progress-bar {
   cursor: pointer;
   list-style: none;
 }
+/* not .card's in-card disclosure (small, muted, its text's width) */
+.categories details {
+  color: var(--text);
+  font-size: inherit;
+}
+.categories summary {
+  width: auto;
+}
 .categories summary::-webkit-details-marker {
   display: none;
 }

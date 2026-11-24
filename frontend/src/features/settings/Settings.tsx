@@ -8,6 +8,9 @@ import { arrowFocus } from '../../shared/focus'
 import { AliasSetting } from '../../shared/Alias'
 import { DiagnosticsToggle } from '../diagnostics/Diagnostics'
 
+// React's autoFocus skips links; a stable ref runs once, on mount.
+const focus = (a: HTMLAnchorElement | null) => a?.focus()
+
 // Settings overview: a row per category. More than 2 settings → its own page
 // (ends in ›), else it expands in place (⌄).
 export function Settings() {
@@ -16,7 +19,7 @@ export function Settings() {
       <PageBar title="Settings" />
       <ul className="card categories">
         <li>
-          <Link to="/settings/playback" autoFocus>
+          <Link to="/settings/playback" ref={focus}>
             Playback
             <Chevron />
           </Link>

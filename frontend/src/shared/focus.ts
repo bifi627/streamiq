@@ -68,7 +68,15 @@ export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
     return
   const els = [
     ...e.currentTarget.querySelectorAll<HTMLElement>(focusable),
-  ].filter((el) => el !== from && el.getClientRects().length > 0)
+  ].filter(
+    (el) =>
+      el !== from &&
+      el.getClientRects().length > 0 &&
+      // A closed <details>' content keeps its boxes in current Chrome
+      // (content-visibility: hidden); Chrome 87 has neither those boxes nor
+      // checkVisibility.
+      (el.checkVisibility?.() ?? true),
+  )
   const i = nearest(
     from.getBoundingClientRect(),
     els.map((el) => el.getBoundingClientRect()),

@@ -21,9 +21,12 @@
 //   page, then closes. A click outside closes it. One button for every setting,
 //   so the bar stays one row on a phone and the remote model stays ↑/↓ + Enter.
 // - Overlay: the bar covers the picture (clicks pass through its gaps);
-//   its top row (Back unless `noBack`, then `top`: title, privacy badge) is one
+//   its top row (Back unless `inline`, then `top`: title, privacy badge) is one
 //   more row for ↑/↓, after the button row; none when both are absent.
-//   `noBack` hides only the button: Back keys still exit. `onNext` adds "Next episode" before the gear.
+// - `inline` (on the detail page): no Back button. With focus on the page
+//   body, only F/M/K and ←/→ seek are the player's; every other key (Space,
+//   ↑/↓, Escape, …) is the page's. Focus inside the player: all of the above.
+// - `onNext` adds "Next episode" before the gear.
 import {
   useEffect,
   useRef,
@@ -329,7 +332,7 @@ export function Controls({
   onBack,
   onNext,
   top,
-  noBack,
+  inline,
   children,
 }: {
   video: RefObject<HTMLVideoElement | null>
@@ -340,7 +343,7 @@ export function Controls({
   onNext?: () => void
   /** The overlay's top row after Back: title, privacy badge. */
   top?: ReactNode
-  noBack?: boolean
+  inline?: boolean
   children: ReactNode
 }) {
   const root = useRef<HTMLDivElement>(null)
@@ -381,13 +384,13 @@ export function Controls({
   useEffect(() => {
     const v = video.current
     if (!v) return () => ui.stop()
-    const key = (e: KeyboardEvent) => onKey(e, v, r, ui, setPage)
+    const key = (e: KeyboardEvent) => onKey(e, v, r, ui, setPage, !!inline)
     window.addEventListener('keydown', key)
     return () => {
       window.removeEventListener('keydown', key)
       ui.stop()
     }
-  }, [video, r, ui])
+  }, [video, r, ui, inline])
 
   // Autoplay blocked: the bar stays up (paused) with Play focused, so one
   // Enter/tap starts playback.
@@ -436,9 +439,9 @@ export function Controls({
           (e.target as Element).closest('button') && e.preventDefault()
         }
       >
-        {(!noBack || top) && (
+        {(!inline || top) && (
           <div data-row className="row top">
-            {!noBack && (
+            {!inline && (
               <button
                 type="button"
                 aria-label="Back"

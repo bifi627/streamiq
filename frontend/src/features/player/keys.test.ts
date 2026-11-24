@@ -18,6 +18,7 @@ const at = (x: Partial<KeyAt>): KeyAt => ({
   meta: false,
   alt: false,
   repeat: false,
+  onPage: false,
   ...x,
 })
 const k = (key: string, x: Partial<KeyAt> = {}) => keyAction(at({ key, ...x }))
@@ -114,4 +115,18 @@ test('clamp keeps an index inside the list', () => {
   assert.equal(clamp(-1, 3), 0)
   assert.equal(clamp(1, 3), 1)
   assert.equal(clamp(3, 3), 2)
+})
+
+test('inline, from the page body: F/M/K and ←/→ for the player, the rest for the page', () => {
+  const p = { onPage: true }
+  assert.deepEqual(k('f', p), { do: 'fullscreen' })
+  assert.deepEqual(k('m', p), { do: 'mute' })
+  assert.deepEqual(k('k', p), { do: 'toggle' })
+  assert.deepEqual(k('k', { ...p, repeat: true }), { do: 'stay' })
+  assert.deepEqual(k('arrowleft', p), { do: 'seek', by: -SKIP })
+  assert.deepEqual(k('arrowright', p), { do: 'seek', by: SKIP })
+  for (const key of [' ', 'enter', 'arrowup', 'arrowdown', 'pagedown', 'a'])
+    assert.equal(k(key, p), null, key)
+  assert.equal(keyAction(at({ ...p, back: true })), null)
+  assert.equal(k('f', { ...p, ctrl: true }), null)
 })

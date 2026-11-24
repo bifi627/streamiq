@@ -19,6 +19,7 @@ export type KeyAt = {
   meta: boolean
   alt: boolean
   repeat: boolean // the key is held down (e.repeat)
+  onPage: boolean // inline player, focus on the page body (not inside it)
 }
 
 export type Action =
@@ -47,6 +48,7 @@ const ANYWHERE = new Map<string, Action>([
 
 /** The action for a key, or null: not ours, the browser's default applies. */
 export function keyAction(x: KeyAt): Action | null {
+  if (x.onPage) return pageKey(x)
   if (x.back)
     return x.page === 'main'
       ? { do: 'close' }
@@ -78,6 +80,17 @@ export function keyAction(x: KeyAt): Action | null {
   if (x.volume) return { do: 'volume', by: -by * 0.1 }
   if (x.dock && by === 1 && x.lastRow) return { do: 'dock' }
   return { do: 'row', by }
+}
+
+// Inline, from the page body: only F/M/K and ←/→ seek; every other key
+// (Space, ↑/↓, Escape, …) stays the page's.
+function pageKey(x: KeyAt): Action | null {
+  if (x.back || x.ctrl || x.meta || x.alt) return null
+  const anywhere = ANYWHERE.get(x.key)
+  if (anywhere) return x.repeat ? { do: 'stay' } : anywhere
+  if (x.key === 'arrowleft') return { do: 'seek', by: -SKIP }
+  if (x.key === 'arrowright') return { do: 'seek', by: SKIP }
+  return null
 }
 
 /** Index i clamped into a list of n. */

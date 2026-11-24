@@ -219,13 +219,14 @@ test('TV Settings: Household & gateway pickers with 2+ of each, by D-pad; absent
   await expect(gateway).toBeFocused()
   await p.keyboard.press('Enter')
   const list = p.getByRole('dialog', { name: 'Gateway' })
-  await expect(list.getByRole('button', { name: 'Den (online)' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  )
+  await expect(
+    list.getByRole('button', { name: 'Den (online)' }),
+  ).toHaveAttribute('aria-pressed', 'true')
   await p.keyboard.press('ArrowDown')
   await p.keyboard.press('ArrowDown')
-  await expect(list.getByRole('button', { name: 'Cabin (offline)' })).toBeFocused()
+  await expect(
+    list.getByRole('button', { name: 'Cabin (offline)' }),
+  ).toBeFocused()
   await p.keyboard.press('Enter')
   await expect(list).toHaveCount(0)
   await expect(gateway).toHaveAccessibleName('Gateway: Cabin (offline)')

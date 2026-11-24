@@ -68,10 +68,14 @@ chat questions only if the tool isn't there.
   - Rounds: a round is the questions whose prerequisites are settled, asked with
     AskUserQuestion, up to 4 per call, as many calls as the round needs. A question an
     answer opens joins a later round; one an answer makes moot is dropped.
-  - Words and claims: a term in the issue or an answer that the CLAUDE.md glossary
-    doesn't have, or uses differently, is asked: which glossary word is meant. An owner
-    claim the code contradicts is shown (file link, what the code does) and asked:
-    which holds.
+  - Words: a term in the issue or an answer is asked only when it names something the
+    product or a user has, and it is an old word, is used differently from the CLAUDE.md
+    glossary, or could mean two glossary words: which glossary word is meant. Tooling
+    and technique terms (process, git, CI, refactoring patterns) are never asked. A new
+    concept no glossary word fits: ask the owner for its word; the draft gets the
+    criterion "glossary line added in CLAUDE.md".
+  - Claims: an owner claim the code contradicts is shown (file link, what the code
+    does) and asked: which holds.
   - Done when no question is open, not when the rounds run out: list in chat the
     decisions the draft rests on, then draft. No confirm question: section 4's approval
     is the confirmation.

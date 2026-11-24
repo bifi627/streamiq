@@ -266,6 +266,13 @@ peaks per local day.
   elsewhere one check tunnel per page load and gateway (connect, `/streamiq/route`, close),
   kept in the query cache (`['connection', id]`) until a library tunnel or a new pairing
   replaces it. Offline or no pin on this browser: no check ("Not paired").
+- Gateways overview (`features/gateways/Gateways.tsx`, `OverviewCard.tsx`): a card per
+  gateway, the **active gateway** first: the open route's, else the per-device last opened
+  (`lastGateway` in `shared/settings.ts`, subscribable), else the first online
+  (`libraryTarget` in `shell.ts`). Switch sets it; the card's Test (`probe` in `api.ts`, the
+  badge's check) also feeds the badge. Add gateway and Pair open as a modal
+  (`shared/Dialog.tsx`, native `<dialog>`). A card's link opens `/gateways/<id>`
+  (`GatewayDetail.tsx`: every detail and action), off TV mode's allowlist.
 - Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its
   first-visit default (`features/tv/tv.ts`: known TV → on, Android box → ask once, #309). Its routes
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the

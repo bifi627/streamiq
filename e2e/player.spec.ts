@@ -12,6 +12,7 @@ import {
   bursts,
   countBursts,
   openDock,
+  openGateway,
   openLibrary,
   pitch,
   videoTime,
@@ -289,6 +290,7 @@ test('compatible mode (#113, #792): an H.264 + AAC file still remuxes; the gatew
   ).toBeVisible()
   // The playback stored its probe on the gateway: this browser's paired client.
   await page.goto(appUrl('/gateways'))
+  await openGateway(page)
   await page.getByText('Paired clients', { exact: true }).click()
   await expect(
     page.locator('.clients li').filter({ hasText: '(this browser)' }),

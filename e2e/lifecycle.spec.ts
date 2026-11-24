@@ -12,6 +12,8 @@ import {
   appUrl,
   gatewayTab,
   openDock,
+  openGateway,
+  openLibrary,
   pair,
   password,
   restartGateway,
@@ -20,7 +22,7 @@ import {
 import { envVar, must } from './must.ts'
 
 const open = async (a: Page) => {
-  await a.getByRole('button', { name: 'Open' }).click()
+  await openLibrary(a)
   const movies = a.getByRole('button', { name: /Movies/ })
   await expect(movies).toBeVisible()
   return movies
@@ -83,7 +85,7 @@ test('new gateway certificate → red warning → re-pair @gateways', async ({
   await gateway.stop()
   fs.rmSync(path.join(gateway.stateDir, 'cert.pem'))
   await restartGateway(gateway)
-  await a.getByRole('button', { name: 'Test connection' }).click()
+  await a.getByRole('button', { name: 'Test' }).click()
   await expect(
     a.locator('[role=alert][data-kind="pin-mismatch"]'),
   ).toContainText('Refused: this is not the gateway you paired with.')
@@ -107,7 +109,7 @@ test("Remove on the local gateway page: the open session dies, then it's refused
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: 'Gateways' })
     .click()
-  await a.getByRole('button', { name: 'Test connection' }).click()
+  await a.getByRole('button', { name: 'Test' }).click()
   await refused(a).toBeVisible()
 })
 
@@ -169,9 +171,10 @@ test('Remove in the web app: the gateway is revoked and disconnected @gateways',
   const { page: a, gateway } = paired
   let out = ''
   gateway.proc.stderr.on('data', (d) => (out += d))
+  await openGateway(a)
   a.once('dialog', (d) => d.accept())
   await a.getByRole('button', { name: 'Remove' }).click()
-  await expect(a.getByText('No gateways yet.')).toBeVisible()
+  await expect(a.getByText('No gateways yet.')).toBeVisible() // back on the overview
   // Its socket was closed and the reconnect is refused (401). A miss shows the
   // gateway's stderr since Remove: the reconnecting / dial control lines.
   await expect(() =>

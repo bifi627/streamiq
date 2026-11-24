@@ -123,7 +123,7 @@ test('prod smoke: sign in, enroll, play direct, test connection direct + relay +
     await pair(page, gatewayCtx, pageUrl)
     lap('paired')
 
-    await page.getByRole('button', { name: 'Open' }).click()
+    await page.getByRole('link', { name: 'Library' }).click()
     await page.getByRole('button', { name: /Movies/ }).click()
     await page.getByRole('button', { name: /streamiq e2e clip/ }).click()
     await page.getByRole('button', { name: /^(Play|Resume)$/ }).click()

@@ -50,6 +50,7 @@ test('first run: sign up, add a gateway, pair, play, resume, Activity, direct + 
     await a.locator('pre').first().textContent(),
     'install command',
   )
+  await a.getByRole('dialog').getByRole('button', { name: 'Close' }).click()
   const env = Object.fromEntries(
     [...cmd.matchAll(/(STREAMIQ_\w+)=(\S+)/g)].map((m) => [m[1], m[2]]),
   )
@@ -61,8 +62,8 @@ test('first run: sign up, add a gateway, pair, play, resume, Activity, direct + 
   )
   try {
     await expect(
-      a.getByRole('listitem').filter({ hasText: 'Version' }),
-    ).toContainText('Online')
+      a.locator('li.card').getByRole('img', { name: 'Online' }),
+    ).toBeVisible()
 
     await test.step('pair: codes match on both sides', async () => {
       const gatewayCtx = await newContext(browser)
@@ -71,7 +72,7 @@ test('first run: sign up, add a gateway, pair, play, resume, Activity, direct + 
     })
 
     await test.step('browse → play through the tunnel → resume', async () => {
-      await a.getByRole('button', { name: 'Open' }).click()
+      await a.getByRole('link', { name: 'Library' }).click()
       await a.getByRole('button', { name: /Movies/ }).click()
       await a.getByRole('button', { name: /streamiq e2e clip/ }).click()
       await a.getByRole('button', { name: /^(Play|Resume)$/ }).click() // movie page

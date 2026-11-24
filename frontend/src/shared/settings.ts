@@ -151,9 +151,17 @@ export function lastGateway() {
   }
 }
 export function setLastGateway(id: string) {
+  if (id === lastGateway()) return
   try {
     localStorage.setItem(LAST_GATEWAY_KEY, id)
   } catch {
     /* not saved: the active gateway falls back to the first online one */
   }
+  dispatchEvent(new Event(LAST_GATEWAY_EVENT))
+}
+const LAST_GATEWAY_EVENT = 'streamiq:lastGateway'
+/** useSyncExternalStore's subscribe for lastGateway (Switch changes it). */
+export function onLastGateway(cb: () => void) {
+  addEventListener(LAST_GATEWAY_EVENT, cb)
+  return () => removeEventListener(LAST_GATEWAY_EVENT, cb)
 }

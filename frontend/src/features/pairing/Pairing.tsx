@@ -22,6 +22,7 @@ export function Pairing({
   gatewayId,
   lanUrl,
   needsPair,
+  autoPair,
   onPaired,
   open,
   children,
@@ -30,6 +31,8 @@ export function Pairing({
   lanUrl: string | null
   /** The caller already knows the pin is no good (library error): always offer Pair. */
   needsPair?: boolean
+  /** Starts pairing on mount (the overview's Pair dialog). */
+  autoPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
   /** Gateway card: Open takes Pair's place once this browser is paired. */
@@ -61,6 +64,10 @@ export function Pairing({
   // now, not after its 5-minute expiry.
   const attempt = useRef<AbortController>(undefined)
   useEffect(() => () => attempt.current?.abort(), [])
+  useEffect(() => {
+    if (autoPair) void run(true)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, [])
   const busy = s.step === 'connecting' || s.step === 'code'
   async function run(pair: boolean) {
     if (busy) return

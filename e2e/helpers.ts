@@ -332,9 +332,16 @@ export async function gatewayTab(ctx: BrowserContext, url: string) {
   return page
 }
 
-/** Pair from the web app; approve on the gateway page only if the codes match. */
-export async function pair(app: Page, ctx: BrowserContext, gatewayUrl: string) {
-  await app.getByRole('button', { name: 'Pair this browser' }).click()
+/** Pair from the web app; approve on the gateway page only if the codes match.
+ * From the overview card's Pair (its dialog closes after, unless keep: the
+ * name prompt) or the gateway page's Pair this browser. */
+export async function pair(
+  app: Page,
+  ctx: BrowserContext,
+  gatewayUrl: string,
+  keep = false,
+) {
+  await app.getByRole('button', { name: /^Pair( this browser)?$/ }).click()
   const code = must(
     await app.getByLabel('Comparison code').textContent(),
     'comparison code',
@@ -344,6 +351,15 @@ export async function pair(app: Page, ctx: BrowserContext, gatewayUrl: string) {
   await expect(request).toContainText(code) // page self-refreshes every 3s
   await request.getByRole('button', { name: 'Approve' }).click()
   await tunnelOk(app)
+  const dialog = app.getByRole('dialog')
+  if (!keep && (await dialog.isVisible()))
+    await dialog.getByRole('button', { name: 'Close' }).click()
+}
+
+/** From the overview: the (only) gateway's page, with every detail and action. */
+export async function openGateway(p: Page) {
+  await p.locator('li.card .gw-link').click()
+  await expect(p).toHaveURL(/\/gateways\/[^/]+$/)
 }
 
 /**
@@ -415,9 +431,12 @@ export const countBursts = (p: Page) =>
 export const bursts = (p: Page) =>
   p.evaluate(() => (window as { bursts?: number }).bursts)
 
-/** Opens the paired gateway's library from the Gateways card; its id. */
+/** Opens the active gateway's library from the Library tab; its id. */
 export async function openLibrary(p: Page) {
-  await p.locator('li.card').getByRole('button', { name: 'Open' }).click()
+  await p
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Library' })
+    .click()
   await expect(p.getByRole('button', { name: /Movies/ })).toBeVisible()
   return must(p.url().match(/\/g\/([^/]+)$/), 'gateway id in the URL')[1]
 }

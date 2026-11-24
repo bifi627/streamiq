@@ -11,7 +11,7 @@ import {
   useParams,
 } from '@tanstack/react-router'
 import { auth } from './shared/firebase'
-import { getMe, takeNotice, type Me } from './shared/api'
+import { getMe, householdLabel, takeNotice, type Me } from './shared/api'
 import { AppError, toAppError } from './shared/errors'
 import { ErrorView, UncaughtErrors } from './shared/ErrorView'
 import { Gateways, Home } from './features/gateways/Gateways'
@@ -97,6 +97,8 @@ function Shell() {
         ? 'online'
         : 'offline'
   const homeless = me !== null && me.tenantId === null
+  const current = me?.memberships.find((m) => m.id === me.tenantId)
+  const household = current ? householdLabel(current) : ''
   const { pathname } = useLocation()
   const tv = useSyncExternalStore(onTvChange, tvOn)
   const home = handoffHome(tv, homeless)
@@ -153,6 +155,9 @@ function Shell() {
             <GatewayBadge
               id={library}
               gateway={gateway}
+              gateways={gateways.length}
+              household={household}
+              households={me?.memberships.length ?? 0}
               dot={dot}
               live={!!gatewayId}
             />

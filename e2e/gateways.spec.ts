@@ -1,6 +1,6 @@
 // The gateways page, on a paired browser with its own gateway (fixtures.ts
 // `paired`): rename, the relay switch, Status paired and unpaired, the shell's
-// connection badge (checked, live, offline), paired clients, the member view, the health history, Activity
+// connection badge (checked, live, offline, names only when there's more than one), paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
 // local gateway page, a refused broker socket and TV mode.
 // Onboarding through the UI is smoke.spec's, restart, backup, a new certificate,
@@ -162,11 +162,15 @@ test('connection badge: one check on a fresh load off the library, its tunnel cl
     )
   const since = Date.now()
   await page.goto(appUrl('/settings'))
-  await expect(badge(page)).toContainText(g.name)
   await expect(badge(page).getByRole('img', { name: 'online' })).toBeVisible()
   await expect(
     badge(page).getByRole('button', { name: 'On your network' }), // same host
   ).toBeVisible({ timeout: 30_000 })
+  // One gateway, one household: no names in the chip (the popover has them).
+  await expect(
+    badge(page).getByRole('button', { name: 'On your network' }),
+  ).not.toContainText(g.name)
+  await expect(badge(page).locator('.initial')).toHaveCount(0)
   // Its tunnel closed once answered: the gateway wrote its line.
   await expect.poll(() => checks(since).length, { timeout: 15_000 }).toBe(1)
   // Household: a page that opens no tunnel of its own (Activity reads the gateways).
@@ -218,11 +222,51 @@ test('connection badge: an offline gateway shows offline and opens no tunnel (#8
   const sockets: string[] = []
   page.on('websocket', (ws) => sockets.push(ws.url()))
   await page.goto(appUrl('/settings'))
-  await expect(badge(page)).toContainText(g.name)
-  await expect(badge(page)).toContainText('· offline')
+  await expect(badge(page)).toContainText('offline')
+  await expect(badge(page)).not.toContainText(g.name) // the only one
   await expect(badge(page).getByRole('img', { name: 'offline' })).toBeVisible()
   await expect(badge(page).getByText('Checking…')).toHaveCount(0)
   expect(sockets.filter((u) => u.includes('/broker/ws'))).toEqual([])
+})
+
+// A second gateway (a fake, offline, so the real one stays active)
+// brings the name; a second household brings its initial, inside the one
+// button, whose popover names both.
+test('connection badge: the gateway name with 2+ gateways, the household initial with 2+ households, both in the popover (#909) @gateways', async ({
+  paired,
+}) => {
+  const { page, user } = paired
+  const [g] = await user.api<{ id: string; name: string }[]>('/gateways')
+  await page.route('**/api/gateways', async (route) => {
+    const res = await route.fetch()
+    const list = (await res.json()) as { id: string; online: boolean }[]
+    await route.fulfill({
+      response: res,
+      json: [
+        ...list,
+        { ...list[0], id: 'fake-2', name: 'Other', online: false },
+      ],
+    })
+  })
+  await join(await signUp(uniqueEmail('host')), user)
+  const me = await user.api<{
+    tenantId: string
+    memberships: { id: string; name: string | null }[]
+  }>('/me')
+  const own = must(
+    me.memberships.find((m) => m.id === me.tenantId),
+    'own membership',
+  )
+  const label = own.name ?? `Household …${own.id.slice(-6)}`
+  await page.goto(appUrl('/settings'))
+  const button = badge(page).getByRole('button', { name: 'On your network' })
+  await expect(button).toBeVisible({ timeout: 30_000 })
+  await expect(button).toContainText(g.name)
+  const initial = button.locator('.initial')
+  await expect(initial).toHaveText(label[0].toUpperCase())
+  await expect(badge(page).locator('button, a')).toHaveCount(1) // one focus stop
+  await initial.click()
+  await expect(badge(page).getByText(`${g.name} in ${label}`)).toBeVisible()
 })
 
 test('paired clients: name, list, rename own, remove other (stream stops), remove self (#311, #365) @gateways', async ({

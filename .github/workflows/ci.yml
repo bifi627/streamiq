@@ -14,6 +14,13 @@ on:
 permissions:
   contents: read
 
+# A proxy error (not only 404/410) falls back to fetching from the origin. -count=1: the build
+# cache is kept per job (.github/actions/setup-go), and a cached `go test` result would skip the
+# tests whose inputs Go can't see (Docker, the real Jellyfin).
+env:
+  GOPROXY: https://proxy.golang.org|direct
+  GOFLAGS: -count=1
+
 # A new push to a PR cancels that PR's older run. Pushes to main each get their own group
 # (run_id): GitHub keeps only one pending run per group, so a shared group could drop a
 # main run, and with it its gateway release.
@@ -46,10 +53,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
+      - uses: ./.github/actions/setup-go
+      - run: bash scripts/docker-pull.sh postgres "$(sed -n 's/^FROM //p' dev/firebase/Dockerfile)" # + the emulator build's base
       - run: bash scripts/test-api.sh -race
       - run: docker compose config --quiet && docker compose --profile relay config --quiet
 
@@ -92,9 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
+      - uses: ./.github/actions/setup-go
       - run: bash scripts/next-gateway-version.sh --test # #274: release-gateway's version bump
       - run: bash scripts/check-docs-drift.sh # #488: STREAMIQ_* env vars, gateway routes, message types documented
       - run: bash scripts/check-file-size.sh # #600: no source file over 500 code lines (frontend + Go) outside the allowlist
@@ -102,6 +105,7 @@ jobs:
       - run: bash scripts/check-migrations.sh # squawk on the migrations not applied yet
       - run: bash scripts/gen-types.sh --check # frontend/src/generated matches the Go wire types (Go + the frontend tree)
       # #581: actionlint (+ shellcheck on run: blocks) and shellcheck scripts/*.sh + the installer, pinned like scripts/check.sh
+      - run: bash scripts/docker-pull.sh rhysd/actionlint:1.7.12
       - run: |
           docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -no-color
           docker run --rm -v "$PWD:/repo" -w /repo --entrypoint shellcheck rhysd/actionlint:1.7.12 scripts/*.sh gateway/install/install.sh
@@ -125,10 +129,7 @@ jobs:
         working-directory: gateway
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
+      - uses: ./.github/actions/setup-go
       - run: gh release download --repo "$GITHUB_REPOSITORY" --pattern streamiq-gateway-windows-amd64.exe --dir "$RUNNER_TEMP"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -150,13 +151,11 @@ jobs:
         working-directory: gateway
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
+      - uses: ./.github/actions/setup-go
       - run: gh release download --repo "$GITHUB_REPOSITORY" --pattern jellyfin-compose.yml --dir "$RUNNER_TEMP"
         env:
           GH_TOKEN: ${{ github.token }}
+      - run: bash ../scripts/docker-pull.sh -f gateway/install/jellyfin-compose.yml jellyfin/jellyfin alpine/socat && bash ../scripts/docker-pull.sh -f "$RUNNER_TEMP/jellyfin-compose.yml" jellyfin/jellyfin alpine/socat
       - run: go test -tags docker -run TestRealJellyfin -v -timeout 15m ./internal/jellyfin/
         env:
           STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE: ${{ runner.temp }}/jellyfin-compose.yml
@@ -172,14 +171,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # The Jellyfins are global setup's critical path once the emulator comes from the cache (#504):
-      # pull the pinned image in the background while the next steps run. A `docker run` that
-      # comes first joins this pull.
-      - run: |
-          docker pull -q "$(sed -n 's/^ *image: \(jellyfin\/jellyfin:.*\)$/\1/p' docker-compose.yml)" > /dev/null 2>&1 &
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
+      # pull the pinned images in the background while the next steps run; "image pulls" waits for it.
+      - run: bash scripts/docker-pull.sh jellyfin/jellyfin postgres coturn/coturn > "$RUNNER_TEMP/pull.log" 2>&1 & echo $! > "$RUNNER_TEMP/pull.pid"
+      - uses: ./.github/actions/setup-go
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -209,6 +203,11 @@ jobs:
           key: firebase-emulator-${{ hashFiles('dev/firebase/**') }}
       - if: steps.emulator.outputs.cache-hit == 'true'
         run: docker load -q -i "$RUNNER_TEMP/emulator.tar"
+      - name: image pulls
+        run: |
+          until grep -q '^pulled all' "$RUNNER_TEMP/pull.log" || ! kill -0 "$(cat "$RUNNER_TEMP/pull.pid")" 2> /dev/null; do sleep 1; done
+          cat "$RUNNER_TEMP/pull.log"
+          grep -q '^pulled all' "$RUNNER_TEMP/pull.log"
       - run: npx playwright test
         working-directory: e2e
         env:
@@ -235,9 +234,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # tags + history
-      - uses: actions/setup-go@v7 # `go list`: what the gateway builds with
-        with:
-          go-version-file: go.mod
+      - uses: ./.github/actions/setup-go # `go list`: what the gateway builds with
       - id: c
         env:
           MSG: ${{ github.event.head_commit.message }} # via env, never inlined into the script

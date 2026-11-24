@@ -1,0 +1,28 @@
+name: setup-go with a per-job cache
+description: >
+  Go from go.mod, with the module and build cache kept per job: setup-go's own cache is one per
+  OS + Go version + go.sum, written by whichever job misses first, so it holds only that job's
+  modules and every other job downloads the rest on each run.
+runs:
+  using: composite
+  steps:
+    - id: go
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache: false
+    - id: dirs
+      shell: bash
+      run: |
+        echo "GOPROXY=$(go env GOPROXY)"
+        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+    # ponytail: a key can't be overwritten, so after a bump of a module outside go.sum
+    # (`go run golangci-lint@…`) every run fetches it until go.sum changes; add its version to the key if that hurts.
+    - uses: actions/cache@v6
+      with:
+        path: |
+          ${{ steps.dirs.outputs.mod }}
+          ${{ steps.dirs.outputs.build }}
+        key: go-${{ github.job }}-${{ runner.os }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('go.sum') }}
+        restore-keys: go-${{ github.job }}-${{ runner.os }}-${{ steps.go.outputs.go-version }}-

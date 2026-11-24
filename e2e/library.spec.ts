@@ -356,7 +356,17 @@ test('inline playback: in the hero box, Back stops and stays; an episode from Co
   await expect
     .poll(() => inline.evaluate((v: HTMLVideoElement) => v.paused))
     .toBe(true)
-  await a.keyboard.press('k')
+  // Fullscreen (F from the page, focus still on the body): Space is the
+  // player's again.
+  await a.keyboard.press('f')
+  await expect
+    .poll(() => a.evaluate(() => !!document.fullscreenElement))
+    .toBe(true)
+  await a.keyboard.press('Space')
+  await expect
+    .poll(() => inline.evaluate((v: HTMLVideoElement) => v.paused))
+    .toBe(false)
+  await a.evaluate(() => document.exitFullscreen())
   await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(3)
   await expect(
     a.getByRole('heading', { level: 1, name: 'StreamIQ Test Series' }),

@@ -158,7 +158,8 @@ export function onKey(
   // in fullscreen, where it isn't shown.
   const dock = document.querySelector<HTMLElement>('.dock-bar')
   const goBack = isBack(e)
-  const onPage = inline && t === document.body
+  // Fullscreen hides the page: every key is the player's again.
+  const onPage = inline && t === document.body && !document.fullscreenElement
   const action = keyAction({
     back: goBack,
     key: e.key.toLowerCase(),

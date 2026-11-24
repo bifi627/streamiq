@@ -299,23 +299,22 @@
   }
 }
 
-/* Inline on the detail page (Library.tsx Title): the player fills the hero's
-   box, the video letterboxed in it (no 65vh cap). */
-.hero-player {
-  display: flex;
-  flex-direction: column;
+/* Inline on the detail page (Library.tsx Title): the video takes the hero's
+   height, letterboxed (no 65vh cap); "Press play" and an error grow the box
+   below it. */
+.hero.hero-player {
+  height: auto;
   background: black;
 }
-.hero-player > div,
-.hero-player .player {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
 .hero-player .player video {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
+  height: 26rem;
   max-height: none;
+}
+@media (max-width: 600px) {
+  .hero-player .player video {
+    height: 12rem;
+  }
+}
+.hero-player .player:fullscreen video {
+  height: 100%;
 }

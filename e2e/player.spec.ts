@@ -17,6 +17,7 @@ import {
   videoTime,
   type User,
 } from './helpers.ts'
+import { must } from './must.ts'
 
 const CLIP = 'streamiq e2e clip' // 30 s, 360p H.264, English 440 Hz + German 880 Hz, .en.srt
 /** The diagnostics panel's flag (diag.ts): the dock with the player's log. */
@@ -304,9 +305,17 @@ test('a final playback error (#552): the load stops once, the stuck check stays 
   const url = new URL(page.url())
   url.searchParams.set('fail', '9')
   await page.goto(url.href)
+  await page.setViewportSize({ width: 400, height: 800 }) // a phone's small hero
   await expect(
     page.getByText('Playback failed (even in compatible mode)'),
   ).toBeVisible({ timeout: 60_000 })
+  // Inline, the error grows the hero's box instead of being cut off by it.
+  const hero = must(await page.locator('.hero-player').boundingBox(), 'hero')
+  const error = must(
+    await page.locator('.hero-player .state').boundingBox(),
+    'error',
+  )
+  expect(error.y + error.height).toBeLessThanOrEqual(hero.y + hero.height + 1)
   await openDock(page)
   const log = page.locator('pre.dock-log')
   await expect(log).toContainText('load stopped: playback error')

@@ -23,6 +23,8 @@ import { Player } from '../player/Player'
 import {
   clock,
   folderUp,
+  inlinePlay,
+  inlineStop,
   inProgress,
   pageItem,
   playable,
@@ -155,7 +157,7 @@ export function ItemPage({ itemId, play }: { itemId: string; play?: string }) {
         item={item}
         season={season}
         updatedAt={it.dataUpdatedAt}
-        playing={play}
+        playing={tvOn() ? undefined : play} // TV mode: the player page only
       />
     )
   return <Browse item={item} />
@@ -364,25 +366,28 @@ function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
   )
 }
 
-// Play on the detail page: TV mode's player page; else ?play= on this page,
-// its own history step (a swap while playing replaces it). Stop = that step's
-// Back; landed on playing (a link, a reload, from outside): drops ?play= in place.
+// Play / stop on the detail page: inlinePlay / inlineStop (items.ts) on the router.
 function useInline(playing?: string) {
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()
   const router = useRouter()
   const pushed = useRef(false)
   const play = (i: Item) => {
-    if (tvOn())
+    const how = inlinePlay(tvOn(), !!playing)
+    if (how === 'player')
       return navigate({
         to: '/g/$gatewayId/play/$itemId',
         params: { gatewayId, itemId: i.Id },
       })
-    if (!playing) pushed.current = true
-    return navigate({ to: '.', search: { play: i.Id }, replace: !!playing })
+    if (how === 'push') pushed.current = true
+    return navigate({
+      to: '.',
+      search: { play: i.Id },
+      replace: how === 'replace',
+    })
   }
   const stop = () => {
-    if (pushed.current) {
+    if (inlineStop(pushed.current) === 'back') {
       pushed.current = false
       return router.history.back()
     }

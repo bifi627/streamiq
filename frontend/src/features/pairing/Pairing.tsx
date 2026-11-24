@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { browserName, connect } from './connect'
 import { clientKey, usePin } from './store'
 import { renameMessage, toAppError } from '../../shared/errors'
@@ -22,28 +22,21 @@ import { connKey } from '../gateways/connection'
 
 // Pair this browser with an online gateway (flow 2), or open a pinned connection
 // and tunnel one request through it ("Test connection": a cheap diagnostic).
-// oxlint-disable-next-line complexity -- render branching + effect wiring
 export function Pairing({
   gatewayId,
   lanUrl,
   needsPair,
   autoPair,
   onPaired,
-  open,
-  children,
 }: {
   gatewayId: string
   lanUrl: string | null
   /** The caller already knows the pin is no good (library error): always offer Pair. */
   needsPair?: boolean
-  /** Starts pairing on mount (the overview's Pair dialog). */
+  /** Starts pairing on mount (PairDialog). */
   autoPair?: boolean
   /** After a successful pairing (not after Test connection). */
   onPaired?: () => void
-  /** Gateway card: Open takes Pair's place once this browser is paired. */
-  open?: () => void
-  /** With open: more actions in Open's row (Test connection goes below). */
-  children?: ReactNode
 }) {
   const [s, setS] = useState<State>({ step: 'idle' })
   // Pair shows while this browser has no pin for the gateway. ponytail: a pin
@@ -106,7 +99,7 @@ export function Pairing({
       }
     } catch (e) {
       const err = toAppError(e)
-      // No usable pin: Pair stays, not Open, through a retest or a refused pairing.
+      // No usable pin: Pair stays through a retest or a refused pairing.
       if (pinUnusable(err)) setPinned(false)
       setS({ step: 'failed', err })
     }
@@ -131,22 +124,18 @@ export function Pairing({
     // page's container (library, Gateways) takes it from there.
     <div className="pairing" ref={root} onKeyDown={arrowFocus}>
       <div className="actions">
-        {/* One element for both: React keeps the DOM node, so focus stays put
-            when Pair turns into Open. */}
-        {(showPair || open) && (
+        {showPair && (
           <button
             type="button"
             className="primary"
-            aria-disabled={showPair && busy}
-            onClick={showPair ? () => run(true) : open}
+            aria-disabled={busy}
+            onClick={() => run(true)}
           >
-            {showPair ? 'Pair this browser' : 'Open'}
+            Pair this browser
           </button>
         )}
-        {open ? children : test}
+        {test}
       </div>
-      {/* The card's row is full (Gateway page, Remove): Test goes below. */}
-      {open && <div className="actions">{test}</div>}
       {s.step === 'connecting' && (
         <p className="pair-state" role="status">
           <span className="dot" />

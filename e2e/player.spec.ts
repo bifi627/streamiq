@@ -307,7 +307,7 @@ test('compatible mode (#113, #792): an H.264 + AAC file still remuxes; the gatew
   // The playback stored its probe on the gateway: this browser's paired client.
   await page.goto(appUrl('/gateways'))
   await openGateway(page)
-  await page.getByText('Paired clients', { exact: true }).click()
+  await page.locator('summary', { hasText: 'Paired clients' }).click()
   await expect(
     page.locator('.clients li').filter({ hasText: '(this browser)' }),
   ).toContainText(/h264 .* · audio .* · Compatible mode · probed /)

@@ -55,7 +55,7 @@ export const detailsMessage = (e: AppError) =>
       : `unavailable (${e.message})`
 
 // What a client's Remove leaves: done = 'self' (this browser is gone:
-// the card offers Pair again), 'row' (drop another client's row; 404 = not
+// the page offers Pair again), 'row' (drop another client's row; 404 = not
 // paired anymore, removed elsewhere, so the same), 'kept' (this browser's own
 // row with a 404: nothing changes), null = failed; msg = the section's line,
 // null once it went through, so an earlier failed Remove's error goes too.

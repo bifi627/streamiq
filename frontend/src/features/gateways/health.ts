@@ -11,7 +11,7 @@ export const WINDOW_MS = 7 * 24 * 3600_000
 // without one means it was offline.
 export const GAP_MS = 10 * 60_000
 
-// Why the card can't show the history, or null: it's kept on the gateway and read
+// Why the Health tile can't show the history, or null: it's kept on the gateway and read
 // over the tunnel, so not while it's offline or from a browser it hasn't paired.
 export function historyGap(online: boolean, paired: boolean): string | null {
   const kept = 'The health history is kept on the gateway'

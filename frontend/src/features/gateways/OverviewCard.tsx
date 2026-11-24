@@ -5,10 +5,9 @@ import { probe, type Gateway } from './api'
 import { connKey, type Conn, type Route } from './connection'
 import { dotLabel, dotOf, gatewayName } from './list'
 import { usePin } from '../pairing/store'
-import { Pairing } from '../pairing/Pairing'
+import { PairDialog } from './PairDialog'
 import { pinUnusable } from '../pairing/pairState'
 import { RouteBadge } from '../player/Privacy'
-import { Dialog } from '../../shared/Dialog'
 import { ErrorView } from '../../shared/ErrorView'
 import { toAppError, type AppError } from '../../shared/errors'
 import { setLastGateway } from '../../shared/settings'
@@ -95,20 +94,14 @@ export function OverviewCard({ g, active }: { g: Gateway; active: boolean }) {
       </div>
       <TestResult test={test} retry={runTest} />
       {pairing && (
-        <Dialog
-          title={`Pair with ${gatewayName(g)}`}
+        <PairDialog
+          g={g}
           onClose={() => setPairing(false)}
-        >
-          <Pairing
-            gatewayId={g.id}
-            lanUrl={g.lanUrl}
-            autoPair
-            onPaired={() => {
-              setPinned(true)
-              setTest(null) // an earlier refusal is moot
-            }}
-          />
-        </Dialog>
+          onPaired={() => {
+            setPinned(true)
+            setTest(null) // an earlier refusal is moot
+          }}
+        />
       )}
     </li>
   )

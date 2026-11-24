@@ -11,6 +11,7 @@ import {
   versionChanges,
   type HealthRow,
 } from './health'
+import { Tile } from './Tile'
 
 const at = (ms: number) =>
   new Date(ms).toLocaleString(undefined, {
@@ -32,10 +33,10 @@ export function HealthHistory({ g, paired }: { g: Gateway; paired: boolean }) {
   const [open, setOpen] = useState(false)
   const gap = historyGap(g.online, paired)
   return (
-    <details className="no-tv" onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>Health, last 7 days</summary>
+    <Tile title="Health" onOpen={setOpen}>
+      <p className="muted">The last 7 days, from the gateway.</p>
       {open && (gap ? <p className="muted">{gap}</p> : <History g={g} />)}
-    </details>
+    </Tile>
   )
 }
 

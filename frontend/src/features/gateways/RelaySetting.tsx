@@ -4,15 +4,19 @@ import { setGatewayRelay, type Gateway } from './api'
 import { relayMessage, toAppError } from '../../shared/errors'
 
 // The gateway's relay switch: an admin's, over the tunnel (manage), with what off
-// costs; everyone else sees only that it is off.
+// costs; everyone else sees the setting.
 export function RelaySetting({ g, manage }: { g: Gateway; manage: boolean }) {
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   if (!manage)
-    return g.relayOff ? (
-      <p className="meta muted no-tv">Direct connections only (relay off)</p>
-    ) : null
+    return (
+      <p className="meta muted no-tv">
+        {g.relayOff
+          ? 'Direct connections only (relay off)'
+          : 'Relay (TURN) allowed when a direct connection fails'}
+      </p>
+    )
   async function toggle(on: boolean) {
     if (busy) return
     setError('')

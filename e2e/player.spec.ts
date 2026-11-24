@@ -228,6 +228,8 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
       const v = e.target as HTMLVideoElement
       log('vc', v.volume, v.muted, v.isConnected)
     }, true)
+    for (const n of ['loadstart', 'emptied'])
+      document.addEventListener(n, () => log(n), true)
     document.addEventListener('keydown', (e) => log('key', e.key, document.activeElement?.tagName), true)
     new MutationObserver((ms) => ms.forEach((m) => {
       m.addedNodes.forEach((n) => n.nodeName === 'VIDEO' && log('video+'))

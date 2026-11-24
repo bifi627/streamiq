@@ -33,13 +33,22 @@ weak and next: the current milestone and the `p1`/`p2` issues, not here. How eac
 browser (was "browser device"; its key = client key); **API** = the control plane (`api/`,
 `STREAMIQ_API_URL`); **broker** = the API's signaling endpoint (`/api/broker/ws` +
 `/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home LAN (code:
-`localpage`); **web gateway page** = the web app's view of a gateway; **gateway API** = endpoints
+`localpage`); **web gateway page** = the web app's page for one gateway (`/gateways/<id>`); a bare
+"gateway page" could be either, so say which; **gateway API** = endpoints
 the gateway serves under `/streamiq/*` over the tunnel (#138; a session carries device = client
 key and user = `users.id` from the broker); **tunnel** = the WebRTC connection from one client to
 one gateway, from the browser opening `/api/broker/ws` until that socket closes: direct, relayed,
 or failed (one line in the gateway's tunnel history); "session" stays only the protocol/code name of a tunnel's
 identity (the `session` field, `gateway/internal/sessions`). "Media server" means Jellyfin only;
 "relay" means TURN only.
+**household** = the tenant: users who share gateways (code/DB: `tenants`, `tenant_id`; UI/API:
+household); a user can belong to several. **admin** / **member** = a household role: an admin
+manages gateways, invites, members and the household's name, a member streams; a household always
+keeps an admin. **onboarding** = a gateway joining a household (enrollment token → gateway
+credential); **pairing** = a client becoming trusted by one gateway (client key, comparison code
+approved on the local gateway page). **screen** = a TV in screen mode, remote-controlled by a
+phone ("Play on…") through the same gateway; **TV mode** = the web app's layout for TV browsers,
+not the same thing.
 Player qualities (`profile.ts`): **Auto** = the default, capped from the measured gateway →
 client throughput (#162); **Source** = no cap, remuxes what the capability probe says this device
 decodes, transcodes the rest; **Raw** = opt-in setting, no probe: every codec copied as-is,

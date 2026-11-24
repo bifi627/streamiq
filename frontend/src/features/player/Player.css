@@ -318,3 +318,9 @@
 .hero-player .player:fullscreen video {
   height: 100%;
 }
+/* The page's title row and the shell's badge stand for these; in fullscreen
+   neither is visible, so the overlay shows them. */
+.hero-player .player:not(:fullscreen) .now h2,
+.hero-player .player:not(:fullscreen) .privacy {
+  display: none;
+}

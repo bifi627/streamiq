@@ -325,13 +325,13 @@ test('inline playback: in the hero box, Back stops and stays; an episode from Co
   // The name only in the title row; the overlay: the episode's line, no
   // Back button or badge (the title row's Back and the shell's badge).
   await expect(a.locator('.title-info')).toBeVisible()
-  await expect(
-    a.getByText('StreamIQ Test Series', { exact: true }),
-  ).toHaveCount(1)
   const overlay = a.locator('.player')
-  await expect(overlay.locator('.now')).toHaveText(/^S2 · E1 /)
-  await expect(overlay.getByRole('button', { name: 'Back' })).toHaveCount(0)
-  await expect(overlay.locator('.badge')).toHaveCount(0)
+  await expect(overlay.getByRole('heading')).toBeHidden()
+  await expect(overlay.locator('.now p')).toHaveText(/^S2 · E1 /)
+  await expect(
+    overlay.getByRole('button', { name: 'Back', exact: true }),
+  ).toHaveCount(0)
+  await expect(overlay.locator('.badge')).toBeHidden()
   // Keys as before (focus on the page): Escape hides a shown bar, then stops.
   await a.evaluate(() => (document.activeElement as HTMLElement).blur())
   await expect(async () => {

@@ -5,7 +5,7 @@
 // to end (pinned both ways).
 // Focusing or clicking the badge shows the one-line explanation
 // (CSS: .badge:focus / [aria-expanded] + .explain); the relayed MB live there.
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useOnLan, usePairInfo } from '../library/queries'
 import { routeOf, type Route } from '../gateways/connection'
 
@@ -28,8 +28,19 @@ export function Privacy({
 }
 
 /** The badge itself; mb: relayed so far, unknown after the shell's
- * short check (its explanation then leaves the figure out). */
-export function RouteBadge({ route, mb }: { route: Route; mb?: number }) {
+ * short check (its explanation then leaves the figure out). lead and
+ * heading: the shell badge's names, inside the button and atop the line. */
+export function RouteBadge({
+  route,
+  mb,
+  lead,
+  heading,
+}: {
+  route: Route
+  mb?: number
+  lead?: ReactNode
+  heading?: string
+}) {
   const [open, setOpen] = useState(false)
   const relayed =
     mb === undefined
@@ -71,12 +82,16 @@ export function RouteBadge({ route, mb }: { route: Route; mb?: number }) {
           setOpen(!open)
         }}
       >
+        {lead}
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d={icon} />
         </svg>
         <span className="badge-text">{label}</span>
       </button>
-      <span className="explain">{explain}</span>
+      <span className="explain">
+        {heading && <strong className="explain-head">{heading}</strong>}
+        {explain}
+      </span>
     </span>
   )
 }

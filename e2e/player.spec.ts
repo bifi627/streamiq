@@ -1,5 +1,5 @@
 // The player, on a paired browser with its own gateway (fixtures.ts
-// `paired`): the privacy badge, the profile line, the deep link (inline + the old /play/) + Back key,
+// `paired`): the privacy badge (+ inline fullscreen's title), the profile line, the deep link (inline + the old /play/) + Back key,
 // the bar's controls, volume, quality, compatible mode, Auto on a slow link, the
 // speed test's cache and Off setting, data saver, audio, auto audio, subtitles and next episode. Per-device settings
 // are arranged in localStorage before the app loads (their toggles on /settings/playback are
@@ -74,15 +74,31 @@ const language = (p: Page, code: string) =>
     code,
   )
 
-test('privacy badge (#205, #428): On your network, never leaves the house @player', async ({
+test('privacy badge (#205, #428, #896): On your network, never leaves the house; inline only in fullscreen @player', async ({
   paired,
 }) => {
   const { page } = paired
   await play(page)
-  // The player page's own badge (inline, the shell's badge stands for it).
-  await page.goto(page.url().replace(/\/i\/[^?]+\?play=/, '/play/'))
   const player = page.locator('.player')
-  await player.getByRole('button', { name: 'On your network' }).click()
+  const name = player.getByRole('heading', { name: CLIP })
+  const badge = player.getByRole('button', { name: 'On your network' })
+  // Inline: the page's title row and the shell's badge stand for them...
+  await expect(name).toBeHidden()
+  await expect(badge).toBeHidden()
+  await expect(
+    player.getByRole('button', { name: 'Back', exact: true }),
+  ).toHaveCount(0)
+  // ...except in fullscreen, where neither is visible.
+  await player.getByRole('button', { name: 'Fullscreen' }).click()
+  await expect(name).toBeVisible()
+  await expect(badge).toBeVisible()
+  await player.getByRole('button', { name: 'Exit fullscreen' }).click()
+  await expect(badge).toBeHidden() // rendered by now: hidden, not still loading
+  await expect(name).toBeHidden()
+  // The player page: both, always.
+  await page.goto(page.url().replace(/\/i\/[^?]+\?play=/, '/play/'))
+  await expect(name).toBeVisible()
+  await badge.click()
   await expect(
     player.getByText(/end-to-end encrypted · never leaves the house/),
   ).toBeVisible() // same host: the gateway sees the browser on its own subnet
@@ -553,6 +569,14 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
   await a.getByRole('button', { name: 'Next episode' }).click()
   await expect(now('S2 · E2')).toBeVisible()
   await playing(1)
+  const series = a.locator('.player').getByRole('heading', {
+    name: 'StreamIQ Test Series',
+  })
+  await expect(series).toBeHidden()
+  await a.getByRole('button', { name: 'Fullscreen' }).click()
+  await expect(series).toBeVisible() // over its S · E line
+  await expect(now('S2 · E2')).toBeVisible()
+  await a.getByRole('button', { name: 'Exit fullscreen' }).click()
   // The series' last episode: no button.
   await expect(a.getByRole('button', { name: 'Next episode' })).toHaveCount(0)
   // Next episode swapped in place: one Back stops, the next leaves.

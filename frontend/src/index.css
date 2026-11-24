@@ -306,6 +306,26 @@ input[type='radio'] {
   border: 0;
   background: none;
 }
+/* The names: in the route's button, but not in its colour. */
+.chip.conn .gw {
+  color: var(--text);
+  font: 400 0.875rem var(--font);
+}
+.chip.conn .initial {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--accent);
+  font: 700 0.75rem var(--font);
+}
+.privacy .explain-head {
+  display: block;
+  color: var(--text);
+}
 
 /* Phone: the nav becomes a bottom tab bar, icon over label, above the
    home indicator; Library in the middle, a bit bigger. --tabbar is its height

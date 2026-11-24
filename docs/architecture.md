@@ -270,7 +270,8 @@ peaks per local day.
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the
   handoff page (the URL to open on a phone or PC) and drops out of the nav. D-pad = arrow keys:
   `onKeyDown={arrowFocus}` (`frontend/src/shared/focus.ts`) on a container.
-- Library home (`features/library/Home.tsx`): Resume spot, Recently added, libraries.
+- Library home (`features/library/Home.tsx`): Continue watching (desktop/TV: the Resume spot;
+  a phone: a row of cards), Recently added, Library, each a row that scrolls sideways.
   Artwork through `art.ts`: loads only on screen, cached per gateway in the Cache API,
   deleted on sign-out and household switch.
 - Settings (`features/settings/`): `/settings` is a list of categories; one with more than

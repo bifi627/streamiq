@@ -1740,6 +1740,7 @@ progress::-moz-progress-bar {
   padding: var(--sp-1);
   border-radius: 1.625rem;
   background: var(--surface-2);
+  overflow-wrap: normal; /* .setting's anywhere would break "Off" at 390 px */
 }
 .choice button {
   font-size: var(--fs-meta);

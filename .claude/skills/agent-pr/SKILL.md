@@ -138,7 +138,7 @@ needs a read, not a manual run). One label:
 | `risk:low` | CI drives the changed behavior | merges |
 | `risk:mid` | tests drive it, but it is crown-jewel, security or design code where a human read catches what tests don't (an isolation hole is a missing test), or what the gateway's auto-release ships | reads the diff |
 | `risk:high` | CI can't check part of it: no e2e / Go / frontend unit test drives the changed behavior, it is visual / UX, or it depends on the real world (Firebase, TURN, a network) | does the named manual check |
-| `risk:critical` | hard to undo: a migration that drops or rewrites data, a protocol / `gateway.env` / state dir / CLI change that reaches installed gateways | merges when they can watch the release |
+| `risk:critical` | hard to undo: a migration that drops or rewrites data (rule `one-way-migration`), a protocol / `gateway.env` / state dir / CLI change that reaches installed gateways (a `!` title, rule `breaking-title`) | merges when they can watch the release |
 
 What decides it: which test drives the changed behavior? Name it, or the label is at
 least `risk:high`. Strictly:

@@ -122,6 +122,8 @@ test('playable / playsAtOnce: what a tile opens', () => {
   }
   assert.deepEqual(at('Episode'), [true, true])
   assert.deepEqual(at('Movie'), [true, false]) // its page first
+  assert.deepEqual(at('Video'), [true, false]) // its page: Play on…
+  assert.deepEqual(at('MusicVideo'), [true, false])
   assert.deepEqual(at('Series'), [false, false])
   assert.deepEqual(at('Season'), [false, false])
   assert.deepEqual(at('BoxSet', true), [false, false])

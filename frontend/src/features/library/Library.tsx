@@ -120,7 +120,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   )
 }
 
-// Folder / series / movie by Jellyfin item ID, so a reload or deep link
+// Folder / series / movie or other video by Jellyfin item ID, so a reload or deep link
 // restores it. A season opens its series' page on that season's tab.
 export function ItemPage({ itemId }: { itemId: string }) {
   const it = useTunnelQuery<Item>(jf.item(itemId))
@@ -144,7 +144,7 @@ export function ItemPage({ itemId }: { itemId: string }) {
       </div>
     )
   const { item, season } = shown
-  if (item.Type === 'Series' || item.Type === 'Movie')
+  if (item.Type === 'Series' || playable(item))
     return <Title item={item} season={season} updatedAt={it.dataUpdatedAt} />
   return <Browse item={item} />
 }

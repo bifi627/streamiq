@@ -115,12 +115,13 @@ scan 3 one-way-migration '^api/migrations/.*[.]sql$' 1 "$ONE_WAY"
 if [ $# -gt 0 ]; then
   issue=$(gh pr view "$1" --json body --jq .body | grep -oiE 'fixes #[0-9]+' | head -1 | tr -dc 0-9)
   if [ -n "$issue" ]; then
+    # The criterion's own tag is its last `(proof: `: its text may quote another.
     while IFS= read -r c; do
-      [ -n "$c" ] || continue
+      [[ $c == *'(proof: '* && ${c##*(proof: } == manual* ]] || continue
       raise 2 manual-proof
       evidence+="manual: #$issue: $c"$'\n'
     done < <(gh issue view "$issue" --json body --jq .body | tr -d '\r' |
-      sed -n 's/^[[:space:]]*[-*] \[ \] \(.*(proof: manual.*\)$/\1/p')
+      sed -n 's/^[[:space:]]*[-*] \[ \] //p')
   fi
 fi
 

@@ -51,11 +51,18 @@ before the overlay. Plain chat questions only if the tool isn't there.
 - **Already drafted** (acceptance criteria and out of scope are both filled in): don't
   rewrite it. Check it against current `main`: is each criterion still true and
   checkable, did an issue it depends on land or change it, does the approach in Notes
-  still match the code? Report what is stale and the edits you propose (or "nothing"),
-  then go to section 4.
+  still match the code? A criterion without a proof kind (below) gets one proposed as
+  an edit. Report what is stale and the edits you propose (or "nothing"), then go to
+  section 4.
 - **Not drafted:** ask the owner the open questions (AskUserQuestion, up to 4
   per call), then draft Why, Acceptance criteria, Out of scope, Notes and go to
   section 4.
+- **Proof kinds.** Every acceptance criterion you draft ends with how it is proven,
+  the kind only (no file or test name): `(proof: e2e)`, `(proof: go)`,
+  `(proof: unit)` (`node --test`), `(proof: run)` (a command's output in the PR's
+  `## Evidence`: scripts, skills, docs) or `(proof: manual: <what the owner does>)`.
+  Before the approval question, list the `manual` criteria in chat, or say there are
+  none: each one is a manual run before the merge.
 - If the issue can't be finished without a test on the owner's TV or a real phone
   (CLAUDE.md, `device:*` labels), say so in the draft and propose `device:tv` /
   `device:phone`; add the label only after the owner agrees.

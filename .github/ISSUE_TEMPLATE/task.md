@@ -12,6 +12,7 @@ labels: needs-spec
 <!-- What's wrong or wanted, and what's at stake. -->
 
 ## Acceptance criteria
+<!-- Each ends with its proof kind: (proof: e2e|go|unit|run) or (proof: manual: <what the owner does>). -->
 - [ ]
 
 ## Out of scope

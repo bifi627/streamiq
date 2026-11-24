@@ -74,6 +74,10 @@ orchestrator nothing changes.
   the same diff). Its e2e stage: `E2E_GREP='@area|…'` with the area tags the diff touches,
   `SKIP_E2E=1` for a diff without e2e impact; never the full local e2e run unless the
   owner asks (CI runs every spec once the PR is ready).
+- Each criterion is proven the way its `(proof: …)` names (a criterion without one:
+  as before). A proof kind that doesn't fit (the spec says e2e, only a Go test reaches
+  it; a test turns out to be manual-only) is a wrong spec: handle it as below, and the
+  owner's answer goes into the issue before the build goes on.
 - If blocked or the spec turns out to be wrong: stop, comment on the issue what's
   unclear, and ask the owner in the thread
   with AskUserQuestion (the options you see, your pick first).

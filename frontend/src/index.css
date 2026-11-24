@@ -1957,7 +1957,8 @@ progress::-moz-progress-bar {
   overflow-wrap: anywhere;
 }
 .setting > input,
-.setting > .choice {
+.setting > .choice,
+.setting > .picker {
   order: 1;
   margin: 0 0 0 auto;
 }
@@ -1973,6 +1974,23 @@ progress::-moz-progress-bar {
   font-size: var(--fs-meta);
 }
 .choice button[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+/* Picker.tsx's choices, in its dialog. */
+.picks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.picks button {
+  width: 100%;
+  text-align: start;
+}
+.picks button[aria-pressed='true'] {
   background: var(--text);
   color: var(--bg);
 }

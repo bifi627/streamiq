@@ -138,6 +138,7 @@ function GatewayPage({
               name={gatewayName(g)}
               label="Gateway name"
               hint={STORED}
+              icons
               rename={onRename}
               onClose={() => {
                 setRenaming(false)

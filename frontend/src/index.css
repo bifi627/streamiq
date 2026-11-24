@@ -853,9 +853,21 @@ html.tv .no-tv {
   align-items: center;
   gap: var(--sp-2);
 }
+/* The rename form's hint makes the row taller: back and ⋮ stay level with
+   the input, not centered on input + hint. */
+.titlerow:has(form.name) {
+  align-items: flex-start;
+}
 .titlerow-title .name input {
   flex: 1;
-  min-width: 10rem;
+  min-width: 0;
+}
+.titlerow-title .name .icon-btn {
+  flex: none;
+}
+.titlerow-title .name .notice {
+  flex-basis: 100%;
+  margin: 0;
 }
 /* paired clients: name · date, Remove at the end of the line */
 .card .clients li {

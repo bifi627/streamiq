@@ -59,18 +59,21 @@ export function EditableName({
 }
 
 // The inline rename form: Enter saves (form submit), Escape / the remote's
-// Back cancels; onClose after either. hint: a line under the input.
+// Back cancels; onClose after either. hint: a line under the input. icons: ✓ /
+// ✕ for Save / Cancel, one line in a narrow spot (the title row).
 export function NameForm({
   name,
   label,
   rename,
   hint,
+  icons,
   onClose,
 }: {
   name: string
   label: string
   rename: (name: string) => Promise<string | null>
   hint?: string
+  icons?: boolean
   onClose: () => void
 }) {
   const hintId = useId()
@@ -104,11 +107,22 @@ export function NameForm({
         pattern=".*\S.*"
         autoFocus
       />
-      <button type="submit" className="primary">
-        Save
+      <button
+        type="submit"
+        className={icons ? 'primary icon-btn' : 'primary'}
+        aria-label="Save"
+        title="Save"
+      >
+        {icons ? <Icon d="M5 12l5 5 9-10" /> : 'Save'}
       </button>
-      <button type="button" onClick={onClose}>
-        Cancel
+      <button
+        type="button"
+        className={icons ? 'icon-btn' : undefined}
+        aria-label="Cancel"
+        title="Cancel"
+        onClick={onClose}
+      >
+        {icons ? <Icon d="M6 6l12 12M18 6L6 18" /> : 'Cancel'}
       </button>
       {hint && (
         <p id={hintId} className="hint muted">
@@ -123,3 +137,9 @@ export function NameForm({
     </form>
   )
 }
+
+const Icon = ({ d }: { d: string }) => (
+  <svg aria-hidden="true" viewBox="0 0 24 24">
+    <path d={d} />
+  </svg>
+)

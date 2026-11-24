@@ -154,8 +154,9 @@ needs a read, not a manual run). One label:
 | `risk:critical` | hard to undo: a migration that drops or rewrites data (rule `one-way-migration`), a protocol / `gateway.env` / state dir / CLI change that reaches installed gateways (a `!` title, rule `breaking-title`) | merges when they can watch the release |
 
 What decides it: which test drives the changed behavior? Name it, or the label is at
-least `risk:high`. An issue with `(proof: manual: …)` criteria is at least `risk:high`,
-and they are the manual check the `Merge risk:` line names. Strictly:
+least `risk:high`. An issue with `(proof: manual: …)` criteria is at least `risk:high`
+(the script suggests it from the unchecked ones, rule `manual-proof`), and they are the
+manual check the `Merge risk:` line names. Strictly:
 
 - A helper's unit test doesn't drive the code that calls it: the caller's changed
   path needs its own test.

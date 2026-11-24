@@ -109,9 +109,9 @@ dropped (BLOCKER) or LOW (SPEC): a posted finding blocks the merge and costs a r
   out-of-scope work / a drive-by fix in the diff; docs the change invalidated left stale
   (`docs/tools.md` for tools/credentials, `docs/protocol.md` for protocol); a new
   dependency with no justification in the PR body; a new or changed test that doesn't
-  actually prove the acceptance criterion it is there for (the two shapes under
-  **Tests** below), or that can hang instead of fail (no timeout on a wait); new branching / ordering / timer logic in a `.tsx`
-  without a `.ts` + `node --test` beside it (CLAUDE.md "Frontend decision logic lives in
+  actually prove the acceptance criterion it is there for (including the shapes under
+  **Tests** below), or that can hang instead of fail (no timeout on a wait); new
+  branching / ordering / timer logic in a `.tsx` without a `.ts` + `node --test` beside it (CLAUDE.md "Frontend decision logic lives in
   `.ts`"; render branching doesn't count).
 - **LOW**: everything else (style, naming, simplification, defensive checks for
   impossible states, speculative edge cases, nits, "consider…"), each with one category

@@ -41,7 +41,6 @@ import {
   loadVol,
   makeUi,
   onKey,
-  saveVol,
   seekTo,
   setVol,
   type Page,
@@ -73,8 +72,8 @@ export type Setting = {
   pick: (value: string) => void
 }
 
-/** The <video>'s state for the bar, kept in sync by its events; loads and
- *  saves the volume. `onPlay` restarts the hide countdown. */
+/** The <video>'s state for the bar, kept in sync by its events; restores
+ *  the volume. `onPlay` restarts the hide countdown. */
 function useMedia(
   video: RefObject<HTMLVideoElement | null>,
   setTime: (t: number) => void,
@@ -100,17 +99,21 @@ function useMedia(
       onPlay()
     }
     const fs = () => setFull(!!document.fullscreenElement)
-    const evs = ['pause', 'timeupdate', 'volumechange', 'seeked'] as const
+    // loadstart: a load drops a pending volumechange (handlers.ts, saveVol).
+    const evs = [
+      'pause',
+      'timeupdate',
+      'volumechange',
+      'seeked',
+      'loadstart',
+    ] as const
     loadVol(v)
     sync() // no volumechange when the stored level is the element's own (1)
     evs.forEach((e) => v.addEventListener(e, sync))
-    const save = () => saveVol(v)
-    v.addEventListener('volumechange', save)
     v.addEventListener('play', playing)
     document.addEventListener('fullscreenchange', fs)
     return () => {
       evs.forEach((e) => v.removeEventListener(e, sync))
-      v.removeEventListener('volumechange', save)
       v.removeEventListener('play', playing)
       document.removeEventListener('fullscreenchange', fs)
     }

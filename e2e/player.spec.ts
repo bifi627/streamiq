@@ -221,8 +221,8 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
   const video = page.locator('video')
   const vol = () =>
     video.evaluate((v: HTMLVideoElement) => [v.volume, v.muted] as const)
-  // The player stores the level on volumechange, after the element has it:
-  // reloading before that brings the old level back.
+  // What comes back after a reload is what was stored: checked first, so a
+  // lost save fails here, not as a wrong level later.
   const reload = async () => {
     const saved = () =>
       video.evaluate(

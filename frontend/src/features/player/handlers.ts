@@ -19,19 +19,12 @@ const toggle = (v: HTMLVideoElement) =>
           (e) => e.name !== 'AbortError' && event(`player: play failed: ${e}`),
         ) // AbortError: a pause came first
     : v.pause()
-const mute = (v: HTMLVideoElement) => {
-  v.muted = !v.muted
-}
 export const seekTo = (v: HTMLVideoElement, t: number) => {
   v.currentTime = t
   return t
 }
 const seekBy = (v: HTMLVideoElement, d: number, dur: number) =>
   seekTo(v, seekTarget(v.currentTime, d, dur || v.duration || 0))
-export const setVol = (v: HTMLVideoElement, x: number) => {
-  v.volume = Math.max(0, Math.min(1, x))
-  v.muted = v.volume === 0
-}
 
 // Volume + mute per device, restored when the player opens.
 const VOL = 'streamiq.volume'
@@ -48,13 +41,25 @@ export const loadVol = (v: HTMLVideoElement) => {
     v.volume = 0.5 // storage blocked (private mode)
   }
 }
-export const saveVol = (v: HTMLVideoElement) => {
+// Saved by the action itself, not on volumechange: a load (hls.js attaching,
+// a quality switch) cancels the element's pending events, so a change made
+// just before one never fires it.
+const saveVol = (v: HTMLVideoElement) => {
   try {
     localStorage.setItem(VOL, String(v.volume))
     localStorage.setItem(MUTED, v.muted ? '1' : '0')
   } catch {
     /* storage blocked: this session only */
   }
+}
+const mute = (v: HTMLVideoElement) => {
+  v.muted = !v.muted
+  saveVol(v)
+}
+export const setVol = (v: HTMLVideoElement, x: number) => {
+  v.volume = Math.max(0, Math.min(1, x))
+  v.muted = v.volume === 0
+  saveVol(v)
 }
 
 /** The settings popover's page: closed, main, or that setting's options. */

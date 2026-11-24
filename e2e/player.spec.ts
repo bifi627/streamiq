@@ -221,8 +221,7 @@ test('volume (#479): 50 % at first; slider, ↓ key and mute kept across a reloa
     const set = Storage.prototype.setItem
     Storage.prototype.setItem = function (this: Storage, k: string, v: string) {
       if (k === 'streamiq.volume' || k === 'streamiq.muted')
-        log('set', k, v, new Error().stack?.split('
-').slice(2, 6).join(' | '))
+        log('set', k, v, new Error().stack?.split(String.fromCharCode(10)).slice(2, 6).join(' | '))
       return set.call(this, k, v)
     }
     document.addEventListener('volumechange', (e) => {

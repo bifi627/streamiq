@@ -246,6 +246,7 @@ function Title({
               itemId={playing}
               onExit={stop}
               onEnded={stop}
+              inline
               onNext={play}
             />
           </div>
@@ -268,7 +269,6 @@ function Title({
           <div className="hero">{art}</div>
         )}
         <div className="title-info">
-          <p className="title-name">{item.Name}</p>
           {info && <p className="muted">{info}</p>}
           {hasMore && (
             <button

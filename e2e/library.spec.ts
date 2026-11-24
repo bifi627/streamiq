@@ -323,7 +323,24 @@ test('inline playback: in the hero box, Back stops and stays; an episode from Co
   const box = must(await a.locator('.hero-player').boundingBox(), 'hero box')
   const video = must(await inline.boundingBox(), 'inline video box')
   expect(video.y + video.height).toBeLessThanOrEqual(box.y + box.height + 1)
+  // The name only in the title row; the overlay: the episode's line, no
+  // Back button or badge (the title row's Back and the shell's badge).
   await expect(a.locator('.title-info')).toBeVisible()
+  await expect(
+    a.getByText('StreamIQ Test Series', { exact: true }),
+  ).toHaveCount(1)
+  const overlay = a.locator('.player')
+  await expect(overlay.locator('.now')).toHaveText(/^S2 · E1 /)
+  await expect(overlay.getByRole('button', { name: 'Back' })).toHaveCount(0)
+  await expect(overlay.locator('.badge')).toHaveCount(0)
+  // Keys as before (focus on the page): Escape hides a shown bar, then stops.
+  await a.evaluate(() => (document.activeElement as HTMLElement).blur())
+  await expect(async () => {
+    await a.keyboard.press('Escape')
+    await expect(hero).toBeVisible({ timeout: 1000 })
+  }).toPass()
+  await a.goForward() // playing again: the step Play pushed
+  await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(3)
   await expect(
     a.getByRole('heading', { level: 1, name: 'StreamIQ Test Series' }),
   ).toBeVisible()

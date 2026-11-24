@@ -78,7 +78,8 @@ test('privacy badge (#205, #428): On your network, never leaves the house @playe
 }) => {
   const { page } = paired
   await play(page)
-  // The player's own badge (the shell's is on the page too, inline).
+  // The player page's own badge (inline, the shell's badge stands for it).
+  await page.goto(page.url().replace(/\/i\/[^?]+\?play=/, '/play/'))
   const player = page.locator('.player')
   await player.getByRole('button', { name: 'On your network' }).click()
   await expect(

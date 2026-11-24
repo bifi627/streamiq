@@ -21,8 +21,9 @@
 //   page, then closes. A click outside closes it. One button for every setting,
 //   so the bar stays one row on a phone and the remote model stays ↑/↓ + Enter.
 // - Overlay: the bar covers the picture (clicks pass through its gaps);
-//   its top row (Back, title, `top`: the privacy badge) is one more row for
-//   ↑/↓, after the button row. `onNext` adds "Next episode" before the gear.
+//   its top row (Back unless `noBack`, then `top`: title, privacy badge) is one
+//   more row for ↑/↓, after the button row; none when both are absent.
+//   `noBack` hides only the button: Back keys still exit. `onNext` adds "Next episode" before the gear.
 import {
   useEffect,
   useRef,
@@ -328,6 +329,7 @@ export function Controls({
   onBack,
   onNext,
   top,
+  noBack,
   children,
 }: {
   video: RefObject<HTMLVideoElement | null>
@@ -338,6 +340,7 @@ export function Controls({
   onNext?: () => void
   /** The overlay's top row after Back: title, privacy badge. */
   top?: ReactNode
+  noBack?: boolean
   children: ReactNode
 }) {
   const root = useRef<HTMLDivElement>(null)
@@ -433,16 +436,20 @@ export function Controls({
           (e.target as Element).closest('button') && e.preventDefault()
         }
       >
-        <div data-row className="row top">
-          <button
-            type="button"
-            aria-label="Back"
-            onClick={() => back.current()}
-          >
-            <Icon d={ICON.back} />
-          </button>
-          {top}
-        </div>
+        {(!noBack || top) && (
+          <div data-row className="row top">
+            {!noBack && (
+              <button
+                type="button"
+                aria-label="Back"
+                onClick={() => back.current()}
+              >
+                <Icon d={ICON.back} />
+              </button>
+            )}
+            {top}
+          </div>
+        )}
         <span className="spacer" />
         <div className="bottom">
           <Seek

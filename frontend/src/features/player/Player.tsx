@@ -16,6 +16,9 @@ import { qualityOptions } from './quality'
 import type { Quality } from './profile'
 import { TICKS_PER_SECOND, type Item } from '../library/items'
 
+const episodeLine = (i: Item) =>
+  `S${i.ParentIndexNumber ?? '?'} · E${i.IndexNumber ?? '?'} ${i.Name}`
+
 // oxlint-disable-next-line complexity -- render branching
 export function Player({
   pc,
@@ -27,6 +30,7 @@ export function Player({
   onExit,
   onNext,
   onEnded,
+  inline,
 }: {
   pc: RTCPeerConnection
   speed?: Speed
@@ -40,6 +44,9 @@ export function Player({
   /** Plays another item; unset (screen mode) = no "Next episode". */
   onNext?: (item: Item) => void
   onEnded?: () => void
+  /** On the detail page, under its title row and the shell's badge: the
+   * overlay shows only an episode's line, no Back button or badge. */
+  inline?: boolean
 }) {
   const { gatewayId } = useTunnel()
   const video = useRef<HTMLVideoElement>(null)
@@ -121,20 +128,24 @@ export function Player({
             : []),
         ]}
         onBack={() => onExit(item)}
+        noBack={inline}
         onNext={next && onNext && (() => onNext(next))}
         top={
-          <>
-            <hgroup className="now">
-              <h2>{item?.SeriesName ?? item?.Name}</h2>
-              {item?.SeriesName && (
-                <p>
-                  S{item.ParentIndexNumber ?? '?'} · E{item.IndexNumber ?? '?'}{' '}
-                  {item.Name}
-                </p>
-              )}
-            </hgroup>
-            <Privacy gatewayId={gatewayId} pc={pc} />
-          </>
+          inline ? (
+            item?.SeriesName && (
+              <hgroup className="now">
+                <p>{episodeLine(item)}</p>
+              </hgroup>
+            )
+          ) : (
+            <>
+              <hgroup className="now">
+                <h2>{item?.SeriesName ?? item?.Name}</h2>
+                {item?.SeriesName && <p>{episodeLine(item)}</p>}
+              </hgroup>
+              <Privacy gatewayId={gatewayId} pc={pc} />
+            </>
+          )
         }
       >
         <video ref={video} onEnded={onEnded} />

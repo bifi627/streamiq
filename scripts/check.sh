@@ -36,6 +36,9 @@ npm run lint --prefix frontend
 npm test --prefix frontend
 npm run build --prefix frontend
 
+echo "== image: the Railway image, from the .dockerignore'd context =="
+docker build --build-arg VITE_FIREBASE_API_KEY=ci --build-arg VITE_FIREBASE_AUTH_DOMAIN=ci --build-arg VITE_FIREBASE_PROJECT_ID=ci .
+
 echo "== Go (gateway + API): release version + fmt + lint + build + test =="
 if command -v go >/dev/null 2>&1; then
   bash scripts/next-gateway-version.sh --test

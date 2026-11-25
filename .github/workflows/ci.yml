@@ -1,5 +1,5 @@
 # Same checks as scripts/check.sh — if they disagree, that's a harness bug. CI is authoritative.
-# Job names api / frontend / gateway-linux / gateway-windows / gateway-jellyfin / e2e are required checks in
+# Job names api / frontend / image / gateway-linux / gateway-windows / gateway-jellyfin / e2e are required checks in
 # the "main: merge gate" ruleset: renaming, removing or matrix-splitting one (or a workflow-level `paths:` filter)
 # leaves PRs waiting forever. Update the ruleset in the same PR. Skip with job `if:` only.
 name: ci
@@ -90,6 +90,16 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+
+  # The Railway image, built as Railway builds it: from the .dockerignore'd context, not the checkout.
+  # Placeholder Firebase args: the build only checks that they are set.
+  image:
+    needs: draft
+    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --build-arg VITE_FIREBASE_API_KEY=ci --build-arg VITE_FIREBASE_AUTH_DOMAIN=ci --build-arg VITE_FIREBASE_PROJECT_ID=ci .
 
   gateway-linux:
     needs: draft
@@ -250,7 +260,7 @@ jobs:
   # #274: a gateway change on main releases itself, but only once every check passed.
   # Add any new check job to `needs`, or it won't gate the release.
   release-gateway:
-    needs: [changes, api, frontend, gateway-linux, gateway-windows, gateway-jellyfin, e2e]
+    needs: [changes, api, frontend, image, gateway-linux, gateway-windows, gateway-jellyfin, e2e]
     if: needs.changes.outputs.release == 'true'
     permissions:
       contents: write

@@ -6,5 +6,6 @@
 dev-media/
 dev-shows/
 gateway/
+!gateway/internal/pairing/testdata/vectors.json
 e2e/
 frontend/.env*

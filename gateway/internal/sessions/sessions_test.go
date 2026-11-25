@@ -6,11 +6,13 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -41,7 +43,7 @@ func TestPairThenTunnel(t *testing.T) {
 	}))
 	defer origin.Close()
 	dir := t.TempDir()
-	cert, fp, err := identity.LoadOrCreate(dir)
+	idKey, fp, err := identity.LoadOrCreate(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +52,7 @@ func TestPairThenTunnel(t *testing.T) {
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
 	var vmu sync.Mutex
 	var viewers []string // users whose viewer was ensured: only once paired (#195)
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}, Viewers: func(u string) {
+	gateway := &Sessions{Key: idKey, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}, Viewers: func(u string) {
 		vmu.Lock()
 		defer vmu.Unlock()
 		viewers = append(viewers, u)
@@ -91,6 +93,10 @@ func TestPairThenTunnel(t *testing.T) {
 	s2 := connect(t, gateway, "s2", key, false)
 	if s2.say(nil)["type"] != "ok" || ensured() != "user-s1,user-s2" {
 		t.Fatalf("paired key not recognised on a new session (viewers ensured %q)", ensured())
+	}
+	// Every tunnel gets its own DTLS certificate: nothing on the wire links them (#427).
+	if s2.gwFp == b.gwFp || s2.gwFp == fp {
+		t.Fatalf("tunnels share a DTLS fingerprint: %s, %s (identity %s)", b.gwFp, s2.gwFp, fp)
 	}
 	if m, _ := s2.commit(); m["type"] != "rejected" {
 		t.Fatalf("commit on an authorized connection = %v, want rejected", m)
@@ -143,11 +149,11 @@ func TestRemoveClosesOpenSessions(t *testing.T) {
 	}))
 	defer origin.Close()
 	dir := t.TempDir()
-	cert, fp, _ := identity.LoadOrCreate(dir)
+	idKey, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
+	gateway := &Sessions{Key: idKey, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
 	store.OnRemove = gateway.Drop
 
 	pairKey := func(id string) (*ecdsa.PrivateKey, *browser) {
@@ -208,10 +214,10 @@ func TestRemoveClosesOpenSessions(t *testing.T) {
 // newGateway is a gateway with an empty allowlist and no media server.
 func newGateway(t *testing.T) (*Sessions, *pairing.Store) {
 	dir := t.TempDir()
-	cert, fp, _ := identity.LoadOrCreate(dir)
+	idKey, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
 	gateway := &Sessions{
-		Cert:  cert,
+		Key:   idKey,
 		Fp:    fp,
 		Store: store,
 		Root:  &tunnel.Root{Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}},
@@ -414,6 +420,7 @@ type browser struct {
 	auth  *webrtc.DataChannel
 	in    chan map[string]any
 	auth1 map[string]any // the auth message connect sent
+	gwFp  string         // the gateway's DTLS fingerprint on this tunnel
 
 	mu    sync.Mutex                // gateway → browser signaling arrives from several goroutines
 	early []webrtc.ICECandidateInit // gateway candidates that beat the answer
@@ -471,17 +478,36 @@ func connect(t *testing.T, gateway *Sessions, id string, key *ecdsa.PrivateKey, 
 	if ch["type"] != "challenge" {
 		t.Fatalf("first auth message = %v", ch)
 	}
+	pemStr, _ := bcert.PEM()
+	blk, _ := pem.Decode([]byte(pemStr))
+	b.gwFp = identity.Fingerprint(pc.SCTP().Transport().GetRemoteCertificate())
+	checkProof(t, ch, gateway.Fp, b.gwFp, identity.Fingerprint(blk.Bytes))
 	if key == nil {
 		return b
 	}
-	pemStr, _ := bcert.PEM()
-	blk, _ := pem.Decode([]byte(pemStr))
-	msg := sha256.Sum256(pairing.AuthMessage(gateway.Fp, identity.Fingerprint(blk.Bytes), ch["n"].(string)))
+	msg := sha256.Sum256(pairing.AuthMessage(b.gwFp, identity.Fingerprint(blk.Bytes), ch["n"].(string)))
 	r, s, _ := ecdsa.Sign(rand.Reader, key, msg[:])
 	sig := append(r.FillBytes(make([]byte, 32)), s.FillBytes(make([]byte, 32))...) // P1363, like WebCrypto
 	b.auth1 = map[string]any{"type": "auth", "spki": spki(key), "sig": sig, "pair": pair}
 	b.send(b.auth1)
 	return b
+}
+
+// checkProof is the browser's check of the challenge (#427): the identity key is
+// the pinned one and it signed this tunnel's two DTLS fingerprints.
+func checkProof(t *testing.T, ch map[string]any, pin, gwDtlsFp, browserDtlsFp string) {
+	t.Helper()
+	spkiB, _ := base64.StdEncoding.DecodeString(ch["spki"].(string))
+	sig, _ := base64.StdEncoding.DecodeString(ch["sig"].(string))
+	pub, err := x509.ParsePKIXPublicKey(spkiB)
+	if err != nil || identity.Fingerprint(spkiB) != pin || len(sig) != 64 {
+		t.Fatalf("challenge key %x (%v), want the pin %s; sig %d bytes", spkiB, err, pin, len(sig))
+	}
+	h := sha256.Sum256(pairing.GatewayMessage(gwDtlsFp, browserDtlsFp, ch["n"].(string)))
+	r, s := new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])
+	if !ecdsa.Verify(pub.(*ecdsa.PublicKey), h[:], r, s) {
+		t.Fatal("the challenge's proof doesn't verify over this tunnel's fingerprints")
+	}
 }
 
 // fromGateway applies the gateway's signaling like the frontend (connect.ts):
@@ -576,10 +602,10 @@ func spki(k *ecdsa.PrivateKey) []byte { b, _ := x509.MarshalPKIXPublicKey(&k.Pub
 // gets it on its held response; closing the TV's PeerConnection removes it.
 func TestScreenOverTunnel(t *testing.T) {
 	dir := t.TempDir()
-	cert, fp, _ := identity.LoadOrCreate(dir)
+	idKey, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
 	gateway := &Sessions{
-		Cert:  cert,
+		Key:   idKey,
 		Fp:    fp,
 		Store: store,
 		Root:  &tunnel.Root{Jellyfin: &tunnel.Jellyfin{Client: http.DefaultClient}},
@@ -743,11 +769,11 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	}))
 	defer origin.Close()
 	dir := t.TempDir()
-	cert, fp, _ := identity.LoadOrCreate(dir)
+	idKey, fp, _ := identity.LoadOrCreate(dir)
 	store, _ := pairing.Open(dir)
 	jf := &tunnel.Jellyfin{Client: http.DefaultClient, URL: origin.URL}
 	jf.SetKey("k", "0123456789abcdef0123456789abcdef")
-	gateway := &Sessions{Cert: cert, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
+	gateway := &Sessions{Key: idKey, Fp: fp, Store: store, Root: &tunnel.Root{Jellyfin: jf}}
 	var ended []string // the history's lines: session/user
 	var mu sync.Mutex
 	reps := make(chan tunnel.Report, 4)

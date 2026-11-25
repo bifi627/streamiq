@@ -26,8 +26,10 @@ var skip = []string{"page-token", "page-link"}
 // backup carries, as entries "history/<name>".
 const historyDir = "history"
 
-// required: without these a restore brings back nothing worth having.
-var required = []string{"cert.pem", "gateway.json"}
+// required: without it a restore brings back nothing worth having. The identity
+// key isn't: without it browsers pair again, and backups from older releases hold
+// cert.pem instead.
+var required = []string{"gateway.json"}
 
 // ComposeEntry is the compose file's name in the zip. State entries are flat (or
 // in historyDir), so the prefix keeps it from ever being taken for (or written as) a state file.

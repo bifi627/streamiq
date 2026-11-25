@@ -5,10 +5,14 @@ package sessions
 
 // Gateway → client.
 
-// Challenge opens the channel: N is the nonce the client signs.
+// Challenge opens the channel: N is the nonce the client signs; Spki is the
+// gateway's identity key (the pin) and Sig its proof over this tunnel
+// (pairing.GatewayMessage), checked by the client before it sends anything.
 type Challenge struct {
 	Type string `json:"type" tstype:"'challenge'"`
 	N    string `json:"n"`
+	Spki []byte `json:"spki" tstype:"string"` // base64
+	Sig  []byte `json:"sig"  tstype:"string"` // base64
 }
 
 // OK: the client key is paired, the tunnel is up.

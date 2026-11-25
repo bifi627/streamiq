@@ -37,13 +37,32 @@ const (
 // AuthMessage is what the browser signs (docs/protocol.md, "Connection auth"):
 // both DTLS fingerprints of *this* session, so a MITM terminating two separate
 // DTLS sessions can't relay a valid signature.
-func AuthMessage(gatewayFp, browserDtlsFp, challenge string) []byte {
-	return []byte("streamiq-auth-v1|" + gatewayFp + "|" + browserDtlsFp + "|" + challenge)
+func AuthMessage(gatewayDtlsFp, browserDtlsFp, challenge string) []byte {
+	return []byte("streamiq-auth-v1|" + gatewayDtlsFp + "|" + browserDtlsFp + "|" + challenge)
+}
+
+// GatewayMessage is what the gateway's identity key signs in the challenge: the
+// same session binding as AuthMessage, so a MITM can't relay the gateway's proof.
+// No browser nonce: the gateway's DTLS certificate is new for every tunnel.
+func GatewayMessage(gatewayDtlsFp, browserDtlsFp, challenge string) []byte {
+	return []byte("streamiq-gateway-v1|" + gatewayDtlsFp + "|" + browserDtlsFp + "|" + challenge)
+}
+
+// Prove signs GatewayMessage with the identity key: the challenge's spki and sig
+// (raw 64-byte r‖s, what WebCrypto verifies).
+func Prove(key *ecdsa.PrivateKey, gatewayDtlsFp, browserDtlsFp, challenge string) (spki, sig []byte, err error) {
+	h := sha256.Sum256(GatewayMessage(gatewayDtlsFp, browserDtlsFp, challenge))
+	r, s, err := ecdsa.Sign(rand.Reader, key, h[:])
+	if err != nil {
+		return nil, nil, err
+	}
+	spki, err = x509.MarshalPKIXPublicKey(&key.PublicKey)
+	return spki, append(r.FillBytes(make([]byte, 32)), s.FillBytes(make([]byte, 32))...), err
 }
 
 // VerifyAuth checks sig (WebCrypto's raw 64-byte r‖s, not ASN.1) over
 // AuthMessage with the P-256 key in spki, and returns the key's fingerprint.
-func VerifyAuth(spki, sig []byte, gatewayFp, browserDtlsFp, challenge string) (string, error) {
+func VerifyAuth(spki, sig []byte, gatewayDtlsFp, browserDtlsFp, challenge string) (string, error) {
 	pub, err := x509.ParsePKIXPublicKey(spki)
 	if err != nil {
 		return "", fmt.Errorf("spki: %w", err)
@@ -52,7 +71,7 @@ func VerifyAuth(spki, sig []byte, gatewayFp, browserDtlsFp, challenge string) (s
 	if !ok || k.Curve.Params().Name != "P-256" || len(sig) != 64 {
 		return "", errors.New("want a P-256 key and a 64-byte signature")
 	}
-	h := sha256.Sum256(AuthMessage(gatewayFp, browserDtlsFp, challenge))
+	h := sha256.Sum256(AuthMessage(gatewayDtlsFp, browserDtlsFp, challenge))
 	r, s := new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])
 	if !ecdsa.Verify(k, h[:], r, s) {
 		return "", errors.New("bad signature")
@@ -62,8 +81,9 @@ func VerifyAuth(spki, sig []byte, gatewayFp, browserDtlsFp, challenge string) (s
 
 // Code is the 6-digit comparison code (docs/protocol.md). The nonces are
 // committed before they're revealed, so a MITM gets one guess, not a grind.
-func Code(gatewayFp, keyFp, nA, nB string) string {
-	h := sha256.Sum256([]byte(gatewayFp + "|" + keyFp + "|" + nA + "|" + nB))
+// gatewayKeyFp is the identity key's fingerprint (the pin).
+func Code(gatewayKeyFp, keyFp, nA, nB string) string {
+	h := sha256.Sum256([]byte(gatewayKeyFp + "|" + keyFp + "|" + nA + "|" + nB))
 	return fmt.Sprintf("%06d", binary.BigEndian.Uint32(h[:4])%1_000_000)
 }
 

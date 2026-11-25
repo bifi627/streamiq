@@ -39,8 +39,8 @@ mkdir -p "$DIR/state"
 # older than `gateway backup` (#52) can't: it's replaced without one.
 keep=
 chmod +x "$tmp/$bin"
-if [ ! -f "$DIR/state/cert.pem" ] || [ ! -f "$DIR/state/gateway.json" ]; then
-  : # no gateway identity (fresh install, failed enrollment, removed gateway): nothing to roll back to
+if [ ! -f "$DIR/state/gateway.json" ]; then
+  : # not enrolled (fresh install, failed enrollment, removed gateway): nothing to roll back to
 elif [ -x "$DIR/gateway" ] && "$DIR/gateway" -h 2>/dev/null | grep -q '^  backup '; then
   ver=$("$DIR/gateway" version 2>/dev/null) || ver=unknown
   # A re-run of the installed release keeps no copy (it would push the real previous one out).

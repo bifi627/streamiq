@@ -1,5 +1,7 @@
-// Package identity is the gateway's long-term DTLS identity: one persistent
-// certificate whose Fingerprint browsers pin.
+// Package identity is the gateway's long-term identity: one persistent ECDSA
+// P-256 key whose Fingerprint browsers pin. Tunnels use a fresh DTLS
+// certificate each (Pion's default), so the key never shows on the wire in the
+// clear: the gateway proves it inside the tunnel (pairing.Prove).
 package identity
 
 import (
@@ -8,27 +10,26 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/pion/webrtc/v4"
 )
 
-// LoadOrCreate returns the gateway's persistent DTLS certificate and its
-// fingerprint. Generated once: an ephemeral cert would silently break every
-// browser's pin on restart. Browsers trust it by pin and ignore its dates, but
-// Pion refuses an expired local cert (its GenerateCertificate expires in a
-// month), so ours never expires: 9999-12-31 is RFC 5280's "no well-defined
-// expiration". Replacing it is a deliberate act: Reset.
-func LoadOrCreate(dir string) (*webrtc.Certificate, string, error) {
-	path := filepath.Join(dir, "cert.pem")
+// File is the identity key in the state dir.
+const File = "identity.pem"
+
+// legacyCert is the old persistent DTLS certificate: its pins can't be
+// carried over, so it goes.
+const legacyCert = "cert.pem"
+
+// LoadOrCreate returns the gateway's identity key and its fingerprint.
+// Generated once: a new key breaks every browser's pin. Replacing it is a
+// deliberate act: Reset.
+func LoadOrCreate(dir string) (*ecdsa.PrivateKey, string, error) {
+	path := filepath.Join(dir, File)
 	pems, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		pems, err = create(dir, path)
@@ -36,58 +37,59 @@ func LoadOrCreate(dir string) (*webrtc.Certificate, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	cert, err := webrtc.CertificateFromPEM(string(pems))
-	if err != nil {
-		return nil, "", fmt.Errorf("%s: %w", path, err)
+	block, _ := pem.Decode(pems)
+	if block == nil {
+		return nil, "", fmt.Errorf("%s: no PEM block", path)
 	}
-	block, _ := pem.Decode(pems) // Pion writes the CERTIFICATE block first
-	return cert, Fingerprint(block.Bytes), nil
+	k, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	key, ok := k.(*ecdsa.PrivateKey)
+	if err != nil || !ok || key.Curve != elliptic.P256() {
+		return nil, "", fmt.Errorf("%s: want a P-256 PKCS#8 key (%v)", path, err)
+	}
+	return key, KeyFingerprint(&key.PublicKey), nil
 }
 
-// create writes a new cert to path and returns its PEM.
+// create writes a new key to path and returns its PEM.
 func create(dir, path string) ([]byte, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
-	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 127))
-	cert, err := webrtc.NewCertificate(key, x509.Certificate{
-		SerialNumber: serial,
-		// Sent in cleartext in the DTLS 1.2 handshake: the name browsers and
-		// Pion use, so it doesn't tag the flow as StreamIQ to an observer.
-		Subject:   pkix.Name{CommonName: "WebRTC"}, // self-signed: Issuer = Subject
-		NotBefore: time.Now().Add(-time.Hour),
-		NotAfter:  time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC),
-	})
-	if err != nil {
-		return nil, err
-	}
-	s, err := cert.PEM()
+	der, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
 		return nil, err
 	}
 	if err = os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	if err = os.WriteFile(path, []byte(s), 0o600); err != nil {
+	pems := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+	if err = os.WriteFile(path, pems, 0o600); err != nil {
 		return nil, err
 	}
-	return []byte(s), nil
+	if err = os.Remove(filepath.Join(dir, legacyCert)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	return pems, nil
 }
 
 // Reset replaces the gateway identity (state dir or a backup of it may have
-// leaked): a new cert, and an empty allowlist (allowlist.json and its clients'
+// leaked): a new key, and an empty allowlist (allowlist.json and its clients'
 // profiles.json, see pairing) so every browser pairs again against the new
-// fingerprint. The gateway must not
-// be running: it holds both in memory.
+// fingerprint. The gateway must not be running: it holds both in memory.
 func Reset(dir string) (string, error) {
-	for _, f := range []string{"cert.pem", "allowlist.json", "profiles.json"} {
+	for _, f := range []string{File, legacyCert, "allowlist.json", "profiles.json"} {
 		if err := os.Remove(filepath.Join(dir, f)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return "", err
 		}
 	}
 	_, fp, err := LoadOrCreate(dir)
 	return fp, err
+}
+
+// KeyFingerprint is Fingerprint over the key's SPKI bytes.
+func KeyFingerprint(k *ecdsa.PublicKey) string {
+	spki, _ := x509.MarshalPKIXPublicKey(k) // never fails for a P-256 key
+	return Fingerprint(spki)
 }
 
 // Fingerprint is the contract form `sha-256 AA:BB:…` (docs/protocol.md).

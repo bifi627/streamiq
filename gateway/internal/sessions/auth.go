@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,10 +31,11 @@ func (s *Sessions) serveAuth(
 ) {
 	a := &authRun{s: s, id: id, user: user, send: d.SendText, hangUp: d.Close, pre: pre, authed: authed, why: why,
 		challenge: pairing.Nonce(), done: make(chan struct{}),
-		// The browser's DTLS cert as actually negotiated on this connection.
-		peerFp: func() string { return identity.Fingerprint(pc.SCTP().Transport().GetRemoteCertificate()) },
+		// Both DTLS certs as actually negotiated on this connection.
+		peerFp:  func() string { return identity.Fingerprint(pc.SCTP().Transport().GetRemoteCertificate()) },
+		localFp: func() string { return localFp(pc) },
 	}
-	d.OnOpen(func() { a.say(Challenge{Type: "challenge", N: a.challenge}) })
+	d.OnOpen(a.open)
 	d.OnClose(a.end)
 	d.OnMessage(func(m webrtc.DataChannelMessage) { a.handle(m.Data) })
 }
@@ -66,6 +68,7 @@ type authRun struct {
 	send      func(string) error // the channel's SendText
 	hangUp    func() error       // the channel's Close
 	peerFp    func() string      // the browser's DTLS fingerprint on this connection
+	localFp   func() string      // ours: a fresh certificate per connection
 	pre       *preAuth
 	authed    *atomic.Bool
 	why       *atomic.Value
@@ -75,6 +78,25 @@ type authRun struct {
 	keyFp     string
 	reveal    chan string // non-nil once the one commit is accepted
 	revealed  bool
+}
+
+// open sends the challenge with the identity key's proof over this tunnel.
+func (a *authRun) open() {
+	spki, sig, err := pairing.Prove(a.s.Key, a.localFp(), a.peerFp(), a.challenge)
+	if err != nil {
+		a.fail("prove: " + err.Error())
+		return
+	}
+	a.say(Challenge{Type: "challenge", N: a.challenge, Spki: spki, Sig: sig})
+}
+
+// localFp is pc's own DTLS fingerprint in the contract form (Pion's is lower-case).
+func localFp(pc *webrtc.PeerConnection) string {
+	p, err := pc.SCTP().Transport().GetLocalParameters()
+	if err != nil || len(p.Fingerprints) == 0 {
+		return ""
+	}
+	return "sha-256 " + strings.ToUpper(p.Fingerprints[0].Value)
 }
 
 // say: a failed send means the channel closed, and its OnClose ends the handshake.
@@ -132,7 +154,7 @@ func (a *authRun) handle(raw []byte) {
 }
 
 func (a *authRun) auth(m Auth) {
-	fp, err := pairing.VerifyAuth(m.Spki, m.Sig, a.s.Fp, a.peerFp(), a.challenge)
+	fp, err := pairing.VerifyAuth(m.Spki, m.Sig, a.localFp(), a.peerFp(), a.challenge)
 	if err != nil {
 		a.fail(err.Error())
 		return

@@ -12,6 +12,7 @@ import {
   nonce,
   sdpFingerprint,
   sha256,
+  verifyProof,
 } from './crypto'
 import { lifetime, type Session } from './session'
 import {
@@ -42,13 +43,13 @@ export type { Session }
 async function challengeAnswer(
   theirNonce: string,
   key: ClientKey,
-  gatewayFp: string,
+  gatewayDtlsFp: string,
   sdp = '',
 ) {
   const sig = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     key.privateKey,
-    authMessage(gatewayFp, sdpFingerprint(sdp), theirNonce),
+    authMessage(gatewayDtlsFp, sdpFingerprint(sdp), theirNonce),
   )
   return { spki: b64(key.spki), sig: b64(sig) }
 }
@@ -123,9 +124,14 @@ export async function connect(
           return pc.setRemoteDescription(f.sdp)
         case 'addIce':
           return pc.addIceCandidate(f.candidate)
-        case 'challenge': {
+        case 'verify': {
+          const ours = sdpFingerprint(pc.localDescription?.sdp ?? '')
+          const keyFp = await verifyProof(f.spki, f.sig, f.dtlsFp, ours, f.n)
+          return dispatch({ on: 'proof', n: f.n, keyFp })
+        }
+        case 'sign': {
           const sdp = pc.localDescription?.sdp
-          const answer = await challengeAnswer(f.n, key, f.fp, sdp)
+          const answer = await challengeAnswer(f.n, key, f.dtlsFp, sdp)
           return say({ type: 'auth', ...answer, pair: f.pair })
         }
         case 'commit':
@@ -146,7 +152,7 @@ export async function connect(
           void persistStorage().catch((e) =>
             event(`storage: persist failed: ${e}`),
           )
-          shared.drop(gatewayId) // its session belongs to the old certificate
+          shared.drop(gatewayId) // its session belongs to the old identity
           return resolve(up())
         case 'resolve':
           return resolve(up())

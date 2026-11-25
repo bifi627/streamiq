@@ -45,60 +45,92 @@ export function sdpFingerprint(sdp: string) {
 }
 
 /** What the client key signs: bound to both DTLS fingerprints of this session. */
-export const authMessage = (gatewayFp: string, browserFp: string, n: string) =>
-  enc.encode(`streamiq-auth-v1|${gatewayFp}|${browserFp}|${n}`)
+export const authMessage = (
+  gatewayDtlsFp: string,
+  browserDtlsFp: string,
+  n: string,
+) => enc.encode(`streamiq-auth-v1|${gatewayDtlsFp}|${browserDtlsFp}|${n}`)
 
-/** 6-digit comparison code over the committed nonces. */
+/** What the gateway's identity key signs in its challenge: the same session binding. */
+export const gatewayMessage = (
+  gatewayDtlsFp: string,
+  browserDtlsFp: string,
+  n: string,
+) => enc.encode(`streamiq-gateway-v1|${gatewayDtlsFp}|${browserDtlsFp}|${n}`)
+
+const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
+
+/**
+ * The challenge's proof: the identity key's fingerprint (what the pin is) when
+ * its signature covers this session, else undefined. A MITM terminating DTLS
+ * itself shows us other fingerprints than the ones the gateway signed.
+ */
+export async function verifyProof(
+  spki: string,
+  sig: string,
+  gatewayDtlsFp: string,
+  browserDtlsFp: string,
+  n: string,
+): Promise<string | undefined> {
+  try {
+    const raw = unb64(spki)
+    const key = await crypto.subtle.importKey(
+      'spki',
+      raw,
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['verify'],
+    )
+    const ok = await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      key,
+      unb64(sig),
+      gatewayMessage(gatewayDtlsFp, browserDtlsFp, n),
+    )
+    return ok ? await fingerprint(raw.buffer) : undefined
+  } catch {
+    return undefined // not base64, or not a P-256 key
+  }
+}
+
+/** 6-digit comparison code over the committed nonces; gatewayKeyFp is the pin. */
 export async function comparisonCode(
-  gatewayFp: string,
+  gatewayKeyFp: string,
   keyFp: string,
   nA: string,
   nB: string,
 ) {
-  const h = await sha256(`${gatewayFp}|${keyFp}|${nA}|${nB}`)
+  const h = await sha256(`${gatewayKeyFp}|${keyFp}|${nA}|${nB}`)
   return String(new DataView(h).getUint32(0) % 1_000_000).padStart(6, '0')
 }
 
 export const nonce = () => hex(crypto.getRandomValues(new Uint8Array(32)))
 
 /**
- * The browser's pin decision for the gateway cert in the answer SDP:
+ * The browser's pin decision for the gateway's proven identity key:
  * - `pinned`: matches the pin → the gateway's plain "ok" may be trusted
  * - `unpinned`: no pin, or pairing again → only the code comparison may vouch
- *   for this cert (auth carries `pair: true`)
- * - `refuse`: mismatch outside pairing → stop before sending a byte
+ *   for this key (auth carries `pair: true`)
+ * - `refuse`: mismatch outside pairing → stop before sending our key
  */
 export function pinCheck(
   pin: string | undefined,
-  gatewayFp: string,
+  gatewayKeyFp: string,
   pairing: boolean,
 ): 'pinned' | 'unpinned' | 'refuse' {
-  if (pin === gatewayFp) return 'pinned'
+  if (pin === gatewayKeyFp) return 'pinned'
   return pin && !pairing ? 'refuse' : 'unpinned'
 }
 
 /**
- * The gateway's answer SDP against the pin, before a single byte goes to the
- * gateway: its cert fingerprint and the pinCheck verdict, or why it's refused
- * (both refusals are a pin mismatch).
+ * The gateway's DTLS fingerprint from its answer SDP (fresh every tunnel: the
+ * challenge's proof covers it), or why the answer is refused.
  */
-export function answerCheck(
-  sdp: string,
-  pin: string | undefined,
-  pairing: boolean,
-): { fp: string; verdict: 'pinned' | 'unpinned' } | { refused: string } {
-  let fp: string
+export function answerCheck(sdp: string): { fp: string } | { refused: string } {
   try {
-    fp = sdpFingerprint(sdp)
+    return { fp: sdpFingerprint(sdp) }
   } catch (e) {
-    // No single certificate to compare with the pin: refuse like a mismatch.
+    // No single certificate for the proof to cover: refuse like a mismatch.
     return { refused: `gateway answer refused: ${(e as Error).message}` }
   }
-  // An unexpected certificate means someone (possibly StreamIQ's own server) is
-  // in the middle. Pairing again is allowed: the comparison code authenticates
-  // the new certificate.
-  const verdict = pinCheck(pin, fp, pairing)
-  if (verdict === 'refuse')
-    return { refused: `gateway certificate changed: pinned ${pin}, got ${fp}` }
-  return { fp, verdict }
 }

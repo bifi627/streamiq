@@ -314,7 +314,7 @@ Each gateway pairs and shows up in the web app like a gateway on its own machine
 it disconnects, any open streams through it stop, and it logs
 `credential revoked or unknown` while it keeps retrying. To add the same box
 again, stop the gateway, delete `gateway.json` in its state directory, and run a
-new install command (**Add gateway**). The certificate in the state directory
+new install command (**Add gateway**). The identity key in the state directory
 is kept, so paired browsers don't need to pair again.
 
 ### If the gateway or a backup of its state may have leaked
@@ -324,7 +324,7 @@ Whoever has a copy of `state/` can pose as your gateway. Replace its identity:
 1. **Gateways → Remove** in the web app (revokes the leaked credential).
 2. Stop the gateway (Windows: `gateway service uninstall`), delete `gateway.json`
    in its state directory, and run a new install command (**Add gateway**).
-3. Stop it again and run `gateway reset-identity`: a new certificate, and every
+3. Stop it again and run `gateway reset-identity`: a new identity key, and every
    paired browser is removed. Start the gateway (`gateway service install`).
 4. Open StreamIQ on each browser: it shows a pairing code, approve it on the
    local gateway page.
@@ -333,7 +333,7 @@ Whoever has a copy of `state/` can pose as your gateway. Replace its identity:
 
 ## Back up and restore the gateway
 
-`state/` is what makes your gateway *this* gateway: its certificate (paired
+`state/` is what makes your gateway *this* gateway: its identity key (paired
 browsers check it), its StreamIQ credential, the paired browsers and its Jellyfin
 login. Back it up once, and again after you pair a new browser:
 

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 	"unicode/utf16"
 
 	"github.com/jackc/pgx/v5"
@@ -19,15 +18,11 @@ type Enrolled struct {
 	Credential string `json:"credential"`
 }
 
-// fingerprintRe is `sha-256 AA:BB:…`, 32 upper-case hex pairs: the form in docs/protocol.md.
-var fingerprintRe = regexp.MustCompile(`^sha-256 ([0-9A-F]{2}:){31}[0-9A-F]{2}$`)
-
 // enroll spends an enrollment token: the gateway's row in the token's household, with
-// its pinned DTLS fingerprint, and its credential. No sign-in: the token is the auth.
+// and its credential. No sign-in: the token is the auth.
 func enroll(w http.ResponseWriter, r *http.Request, d *db.DB) {
-	var rq struct{ Token, Fingerprint, Name string }
-	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&rq) != nil || rq.Token == "" ||
-		!fingerprintRe.MatchString(rq.Fingerprint) {
+	var rq struct{ Token, Name string } // an older gateway also sends a fingerprint: ignored
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&rq) != nil || rq.Token == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -35,9 +30,9 @@ func enroll(w http.ResponseWriter, r *http.Request, d *db.DB) {
 	// Claim and row in one transaction: an enrollment that fails after the claim keeps the token.
 	err := d.InClaimedTenant(r.Context(), db.EnrollmentToken, auth.HashSecret(rq.Token),
 		func(tx pgx.Tx, tenant string) error {
-			return tx.QueryRow(r.Context(), `INSERT INTO gateways (id, tenant_id, name, dtls_fingerprint, credential_hash)
-				VALUES (uuidv7(), $1, $2, $3, $4) RETURNING id::text`,
-				tenant, name(rq.Name), rq.Fingerprint, auth.HashSecret(out.Credential)).
+			return tx.QueryRow(r.Context(), `INSERT INTO gateways (id, tenant_id, name, credential_hash)
+				VALUES (uuidv7(), $1, $2, $3) RETURNING id::text`,
+				tenant, name(rq.Name), auth.HashSecret(out.Credential)).
 				Scan(&out.GatewayID)
 		})
 	switch {

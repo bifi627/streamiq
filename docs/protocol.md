@@ -18,7 +18,7 @@ origin only; clients append `/api/…` themselves.
 ## Gateway onboarding
 
 Fingerprints everywhere use the form `sha-256 AA:BB:…` (32 upper-case hex
-pairs, SHA-256 over the DER certificate).
+pairs, SHA-256 over the DER bytes: a DTLS certificate, or a key's SPKI).
 
 **`POST /api/gateways/enrollment-tokens`** (Firebase Bearer, household admin; a
 member gets `403`) →
@@ -27,17 +27,18 @@ random 128 bit, single-use, 15 min; the API stores only its SHA-256.
 
 **`POST /api/gateways/enroll`** (no auth — the token is the auth)
 ```json
-{ "token": "…", "fingerprint": "sha-256 AB:…", "name": "nas" }
+{ "token": "…", "name": "nas" }
 ```
 → `200 { "gatewayId": "<uuid>", "credential": "…" }` (credential: 256 bit,
-shown once, the API keeps its SHA-256) · `400` malformed fingerprint ·
-`401` token unknown, expired, or used.
+shown once, the API keeps its SHA-256) · `400` no token ·
+`401` token unknown, expired, or used. A gateway before protocol 3 also sends a
+`fingerprint`: ignored (the API keeps no pin, #427).
 
 **`GET /api/gateways/ws`** — gateway control WebSocket, `Authorization: Bearer
 <credential>` (`401` before upgrade if unknown or revoked). Gateway → API, one JSON text
 frame on connect and every 30 s:
 ```json
-{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 2, "name": "Living room NAS", "relayOff": true }
+{ "type": "heartbeat", "lanUrl": "http://192.168.1.20:8097", "version": "1.4.0", "update": "1.5.0", "protocol": 3, "name": "Living room NAS", "relayOff": true }
 ```
 Liveness plus what the gateway owns and the API mirrors (#140, #310, #785); a gateway sends one
 early, right after its name or relay setting changes, not just every 30 s.
@@ -55,7 +56,7 @@ its name; the API never writes it after enrollment. `GET /api/gateways` returns 
 tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
-protocol (currently **2**: 2 added a `tunnel` report, #390, which gateways no longer send since #783; Go `onboarding.Protocol`). A breaking change bumps it. The API
+protocol (currently **3**: 2 added a `tunnel` report, #390, which gateways no longer send since #783; 3 is the identity-key `challenge` of the auth channel, #427, which browsers require; Go `onboarding.Protocol`). A breaking change bumps it. The API
 has one minimum (`protocol.MinGatewayProtocol`); raising it is a deliberate step,
 since every gateway below it stops working until its owner updates. A first heartbeat
 below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the API
@@ -252,13 +253,17 @@ the player's privacy indicator (polled every 2 s) and Diagnostics, not the histo
 ## Pairing + connection auth
 
 Browser identity = non-extractable WebCrypto ECDSA P-256 **client key**; its
-fingerprint = `sha-256 AA:…` over the SPKI bytes. The **gateway pin** = the
-gateway's DTLS fingerprint (`a=fingerprint` of the answer SDP). The browser
-checks the pin **before** `setRemoteDescription` and refuses on mismatch
-(pairing again is allowed: the comparison code authenticates the new cert).
-The answer must carry exactly one distinct fingerprint, a `sha-256` one (the same
-line repeated at session and media level counts as one); anything else is refused
-like a mismatch.
+fingerprint = `sha-256 AA:…` over the SPKI bytes. Gateway identity = its ECDSA P-256
+**identity key** (`identity.pem` in the state dir); the **gateway pin** = that key's
+fingerprint, same form. The DTLS certificate is not the identity: Pion makes a new
+one for every tunnel, so the certificate an observer sees in the clear (DTLS 1.2)
+links no two tunnels to one gateway (#427). The gateway proves its key inside the
+tunnel (step 1); the browser refuses on a bad proof or a key that doesn't match its
+pin, before it sends anything on the channel (pairing again is allowed: the
+comparison code authenticates the new key). The answer SDP must carry exactly one
+distinct fingerprint, a `sha-256` one (the same line repeated at session and media
+level counts as one); anything else is refused like a mismatch: it is the
+`gatewayDtlsFp` both signatures cover.
 
 The browser opens a data channel labelled **`auth`** (JSON text frames). Until
 it is authorized, the gateway closes every other channel immediately. The messages
@@ -267,13 +272,13 @@ are the Go types in `gateway/internal/sessions/messages.go`, generated as the
 
 | # | direction | message |
 |---|---|---|
-| 1 | gateway → browser | `{type:"challenge", n}` — n = hex(32 random bytes) |
-| 2 | browser → gateway | `{type:"auth", spki, sig, pair}` (base64; `pair:true` when the browser has no pin matching this gateway cert — forces steps 4–8 even for an allowlisted key, so a changed cert is only accepted via the code). `sig` = ECDSA P-256/SHA-256, **raw r‖s (64 bytes, IEEE P1363)** over `utf8("streamiq-auth-v1\|" + gatewayDtlsFp + "\|" + browserDtlsFp + "\|" + n)` — both DTLS fps of *this* session, so a MITM can't relay it |
+| 1 | gateway → browser | `{type:"challenge", n, spki, sig}` — n = hex(32 random bytes); spki = the identity key, sig = its signature (base64, ECDSA P-256/SHA-256, raw r‖s) over `utf8("streamiq-gateway-v1\|" + gatewayDtlsFp + "\|" + browserDtlsFp + "\|" + n)`. No browser nonce: the gateway's certificate is new for every tunnel, so the proof can't be replayed |
+| 2 | browser → gateway | `{type:"auth", spki, sig, pair}` (base64; `pair:true` when the browser has no pin matching the proven identity key — forces steps 4–8 even for an allowlisted key, so a changed key is only accepted via the code). `sig` = ECDSA P-256/SHA-256, **raw r‖s (64 bytes, IEEE P1363)** over `utf8("streamiq-auth-v1\|" + gatewayDtlsFp + "\|" + browserDtlsFp + "\|" + n)` — both DTLS fps of *this* session, so a MITM can't relay it |
 | 3 | gateway → browser | `{type:"ok"}` (key on the allowlist and no `pair` → tunnel channels allowed) or `{type:"unpaired"}` |
 | 4 | browser → gateway | `{type:"commit", h, name}` — h = hex(SHA-256(utf8(nB))), nB = hex(32 random bytes) |
 | 5 | gateway → browser | `{type:"nonce", n: nA}` — only after the commit |
 | 6 | browser → gateway | `{type:"reveal", n: nB}` — gateway checks it against h |
-| 7 | both | `code = uint32_be(SHA-256(utf8(gatewayFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; local gateway page lists the request (name + code), browser shows the code |
+| 7 | both | `code = uint32_be(SHA-256(utf8(gatewayKeyFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; local gateway page lists the request (name + code), browser shows the code |
 | 8 | gateway → browser | `{type:"approved"}` after **Approve on the local gateway page** (key persisted to `allowlist.json`; browser stores the pin), or `{type:"rejected", reason}` (Reject, 5-min expiry, no free slot, bad signature/reveal, any message out of order) |
 
 The commit makes the code ungrindable: a MITM gets one guess (10⁻⁶). The gateway

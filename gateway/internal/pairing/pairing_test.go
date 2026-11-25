@@ -5,9 +5,11 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"math/big"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -22,6 +24,9 @@ const (
 	vecBrowser   = "sha-256 D4:C3:E8:A1:12:56:AB:82:A4:FC:72:56:0E:B4:A2:B0:E8:7B:AD:82:0C:29:0D:D9:B0:36:16:DE:24:0A:A6:DB"
 	vecN         = "0000000000000000000000000000000000000000000000000000000000000001"
 	vecSig       = "jXq2DxskrRUJ2/lPhsID2biFys0vK47f+Z9XNWopW2mdfxatIsNm8/UtQV6feHlf/U42r5ERviRotv6W8GE0GQ=="
+	// vecProof: Prove's signature with the vector key (as the gateway's identity key)
+	// over the same session; the TS test verifies it with WebCrypto.
+	vecProof = "h6WC5XmUnwre2W0Tt2PxjrERvuW9aPjnGk0Y20BMaWa8WAcYWuiLDQbgx9TevdWxNiYOGfvkA1H4dnswLiPEeg=="
 )
 
 func b64(s string) []byte { b, _ := base64.StdEncoding.DecodeString(s); return b }
@@ -61,6 +66,35 @@ func TestVerifyAuthRefusesOtherKeys(t *testing.T) {
 			!strings.Contains(err.Error(), "P-256") {
 			t.Errorf("%s: err = %v, want refused before the signature check", name, err)
 		}
+	}
+}
+
+// verifyProof is the browser's check of the challenge (crypto.ts verifyProof).
+func verifyProof(spki, sig []byte, gatewayDtlsFp, browserDtlsFp, n string) bool {
+	pub, err := x509.ParsePKIXPublicKey(spki)
+	k, ok := pub.(*ecdsa.PublicKey)
+	if err != nil || !ok || len(sig) != 64 {
+		return false
+	}
+	h := sha256.Sum256(GatewayMessage(gatewayDtlsFp, browserDtlsFp, n))
+	return ecdsa.Verify(k, h[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:]))
+}
+
+func TestProve(t *testing.T) {
+	if !verifyProof(b64(vecSpki), b64(vecProof), vecGatewayFp, vecBrowser, vecN) {
+		t.Fatal("proof vector doesn't verify")
+	}
+	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	spki, sig, err := Prove(k, vecGatewayFp, vecBrowser, vecN)
+	if err != nil || !verifyProof(spki, sig, vecGatewayFp, vecBrowser, vecN) {
+		t.Fatalf("fresh proof doesn't verify: %v", err)
+	}
+	// Bound to this tunnel: a MITM's DTLS fp on either side, or the client's message, fails.
+	if verifyProof(spki, sig, vecGatewayFp, vecGatewayFp, vecN) || verifyProof(spki, sig, vecBrowser, vecBrowser, vecN) {
+		t.Fatal("proof verified for a different tunnel")
+	}
+	if verifyProof(b64(vecSpki), b64(vecSig), vecGatewayFp, vecBrowser, vecN) {
+		t.Fatal("the client's auth signature passes as the gateway's proof")
 	}
 }
 

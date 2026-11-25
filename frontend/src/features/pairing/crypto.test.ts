@@ -9,6 +9,7 @@ import {
   fingerprint,
   pinCheck,
   sdpFingerprint,
+  verifyProof,
 } from './crypto.ts'
 
 const v = {
@@ -23,6 +24,9 @@ const v = {
     'sha-256 D4:C3:E8:A1:12:56:AB:82:A4:FC:72:56:0E:B4:A2:B0:E8:7B:AD:82:0C:29:0D:D9:B0:36:16:DE:24:0A:A6:DB',
   n: '0'.repeat(63) + '1',
   sig: 'jXq2DxskrRUJ2/lPhsID2biFys0vK47f+Z9XNWopW2mdfxatIsNm8/UtQV6feHlf/U42r5ERviRotv6W8GE0GQ==',
+  // The gateway's Prove (Go) with the same key as its identity key, same session.
+  proof:
+    'h6WC5XmUnwre2W0Tt2PxjrERvuW9aPjnGk0Y20BMaWa8WAcYWuiLDQbgx9TevdWxNiYOGfvkA1H4dnswLiPEeg==',
 }
 const raw = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
 const ecdsa = { name: 'ECDSA', hash: 'SHA-256' }
@@ -92,7 +96,20 @@ test('sdp fingerprint: exactly one distinct sha-256 fingerprint, else throws', (
   assert.throws(() => sdpFingerprint('v=0\r\n' + s('sha-512 AB:CD') + m))
 })
 
-test('pin check: pinned cert passes, changed cert refused unless pairing', () => {
+test("gateway proof: Go's vector verifies, bound to this session", async () => {
+  const proof = (gw: string, br: string, sig = v.proof, spki = v.spki) =>
+    verifyProof(spki, sig, gw, br, v.n)
+  assert.equal(await proof(v.gatewayFp, v.browserFp), v.keyFp)
+  assert.equal(await proof(v.gatewayFp, v.gatewayFp), undefined) // a MITM's browser-side cert
+  assert.equal(await proof(v.browserFp, v.browserFp), undefined) // a MITM's gateway-side cert
+  assert.equal(await proof(v.gatewayFp, v.browserFp, v.sig), undefined) // the client's auth signature
+  assert.equal(
+    await proof(v.gatewayFp, v.browserFp, v.proof, 'AAAA'),
+    undefined,
+  ) // not a key
+})
+
+test('pin check: pinned key passes, changed key refused unless pairing', () => {
   assert.equal(pinCheck(v.gatewayFp, v.gatewayFp, false), 'pinned')
   assert.equal(pinCheck(v.gatewayFp, v.browserFp, false), 'refuse') // MITM / cert swapped
   assert.equal(pinCheck(v.gatewayFp, v.browserFp, true), 'unpinned') // re-pair: code must vouch
@@ -100,22 +117,10 @@ test('pin check: pinned cert passes, changed cert refused unless pairing', () =>
   assert.equal(pinCheck(undefined, v.gatewayFp, false), 'unpinned') // gateway will say unpaired
 })
 
-test('answer check: fingerprint + verdict, or why the answer is refused', () => {
+test('answer check: the DTLS fingerprint, or why the answer is refused', () => {
   const sdp = 'v=0\r\na=fingerprint:sha-256 ab:cd\r\n'
-  const fp = 'sha-256 AB:CD'
-  assert.deepEqual(answerCheck(sdp, fp, false), { fp, verdict: 'pinned' })
-  assert.deepEqual(answerCheck(sdp, undefined, true), {
-    fp,
-    verdict: 'unpinned',
-  })
-  assert.deepEqual(answerCheck(sdp, v.gatewayFp, true), {
-    fp,
-    verdict: 'unpinned',
-  }) // re-pair
-  assert.deepEqual(answerCheck(sdp, v.gatewayFp, false), {
-    refused: `gateway certificate changed: pinned ${v.gatewayFp}, got ${fp}`,
-  })
-  assert.deepEqual(answerCheck('v=0\r\n', undefined, true), {
+  assert.deepEqual(answerCheck(sdp), { fp: 'sha-256 AB:CD' })
+  assert.deepEqual(answerCheck('v=0\r\n'), {
     refused:
       'gateway answer refused: SDP with 0 distinct fingerprints, expected 1',
   })

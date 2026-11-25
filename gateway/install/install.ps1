@@ -32,8 +32,8 @@ try {
     # older than `gateway backup` (#52) can't: it's replaced without one.
     $keep = $null
     $state = Join-Path $dir 'state'
-    if (-not ((Test-Path (Join-Path $state 'cert.pem')) -and (Test-Path (Join-Path $state 'gateway.json')))) {
-        # no gateway identity (fresh install, failed enrollment, removed gateway): nothing to roll back to
+    if (-not (Test-Path (Join-Path $state 'gateway.json'))) {
+        # not enrolled (fresh install, failed enrollment, removed gateway): nothing to roll back to
     } elseif (-not (Test-Path $exe) -or (Get-FileHash $exe).Hash -eq $got) {
         # a re-run of the installed release keeps no copy (it would push the real previous one out)
     } elseif ((& $exe -h) -match '^  backup ') {

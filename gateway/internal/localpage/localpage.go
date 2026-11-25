@@ -98,7 +98,7 @@ shared fallback <code>streamiq-viewer</code>. Your password is not stored.</p>{{
 {{.Name}} <small>(since {{.AddedAt.Format "2006-01-02"}})</small> <button>Remove</button></form>
 {{else}}<p>None yet.</p>{{end}}
 <p><small>Gateway id: <code>{{.GatewayID}}</code><br>
-DTLS fingerprint (browsers pin this):<br><code style="word-break:break-all">{{.Fingerprint}}</code></small></p>
+Identity key (browsers pin this):<br><code style="word-break:break-all">{{.Fingerprint}}</code></small></p>
 </body>`))
 
 var libs = template.Must(template.New("libs").Parse(`<!doctype html>

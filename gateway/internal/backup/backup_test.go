@@ -16,7 +16,7 @@ import (
 )
 
 var state = map[string]string{
-	"cert.pem":       "CERT",
+	"identity.pem":   "KEY",
 	"gateway.json":   `{"gatewayId":"g1","credential":"c","name":"Living room"}`,
 	"allowlist.json": `[]`,
 	"jellyfin.json":  `{}`,
@@ -290,7 +290,7 @@ func TestComposeTooBig(t *testing.T) {
 
 func TestWriteNeedsIdentity(t *testing.T) {
 	if err := Write(writeDir(t, map[string]string{"allowlist.json": "[]"}), "", "", &bytes.Buffer{}); err == nil {
-		t.Fatal("backed up a state dir without cert.pem/gateway.json")
+		t.Fatal("backed up a state dir without gateway.json")
 	}
 }
 
@@ -427,9 +427,13 @@ func TestCheckNoIdentity(t *testing.T) {
 	if err := checkNoIdentity(writeDir(t, map[string]string{"allowlist.json": "[]"})); err != nil {
 		t.Fatal(err)
 	}
-	err := checkNoIdentity(writeDir(t, map[string]string{"cert.pem": "C"}))
-	if err == nil || !strings.Contains(err.Error(), "cert.pem") || strings.Contains(err.Error(), "gateway.json") {
-		t.Fatalf("err = %v, want one naming only cert.pem", err)
+	// The identity key alone is no gateway: without gateway.json there is nothing to replace.
+	if err := checkNoIdentity(writeDir(t, map[string]string{"identity.pem": "K"})); err != nil {
+		t.Fatal(err)
+	}
+	err := checkNoIdentity(writeDir(t, map[string]string{"gateway.json": "{}"}))
+	if err == nil || !strings.Contains(err.Error(), "gateway.json") {
+		t.Fatalf("err = %v, want one naming gateway.json", err)
 	}
 }
 

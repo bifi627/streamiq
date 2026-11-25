@@ -36,7 +36,8 @@ func getMe(t *testing.T, base, token string) map[string]any {
 }
 
 // The response: userId, tenantId (null without a
-// household) and memberships oldest first, each {id, name, role}.
+// household) and memberships oldest first, each {id, name, role, members}: members
+// counts the caller too, and households the caller isn't in add nothing.
 func TestMe(t *testing.T) {
 	apitest.Reset(t)
 	v, err := auth.NewVerifier(t.Context())
@@ -44,7 +45,7 @@ func TestMe(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	me.Routes(mux, auth.New(v, apitest.DB))
+	me.Routes(mux, auth.New(v, apitest.DB), apitest.DB)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 	token := apitest.Token(t, "me@home.test")
@@ -63,9 +64,15 @@ func TestMe(t *testing.T) {
 	home := apitest.Household(t, user, "admin")
 	cabin := apitest.Household(t, user, "member")
 	apitest.Exec(t, `UPDATE tenants SET name = NULL WHERE id = $1`, cabin)
+	other := apitest.Scalar[string](
+		t,
+		`INSERT INTO users (id, firebase_uid) VALUES (uuidv7(), uuidv7()::text) RETURNING id::text`,
+	)
+	apitest.Join(t, other, cabin, "member")
+	apitest.Household(t, other, "admin") // not the caller's: listed and counted nowhere
 	want := map[string]any{"userId": user, "tenantId": home, "memberships": []any{
-		map[string]any{"id": home, "name": "home", "role": "admin"},
-		map[string]any{"id": cabin, "name": nil, "role": "member"},
+		map[string]any{"id": home, "name": "home", "role": "admin", "members": 1.0},
+		map[string]any{"id": cabin, "name": nil, "role": "member", "members": 2.0},
 	}}
 	if got := getMe(t, ts.URL, token); !reflect.DeepEqual(got, want) {
 		t.Fatalf("two households:\n got %v\nwant %v", got, want)

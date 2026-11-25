@@ -352,15 +352,16 @@ test('overview: Settings row, active first, Switch, details and Back, old URL @h
   await b.getByRole('link', { name: 'Households' }).click()
   await expect(b).toHaveURL(/\/settings\/households$/)
   await expect(h1(b)).toHaveText('Households')
-  // Active first, its role in words and a link to the details; Switch on the other.
+  // Active first, its role in words, its member count and a link to the details;
+  // Switch on the other.
   await expect(cards(b)).toHaveCount(2)
   await expect(cards(b).first()).toHaveClass(/active/)
   await expect(active(b)).toContainText(label(B))
-  await expect(active(b)).toContainText('Admin')
+  await expect(active(b).locator('.meta')).toHaveText('Admin · 1 member')
   await expect(active(b)).toContainText('Active')
   const other = cards(b).nth(1)
   await expect(other).toContainText(label(A))
-  await expect(other).toContainText('Member')
+  await expect(other.locator('.meta')).toHaveText('Member · 2 members')
   await expect(other.getByRole('link')).toHaveCount(0) // no details for it
 
   // Details, then Back → overview → Settings.

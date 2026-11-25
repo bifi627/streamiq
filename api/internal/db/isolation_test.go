@@ -283,3 +283,23 @@ func TestMembershipsOfReturnsOnlyTheUsersOwn(t *testing.T) {
 		t.Fatalf("memberships_of returned %d rows, want the user's 1", n)
 	}
 }
+
+// member_counts runs past RLS: it counts the user's own households only, never another's.
+func TestMemberCountsCoverOnlyTheUsersOwn(t *testing.T) {
+	apitest.Reset(t)
+	mine := seed(t)
+	other := seed(t)
+	apitest.Join(t, apitest.Scalar[string](
+		t,
+		`INSERT INTO users (id, firebase_uid) VALUES (uuidv7(), uuidv7()::text) RETURNING id::text`,
+	), other, "member")
+	user := apitest.Scalar[string](t, `SELECT user_id::text FROM memberships WHERE tenant_id = $1`, mine)
+	got := apitest.Scalar[string](
+		t,
+		`SELECT string_agg(tenant_id::text || '=' || members, ',') FROM member_counts($1)`,
+		user,
+	)
+	if want := mine + "=1"; got != want {
+		t.Fatalf("member_counts = %s, want %s", got, want)
+	}
+}

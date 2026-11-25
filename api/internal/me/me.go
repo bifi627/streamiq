@@ -8,23 +8,42 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/jackc/pgx/v5"
+
 	"streamiq/api/internal/auth"
+	"streamiq/api/internal/db"
 )
 
 type Me struct {
-	UserID      string           `json:"userId"`
-	TenantID    *string          `json:"tenantId"`
-	Memberships []auth.Household `json:"memberships"`
+	UserID      string       `json:"userId"`
+	TenantID    *string      `json:"tenantId"`
+	Memberships []Membership `json:"memberships"`
 }
 
-func Routes(mux *http.ServeMux, a *auth.Auth) {
-	mux.HandleFunc("GET /api/me", a.Handler(true, get))
+type Membership struct {
+	auth.Household `tstype:",extends"`
+	// Members counts everyone in the household, the user included.
+	Members int `json:"members"`
 }
 
-func get(w http.ResponseWriter, _ *http.Request, c auth.Caller) {
-	me := Me{UserID: c.User, Memberships: c.Households}
-	if me.Memberships == nil {
-		me.Memberships = []auth.Household{}
+func Routes(mux *http.ServeMux, a *auth.Auth, d *db.DB) {
+	mux.HandleFunc("GET /api/me", a.Handler(true, func(w http.ResponseWriter, r *http.Request, c auth.Caller) {
+		get(w, r, c, d)
+	}))
+}
+
+func get(w http.ResponseWriter, r *http.Request, c auth.Caller, d *db.DB) {
+	counts := map[string]int{}
+	rows, _ := d.NoTenant().Query(r.Context(), `SELECT tenant_id::text, members FROM member_counts($1)`, c.User)
+	var id string
+	var n int
+	if _, err := pgx.ForEachRow(rows, []any{&id, &n}, func() error { counts[id] = n; return nil }); err != nil {
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+	me := Me{UserID: c.User, Memberships: []Membership{}}
+	for _, h := range c.Households {
+		me.Memberships = append(me.Memberships, Membership{h, counts[h.ID]})
 	}
 	if c.Tenant != "" {
 		me.TenantID = &c.Tenant

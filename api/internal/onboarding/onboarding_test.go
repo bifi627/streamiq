@@ -23,6 +23,7 @@ import (
 
 func TestMain(m *testing.M) { os.Exit(apitest.Run(m)) }
 
+// fingerprint: what a gateway before #427 still sends at enrollment; ignored, never refused.
 const fingerprint = "sha-256 AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
 
 type server struct {
@@ -182,9 +183,9 @@ func TestATokenEnrollsOneGatewayIntoItsOwnHouseholdOnce(t *testing.T) {
 	if status != http.StatusOK || len(g.Credential) != 43 {
 		t.Fatal(status, g)
 	}
-	row := apitest.Scalar[string](t, `SELECT concat_ws('|', tenant_id, name, dtls_fingerprint, credential_hash)
+	row := apitest.Scalar[string](t, `SELECT concat_ws('|', tenant_id, name, credential_hash)
 		FROM gateways WHERE id = $1`, g.GatewayID)
-	if row != home+"|nas|"+fingerprint+"|"+sha(g.Credential) {
+	if row != home+"|nas|"+sha(g.Credential) {
 		t.Fatal(row)
 	}
 	if status, _ := s.enroll(t, tok.Token, "again"); status != http.StatusUnauthorized {
@@ -220,9 +221,6 @@ func TestABadEnrollmentIsA400(t *testing.T) {
 	for _, body := range []string{
 		``, `{`, `{}`, `null`,
 		`{"token":"","fingerprint":"` + fingerprint + `"}`,
-		`{"token":"t"}`,
-		`{"token":"t","fingerprint":"` + strings.ToLower(fingerprint) + `"}`,
-		`{"token":"t","fingerprint":"sha-1 AA:BB"}`,
 	} {
 		if status, _ := s.post(t, "/api/gateways/enroll", "", body, nil); status != http.StatusBadRequest {
 			t.Fatal(body, status)

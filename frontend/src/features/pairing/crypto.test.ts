@@ -1,4 +1,4 @@
-// Shared vectors (docs/protocol.md) — the Go tests assert the same values.
+// Shared vectors (docs/protocol.md): one file, the Go tests read it too.
 // Run: node --test src/features/pairing/crypto.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -9,21 +9,10 @@ import {
   fingerprint,
   pinCheck,
   sdpFingerprint,
+  verifyProof,
 } from './crypto.ts'
+import v from '../../../../gateway/internal/pairing/testdata/vectors.json' with { type: 'json' }
 
-const v = {
-  pkcs8:
-    'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNfSxgTmdmEdSnpZREJ8zENfSXNkksKt+maxxPfmM/0OhRANCAASZO24jDJAtjsPMwyNMixSTFrNaCBNOcl++jKq1UlDMtdhrPnx+TVcO+RDzLnEwFciaW/hHW06pJCe99d4wkcc3',
-  spki: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmTtuIwyQLY7DzMMjTIsUkxazWggTTnJfvoyqtVJQzLXYaz58fk1XDvkQ8y5xMBXImlv4R1tOqSQnvfXeMJHHNw==',
-  keyFp:
-    'sha-256 40:F0:B4:7F:13:E4:C0:9B:73:86:7F:7A:77:E1:16:71:A2:AF:84:61:A0:8F:9F:15:25:CB:FE:7F:82:8A:C6:10',
-  gatewayFp:
-    'sha-256 D4:F0:BC:5A:29:DE:06:B5:10:F9:AA:42:8F:1E:ED:BA:92:60:12:B5:91:FE:F7:A5:18:E7:76:A7:C9:BD:18:24',
-  browserFp:
-    'sha-256 D4:C3:E8:A1:12:56:AB:82:A4:FC:72:56:0E:B4:A2:B0:E8:7B:AD:82:0C:29:0D:D9:B0:36:16:DE:24:0A:A6:DB',
-  n: '0'.repeat(63) + '1',
-  sig: 'jXq2DxskrRUJ2/lPhsID2biFys0vK47f+Z9XNWopW2mdfxatIsNm8/UtQV6feHlf/U42r5ERviRotv6W8GE0GQ==',
-}
 const raw = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
 const ecdsa = { name: 'ECDSA', hash: 'SHA-256' }
 
@@ -33,13 +22,8 @@ test('key fingerprint', async () => {
 
 test('comparison code', async () => {
   assert.equal(
-    await comparisonCode(
-      v.gatewayFp,
-      v.keyFp,
-      '11'.repeat(32),
-      '22'.repeat(32),
-    ),
-    '138781',
+    await comparisonCode(v.gatewayFp, v.keyFp, v.codeNA, v.codeNB),
+    v.code,
   )
 })
 
@@ -92,7 +76,20 @@ test('sdp fingerprint: exactly one distinct sha-256 fingerprint, else throws', (
   assert.throws(() => sdpFingerprint('v=0\r\n' + s('sha-512 AB:CD') + m))
 })
 
-test('pin check: pinned cert passes, changed cert refused unless pairing', () => {
+test("gateway proof: Go's vector verifies, bound to this session", async () => {
+  const proof = (gw: string, br: string, sig = v.proof, spki = v.spki) =>
+    verifyProof(spki, sig, gw, br, v.n)
+  assert.equal(await proof(v.gatewayFp, v.browserFp), v.keyFp)
+  assert.equal(await proof(v.gatewayFp, v.gatewayFp), undefined) // a MITM's browser-side cert
+  assert.equal(await proof(v.browserFp, v.browserFp), undefined) // a MITM's gateway-side cert
+  assert.equal(await proof(v.gatewayFp, v.browserFp, v.sig), undefined) // the client's auth signature
+  assert.equal(
+    await proof(v.gatewayFp, v.browserFp, v.proof, 'AAAA'),
+    undefined,
+  ) // not a key
+})
+
+test('pin check: pinned key passes, changed key refused unless pairing', () => {
   assert.equal(pinCheck(v.gatewayFp, v.gatewayFp, false), 'pinned')
   assert.equal(pinCheck(v.gatewayFp, v.browserFp, false), 'refuse') // MITM / cert swapped
   assert.equal(pinCheck(v.gatewayFp, v.browserFp, true), 'unpinned') // re-pair: code must vouch
@@ -100,22 +97,10 @@ test('pin check: pinned cert passes, changed cert refused unless pairing', () =>
   assert.equal(pinCheck(undefined, v.gatewayFp, false), 'unpinned') // gateway will say unpaired
 })
 
-test('answer check: fingerprint + verdict, or why the answer is refused', () => {
+test('answer check: the DTLS fingerprint, or why the answer is refused', () => {
   const sdp = 'v=0\r\na=fingerprint:sha-256 ab:cd\r\n'
-  const fp = 'sha-256 AB:CD'
-  assert.deepEqual(answerCheck(sdp, fp, false), { fp, verdict: 'pinned' })
-  assert.deepEqual(answerCheck(sdp, undefined, true), {
-    fp,
-    verdict: 'unpinned',
-  })
-  assert.deepEqual(answerCheck(sdp, v.gatewayFp, true), {
-    fp,
-    verdict: 'unpinned',
-  }) // re-pair
-  assert.deepEqual(answerCheck(sdp, v.gatewayFp, false), {
-    refused: `gateway certificate changed: pinned ${v.gatewayFp}, got ${fp}`,
-  })
-  assert.deepEqual(answerCheck('v=0\r\n', undefined, true), {
+  assert.deepEqual(answerCheck(sdp), { fp: 'sha-256 AB:CD' })
+  assert.deepEqual(answerCheck('v=0\r\n'), {
     refused:
       'gateway answer refused: SDP with 0 distinct fingerprints, expected 1',
   })

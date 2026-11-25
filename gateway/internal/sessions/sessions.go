@@ -5,6 +5,7 @@
 package sessions
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"log"
 	"net"
@@ -26,8 +27,8 @@ import (
 type Msg = protocol.Msg[webrtc.SessionDescription, webrtc.ICECandidateInit]
 
 type Sessions struct {
-	Cert  *webrtc.Certificate
-	Fp    string // our DTLS fingerprint
+	Key   *ecdsa.PrivateKey // the identity key: Challenge proves it
+	Fp    string            // its fingerprint, the browsers' pin
 	Store *pairing.Store
 	Root  *tunnel.Root // the tunnel's root handler: gateway API + Jellyfin
 	// Viewers makes sure a user has their own Jellyfin viewer, once the
@@ -193,8 +194,7 @@ func (s *Sessions) newPeer(id, user, role string, pre *preAuth, send func(any)) 
 		api = webrtc.NewAPI()
 	}
 	pc, err := api.NewPeerConnection(webrtc.Configuration{
-		ICEServers:   iceServers(s.relay()),
-		Certificates: []webrtc.Certificate{*s.Cert}, // persistent: browsers pin it
+		ICEServers: iceServers(s.relay()), // no Certificates: Pion makes a fresh one per tunnel (unlinkable)
 	})
 	if err != nil {
 		return nil, err

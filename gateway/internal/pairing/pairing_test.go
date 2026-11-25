@@ -5,34 +5,43 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"math/big"
+	"os"
 	"strings"
 	"testing"
 	"testing/synctest"
 )
 
-// Shared vectors (docs/protocol.md): produced by WebCrypto, so this catches the
-// P1363-vs-ASN.1 signature mismatch. The TS tests assert the same values.
-const (
-	vecSpki      = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmTtuIwyQLY7DzMMjTIsUkxazWggTTnJfvoyqtVJQzLXYaz58fk1XDvkQ8y5xMBXImlv4R1tOqSQnvfXeMJHHNw=="
-	vecKeyFp     = "sha-256 40:F0:B4:7F:13:E4:C0:9B:73:86:7F:7A:77:E1:16:71:A2:AF:84:61:A0:8F:9F:15:25:CB:FE:7F:82:8A:C6:10"
-	vecGatewayFp = "sha-256 D4:F0:BC:5A:29:DE:06:B5:10:F9:AA:42:8F:1E:ED:BA:92:60:12:B5:91:FE:F7:A5:18:E7:76:A7:C9:BD:18:24"
-	vecBrowser   = "sha-256 D4:C3:E8:A1:12:56:AB:82:A4:FC:72:56:0E:B4:A2:B0:E8:7B:AD:82:0C:29:0D:D9:B0:36:16:DE:24:0A:A6:DB"
-	vecN         = "0000000000000000000000000000000000000000000000000000000000000001"
-	vecSig       = "jXq2DxskrRUJ2/lPhsID2biFys0vK47f+Z9XNWopW2mdfxatIsNm8/UtQV6feHlf/U42r5ERviRotv6W8GE0GQ=="
-)
+// Shared vectors (docs/protocol.md), testdata/vectors.json, which the TS tests read too:
+// sig is WebCrypto's, so this catches the P1363-vs-ASN.1 signature mismatch; proof is
+// Prove's with the same key as the gateway's identity key, over the same session.
+var vec = func() (v struct {
+	Pkcs8, Spki, KeyFp, GatewayFp, BrowserFp, N, Sig, Proof, CodeNA, CodeNB, Code string
+}) {
+	b, err := os.ReadFile("testdata/vectors.json")
+	if err == nil {
+		err = json.Unmarshal(b, &v)
+	}
+	if err != nil {
+		panic(err)
+	}
+	return v
+}()
 
 func b64(s string) []byte { b, _ := base64.StdEncoding.DecodeString(s); return b }
 
 func TestVerifyAuthVector(t *testing.T) {
-	fp, err := VerifyAuth(b64(vecSpki), b64(vecSig), vecGatewayFp, vecBrowser, vecN)
-	if err != nil || fp != vecKeyFp {
+	fp, err := VerifyAuth(b64(vec.Spki), b64(vec.Sig), vec.GatewayFp, vec.BrowserFp, vec.N)
+	if err != nil || fp != vec.KeyFp {
 		t.Fatalf("VerifyAuth = %q, %v", fp, err)
 	}
 	// Bound to this session: another browser DTLS fp (a MITM's) must fail.
-	if _, err := VerifyAuth(b64(vecSpki), b64(vecSig), vecGatewayFp, vecGatewayFp, vecN); err == nil {
+	if _, err := VerifyAuth(b64(vec.Spki), b64(vec.Sig), vec.GatewayFp, vec.GatewayFp, vec.N); err == nil {
 		t.Fatal("signature verified for a different session")
 	}
 }
@@ -43,20 +52,20 @@ func TestVerifyAuthRefusesOtherKeys(t *testing.T) {
 	p384, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	ed, _, _ := ed25519.GenerateKey(rand.Reader)
 	der := func(k any) []byte { b, _ := x509.MarshalPKIXPublicKey(k); return b }
-	sig := b64(vecSig)
+	sig := b64(vec.Sig)
 	for name, c := range map[string]struct{ spki, sig []byte }{
 		"P-384 key":       {der(&p384.PublicKey), sig},
 		"Ed25519 key":     {der(ed), sig},
-		"short signature": {b64(vecSpki), sig[:63]},
-		"long signature":  {b64(vecSpki), append(sig[:64:64], 0)},
-		"no signature":    {b64(vecSpki), nil},
+		"short signature": {b64(vec.Spki), sig[:63]},
+		"long signature":  {b64(vec.Spki), append(sig[:64:64], 0)},
+		"no signature":    {b64(vec.Spki), nil},
 	} {
 		if _, err := VerifyAuth(
 			c.spki,
 			c.sig,
-			vecGatewayFp,
-			vecBrowser,
-			vecN,
+			vec.GatewayFp,
+			vec.BrowserFp,
+			vec.N,
 		); err == nil ||
 			!strings.Contains(err.Error(), "P-256") {
 			t.Errorf("%s: err = %v, want refused before the signature check", name, err)
@@ -64,9 +73,39 @@ func TestVerifyAuthRefusesOtherKeys(t *testing.T) {
 	}
 }
 
+// verifyProof is the browser's check of the challenge (crypto.ts verifyProof).
+func verifyProof(spki, sig []byte, gatewayDtlsFp, browserDtlsFp, n string) bool {
+	pub, err := x509.ParsePKIXPublicKey(spki)
+	k, ok := pub.(*ecdsa.PublicKey)
+	if err != nil || !ok || len(sig) != 64 {
+		return false
+	}
+	h := sha256.Sum256(GatewayMessage(gatewayDtlsFp, browserDtlsFp, n))
+	return ecdsa.Verify(k, h[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:]))
+}
+
+func TestProve(t *testing.T) {
+	if !verifyProof(b64(vec.Spki), b64(vec.Proof), vec.GatewayFp, vec.BrowserFp, vec.N) {
+		t.Fatal("proof vector doesn't verify")
+	}
+	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	spki, sig, err := Prove(k, vec.GatewayFp, vec.BrowserFp, vec.N)
+	if err != nil || !verifyProof(spki, sig, vec.GatewayFp, vec.BrowserFp, vec.N) {
+		t.Fatalf("fresh proof doesn't verify: %v", err)
+	}
+	// Bound to this tunnel: a MITM's DTLS fp on either side, or the client's message, fails.
+	if verifyProof(spki, sig, vec.GatewayFp, vec.GatewayFp, vec.N) ||
+		verifyProof(spki, sig, vec.BrowserFp, vec.BrowserFp, vec.N) {
+		t.Fatal("proof verified for a different tunnel")
+	}
+	if verifyProof(b64(vec.Spki), b64(vec.Sig), vec.GatewayFp, vec.BrowserFp, vec.N) {
+		t.Fatal("the client's auth signature passes as the gateway's proof")
+	}
+}
+
 func TestCodeVector(t *testing.T) {
-	if c := Code(vecGatewayFp, vecKeyFp, strings.Repeat("11", 32), strings.Repeat("22", 32)); c != "138781" {
-		t.Fatalf("code = %s, want 138781", c)
+	if c := Code(vec.GatewayFp, vec.KeyFp, vec.CodeNA, vec.CodeNB); c != vec.Code {
+		t.Fatalf("code = %s, want %s", c, vec.Code)
 	}
 }
 

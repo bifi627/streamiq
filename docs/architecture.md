@@ -90,8 +90,10 @@ is not a status log: open work lives in `gh issue list`, history in git.
   `/api/gateways/ws` heartbeat carries the gateway version (shown in the Gateways list).
   A dropped socket reconnects forever with backoff (1 s doubling to 30 s, reset after a
   healthy 30 s); each handshake times out after 20 s, so an unanswered upgrade retries.
-- Persistent, non-expiring gateway DTLS cert in the state dir (`gateway reset-identity`
-  replaces it).
+- Gateway identity key in the state dir (`identity.pem`; `gateway reset-identity`
+  replaces it); browsers pin it, and the gateway proves it in the `auth` channel's
+  challenge. Each tunnel gets a fresh DTLS certificate (Pion's default), so tunnels
+  aren't linkable by their certificate (#427).
 - Pairing: browser WebCrypto client key, commit/reveal comparison code approved on the
   local gateway page, allowlist on the gateway, pins enforced in both directions.
 - Revocation: `DELETE /api/gateways/{id}` nulls the credential hash, keeps the row,

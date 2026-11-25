@@ -120,7 +120,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	st, err := onboarding.LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	st, err := onboarding.LoadOrEnroll(context.Background(), dir, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

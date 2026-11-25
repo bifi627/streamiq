@@ -10,7 +10,8 @@ import {
   type State,
 } from './handshake.ts'
 
-const FP = 'sha-256 AB:CD' // the normalized form of the SDP line below
+const FP = 'sha-256 AB:CD' // the normalized form of the SDP line below: the tunnel's DTLS cert
+const KEY = 'sha-256 4B:45:59' // the gateway's identity key: the pin
 const sdp = { type: 'answer', sdp: `v=0\r\na=fingerprint:sha-256 ab:cd\r\n` }
 const TURN = [{ urls: 'turn:relay.example:3478' }]
 const STUN = [{ urls: 'stun:stun.example:3478' }]
@@ -18,7 +19,7 @@ const STUN = [{ urls: 'stun:stun.example:3478' }]
 const init = (over: Partial<Init> = {}): State =>
   start({
     gatewayId: 'g1',
-    pin: FP,
+    pin: KEY,
     pairing: false,
     forceRelay: false,
     relayTls: false,
@@ -48,6 +49,13 @@ const failure = (fx: Effect[]) => {
   return f && f.do === 'fail' ? f.error : undefined
 }
 
+const challenge = gateway({ type: 'challenge', n: 'n1', spki: 'S', sig: 'G' })
+const proof = (keyFp = KEY): Event => ({
+  on: 'proof',
+  n: 'n1',
+  keyFp,
+})
+
 const answered = (over: Partial<Init> = {}) =>
   run(
     init(over),
@@ -56,13 +64,18 @@ const answered = (over: Partial<Init> = {}) =>
     broker({ type: 'answer', tunnel: 't1', sdp }),
   ).s
 
+/** Answered, and the challenge's proof checked out as KEY. */
+const proven = (over: Partial<Init> = {}) =>
+  run(answered(over), challenge, proof()).s
+
 test('the happy path: auth, offer, answer, challenge, ok → resolve', () => {
   const { s, fx } = run(
     init(),
     { on: 'open' },
     broker({ type: 'ready', iceServers: TURN }),
     broker({ type: 'answer', tunnel: 't1', sdp }),
-    gateway({ type: 'challenge', n: 'n1' }),
+    challenge,
+    proof(),
     gateway({ type: 'ok' }),
   )
   assert.deepEqual(kinds(fx), [
@@ -70,10 +83,19 @@ test('the happy path: auth, offer, answer, challenge, ok → resolve', () => {
     'relayLine',
     'offer',
     'answer',
-    'challenge',
+    'verify',
+    'sign',
     'resolve',
   ])
-  assert.deepEqual(fx[4], { do: 'challenge', n: 'n1', fp: FP, pair: false })
+  assert.deepEqual(fx[4], {
+    do: 'verify',
+    n: 'n1',
+    spki: 'S',
+    sig: 'G',
+    dtlsFp: FP,
+  })
+  assert.deepEqual(fx[5], { do: 'sign', n: 'n1', dtlsFp: FP, pair: false })
+  assert.equal(s.gatewayFp, KEY)
   assert.equal(s.phase, 'up')
 })
 
@@ -102,7 +124,7 @@ test('an ICE candidate before the answer waits for it', () => {
 
 test('a brief connection failed that recovers does not fail', () => {
   const r = run(
-    answered(),
+    proven(),
     { on: 'connection', state: 'connecting' },
     { on: 'connection', state: 'failed' },
     { on: 'connection', state: 'failed' }, // a repeat doesn't rearm
@@ -119,7 +141,7 @@ test('a brief connection failed that recovers does not fail', () => {
 
 test('a connection failed that lasts the grace period fails', () => {
   const r = run(
-    answered(),
+    proven(),
     { on: 'connection', state: 'failed' },
     { on: 'graceOver' },
   )
@@ -128,9 +150,8 @@ test('a connection failed that lasts the grace period fails', () => {
 
 test('a connection failed after connected fails at once (a lost tunnel)', () => {
   const r = run(
-    answered(),
+    proven(),
     { on: 'connection', state: 'connected' },
-    gateway({ type: 'challenge', n: 'n1' }),
     gateway({ type: 'ok' }),
     { on: 'connection', state: 'failed' },
   )
@@ -140,12 +161,11 @@ test('a connection failed after connected fails at once (a lost tunnel)', () => 
 test('the broker socket closing', async (t) => {
   await t.test('during pairing: broker-lost', () => {
     const r = run(
-      answered({ pin: undefined, pairing: true }),
-      gateway({ type: 'challenge', n: 'n1' }),
+      proven({ pin: undefined, pairing: true }),
       gateway({ type: 'unpaired' }),
       { on: 'close', reason: '' },
     )
-    assert.deepEqual(kinds(r.fx), ['challenge', 'commit', 'fail'])
+    assert.deepEqual(kinds(r.fx), ['commit', 'fail'])
     assert.equal(failure(r.fx)?.kind, 'broker-lost')
   })
   await t.test('before it opened: broker-unreachable', () => {
@@ -153,31 +173,63 @@ test('the broker socket closing', async (t) => {
     assert.equal(failure(r.fx)?.kind, 'broker-unreachable')
   })
   await t.test('because the gateway went: gateway-offline', () => {
-    const r = run(answered(), { on: 'close', reason: 'gateway gone' })
+    const r = run(proven(), { on: 'close', reason: 'gateway gone' })
     assert.equal(failure(r.fx)?.kind, 'gateway-offline')
   })
 })
 
-test('ok for an unpinned certificate is refused', () => {
-  const s = answered({ pin: undefined, pairing: true })
+test('ok for an unpinned identity is refused', () => {
   const r = run(
-    s,
-    gateway({ type: 'challenge', n: 'n1' }),
+    answered({ pin: undefined, pairing: true }),
+    challenge,
+    proof(),
     gateway({ type: 'ok' }),
   )
-  assert.equal(r.fx[0].do === 'challenge' && r.fx[0].pair, true)
+  assert.deepEqual(r.fx[1], { do: 'sign', n: 'n1', dtlsFp: FP, pair: true })
   assert.equal(failure(r.fx)?.kind, 'pin-mismatch')
 })
 
-test('a changed certificate outside pairing is refused before the answer is set', () => {
-  const r = run(init({ pin: 'ff:ff' }), broker({ type: 'answer', sdp }))
-  assert.deepEqual(kinds(r.fx), ['fail'])
-  assert.equal(failure(r.fx)?.kind, 'pin-mismatch')
+test('the identity proof: our key goes out only for a verified, pinned (or pairing) key', async (t) => {
+  await t.test('a changed key outside pairing is refused', () => {
+    const r = run(answered(), challenge, proof('sha-256 FF'))
+    assert.deepEqual(kinds(r.fx), ['verify', 'fail'])
+    assert.equal(failure(r.fx)?.kind, 'pin-mismatch')
+  })
+  await t.test(
+    'a proof that does not verify is refused, even when pairing',
+    () => {
+      const r = run(answered({ pairing: true }), challenge, {
+        on: 'proof',
+        n: 'n1',
+        keyFp: undefined, // proof()'s default would fill in KEY
+      })
+      assert.deepEqual(kinds(r.fx), ['verify', 'fail'])
+      assert.equal(failure(r.fx)?.kind, 'pin-mismatch')
+    },
+  )
+  await t.test('pairing again with a changed key: the code must vouch', () => {
+    const r = run(answered({ pairing: true }), challenge, proof('sha-256 FF'))
+    assert.deepEqual(r.fx[1], { do: 'sign', n: 'n1', dtlsFp: FP, pair: true })
+    assert.equal(r.s.gatewayFp, 'sha-256 FF')
+  })
+  await t.test(
+    'an old certificate pin is just a changed key: pair again',
+    () => {
+      const r = run(answered({ pin: FP, pairing: true }), challenge, proof())
+      assert.deepEqual(r.fx[1], { do: 'sign', n: 'n1', dtlsFp: FP, pair: true })
+    },
+  )
+  await t.test('an answer without one fingerprint is refused', () => {
+    const bad = { type: 'answer', sdp: 'v=0\r\n' }
+    const r = run(init(), broker({ type: 'answer', sdp: bad }))
+    assert.deepEqual(kinds(r.fx), ['fail'])
+    assert.equal(failure(r.fx)?.kind, 'pin-mismatch')
+  })
 })
 
 test('rejected', () => {
   const r = run(
-    answered({ pairing: true }),
+    proven({ pairing: true }),
     gateway({ type: 'rejected', reason: 'denied on the gateway' }),
   )
   assert.equal(failure(r.fx)?.kind, 'gateway-refused')
@@ -187,14 +239,14 @@ test('rejected', () => {
     'this user is already pairing a browser',
   ]) {
     const full = run(
-      answered({ pairing: true }),
+      proven({ pairing: true }),
       gateway({ type: 'rejected', reason }),
     )
     assert.equal(failure(full.fx)?.kind, 'gateway-busy', reason)
   }
   // By equality: a reworded reason is a refusal, not busy.
   const reworded = run(
-    answered({ pairing: true }),
+    proven({ pairing: true }),
     gateway({ type: 'rejected', reason: 'too many pending pairing requests!' }),
   )
   assert.equal(failure(reworded.fx)?.kind, 'gateway-refused')
@@ -202,21 +254,21 @@ test('rejected', () => {
 
 test('pairing: commit, reveal, approved → pin and resolve', () => {
   const r = run(
-    answered({ pin: undefined, pairing: true }),
+    proven({ pin: undefined, pairing: true }),
     gateway({ type: 'unpaired' }),
     gateway({ type: 'nonce', n: 'gn' }),
     gateway({ type: 'approved' }),
   )
   assert.deepEqual(r.fx, [
     { do: 'commit' },
-    { do: 'reveal', n: 'gn', fp: FP },
-    { do: 'approved', fp: FP },
+    { do: 'reveal', n: 'gn', fp: KEY },
+    { do: 'approved', fp: KEY },
   ])
   assert.equal(r.s.phase, 'up')
 })
 
 test('unpaired without pairing: not-paired', () => {
-  const r = run(answered(), gateway({ type: 'unpaired' }))
+  const r = run(proven(), gateway({ type: 'unpaired' }))
   assert.equal(failure(r.fx)?.kind, 'not-paired')
 })
 
@@ -227,11 +279,11 @@ test('a challenge without a nonce is refused', () => {
 
 test('the data channel closing', async (t) => {
   await t.test('after resolve: no reject', () => {
-    const r = run(answered(), gateway({ type: 'ok' }), { on: 'channelClose' })
+    const r = run(proven(), gateway({ type: 'ok' }), { on: 'channelClose' })
     assert.deepEqual(kinds(r.fx), ['resolve'])
   })
   await t.test('before resolve: gateway-refused', () => {
-    const r = run(answered(), { on: 'channelClose' })
+    const r = run(proven(), { on: 'channelClose' })
     assert.equal(failure(r.fx)?.kind, 'gateway-refused')
   })
 })
@@ -277,7 +329,7 @@ test('forced relay', async (t) => {
 
 test('after a failure every event is ignored', () => {
   const r = run(
-    answered(),
+    proven(),
     { on: 'channelClose' },
     { on: 'close', reason: '' },
     gateway({ type: 'ok' }),
@@ -299,7 +351,7 @@ test('a broker error and broken JSON fail', () => {
 
 test('pairing messages out of order are refused', async (t) => {
   const refused = (over: Partial<Init>, ...events: Event[]) => {
-    const r = run(answered(over), ...events)
+    const r = run(proven(over), ...events)
     assert.equal(failure(r.fx)?.kind, 'gateway-refused')
     assert.equal(failure(r.fx)?.message.endsWith('out of order'), true)
     assert.equal(kinds(r.fx).includes('approved'), false)
@@ -307,11 +359,7 @@ test('pairing messages out of order are refused', async (t) => {
   }
   const pairing = { pin: undefined, pairing: true }
   await t.test('approved without pairing (no code was compared)', () => {
-    refused(
-      { pin: undefined },
-      gateway({ type: 'challenge', n: 'n1' }),
-      gateway({ type: 'approved' }),
-    )
+    refused({ pin: undefined }, gateway({ type: 'approved' }))
   })
   await t.test('approved before the reveal', () => {
     refused(

@@ -91,8 +91,8 @@ func (s *stack) enrolled(email, name string) *gw {
 	g := &gw{tenant: s.household(email), credential: rand.Text()}
 	g.id = apitest.Scalar[string](
 		s.t,
-		`INSERT INTO gateways (id, tenant_id, name, dtls_fingerprint, credential_hash)
-		VALUES (uuidv7(), $1, $2, 'sha-256 AB', encode(sha256(convert_to($3, 'UTF8')), 'hex')) RETURNING id::text`,
+		`INSERT INTO gateways (id, tenant_id, name, credential_hash)
+		VALUES (uuidv7(), $1, $2, encode(sha256(convert_to($3, 'UTF8')), 'hex')) RETURNING id::text`,
 		g.tenant,
 		name,
 		g.credential,

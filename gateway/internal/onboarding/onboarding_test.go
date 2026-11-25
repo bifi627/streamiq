@@ -29,20 +29,20 @@ func TestEnrollOnceThenReuseState(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Error(err)
 		}
-		if r.URL.Path != "/api/gateways/enroll" || req["token"] != "tok" || req["fingerprint"] != "fp" {
+		if r.URL.Path != "/api/gateways/enroll" || req["token"] != "tok" {
 			http.Error(w, "bad", http.StatusBadRequest)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"gatewayId": "dev-1", "credential": "cred-1"})
 	}))
 	defer srv.Close()
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "state") // not there yet: enrolling creates it
 
-	st, err := LoadOrEnroll(context.Background(), dir, srv.URL, "tok", "fp")
+	st, err := LoadOrEnroll(context.Background(), dir, srv.URL, "tok")
 	if err != nil || st.GatewayID != "dev-1" || st.Credential != "cred-1" {
 		t.Fatalf("enroll = %+v, %v", st, err)
 	}
-	st, err = LoadOrEnroll(context.Background(), dir, srv.URL, "spent-token", "fp")
+	st, err = LoadOrEnroll(context.Background(), dir, srv.URL, "spent-token")
 	if err != nil || st.Credential != "cred-1" {
 		t.Fatalf("reload = %+v, %v", st, err)
 	}
@@ -56,7 +56,7 @@ func TestEnrollRejectedTokenFails(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	if _, err := LoadOrEnroll(context.Background(), t.TempDir(), srv.URL, "used", "fp"); err == nil {
+	if _, err := LoadOrEnroll(context.Background(), t.TempDir(), srv.URL, "used"); err == nil {
 		t.Fatal("want an error for a rejected token")
 	}
 }
@@ -212,7 +212,7 @@ func TestSetNameStoresAndBeatsEarly(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	st, err := LoadOrEnroll(context.Background(), dir, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +331,7 @@ func TestNameAPI(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	st, err := LoadOrEnroll(context.Background(), dir, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +382,7 @@ func TestRelayAPI(t *testing.T) {
 		[]byte(`{"gatewayId":"g1","credential":"cred-1","name":"nas"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	st, err := LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	st, err := LoadOrEnroll(context.Background(), dir, "", "")
 	if err != nil || !st.Relay() {
 		t.Fatal("relay is on by default", err)
 	}
@@ -408,14 +408,14 @@ func TestRelayAPI(t *testing.T) {
 	default:
 		t.Fatal("no early heartbeat")
 	}
-	again, _ := LoadOrEnroll(context.Background(), dir, "", "", "fp")
+	again, _ := LoadOrEnroll(context.Background(), dir, "", "")
 	if again.Relay() || again.CurrentName() != "nas" || again.Credential != "cred-1" {
 		t.Fatalf("stored %+v", again)
 	}
 	if err := SetRelayFile(dir, true); err != nil {
 		t.Fatal(err)
 	}
-	if again, _ = LoadOrEnroll(context.Background(), dir, "", "", "fp"); !again.Relay() {
+	if again, _ = LoadOrEnroll(context.Background(), dir, "", ""); !again.Relay() {
 		t.Fatal("SetRelayFile didn't store it")
 	}
 }

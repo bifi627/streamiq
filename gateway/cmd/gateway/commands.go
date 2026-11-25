@@ -197,8 +197,8 @@ carrier NAT (most cellular) or a strict NAT can't connect. Refuses while the gat
 		},
 		{
 			Use: "reset-identity", GroupID: "gateway", Args: none, ValidArgsFunction: noFiles,
-			Short: "New certificate + empty paired-browser list",
-			Long: `New certificate + empty paired-browser list: every browser pairs again (after a
+			Short: "New identity key + empty paired-browser list",
+			Long: `New identity key + empty paired-browser list: every browser pairs again (after a
 leak; docs/install.md). Refuses while the gateway runs.`,
 			Example: "  gateway reset-identity",
 			RunE:    func(*cobra.Command, []string) error { return resetIdentity() },

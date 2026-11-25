@@ -123,8 +123,9 @@ func runHandshake(t *testing.T, msgs [][]byte, paired, approve bool) ([]string, 
 				sent = append(sent, head.Type)
 				return nil
 			},
-			hangUp: func() error { return nil },
-			peerFp: func() string { return fuzzPeerFp },
+			hangUp:  func() error { return nil },
+			peerFp:  func() string { return fuzzPeerFp },
+			localFp: func() string { return fuzzGatewayFp },
 		}
 		for _, m := range msgs {
 			a.handle(m)

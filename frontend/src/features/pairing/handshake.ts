@@ -8,7 +8,7 @@ import {
   toAppError,
   type Kind,
 } from '../../shared/errors.ts'
-import { answerCheck } from './crypto.ts'
+import { answerCheck, pinCheck } from './crypto.ts'
 import { DIRECT_ONLY, relayServers } from './relay.ts'
 import type { BrokerMessage } from '../../generated/protocol.ts'
 import { RejectedFull, RejectedUserPairing } from '../../generated/pairing.ts'
@@ -33,7 +33,8 @@ export type Init = {
 export type State = Init & {
   phase: 'connecting' | 'up' | 'failed'
   opened: boolean
-  gatewayFp: string
+  dtlsFp: string // the gateway's DTLS certificate on this tunnel, from its answer
+  gatewayFp: string // its identity key, once the challenge proved it (the pin)
   verdict: 'pinned' | 'unpinned' | 'refuse'
   noTurn: string // why there's no relay, once `ready` says so
   answered: boolean
@@ -56,6 +57,8 @@ export type Event =
   | { on: 'connection'; state: RTCPeerConnectionState }
   | { on: 'graceOver' }
   | { on: 'error'; error: unknown }
+  // The challenge's proof checked (verify): the identity key's fp, undefined = it doesn't verify.
+  | { on: 'proof'; n: string; keyFp: string | undefined }
 
 export type Effect =
   | { do: 'auth' } // the token, then the keep-alive
@@ -63,7 +66,8 @@ export type Effect =
   | { do: 'offer'; iceServers: RTCIceServer[] }
   | { do: 'answer'; sdp: RTCSessionDescriptionInit }
   | { do: 'addIce'; candidate: RTCIceCandidateInit }
-  | { do: 'challenge'; n: string; fp: string; pair: boolean }
+  | { do: 'verify'; n: string; spki: string; sig: string; dtlsFp: string }
+  | { do: 'sign'; n: string; dtlsFp: string; pair: boolean }
   | { do: 'commit' }
   | { do: 'reveal'; n: string; fp: string }
   | { do: 'approved'; fp: string } // pin it, then resolve
@@ -80,6 +84,7 @@ export const start = (init: Init): State => ({
   ...init,
   phase: 'connecting',
   opened: false,
+  dtlsFp: '',
   gatewayFp: '',
   verdict: 'refuse',
   noTurn: '',
@@ -122,6 +127,28 @@ function onEvent(s: State, ev: Event): Step {
       return s.grace ? iceFailed(s) : same(s)
     case 'error':
       return failed(s, toAppError(ev.error))
+    case 'proof':
+      return onProof(s, ev.n, ev.keyFp)
+  }
+}
+
+// The gateway proved its identity key over this tunnel; only now may our client
+// key go to it. No matching pin (new browser, or the gateway's key changed): ask
+// for the code comparison even if the gateway knows our key — "ok" alone can't
+// vouch for a key we haven't verified.
+function onProof(s: State, n: string, keyFp: string | undefined): Step {
+  if (!keyFp)
+    return fail(s, 'pin-mismatch', "gateway's identity proof doesn't verify")
+  const verdict = pinCheck(s.pin, keyFp, s.pairing)
+  if (verdict === 'refuse')
+    return fail(
+      s,
+      'pin-mismatch',
+      `gateway identity changed: pinned ${s.pin}, got ${keyFp}`,
+    )
+  return {
+    state: { ...s, gatewayFp: keyFp, verdict },
+    fx: [{ do: 'sign', n, dtlsFp: s.dtlsFp, pair: verdict !== 'pinned' }],
   }
 }
 
@@ -147,13 +174,11 @@ function onBroker(s: State, m: BrokerMessage): Step {
       return { state: next, fx: [line, { do: 'offer', iceServers }] }
     }
     case 'answer': {
-      // Before a single byte goes to the gateway (pairing again is allowed).
-      const a = answerCheck(m.sdp.sdp ?? '', s.pin, s.pairing)
+      const a = answerCheck(m.sdp.sdp ?? '')
       if ('refused' in a) return fail(s, 'pin-mismatch', a.refused)
       const state = {
         ...s,
-        gatewayFp: a.fp,
-        verdict: a.verdict,
+        dtlsFp: a.fp,
         answered: true,
         early: [],
       }
@@ -179,14 +204,12 @@ function onBroker(s: State, m: BrokerMessage): Step {
 function onGateway(s: State, m: GatewayAuthMessage): Step {
   switch (m.type) {
     case 'challenge':
-      // No matching pin (new browser, or the gateway's cert changed): ask for
-      // the code comparison even if the gateway knows our key — "ok" alone
-      // can't vouch for a certificate we haven't verified.
       return withNonce(s, m, (n) => ({
-        do: 'challenge',
+        do: 'verify',
         n,
-        fp: s.gatewayFp,
-        pair: s.verdict !== 'pinned',
+        spki: m.spki,
+        sig: m.sig,
+        dtlsFp: s.dtlsFp,
       }))
     case 'ok':
       return s.verdict === 'pinned'
@@ -194,7 +217,7 @@ function onGateway(s: State, m: GatewayAuthMessage): Step {
         : fail(
             s,
             'pin-mismatch',
-            'gateway skipped pairing for an unpinned certificate',
+            'gateway skipped pairing for an unpinned identity',
           )
     case 'unpaired':
       if (!s.pairing)

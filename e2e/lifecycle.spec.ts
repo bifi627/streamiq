@@ -1,7 +1,7 @@
 // A paired gateway's lifecycle (fixtures.ts `paired`): restart, backup → restore,
-// a new certificate, Remove on the local gateway page, an evicted client key and
-// Remove in the web app (revoke), each on its own paired gateway; the gateways
-// page itself is gateways.spec.ts.
+// a new identity key, an old certificate pin, Remove on the local gateway page,
+// an evicted client key and Remove in the web app (revoke), each on its own
+// paired gateway; the gateways page itself is gateways.spec.ts.
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -78,18 +78,51 @@ test('backup → wiped state → restore: same gateway, no new pairing (#52) @ga
   await open(a)
 })
 
-test('new gateway certificate → red warning → re-pair @gateways', async ({
+test('new gateway identity key → red warning → re-pair @gateways', async ({
   paired,
 }) => {
   const { page: a, gateway, gatewayCtx } = paired
   await gateway.stop()
-  fs.rmSync(path.join(gateway.stateDir, 'cert.pem'))
+  fs.rmSync(path.join(gateway.stateDir, 'identity.pem'))
   await restartGateway(gateway)
   await a.getByRole('button', { name: 'Test' }).click()
   await expect(
     a.locator('[role=alert][data-kind="pin-mismatch"]'),
   ).toContainText('Refused: this is not the gateway you paired with.')
   await pair(a, gatewayCtx, gateway.pageUrl)
+})
+
+test('an old DTLS certificate pin: pair again once, then no code @gateways', async ({
+  paired,
+}) => {
+  const { page: a, user, gateway, gatewayCtx } = paired
+  const [{ id }] = await user.api<{ id: string }[]>('/gateways')
+  const certPin = 'sha-256 ' + Array(32).fill('AB').join(':')
+  await a.evaluate(
+    ([key, pin]) =>
+      new Promise<void>((resolve, reject) => {
+        const r = indexedDB.open('streamiq', 1)
+        r.onsuccess = () => {
+          const tx = r.result.transaction('kv', 'readwrite')
+          tx.objectStore('kv').put(pin, key)
+          tx.oncomplete = () => resolve()
+          tx.onerror = () => reject(tx.error)
+        }
+      }),
+    [`pin:${id}`, certPin],
+  )
+  await a.reload()
+  await a.getByRole('button', { name: 'Test' }).click()
+  await expect(
+    a.locator('[role=alert][data-kind="pin-mismatch"]'),
+  ).toBeVisible()
+  await pair(a, gatewayCtx, gateway.pageUrl)
+  await a.reload() // a fresh tunnel: the new pin holds, no code
+  await a.getByRole('button', { name: 'Test' }).click()
+  await expect(
+    a.getByRole('main').getByRole('button', { name: 'On your network' }),
+  ).toBeVisible({ timeout: 30_000 })
+  await expect(a.locator('[role=alert]')).toHaveCount(0)
 })
 
 test("Remove on the local gateway page: the open session dies, then it's refused @gateways", async ({

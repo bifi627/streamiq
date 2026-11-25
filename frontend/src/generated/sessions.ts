@@ -8,11 +8,15 @@ export type ClientAuthMessage = Auth | Commit | Reveal
 // source: messages.go
 
 /**
- * Challenge opens the channel: N is the nonce the client signs.
+ * Challenge opens the channel: N is the nonce the client signs; Spki is the
+ * gateway's identity key (the pin) and Sig its proof over this tunnel
+ * (pairing.GatewayMessage), checked by the client before it sends anything.
  */
 export interface Challenge {
   type: 'challenge';
   n: string;
+  spki: string; // base64
+  sig: string; // base64
 }
 /**
  * OK: the client key is paired, the tunnel is up.

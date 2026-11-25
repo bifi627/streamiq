@@ -30,7 +30,7 @@ import (
 
 const newVersion = "999.0.0" // this commit's build, as the served release
 
-// The state an installed gateway has today. cert.pem is written by the old
+// The state an installed gateway has today. Its identity is written by the old
 // release itself (reset-identity); these are the files it writes once enrolled,
 // paired and set up, in its format (onboarding, pairing, jellyfin): fixtures,
 // since only the API, a paired browser and a Jellyfin make it write them. They
@@ -79,7 +79,12 @@ func updateAndRollBack(t *testing.T, install string) {
 			t.Fatal(err)
 		}
 	}
-	_, fp, _ := identity.LoadOrCreate(state)
+	// The identity a paired browser pins: it must survive the update. A release
+	// from before identity.pem (only cert.pem) has none to keep.
+	var fp string
+	if _, err := os.Stat(filepath.Join(state, identity.File)); err == nil {
+		_, fp, _ = identity.LoadOrCreate(state)
+	}
 	before := files(t, state)
 
 	// The old binary runs the update, if it can be pointed at our release (the
@@ -127,8 +132,9 @@ func updateAndRollBack(t *testing.T, install string) {
 
 	// The new build reads the old state: a format change without a migration
 	// fails here. A deliberate break (feat!) changes this expectation, in its PR.
+	// cert.pem only: the new build makes its identity key (old pins can't carry over).
 	_, got, err := identity.LoadOrCreate(state)
-	if err != nil || got != fp {
+	if err != nil || (fp != "" && got != fp) {
 		t.Fatalf("identity after the update: %q, %v; want %q (the old one)", got, err, fp)
 	}
 	ps, err := pairing.Open(state)
@@ -143,7 +149,6 @@ func updateAndRollBack(t *testing.T, install string) {
 		state,
 		"",
 		"",
-		fp,
 	); err != nil ||
 		st.GatewayID != "7d1c1f0e-4b7a-4c55-9a43-2f1a8e1f3b10" {
 		t.Fatalf("gateway.json after the update: %+v, %v; want the old gateway id", st, err)

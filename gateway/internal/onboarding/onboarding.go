@@ -39,7 +39,7 @@ var dialContext = func(ctx context.Context) (context.Context, context.CancelFunc
 
 // Protocol is the gateway ↔ API protocol version (docs/protocol.md). Bump it on a
 // breaking change; the API refuses a gateway below its minimum ("upgrade required").
-const Protocol = 2
+const Protocol = 3
 
 // ErrUpgradeRequired: the API no longer speaks this gateway's protocol.
 var ErrUpgradeRequired = errors.New("the StreamIQ service no longer supports this gateway version: " +
@@ -135,7 +135,7 @@ func writeAtomic(path, id, credential, name string, relayOff bool) error {
 // LoadOrEnroll returns the stored credential, or spends the enrollment token to
 // get one. An existing credential wins: a token left in shell history or
 // `docker inspect` is already used and harmless.
-func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, error) {
+func LoadOrEnroll(ctx context.Context, dir, api, token string) (*State, error) {
 	path := filepath.Join(dir, "gateway.json")
 	if b, err := os.ReadFile(path); err == nil {
 		st := State{path: path, beat: make(chan struct{}, 1)}
@@ -151,7 +151,11 @@ func LoadOrEnroll(ctx context.Context, dir, api, token, fp string) (*State, erro
 	if name == "" {
 		name, _ = os.Hostname()
 	}
-	body, _ := json.Marshal(map[string]string{"token": token, "fingerprint": fp, "name": name})
+	// Before the token is spent: a credential that can't be saved is lost for good.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	body, _ := json.Marshal(map[string]string{"token": token, "name": name})
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, api+"/api/gateways/enroll", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)

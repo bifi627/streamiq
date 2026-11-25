@@ -26,8 +26,14 @@ var skip = []string{"page-token", "page-link"}
 // backup carries, as entries "history/<name>".
 const historyDir = "history"
 
-// required: without these a restore brings back nothing worth having.
-var required = []string{"cert.pem", "gateway.json"}
+// required: without it a restore brings back nothing worth having. The identity
+// key isn't: without it browsers pair again, and backups from older releases hold
+// cert.pem instead.
+var required = []string{"gateway.json"}
+
+// identityFiles make a dir a gateway that only --force replaces: required plus
+// the identity key (or the older releases' certificate).
+var identityFiles = append([]string{"identity.pem", "cert.pem"}, required...)
 
 // ComposeEntry is the compose file's name in the zip. State entries are flat (or
 // in historyDir), so the prefix keeps it from ever being taken for (or written as) a state file.
@@ -292,11 +298,11 @@ func checkEntries(path string, zf []*zip.File) error {
 	return nil
 }
 
-// checkNoIdentity refuses a dir that already holds a required file: restoring
+// checkNoIdentity refuses a dir that already holds an identity file: restoring
 // there replaces a gateway, which takes --force (Restore skips this check).
 func checkNoIdentity(dir string) error {
 	var there []string
-	for _, r := range required {
+	for _, r := range identityFiles {
 		if _, err := os.Stat(filepath.Join(dir, r)); err == nil {
 			there = append(there, r)
 		}

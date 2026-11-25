@@ -10,6 +10,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"log"
@@ -25,7 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pion/webrtc/v4"
 	"github.com/spf13/cobra"
 
 	"streamiq/gateway/internal/backup"
@@ -81,12 +81,8 @@ func serviceInstall(ctx context.Context, exe string) error {
 	if !service.Supported() {
 		return service.ErrUnsupported
 	}
-	_, fp, err := identity.LoadOrCreate(stateDir())
-	if err != nil {
-		return err
-	}
 	api := strings.TrimRight(os.Getenv("STREAMIQ_API_URL"), "/")
-	st, err := onboarding.LoadOrEnroll(ctx, stateDir(), api, os.Getenv("STREAMIQ_ENROLL_TOKEN"), fp)
+	st, err := onboarding.LoadOrEnroll(ctx, stateDir(), api, os.Getenv("STREAMIQ_ENROLL_TOKEN"))
 	if err != nil {
 		return err
 	}
@@ -133,7 +129,7 @@ func setRelay(on bool) error {
 	return nil
 }
 
-// resetIdentity replaces the DTLS cert and clears the allowlist.
+// resetIdentity replaces the identity key and clears the allowlist.
 func resetIdentity() error {
 	if err := notRunning(); err != nil {
 		return err
@@ -329,11 +325,11 @@ func histories(stateDir, gatewayID string) (*history.Health, *history.Tunnels) {
 // run is the gateway daemon; compose is jellyfin-compose.yml next to the binary.
 func run(ctx context.Context, compose string) {
 	stateDir := stateDir()
-	cert, fp, err := identity.LoadOrCreate(stateDir)
+	key, fp, err := identity.LoadOrCreate(stateDir)
 	if err != nil {
-		log.Fatalf("gateway: certificate: %v", err)
+		log.Fatalf("gateway: identity key: %v", err)
 	}
-	log.Printf("gateway: %s, state %s, DTLS fingerprint %s", version, stateDir, fp)
+	log.Printf("gateway: %s, state %s, identity %s", version, stateDir, fp)
 
 	// No Client.Timeout: it caps the whole body read, which would abort a long
 	// stream mid-movie. ponytail: leaks a goroutine on a hung origin; a
@@ -372,17 +368,17 @@ func run(ctx context.Context, compose string) {
 	if api == "" {
 		log.Fatal("gateway: STREAMIQ_API_URL not set (use the install command from the web app)")
 	}
-	enrollAndServe(ctx, stateDir, api, compose, cert, fp, root, setup)
+	enrollAndServe(ctx, stateDir, api, compose, key, fp, root, setup)
 
 	<-ctx.Done()
 }
 
 // enrollAndServe enrolls once (or loads the stored credential), then serves the local page and keeps
 // the control socket up in the background; run waits on ctx.
-func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *webrtc.Certificate, fp string,
+func enrollAndServe(ctx context.Context, stateDir, api, compose string, key *ecdsa.PrivateKey, fp string,
 	root *tunnel.Root, setup *jellyfin.Setup,
 ) {
-	st, err := onboarding.LoadOrEnroll(ctx, stateDir, api, os.Getenv("STREAMIQ_ENROLL_TOKEN"), fp)
+	st, err := onboarding.LoadOrEnroll(ctx, stateDir, api, os.Getenv("STREAMIQ_ENROLL_TOKEN"))
 	if err != nil {
 		log.Fatalf("gateway: %v", err)
 	}
@@ -401,7 +397,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	if err != nil {
 		log.Fatalf("gateway: ICE: %v", err)
 	}
-	sess := &sessions.Sessions{Cert: cert, Fp: fp, Store: store, Root: root, API: webAPI, Relay: st.Relay,
+	sess := &sessions.Sessions{Key: key, Fp: fp, Store: store, Root: root, API: webAPI, Relay: st.Relay,
 		Viewers: func(user string) {
 			viewerCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			defer cancel()

@@ -3,7 +3,7 @@
 // gateway), the title row's Back (Diagnostics), PWA installability, the
 // Settings overview (categories, the Playback page, expandables, D-pad), each
 // per-device setting persisted, and the D-pad on Playback. TV mode: the first visit
-// on a TV (webOS turns it on, Android TV asks), the handoff page (/household: QR
+// on a TV (webOS turns it on, Android TV asks), the handoff page (the household pages: QR
 // code, Back), the Settings + nav TV subsets, the D-pad up to the title row and
 // along the nav, the TV's Household & gateway pickers (gateway list rows faked). What the settings do to playback is the player's spec.
 import type { Browser, Page } from '@playwright/test'

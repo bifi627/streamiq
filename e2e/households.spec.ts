@@ -32,10 +32,11 @@ const tab = (p: Page) =>
   p
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: 'Household', exact: true })
-/** Nav → the overview → the active household's details. */
+/** Nav → the overview → the active household's details, by its ›. */
 async function openDetails(p: Page) {
   await tab(p).click()
-  await active(p).getByRole('link').click()
+  // force: the › lets clicks through to the card's link (pointer-events: none).
+  await active(p).locator('.chevron').click({ force: true })
   await expect(p).toHaveURL(/\/settings\/household$/)
 }
 const row = (p: Page, name: string | RegExp) =>
@@ -416,7 +417,9 @@ test('lost membership: removed while open, next action shows the notice @househo
   const b = await signedInPage(browser, B, '/gateways', A.tenantId)
   await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   await A.api(`/members/${B.userId}`, { method: 'DELETE' })
-  await b.goto(appUrl('/settings/household')) // /members: not a member
+  // In the open app: the overview uses the loaded /me, the details ask /members.
+  await tab(b).click()
+  await active(b).getByRole('link').click() // not a member
   await expect(
     b.getByRole('status').filter({ hasText: 'no longer a member' }),
   ).toContainText(`You're no longer a member of ${label(A)}.`)

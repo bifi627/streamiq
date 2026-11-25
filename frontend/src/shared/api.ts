@@ -11,9 +11,9 @@ export const API =
   (import.meta.env.VITE_API_URL ??
     (import.meta.env.DEV ? 'http://localhost:5028' : location.origin)) + '/api'
 
-// The household (code: tenant) requests act in, per device and user: set by the
-// switcher or when the user joins one, else unset and the API uses the
-// user's oldest. A household the user isn't in (anymore) answers a 404 marked
+// The household (code: tenant) requests act in, per device and user: set by
+// Switch on the households overview or when the user joins one, else unset and
+// the API uses the user's oldest. A household the user isn't in (anymore) answers a 404 marked
 // X-StreamIQ-Not-Member: authed() clears it.
 const householdKey = () => `streamiq.household.${auth.currentUser?.uid}`
 export function household() {

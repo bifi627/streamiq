@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { chromeless, libraryTarget, screenTarget, tabs } from './shell.ts'
+import {
+  chromeless,
+  libraryTarget,
+  screenTarget,
+  TAB_TO,
+  tabs,
+} from './shell.ts'
 
 test('tabs: all five, TV keeps Library + Settings, no household keeps what opens', () => {
   assert.deepEqual(tabs(false, false), [
@@ -13,6 +19,10 @@ test('tabs: all five, TV keeps Library + Settings, no household keeps what opens
   assert.deepEqual(tabs(true, false), ['library', 'settings'])
   assert.deepEqual(tabs(false, true), ['household', 'settings'])
   assert.deepEqual(tabs(true, true), ['settings'])
+})
+
+test('the Household tab opens the households overview (until #876)', () => {
+  assert.equal(TAB_TO.household, '/settings/households')
 })
 
 test('libraryTarget: open, else last if listed, else first online, else first', () => {

@@ -13,7 +13,7 @@ const asMember = (e: unknown) => {
   return x.context.status === 409 ? new AppError('last-admin', x.message) : x
 }
 
-// Members of the current household: anyone sees them and can leave; an
+// Members of the current household (a tile's body): anyone sees them and can leave; an
 // admin removes, promotes and demotes. A change to your own membership reloads
 // the app, so every view picks up the new role (or another household after leaving).
 export function Members() {
@@ -74,8 +74,7 @@ export function Members() {
     act(m, { method: 'PUT', body: JSON.stringify({ role }) }, '/role')
 
   return (
-    <section className="card">
-      <h2>Members</h2>
+    <>
       {err && <ErrorView error={err} />}
       <ul className="rows" ref={list}>
         {members.map((m) => {
@@ -122,6 +121,6 @@ export function Members() {
           Invite someone, remove members, change roles: {ADMIN_ONLY}
         </p>
       )}
-    </section>
+    </>
   )
 }

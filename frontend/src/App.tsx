@@ -6,6 +6,7 @@ import {
   createRouter,
   Link,
   Outlet,
+  redirect,
   RouterProvider,
   useLocation,
   useParams,
@@ -48,6 +49,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { DiagnosticsPage } from './features/diagnostics/DiagnosticsPage'
 import { Join } from './features/households/Invites'
 import { Household, NoHousehold } from './features/households/HouseholdPage'
+import { Households } from './features/households/Households'
 import { HouseholdContext, SetMeContext } from './features/households/household'
 import { SignIn } from './features/signin/SignIn'
 import { Settings } from './features/settings/Settings'
@@ -110,7 +112,7 @@ function Shell() {
     noHousehold: <NoHousehold />,
     handoff: <Handoff url={location.href} home={home} />, // with /join's #<token>
     handoffHousehold: (
-      <Handoff url={location.origin + '/household'} home={home} />
+      <Handoff url={location.origin + '/settings/households'} home={home} />
     ),
   }[shellPage(pathname, tv, homeless)]
   // The title row's parts, filled by the page (PageBar).
@@ -279,8 +281,21 @@ const routeTree = rootRoute.addChildren([
   }),
   createRoute({
     getParentRoute: () => rootRoute,
-    path: 'household',
+    path: 'settings/households',
+    component: Households,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'settings/household',
     component: Household,
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    // The old page's URL (bookmarks, an installed PWA's start page).
+    path: 'household',
+    beforeLoad: () => {
+      throw redirect({ to: '/settings/household', replace: true })
+    },
   }),
   createRoute({
     getParentRoute: () => rootRoute,

@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { arrowFocus } from './shared/focus'
-import type { Tab } from './shell'
+import { TAB_TO, type Tab } from './shell'
 
 // Inline SVG paths (24 × 24, stroked), no icon library.
 const ICON: Record<Tab, string> = {
@@ -18,13 +18,6 @@ const LABEL: Record<Tab, string> = {
   household: 'Household',
   settings: 'Settings',
 }
-const TO = {
-  gateways: '/gateways',
-  activity: '/activity',
-  household: '/household',
-  settings: '/settings',
-} as const
-
 // The main nav: in the top bar (desktop, TV), a bottom tab bar on a phone
 // (index.css). Library is the main one; without a target it stays, disabled.
 export function Nav({
@@ -47,7 +40,7 @@ export function Nav({
         )
         if (t !== 'library')
           return (
-            <Link key={t} to={TO[t]}>
+            <Link key={t} to={TAB_TO[t]}>
               {inner}
             </Link>
           )

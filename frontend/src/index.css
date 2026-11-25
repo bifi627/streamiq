@@ -647,6 +647,9 @@ html.tv .no-tv {
 .dot.required {
   background: var(--danger);
 }
+.dot.role-admin {
+  background: var(--accent);
+}
 .active-chip {
   min-height: var(--target);
   padding: 0 var(--sp-4);

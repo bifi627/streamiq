@@ -81,8 +81,8 @@ test('nav: five tabs, Library disabled without a gateway @shell', async ({
   await expect(p).toHaveURL(/\/gateways$/)
   await expect(h1).toHaveText('Gateways')
   await nav.getByRole('link', { name: 'Household' }).click()
-  await expect(p).toHaveURL(/\/household$/)
-  await expect(h1).toHaveText(/^Household/) // its label (households.spec.ts)
+  await expect(p).toHaveURL(/\/settings\/households$/)
+  await expect(h1).toHaveText('Households')
   await nav.getByRole('link', { name: 'Settings' }).click()
   await expect(p).toHaveURL(/\/settings$/)
   await expect(h1).toHaveText('Settings')
@@ -117,7 +117,7 @@ test('installable as a PWA (manifest + icons) @shell', async ({ browser }) => {
   expect((await cdp.send('Page.getAppManifest')).errors).toEqual([])
 })
 
-test('TV mode: /household hands off, the nav keeps Library + Settings, D-pad to the top bar, Settings keeps Sign out, no alias @shell', async ({
+test('TV mode: the household pages hand off, the nav keeps Library + Settings, D-pad to the top bar, Settings keeps Sign out, no alias @shell', async ({
   browser,
 }) => {
   const p = await signedIn(browser, '/settings')
@@ -130,6 +130,7 @@ test('TV mode: /household hands off, the nav keeps Library + Settings, D-pad to 
   await p.getByLabel('TV mode').check() // applies at once, no reload
   // Account keeps Sign out; the alias is a phone/PC's to change.
   await expect(alias).toBeHidden()
+  await expect(p.getByRole('link', { name: 'Households' })).toBeHidden()
   await expect(p.getByRole('button', { name: 'Sign out' })).toBeVisible()
   await expect(nav.getByRole('link')).toHaveText(['Library', 'Settings'])
 
@@ -149,10 +150,12 @@ test('TV mode: /household hands off, the nav keeps Library + Settings, D-pad to 
   await p.keyboard.press('ArrowDown')
   await expect(p.getByRole('button', { name: 'Back' })).toBeFocused()
 
-  await p.goto(appUrl('/household?x=1'))
+  await p.goto(appUrl('/settings/households'))
+  await expect(h1).toHaveText('Do this on your phone or PC')
+  await p.goto(appUrl('/settings/household?x=1'))
   await expect(h1).toHaveText('Do this on your phone or PC')
   await expect(
-    p.getByText(appUrl('/household?x=1'), { exact: true }),
+    p.getByText(appUrl('/settings/household?x=1'), { exact: true }),
   ).toBeVisible()
   await expect(p.getByRole('button', { name: 'Back' })).toBeFocused()
   const qr = p.getByRole('img', { name: "QR code of this page's address" })

@@ -1,32 +1,33 @@
 import { useContext, useRef, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { signOut } from '@firebase/auth'
 import { auth } from '../../shared/firebase'
-import { createHousehold, renameHousehold } from '../../shared/api'
-import { AppError, describe, toAppError } from '../../shared/errors'
+import { renameHousehold } from '../../shared/api'
+import { describe, toAppError } from '../../shared/errors'
 import { ErrorView } from '../../shared/ErrorView'
 import { arrowFocus } from '../../shared/focus'
 import { STORED } from '../../shared/EditableName'
 import { EditableTitle } from '../../shared/EditableTitle'
 import { Menu } from '../../shared/Menu'
+import { Dialog } from '../../shared/Dialog'
+import { Tile } from '../../shared/Tile'
+import { useBack } from '../../shared/slots'
 import {
   householdLabel,
-  membershipLabel,
   SetMeContext,
-  switchHousehold,
+  useCreate,
   useHousehold,
 } from './household'
 import { Invites } from './Invites'
 import { Members } from './Members'
 import { PageBar } from '../../shared/PageBar'
-import type { Me } from '../../shared/api'
 
-// /household: who's in the current household, and (admin) invites.
-// Its own page, not under the Gateways list: those are what you open daily,
-// this is what you manage now and then.
+// /settings/household: the active household (each page load acts in one):
+// Members and (admin) Invites tiles; Rename and Delete in the title row's ⋮.
 export function Household() {
   const { me, current } = useHousehold()
   const setMe = useContext(SetMeContext)
-  // An admin names the household: shown at once, here and in the switcher.
+  // An admin names the household: shown at once, here and on the overview.
   // null = renamed; else the error to show in the form.
   async function rename(name: string) {
     try {
@@ -49,120 +50,78 @@ export function Household() {
   return (
     <section className="household" onKeyDown={arrowFocus}>
       <Title rename={rename} />
-      {current && (
-        <div className="head">
-          <span className="chip">
-            {current.role === 'admin' ? 'You are an admin' : 'You are a member'}
-          </span>
-          {me && me.memberships.length > 1 && <Switcher me={me} />}
-        </div>
-      )}
-      <Members />
-      {current?.role === 'admin' && <Invites />}
-      {current && <CreateAnother />}
+      <div className="tiles">
+        <Tile title="Members" open>
+          <Members />
+        </Tile>
+        {current?.role === 'admin' && (
+          <Tile title="Invites">
+            <Invites />
+          </Tile>
+        )}
+      </div>
     </section>
   )
 }
 
-// The title row: the name, and for an admin ⋮ → Rename, which turns the
-// title into the rename form.
+// The title row: Back to the overview, the name, and for an admin ⋮ → Rename
+// (turns the title into the rename form) and Delete.
 function Title({
   rename,
 }: {
   rename: (name: string) => Promise<string | null>
 }) {
   const { current } = useHousehold()
+  const navigate = useNavigate()
+  const back = useBack(() =>
+    navigate({ to: '/settings/households', replace: true }),
+  )
   const [renaming, setRenaming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const menu = useRef<HTMLButtonElement>(null)
   const admin = current?.role === 'admin'
   return (
-    <PageBar
-      title={
-        current ? (
-          <EditableTitle
-            title={householdLabel(current)}
-            editing={renaming && admin}
-            name={current.name ?? ''}
-            label="Household name"
-            hint={STORED}
-            rename={rename}
-            onClose={() => {
-              setRenaming(false)
-              menu.current?.focus() // the form had it: keep the D-pad's place
-            }}
-          />
-        ) : (
-          'Household'
-        )
-      }
-      actions={
-        admin && (
-          <Menu
-            label="Household actions"
-            actions={[{ label: 'Rename', run: () => setRenaming(true) }]}
-            button={menu}
-          />
-        )
-      }
-    />
-  )
-}
-
-// Switching reloads into the picked household (household.ts).
-function Switcher({ me }: { me: Me }) {
-  return (
-    <select
-      aria-label="Switch household"
-      value={me.tenantId ?? ''}
-      onChange={(e) => switchHousehold(e.target.value)}
-    >
-      {me.memberships.map((m) => (
-        <option key={m.id} value={m.id}>
-          {membershipLabel(m)}
-        </option>
-      ))}
-    </select>
-  )
-}
-
-// Makes a household with the user as its admin and reloads into it.
-function useCreate() {
-  const [err, setErr] = useState<AppError | null>(null)
-  const [busy, setBusy] = useState(false)
-  async function create() {
-    setBusy(true)
-    setErr(null)
-    try {
-      switchHousehold((await createHousehold()).householdId)
-    } catch (e) {
-      setErr(toAppError(e))
-      setBusy(false)
-    }
-  }
-  return { err, busy, create }
-}
-
-// A member of someone else's household makes one of their own, e.g. for their
-// own gateway. Asked first: one stray OK on a TV would make a household.
-function CreateAnother() {
-  const { err, busy, create } = useCreate()
-  return (
-    <div>
-      {err && <ErrorView error={err} />}
-      <div className="actions">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() =>
-            confirm(
-              'Create a new household? You become its admin and switch to it.',
-            ) && create()
-          }
-        >
-          Create another household
-        </button>
-      </div>
-    </div>
+    <>
+      <PageBar
+        onBack={back}
+        title={
+          current ? (
+            <EditableTitle
+              title={householdLabel(current)}
+              editing={renaming && admin}
+              name={current.name ?? ''}
+              label="Household name"
+              hint={STORED}
+              rename={rename}
+              onClose={() => {
+                setRenaming(false)
+                menu.current?.focus() // the form had it: keep the D-pad's place
+              }}
+            />
+          ) : (
+            'Household'
+          )
+        }
+        actions={
+          admin && (
+            <Menu
+              label="Household actions"
+              actions={[
+                { label: 'Rename', run: () => setRenaming(true) },
+                { label: 'Delete', run: () => setDeleting(true) },
+              ]}
+              button={menu}
+            />
+          )
+        }
+      />
+      {/* ponytail: no delete API yet (#877) */}
+      {deleting && (
+        <Dialog title="Delete household" onClose={() => setDeleting(false)}>
+          <p>Deleting a household isn't available yet.</p>
+        </Dialog>
+      )}
+    </>
   )
 }
 

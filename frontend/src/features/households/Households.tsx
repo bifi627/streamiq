@@ -8,7 +8,7 @@ import { activeFirst } from '../gateways/list'
 import { roleView } from './memberNames'
 import {
   householdLabel,
-  switchHousehold,
+  switchHere,
   useCreate,
   useHousehold,
 } from './household'
@@ -81,7 +81,7 @@ function Card({ m, active }: { m: Household; active: boolean }) {
             <Chevron />
           </>
         ) : (
-          <button type="button" onClick={() => switchHousehold(m.id)}>
+          <button type="button" onClick={() => switchHere(m.id)}>
             Switch
           </button>
         )}

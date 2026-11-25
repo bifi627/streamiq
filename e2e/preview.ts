@@ -188,7 +188,7 @@ async function up() {
     fs.mkdirSync(dir, { recursive: true })
     ensureCert()
     const port =
-      Number(opt('--port') ?? process.env.STREAMIQ_PREVIEW_PORT) || 44444 // one per machine, typed on a TV remote's d-pad
+      Number(opt('--port') ?? process.env.STREAMIQ_PREVIEW_PORT) || 41111 // one per machine, typed on a TV remote's d-pad
     if (await listening(port))
       throw new Error(
         `port ${port} is taken (another worktree's preview? stop it, or --port N)`,

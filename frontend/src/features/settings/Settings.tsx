@@ -17,7 +17,7 @@ import {
 } from '../../shared/settings'
 import {
   membershipLabel,
-  switchHousehold,
+  switchHere,
   useHousehold,
 } from '../households/household'
 import { useGateways } from '../gateways/api'
@@ -118,7 +118,7 @@ function Switches() {
                 id: m.id,
                 text: membershipLabel(m),
               }))}
-              pick={switchHousehold}
+              pick={switchHere}
             />
           </li>
         )}

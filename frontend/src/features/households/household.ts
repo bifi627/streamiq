@@ -3,6 +3,7 @@ import { createHousehold, setHousehold, type Me } from '../../shared/api'
 import { toAppError, type AppError } from '../../shared/errors'
 import { clearArtThen } from '../../shared/leave'
 import { noop } from '../../shared/noop'
+import { switchTarget } from './switchTarget'
 import { householdLabel } from '../../shared/api'
 export { householdLabel }
 
@@ -24,14 +25,18 @@ export function useHousehold() {
   }
 }
 
-// Switching = per-device choice, then a full reload of the home page: closes every
-// tunnel session and drops all in-memory data of the old household (shared tunnel
-// sessions, lists, player). null = the API's default (the oldest membership).
+// Switching = per-device choice, then a full reload: closes every tunnel session
+// and drops all in-memory data of the old household (shared tunnel sessions,
+// lists, player). null = the API's default (the oldest membership).
 // ponytail: full reload, swap in-place (reset context + caches) if it feels slow.
-export function switchHousehold(id: string | null) {
+export function switchHousehold(id: string | null, to = '/') {
   setHousehold(id)
-  clearArtThen(() => location.replace('/'))
+  clearArtThen(() => location.replace(to))
 }
+
+/** Switch picked by the user: stays on this page when it allows it. */
+export const switchHere = (id: string | null) =>
+  switchHousehold(id, switchTarget(location.pathname))
 
 // Makes a household with the user as its admin and reloads into it.
 export function useCreate() {

@@ -372,12 +372,17 @@ test('overview: Settings row, active first, Switch, details and Back, old URL @h
   await back.click()
   await expect(h1(b)).toHaveText('Settings')
 
-  // Switch reloads into the other household, which comes first now.
+  // Switch reloads into the other household on the same page, which lists it
+  // first now; a second tab of this browser reloads home instead.
   await b.goto(appUrl('/settings/households'))
+  const tab = await b.context().newPage()
+  await tab.goto(appUrl('/settings'))
+  await expect(h1(tab)).toHaveText('Settings')
   await cards(b).nth(1).getByRole('button', { name: 'Switch' }).click()
-  await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
-  await openHouseholds(b)
   await expect(active(b)).toContainText(label(A))
+  await expect(b).toHaveURL(/\/settings\/households$/)
+  await expect(tab.getByRole('heading', { name: 'Gateways' })).toBeVisible()
+  await tab.close()
   await expect(active(b)).toContainText('Member')
   await expect(cards(b).nth(1)).toContainText(label(B))
 

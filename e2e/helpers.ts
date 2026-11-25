@@ -473,8 +473,6 @@ export const pitch = (p: Page) =>
     )
   })
 
-/** Expands a Settings category that opens in place (Display, Account,
- * Diagnostics): they start closed. */
 /** The Main nav → Settings → its Households row: the households overview. */
 export async function openHouseholds(p: Page) {
   await p
@@ -491,6 +489,8 @@ export async function openActivity(p: Page) {
   await p.locator('summary', { hasText: 'Activity' }).click()
 }
 
+/** Expands a Settings category that opens in place (Display, Account,
+ * Diagnostics): they start closed. */
 export const openCategory = (p: Page, name: string) =>
   p
     .locator('summary')

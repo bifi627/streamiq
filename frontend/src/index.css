@@ -780,6 +780,10 @@ html.tv .no-tv {
   align-items: start;
   gap: var(--sp-4);
 }
+/* A tile's wide content (Activity's table) scrolls inside it, not the page. */
+.tiles > * {
+  min-width: 0;
+}
 @media (min-width: 52rem) {
   .tiles {
     grid-template-columns: 1fr 1fr;

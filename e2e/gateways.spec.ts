@@ -534,6 +534,12 @@ test("activity: an admin sees the household, a member only their own, from the g
   await expect(
     tunnels.getByRole('row', { name: new RegExp(`Bob ${g.name} Playback`) }),
   ).toBeVisible()
+  // A phone: the table scrolls inside the tile, not the page.
+  await a.setViewportSize({ width: 360, height: 800 })
+  await expect
+    .poll(() => a.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(360)
+  await a.setViewportSize({ width: 1280, height: 720 })
   await a
     .getByRole('combobox', { name: 'Member' })
     .selectOption({ label: 'Me' })

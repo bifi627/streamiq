@@ -20,7 +20,15 @@ test('allowed routes', () => {
 })
 
 test('manage and unknown routes hand off', () => {
-  for (const p of ['/household', '/join', '/no-such-page', '/gx', '/settingsx'])
+  for (const p of [
+    '/household',
+    '/settings/households',
+    '/settings/household',
+    '/join',
+    '/no-such-page',
+    '/gx',
+    '/settingsx',
+  ])
     assert.equal(tvRoute(p), 'handoff', p)
 })
 
@@ -33,6 +41,8 @@ test('shell page: TV off is unchanged', () => {
 
 test('shell page: TV on', () => {
   assert.equal(shellPage('/household', true, false), 'handoff')
+  assert.equal(shellPage('/settings/households', true, false), 'handoff')
+  assert.equal(shellPage('/settings/household', true, false), 'handoff')
   assert.equal(shellPage('/settings', true, false), 'outlet')
   assert.equal(shellPage('/gateways', true, true), 'handoffHousehold')
   assert.equal(shellPage('/join', true, true), 'handoff') // its invite URL

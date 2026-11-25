@@ -19,7 +19,7 @@ import type {
 // as a URL, so it can't land in access logs. The API gets it in a POST body.
 const linkFor = (token: string) => `${location.origin}/join#${token}`
 
-// Invites of the current household (admin-only): create a single-use link
+// Invites of the current household (admin-only; a tile's body): create a single-use link
 // (7 days), list the pending ones, revoke one. The link is shown once: Copy, or
 // Share through the phone's apps (Web Share; absent on TVs and plain http).
 export function Invites() {
@@ -77,9 +77,8 @@ export function Invites() {
       .catch((e) => event(`invite: share closed or failed: ${e}`))
 
   return (
-    <section className="card">
-      <div className="card-head">
-        <h2>Invites</h2>
+    <>
+      <p className="actions">
         <button
           ref={inviteBtn}
           type="button"
@@ -88,7 +87,7 @@ export function Invites() {
         >
           Invite someone
         </button>
-      </div>
+      </p>
       {err && <ErrorView error={err} />}
       {link && (
         <div className="pair-box invite-link">
@@ -136,7 +135,7 @@ export function Invites() {
           </p>
         )
       )}
-    </section>
+    </>
   )
 }
 

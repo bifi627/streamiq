@@ -247,8 +247,9 @@ peaks per local day.
   (`scripts/check-jellyfin-paths.sh` fails on a Jellyfin path elsewhere); the HLS stream
   URL is the one PlaybackInfo returns (`TranscodingUrl`).
 - Household context: Shell loads `/me` once per page load and shares it
-  (`HouseholdContext`, `useHousehold()` in `features/households/household.ts`); a picker
-  on the Household page shows with more than one membership. The chosen household is per device
+  (`HouseholdContext`, `useHousehold()` in `features/households/household.ts`); the households overview
+  (`/settings/households`) lists every membership with Switch, the details page
+  (`/settings/household`) is the active one's. The chosen household is per device
   (`localStorage`); `switchHousehold()` stores it and fully reloads `/` (closes tunnels,
   drops the old household's state). On `X-StreamIQ-Not-Member`, `authed()` (`shared/api.ts`)
   drops the choice and reloads `/` with a notice.

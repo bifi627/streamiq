@@ -1,5 +1,6 @@
-import { createContext, useContext } from 'react'
-import { setHousehold, type Me } from '../../shared/api'
+import { createContext, useContext, useState } from 'react'
+import { createHousehold, setHousehold, type Me } from '../../shared/api'
+import { toAppError, type AppError } from '../../shared/errors'
 import { clearArtThen } from '../../shared/leave'
 import { noop } from '../../shared/noop'
 import { householdLabel } from '../../shared/api'
@@ -30,4 +31,21 @@ export function useHousehold() {
 export function switchHousehold(id: string | null) {
   setHousehold(id)
   clearArtThen(() => location.replace('/'))
+}
+
+// Makes a household with the user as its admin and reloads into it.
+export function useCreate() {
+  const [err, setErr] = useState<AppError | null>(null)
+  const [busy, setBusy] = useState(false)
+  async function create() {
+    setBusy(true)
+    setErr(null)
+    try {
+      switchHousehold((await createHousehold()).householdId)
+    } catch (e) {
+      setErr(toAppError(e))
+      setBusy(false)
+    }
+  }
+  return { err, busy, create }
 }

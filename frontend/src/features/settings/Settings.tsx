@@ -37,6 +37,12 @@ export function Settings() {
       <PageBar title="Settings" />
       <Switches />
       <ul className="card categories">
+        <li className="no-tv">
+          <Link to="/settings/households">
+            Households
+            <Chevron />
+          </Link>
+        </li>
         <Category
           name="Account"
           detail={<span className="muted">{auth.currentUser?.email}</span>}

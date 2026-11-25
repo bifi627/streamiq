@@ -248,7 +248,7 @@ test('connection badge: one check on a fresh load off the library, its tunnel cl
   // Household: a page that opens no tunnel of its own (Activity reads the gateways).
   const sockets: string[] = []
   page.on('websocket', (ws) => sockets.push(ws.url()))
-  await page.getByRole('link', { name: 'Household' }).click()
+  await page.getByRole('link', { name: 'Household', exact: true }).click()
   await expect(
     badge(page).getByRole('button', { name: 'On your network' }),
   ).toBeVisible()
@@ -430,10 +430,10 @@ test('member view: the same card, no Add gateway, no menu on the page (#190) @ga
   const online = card(m).getByRole('img', { name: 'Online' })
   await expect(card(m).getByRole('link', { name: g.name })).toBeVisible()
   await expect(online).toBeVisible() // card loaded
-  // The role is in (/me): the switcher (on Household) shows the joined
-  // household. Before that both buttons are hidden for anyone.
+  // The role is in (/me): the households overview shows it. Before that
+  // both buttons are hidden for anyone.
   await m.getByRole('link', { name: 'Household' }).click()
-  await expect(m.getByLabel('Switch household')).toHaveValue(user.tenantId)
+  await expect(m.locator('li.card.hh.active')).toContainText('Member')
   await m.getByRole('link', { name: 'Gateways' }).click()
   await expect(online).toBeVisible()
   await expect(m.getByRole('button', { name: 'Add gateway' })).toHaveCount(0)

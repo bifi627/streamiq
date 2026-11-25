@@ -14,7 +14,7 @@ export function tvRoute(pathname: string): TvRoute {
 }
 
 /** What the shell shows in place of the route. `handoff`: the current URL;
- * `handoffHousehold`: /household's URL (TV mode, no household). */
+ * `handoffHousehold`: the households overview's URL (TV mode, no household). */
 export type ShellPage =
   'outlet' | 'noHousehold' | 'handoff' | 'handoffHousehold'
 

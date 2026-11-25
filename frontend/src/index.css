@@ -647,6 +647,13 @@ html.tv .no-tv {
 .dot.required {
   background: var(--danger);
 }
+/* Households overview: Active and › are part of the card's link. */
+.card.hh.active .actions {
+  pointer-events: none;
+}
+.dot.role-admin {
+  background: var(--accent);
+}
 .active-chip {
   min-height: var(--target);
   padding: 0 var(--sp-4);
@@ -702,8 +709,7 @@ html.tv .no-tv {
 }
 /* name + Rename, or the inline rename form */
 .card-head .name,
-.card .clients .name,
-.household .head .name {
+.card .clients .name {
   display: flex;
   flex: 1;
   flex-wrap: wrap;
@@ -716,8 +722,7 @@ html.tv .no-tv {
   margin: 0;
 }
 .card-head .name input,
-.card .clients .name input,
-.household .head .name input {
+.card .clients .name input {
   flex: 1;
   min-width: 10rem;
 }
@@ -994,9 +999,6 @@ html.tv .no-tv {
   flex-direction: column;
   gap: var(--sp-5);
   max-width: 48rem;
-}
-.household .head {
-  margin: 0;
 }
 .household .card {
   align-items: stretch;

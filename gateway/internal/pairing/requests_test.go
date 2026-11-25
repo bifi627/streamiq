@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"streamiq/gateway/internal/tunnel"
 )
@@ -13,7 +13,12 @@ import (
 // carries the requester's users.id, decide ends the exchange like the local page, an unknown id
 // 404s.
 func TestRequestsAPI(t *testing.T) {
-	store, err := Open(t.TempDir())
+	dir := t.TempDir() // outside the bubble: its cleanup retries on real time (Windows)
+	synctest.Test(t, func(t *testing.T) { requestsAPI(t, dir) })
+}
+
+func requestsAPI(t *testing.T, dir string) {
+	store, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,9 +34,7 @@ func TestRequestsAPI(t *testing.T) {
 	}
 	got := make(chan bool, 1)
 	go func() { ok, _ := store.Ask("phone", "fp-1", "123456", "u1", nil); got <- ok }()
-	for len(store.Pending()) == 0 {
-		time.Sleep(time.Millisecond)
-	}
+	synctest.Wait() // Ask now waits for Decide
 	id := store.Pending()[0].ID
 
 	for _, c := range [][2]string{{"GET", RequestsPath}, {"POST", DecidePath}} {

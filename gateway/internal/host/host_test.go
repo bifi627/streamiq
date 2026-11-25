@@ -58,7 +58,8 @@ func TestCacheDiskWithoutJellyfin(t *testing.T) {
 	if d := inContainer(context.Background(), bad); d != nil {
 		t.Fatalf("disk = %+v when the command fails; want none", d)
 	}
-	if d, drive := cacheDisk(context.Background(), bad), readDisk(dir); d == nil || *d != *drive {
+	// Total, not Free: the free bytes can move between the two reads.
+	if d, drive := cacheDisk(context.Background(), bad), readDisk(dir); d == nil || d.Total != drive.Total {
 		t.Fatalf("disk = %+v when the command fails; want the compose folder's drive %+v", d, drive)
 	}
 }

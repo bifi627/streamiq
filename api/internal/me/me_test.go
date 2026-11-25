@@ -64,7 +64,10 @@ func TestMe(t *testing.T) {
 	home := apitest.Household(t, user, "admin")
 	cabin := apitest.Household(t, user, "member")
 	apitest.Exec(t, `UPDATE tenants SET name = NULL WHERE id = $1`, cabin)
-	other := apitest.Scalar[string](t, `INSERT INTO users (id, firebase_uid) VALUES (uuidv7(), uuidv7()::text) RETURNING id::text`)
+	other := apitest.Scalar[string](
+		t,
+		`INSERT INTO users (id, firebase_uid) VALUES (uuidv7(), uuidv7()::text) RETURNING id::text`,
+	)
 	apitest.Join(t, other, cabin, "member")
 	apitest.Household(t, other, "admin") // not the caller's: listed and counted nowhere
 	want := map[string]any{"userId": user, "tenantId": home, "memberships": []any{

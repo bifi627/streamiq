@@ -34,6 +34,7 @@ frontend/node_modules/.bin/tsc -p e2e  # #581: Playwright strips types; also cov
 npm run lint --prefix frontend
 (cd e2e && ../frontend/node_modules/.bin/oxlint --report-unused-disable-directives-severity=error)  # borrowed oxlint, e2e/.oxlintrc.json
 npm test --prefix frontend
+node --test ".t3/workflows/lib/*.test.ts"  # the group workflow's decisions (order, ready, PR match)
 npm run build --prefix frontend
 
 echo "== Go (gateway + API): release version + fmt + lint + build + test =="

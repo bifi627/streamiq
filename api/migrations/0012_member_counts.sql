@@ -1,5 +1,7 @@
 -- How many members each of uid's households has, for /api/me only (memberships_of runs
 -- on every request). It crosses tenants only for households uid is already in.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '30s';
 CREATE FUNCTION public.member_counts(uid uuid) RETURNS TABLE (tenant_id uuid, members int)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
   AS $$ SELECT o.tenant_id, count(*)::int FROM public.memberships o

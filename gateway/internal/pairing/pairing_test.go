@@ -90,7 +90,8 @@ func TestProve(t *testing.T) {
 		t.Fatalf("fresh proof doesn't verify: %v", err)
 	}
 	// Bound to this tunnel: a MITM's DTLS fp on either side, or the client's message, fails.
-	if verifyProof(spki, sig, vecGatewayFp, vecGatewayFp, vecN) || verifyProof(spki, sig, vecBrowser, vecBrowser, vecN) {
+	if verifyProof(spki, sig, vecGatewayFp, vecGatewayFp, vecN) ||
+		verifyProof(spki, sig, vecBrowser, vecBrowser, vecN) {
 		t.Fatal("proof verified for a different tunnel")
 	}
 	if verifyProof(b64(vecSpki), b64(vecSig), vecGatewayFp, vecBrowser, vecN) {

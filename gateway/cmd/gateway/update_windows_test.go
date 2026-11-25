@@ -128,7 +128,7 @@ func updateAndRollBack(t *testing.T, install string) {
 	// fails here. A deliberate break (feat!) changes this expectation, in its PR.
 	// The identity-key change was a feat!: old cert.pem pins can't carry over, so the new build makes
 	// a new identity key.
-	if _, _, err := identity.LoadOrCreate(state); err != nil {
+	if _, _, err = identity.LoadOrCreate(state); err != nil {
 		t.Fatalf("identity after the update: %v", err)
 	}
 	ps, err := pairing.Open(state)

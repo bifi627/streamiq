@@ -10,6 +10,7 @@ test("Order: by list position wins over the list, closed ones drop out", () => {
 
 test("Order: by issue number; no Order: line → the numbered list", () => {
   assert.deepEqual(buildOrder("Order: #5 -> #4", [4, 5]), [5, 4]);
+  assert.deepEqual(buildOrder("Order: #709, then #710. 710 builds on it.", [709, 710]), [709, 710]);
   assert.deepEqual(buildOrder(list, [324, 326, 325]), [324, 326, 325]);
 });
 

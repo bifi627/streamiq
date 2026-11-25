@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { buildOrder, fixes, isReady } from "./lib/group-plan.ts";
 
-const { workflow, step, agent, ask, stop, title, pullRequests } = T3;
+const { workflow, step, agent, ask, stop, title, pullRequests, runs } = T3;
 
 const repo = "bifi627/streamiq";
 const project = resolve(import.meta.dirname, "../..");
@@ -23,9 +23,13 @@ const Plan = Schema.Struct({
   problem: Schema.NullOr(Schema.String),
 });
 
-const readPlan = (parent) =>
+// A run's key is `<parent>/<anything>`: T3 never frees a key, so the parent alone could run only once.
+const readPlan = (parent, runId) =>
   Effect.gen(function* () {
     const issue = yield* gh("api", `repos/${repo}/issues/${parent}`);
+    const same = yield* runs({ workflow: "group", keyPrefix: `${parent}/` });
+    const live = same.find((r) => r.id !== runId && ["running", "waiting", "paused"].includes(r.status));
+    if (live) return { title: issue.title, order: [], problem: `run ${live.id} already runs this group` };
     const subs = yield* gh("api", `repos/${repo}/issues/${parent}/sub_issues?per_page=100`);
     const open = subs.filter((s) => s.state === "open").map((s) => s.number);
     const order = open.length === 0 ? "all sub-issues are closed" : buildOrder(issue.body ?? "", open);
@@ -75,12 +79,13 @@ commit, \`noticed\` = the lines of its \`## Noticed\` section (empty if none). A
 while you wait (a question to the owner, CI, the review) submits nothing.`;
 
 const refined = "It is refined, go on";
+const waitForMerge = "Wait for its merge";
 
 workflow(
   "group",
   { version: 1, payload: Schema.Struct({ parent: Schema.Number }) },
-  Effect.fn(function* ({ parent }) {
-    const plan = yield* step("plan", { returns: Plan }, readPlan(parent));
+  Effect.fn(function* ({ parent }, run) {
+    const plan = yield* step("plan", { returns: Plan }, readPlan(parent, run.id));
     yield* title(`Group #${parent} ${plan.title}`);
     if (plan.problem !== null) return yield* stop(plan.problem);
 
@@ -100,7 +105,7 @@ workflow(
 
       let pr = sub.pr;
       if (pr === null) {
-        const worker = yield* agent(`build-${n}`, {
+        const worker = yield* agent.try(`build-${n}`, {
           project,
           workspace: { type: "worktree", baseRef: "origin/main", startFromOrigin: true },
           title: `[build] - #${n} ${sub.title}`,
@@ -113,8 +118,21 @@ workflow(
           quiet: "1 hour",
           timeout: "24 hours",
         });
-        built.push({ issue: n, ...worker.value });
-        pr = worker.value.pr;
+        if (worker.outcome === "done") {
+          built.push({ issue: n, ...worker.value });
+          pr = worker.value.pr;
+        } else {
+          // A retry or resume of the step would start a new worker, and build-issue stops there on
+          // the first one's open PR ("the issue is taken"): the owner carries the build on in its thread.
+          pr = (yield* step(`read-${n}/failed`, { returns: Sub }, readSub(n))).pr;
+          if (pr === null) return yield* stop(`the build of #${n} failed without a PR: ${worker.reason}`);
+          const answer = yield* ask(`failed-${n}`, {
+            title: `The build of #${n} stopped (${worker.reason}). Its PR is open: carry the build on in its thread.`,
+            links: [{ label: "The PR", url: pr }],
+            choices: [waitForMerge, "Stop the group"],
+          });
+          if (Option.isNone(answer) || answer.value.choice !== waitForMerge) return yield* stop(`the build of #${n} failed`);
+        }
       }
 
       const end = yield* pullRequests.wait(`merged-${n}`, { project, url: pr }, { until: "merged" });

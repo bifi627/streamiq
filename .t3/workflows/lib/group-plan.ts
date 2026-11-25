@@ -1,7 +1,8 @@
 // Pure decisions of group.ts, kept apart so `node --test` reaches them (the workflow file needs T3's globals).
 
 const listItem = /^\s*\d+\.\s+#(\d+)/;
-const orderLine = /^\s*\**Order:\**\s*(#?\d+(?:\s*(?:→|->|,)\s*#?\d+)*)/;
+// Its first sentence only: the reason after it names positions too ("1 sets what 2 reuses").
+const orderLine = /^\s*\**Order:\**\s*([^.]*\d[^.]*)/;
 
 /**
  * The open sub-issues in build order, or why there is none. `Order:` names list positions

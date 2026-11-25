@@ -167,7 +167,7 @@ test('prod smoke: sign in, enroll, play direct, test connection direct + relay +
   } finally {
     await Promise.allSettled(ctxs.map((c) => c.close()))
     await gateway.stop()
-    await jf.container.stop()
+    await jf.stop()
     for (const g of await api('/gateways'))
       await api(`/gateways/${g.id}`, { method: 'DELETE' })
     lap('cleaned up')

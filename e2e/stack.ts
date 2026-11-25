@@ -14,7 +14,10 @@ import path from 'node:path'
 import {
   GenericContainer,
   getContainerRuntimeClient,
+  getReaper,
   ImageName,
+  LABEL_TESTCONTAINERS_SESSION_ID,
+  StartedNetwork,
   Wait,
 } from 'testcontainers'
 import { JELLYFIN_ADMIN, setupJellyfin } from './jellyfin.ts'
@@ -221,13 +224,14 @@ async function dockerGateway(
   }
 }
 
-// Image pins live in docker-compose.yml (one source of truth, never `latest`).
-const pin = (name: string) =>
+// Image pins live in docker-compose.yml (one source of truth, never `latest`);
+// the jail's forwarder in the shipped Jellyfin compose.
+const pin = (name: string, file = 'docker-compose.yml') =>
   must(
     fs
-      .readFileSync(path.join(root, 'docker-compose.yml'), 'utf8')
+      .readFileSync(path.join(root, file), 'utf8')
       .match(new RegExp(`image: (${name}:\\S+)`)),
-    `${name} image pin in docker-compose.yml`,
+    `${name} image pin in ${file}`,
   )[1]
 
 export type StackOptions = {
@@ -426,13 +430,13 @@ export async function startJellyfin(
   }
   const cache = await fixtureMedia()
   step('media')
+  const jail = await jailNetwork(o.label)
   const jellyfinContainer = labeled(
     new GenericContainer(pin('jellyfin/jellyfin'))
-      .withExposedPorts(8096)
-      .withWaitStrategy(
-        Wait.forHttp('/System/Info/Public', 8096).forStatusCode(200),
-      )
-      .withStartupTimeout(180_000)
+      // No network alias: with one, testcontainers starts it on the default
+      // bridge (online) and only then joins it to the jail.
+      .withNetworkMode(jail.getName())
+      .withName(`${jail.getName()}-jellyfin`)
       .withCopyDirectoriesToContainer([
         { source: path.join(cache, 'media'), target: '/media' },
         { source: path.join(cache, 'shows'), target: '/shows' },
@@ -481,9 +485,12 @@ export async function startJellyfin(
       })
   }
   jellyfinContainer.withBindMounts(binds)
-  const jellyfin = await jellyfinContainer.start()
+  const [jellyfin, forwarder] = await Promise.all([
+    jellyfinContainer.start(),
+    startForwarder(jail, labeled),
+  ])
   step('start')
-  const url = `http://${jellyfin.getHost()}:${jellyfin.getMappedPort(8096)}`
+  const url = `http://${forwarder.getHost()}:${forwarder.getMappedPort(8096)}`
   if (o.nvenc) {
     // The GPU really is in the container.
     const r = await jellyfin.exec(['nvidia-smi', '-L'])
@@ -492,7 +499,53 @@ export async function startJellyfin(
   await setupJellyfin(url, o.nvenc, step)
 
   process.env.E2E_JELLYFIN_URL = url
-  return { container: jellyfin, url }
+  return {
+    url,
+    async stop() {
+      await Promise.all([jellyfin.stop(), forwarder.stop()])
+      await jail.stop()
+    },
+  }
+}
+
+const JAIL = 'gateway/install/jellyfin-compose.yml'
+
+/** The shipped offline jail's network (`internal`: no way out). Made by hand:
+ * testcontainers' Network is bridge only. Its Ryuk label reaps it after a crash,
+ * the preview's label lets `down` remove it. */
+async function jailNetwork(label?: string) {
+  const client = await getContainerRuntimeClient()
+  const name = `streamiq-jail-${Math.random().toString(36).slice(2, 10)}`
+  const network = await client.network.create({
+    Name: name,
+    Internal: true,
+    Labels: {
+      [LABEL_TESTCONTAINERS_SESSION_ID]: (await getReaper(client)).sessionId,
+      ...(label && { 'streamiq.preview': label }),
+    },
+  })
+  return new StartedNetwork(client, name, network)
+}
+
+/** The jail's only way in, as shipped: socat on the default network (its port
+ * published) and the jail. */
+async function startForwarder(
+  jail: StartedNetwork,
+  labeled: (c: GenericContainer) => GenericContainer,
+) {
+  const forwarder = await labeled(
+    new GenericContainer(pin('alpine/socat', JAIL))
+      .withCommand([
+        'tcp-listen:8096,fork,reuseaddr',
+        `tcp-connect:${jail.getName()}-jellyfin:8096`,
+      ])
+      .withExposedPorts(8096),
+  ).start()
+  const client = await getContainerRuntimeClient()
+  await client.network
+    .getById(jail.getId())
+    .connect({ Container: forwarder.getId() }) // testcontainers: one network per container
+  return forwarder
 }
 
 /**
@@ -668,7 +721,7 @@ export async function startStack(o: StackOptions) {
       await Promise.all([
         pg.stop(),
         firebase.stop(),
-        ...js.map((j) => j.container.stop()),
+        ...js.map((j) => j.stop()),
         coturn.stop(),
       ])
     },

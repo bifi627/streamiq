@@ -73,6 +73,7 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         dropped: () => event('tunnel dropped: reconnecting'),
         error: (e) => {
           const err = toAppError(e)
+          setSession(null) // a drop that won't reconnect: off the dead pc
           setErr(err)
           qc.setQueryData<Conn>(connKey(gatewayId), {
             route: err.kind === 'not-paired' ? 'unpaired' : 'failed',

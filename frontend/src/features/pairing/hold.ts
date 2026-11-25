@@ -67,7 +67,8 @@ export function hold<S extends Held>(
       (e) => {
         if (gone) return
         release()
-        if (!retries(dropAt, now())) return on.error(e)
+        const unpaired = (e as { kind?: string } | null)?.kind === 'not-paired'
+        if (unpaired || !retries(dropAt, now())) return on.error(e)
         timer = setTimeout(open, pause)
       },
     )

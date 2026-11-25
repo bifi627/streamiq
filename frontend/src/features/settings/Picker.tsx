@@ -1,12 +1,11 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Dialog } from '../../shared/Dialog'
 
 export type Choice = { id: string; text: string }
 
 // One of many, for the D-pad: a native <select> keeps the arrows (focus.ts)
 // and Chromium changes it on a stray Up/Down. OK opens the choices in a modal;
-// a pick applies and closes it. Focus goes back to the row by hand: Chromium 87
-// (webOS) leaves it on <body> after close(), where no arrow key moves it.
+// a pick applies and closes it.
 export function Picker({
   label,
   choices,
@@ -19,14 +18,12 @@ export function Picker({
   pick: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const row = useRef<HTMLButtonElement>(null)
   const text = choices.find((c) => c.id === current)?.text ?? 'None'
   return (
     <div className="setting">
       {label}
       <button
         type="button"
-        ref={row}
         className="picker"
         aria-haspopup="dialog"
         aria-label={`${label}: ${text}`}
@@ -35,13 +32,7 @@ export function Picker({
         {text}
       </button>
       {open && (
-        <Dialog
-          title={label}
-          onClose={() => {
-            setOpen(false)
-            row.current?.focus()
-          }}
-        >
+        <Dialog title={label} onClose={() => setOpen(false)}>
           <ul className="picks">
             {choices.map((c) => (
               <li key={c.id}>

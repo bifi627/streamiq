@@ -20,7 +20,7 @@ test('no requests: hidden; requests: shown; another error: its line', () => {
   assert.equal(requestsView(undefined, null), 'hidden')
   assert.equal(requestsView([], null), 'hidden')
   assert.deepEqual(requestsView([r], null), [r])
-  assert.ok(typeof requestsView(undefined, e(500)) === 'object')
+  assert.ok('msg' in (requestsView(undefined, e(500)) as object))
   assert.equal(nextRequestsAsk(false), 5_000)
 })
 

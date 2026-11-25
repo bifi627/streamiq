@@ -24,24 +24,29 @@ export function PairingRequests({ g }: { g: Gateway }) {
     retry: false,
   })
   const { names } = useMembers(true, undefined)
-  const [msg, setMsg] = useState<string | null>(null)
+  // A failed decide's line, until the next poll (at = its dataUpdatedAt).
+  const [msg, setMsg] = useState<{ text: string; at: number } | null>(null)
+  const [busy, setBusy] = useState(false)
   const view = requestsView(q.data, q.error ? toAppError(q.error) : null)
   if (view === 'hidden') return null
 
   async function decide(id: string, approve: boolean) {
+    setBusy(true) // a double click would 404 as "ended"
+    let text: string | null = null
     try {
       await decideRequest(g.id, id, approve)
-      setMsg(null)
     } catch (x) {
-      setMsg(decideMessage(toAppError(x)))
+      text = decideMessage(toAppError(x))
     }
-    void q.refetch()
+    const r = await q.refetch()
+    setMsg(text === null ? null : { text, at: r.dataUpdatedAt })
+    setBusy(false)
   }
 
   return (
     <section className="pairing-requests" aria-label="Pairing requests">
       <h2>Pairing requests</h2>
-      {msg && <p role="status">{msg}</p>}
+      {msg?.at === q.dataUpdatedAt && <p role="status">{msg.text}</p>}
       {'msg' in view ? (
         <p role="status">{view.msg}</p>
       ) : (
@@ -58,11 +63,16 @@ export function PairingRequests({ g }: { g: Gateway }) {
               <button
                 type="button"
                 className="primary"
+                disabled={busy}
                 onClick={() => decide(r.id, true)}
               >
                 Approve
               </button>{' '}
-              <button type="button" onClick={() => decide(r.id, false)}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => decide(r.id, false)}
+              >
                 Reject
               </button>
             </p>

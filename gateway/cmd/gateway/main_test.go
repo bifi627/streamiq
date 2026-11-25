@@ -109,7 +109,7 @@ func TestRemoteUpdateStatus(t *testing.T) {
 	}
 }
 
-// The shipped route table (#434): name and update are admin-only (a member gets
+// The shipped route table (#434): name, update and pairing requests are admin-only (a member gets
 // 403 and nothing happens), the rest answer a member too.
 func TestGatewayAPIRoutes(t *testing.T) {
 	dir := t.TempDir()
@@ -159,6 +159,10 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Admin, "POST", onboarding.NamePath, `{"name":"Den"}`, http.StatusOK},
 		{tunnel.Admin, "POST", onboarding.RelayPath, `{"relay":false}`, http.StatusOK},
 		{tunnel.Admin, "POST", update.Path, "", http.StatusAccepted},
+		{tunnel.Member, "GET", pairing.RequestsPath, "", http.StatusForbidden},
+		{tunnel.Member, "POST", pairing.DecidePath, `{"id":"x","approve":true}`, http.StatusForbidden},
+		{tunnel.Admin, "GET", pairing.RequestsPath, "", http.StatusOK},
+		{tunnel.Admin, "POST", pairing.DecidePath, `{"id":"x","approve":true}`, http.StatusNotFound},
 	} {
 		if s, _, _, _ := tunnel.Do(rt, tunnel.Session{Role: c.role}, c.method, c.path, c.body); s != c.want {
 			t.Errorf("%s %s %s: %d, want %d", c.role, c.method, c.path, s, c.want)

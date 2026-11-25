@@ -8,6 +8,15 @@ test('routeOf: relayed wins, then on your network, else direct', () => {
   assert.equal(routeOf(false, false), 'direct')
 })
 
+test('routeOf: a relay the tunnel was opened to force says so', () => {
+  assert.equal(routeOf(true, false, 'no'), 'relay')
+  assert.equal(routeOf(true, false, 'yes'), 'forced')
+  assert.equal(routeOf(true, true, 'tls'), 'forcedTls')
+  // Opened direct (relay off at the gateway, or Force relay was off): never forced.
+  assert.equal(routeOf(false, true, 'yes'), 'lan')
+  assert.equal(routeOf(false, false, 'tls'), 'direct')
+})
+
 test('connPart: only an online gateway, checking until answered', () => {
   assert.equal(connPart('offline', { route: 'lan' }), null)
   assert.equal(connPart('loading'), null)
@@ -20,7 +29,8 @@ test('connPart: only an online gateway, checking until answered', () => {
 })
 
 test('isRoute: a connection type, not a state', () => {
-  for (const p of ['lan', 'direct', 'relay'] as const) assert.ok(isRoute(p))
+  for (const p of ['lan', 'direct', 'relay', 'forced', 'forcedTls'] as const)
+    assert.ok(isRoute(p))
   for (const p of ['checking', 'failed', 'unpaired', null] as const)
     assert.ok(!isRoute(p))
 })

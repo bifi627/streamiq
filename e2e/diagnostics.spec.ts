@@ -117,7 +117,7 @@ test('report, forced relay: relayed (TURN), relay row @diagnostics', async ({
 })
 
 // Buttons, not ?relay / ?debug: a TV can't edit the URL.
-test('dock Force relay: the library tunnels over TURN, the badge says so @diagnostics', async ({
+test('dock Force relay: the library tunnels over TURN, the badge says it is forced (#945) @diagnostics', async ({
   paired,
 }) => {
   const { page } = paired
@@ -127,11 +127,15 @@ test('dock Force relay: the library tunnels over TURN, the badge says so @diagno
   await page.getByLabel('Force relay (TURN) on next connect').check()
   await openLibrary(page) // a tunnel request made it
   await page
-    .getByRole('button', { name: 'Relayed · encrypted' })
+    .locator('header .chip')
+    .getByRole('button', { name: 'Relayed · forced' })
     .click({ timeout: 30_000 })
   await expect(
-    page.getByText(/encrypted relay that can't see it · [\d.,]+ MB relayed/),
+    page.getByText(
+      /Force relay is on in this browser, .* · [\d.,]+ MB relayed · turn it off in Diagnostics → Force relay \(TURN\)/,
+    ),
   ).toBeVisible()
+  await expect(page.getByText(/couldn't connect directly/)).toHaveCount(0)
 })
 
 test('Copy report: the clipboard holds the report @diagnostics', async ({

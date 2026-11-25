@@ -25,6 +25,7 @@ import {
 import { sharer } from './shared'
 import { relayLine } from './relay'
 import { AppError } from '../../shared/errors'
+import type { Forced } from '../gateways/connection'
 import type { BrowserMessage } from '../../generated/protocol'
 import type { ClientAuthMessage } from '../../generated/sessions'
 import {
@@ -54,6 +55,10 @@ async function challengeAnswer(
   return { spki: b64(key.spki), sig: b64(sig) }
 }
 
+// How each tunnel was opened, for the route badge: the flag can change while it runs.
+const forcedBy = new WeakMap<RTCPeerConnection, Forced>()
+export const forcedOf = (pc: RTCPeerConnection) => forcedBy.get(pc) ?? 'no'
+
 /**
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
  * unpaired browser starts pairing and onCode receives the code to compare.
@@ -80,6 +85,7 @@ export async function connect(
     // `?relay=tls` or its TLS toggle keeps only the `turns:` servers.
     iceTransportPolicy: force ? 'relay' : 'all',
   })
+  forcedBy.set(pc, !force ? 'no' : relayTlsOn() ? 'tls' : 'yes')
   // addEventListener: the handlers below own the on* properties.
   pc.addEventListener('connectionstatechange', () => pcState(pc))
   pc.addEventListener('iceconnectionstatechange', () => pcState(pc))

@@ -8,6 +8,8 @@
 import { useState, type ReactNode } from 'react'
 import { useOnLan, usePairInfo } from '../library/queries'
 import { routeOf, type Route } from '../gateways/connection'
+import { forcedOf } from '../pairing/connect'
+import { look } from './routeLook'
 
 export function Privacy({
   gatewayId,
@@ -21,7 +23,7 @@ export function Privacy({
   if (!p || lan === null) return null
   return (
     <RouteBadge
-      route={routeOf(p.relay, lan)}
+      route={routeOf(p.relay, lan, forcedOf(pc))}
       mb={(p.bytesReceived + p.bytesSent) / 1e6}
     />
   )
@@ -49,28 +51,9 @@ export function RouteBadge({
           minimumFractionDigits: 1,
           maximumFractionDigits: 1,
         })} MB relayed`
-  const { label, icon, explain } = {
-    lan: {
-      label: 'On your network',
-      // wifi waves
-      icon: 'M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 20h.01',
-      explain:
-        'Straight from your gateway over your home network, end-to-end encrypted · never leaves the house',
-    },
-    direct: {
-      label: 'Direct from home',
-      icon: 'M3 11l9-7 9 7M5 10v10h14V10',
-      explain:
-        'Straight from your home to this device, end-to-end encrypted · StreamIQ carried 0 bytes',
-    },
-    relay: {
-      label: 'Relayed · encrypted',
-      icon: 'M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6z',
-      explain: `Your networks couldn't connect directly, so the stream passes an encrypted relay that can't see it${relayed}`,
-    },
-  }[route]
+  const { label, icon, explain } = look(route, relayed)
   return (
-    <span className="privacy" data-relay={route === 'relay'}>
+    <span className="privacy" data-route={route}>
       <button
         type="button"
         className="badge"

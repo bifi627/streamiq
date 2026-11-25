@@ -17,7 +17,10 @@ test('show pair: no usable pin, or a pairing run in progress', () => {
   assert.equal(showPair(failed('ice-failed'), true), false)
   assert.equal(showPair({ step: 'connecting', pair: true }, true), true)
   assert.equal(showPair({ step: 'connecting', pair: false }, true), false)
-  assert.equal(showPair({ step: 'code', code: '123456' }, true), true)
+  assert.equal(
+    showPair({ step: 'code', code: '123456', matched: false }, true),
+    true,
+  )
 })
 
 const path = { relay: false, ipv6: false, bytesReceived: 0, bytesSent: 0 }

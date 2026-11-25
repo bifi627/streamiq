@@ -43,9 +43,13 @@ export type State = Init & {
   early: RTCIceCandidateInit[]
   iceUp: boolean
   grace: boolean
-  // Pairing runs unpaired → commit → nonce → reveal → approved, each once:
-  // anything out of that order is refused.
-  paired: 'no' | 'committed' | 'revealed'
+  // The auth channel runs challenge → our auth → ok, or → unpaired → commit →
+  // nonce → reveal → approved, each once: anything out of that order is refused.
+  stage:
+    'challenge' | 'verifying' | 'signed' | 'committed' | 'revealed' | 'approved'
+  // The user said the gateway shows the same code (It matches). The pin is
+  // stored only with both this and the gateway's approved, in either order.
+  matched: boolean
 }
 
 export type Event =
@@ -59,6 +63,8 @@ export type Event =
   | { on: 'error'; error: unknown }
   // The challenge's proof checked (verify): the identity key's fp, undefined = it doesn't verify.
   | { on: 'proof'; n: string; keyFp: string | undefined }
+  // The user's answer to "Does the gateway show this code?"
+  | { on: 'match'; ok: boolean }
 
 export type Effect =
   | { do: 'auth' } // the token, then the keep-alive
@@ -92,7 +98,8 @@ export const start = (init: Init): State => ({
   early: [],
   iceUp: false,
   grace: false,
-  paired: 'no',
+  stage: 'challenge',
+  matched: false,
 })
 
 export function step(s: State, ev: Event): Step {
@@ -129,6 +136,8 @@ function onEvent(s: State, ev: Event): Step {
       return failed(s, toAppError(ev.error))
     case 'proof':
       return onProof(s, ev.n, ev.keyFp)
+    case 'match':
+      return onMatch(s, ev.ok)
   }
 }
 
@@ -147,10 +156,23 @@ function onProof(s: State, n: string, keyFp: string | undefined): Step {
       `gateway identity changed: pinned ${s.pin}, got ${keyFp}`,
     )
   return {
-    state: { ...s, gatewayFp: keyFp, verdict },
+    state: { ...s, gatewayFp: keyFp, verdict, stage: 'signed' },
     fx: [{ do: 'sign', n, dtlsFp: s.dtlsFp, pair: verdict !== 'pinned' }],
   }
 }
+
+// A click before the code shows can't happen (the buttons come with it).
+function onMatch(s: State, ok: boolean): Step {
+  if (!ok)
+    return fail(s, 'code-mismatch', "the user said the codes don't match")
+  if (s.stage === 'approved') return paired(s)
+  return s.stage === 'revealed' ? same({ ...s, matched: true }) : same(s)
+}
+
+const paired = (s: State): Step => ({
+  state: { ...s, phase: 'up' },
+  fx: [{ do: 'approved', fp: s.gatewayFp }],
+})
 
 function onBroker(s: State, m: BrokerMessage): Step {
   switch (m.type) {
@@ -204,7 +226,8 @@ function onBroker(s: State, m: BrokerMessage): Step {
 function onGateway(s: State, m: GatewayAuthMessage): Step {
   switch (m.type) {
     case 'challenge':
-      return withNonce(s, m, (n) => ({
+      if (s.stage !== 'challenge') return outOfOrder(s, m)
+      return withNonce({ ...s, stage: 'verifying' }, m, (n) => ({
         do: 'verify',
         n,
         spki: m.spki,
@@ -212,6 +235,7 @@ function onGateway(s: State, m: GatewayAuthMessage): Step {
         dtlsFp: s.dtlsFp,
       }))
     case 'ok':
+      if (s.stage !== 'signed') return outOfOrder(s, m)
       return s.verdict === 'pinned'
         ? { state: { ...s, phase: 'up' }, fx: [{ do: 'resolve' }] }
         : fail(
@@ -220,28 +244,24 @@ function onGateway(s: State, m: GatewayAuthMessage): Step {
             'gateway skipped pairing for an unpinned identity',
           )
     case 'unpaired':
+      if (s.stage !== 'signed') return outOfOrder(s, m)
       if (!s.pairing)
         return fail(
           s,
           'not-paired',
           'this browser is not paired with the gateway',
         )
-      return s.paired === 'no'
-        ? { state: { ...s, paired: 'committed' }, fx: [{ do: 'commit' }] }
-        : outOfOrder(s, m)
+      return { state: { ...s, stage: 'committed' }, fx: [{ do: 'commit' }] }
     case 'nonce':
-      if (s.paired !== 'committed') return outOfOrder(s, m)
-      return withNonce({ ...s, paired: 'revealed' }, m, (n) => ({
+      if (s.stage !== 'committed') return outOfOrder(s, m)
+      return withNonce({ ...s, stage: 'revealed' }, m, (n) => ({
         do: 'reveal',
         n,
         fp: s.gatewayFp,
       }))
     case 'approved':
-      if (s.paired !== 'revealed') return outOfOrder(s, m)
-      return {
-        state: { ...s, phase: 'up' },
-        fx: [{ do: 'approved', fp: s.gatewayFp }],
-      }
+      if (s.stage !== 'revealed') return outOfOrder(s, m)
+      return s.matched ? paired(s) : same({ ...s, stage: 'approved' })
     case 'rejected': {
       const why = m.reason ?? 'rejected'
       // A full pairing queue (all slots, or this user's one) frees up: busy, not refused.

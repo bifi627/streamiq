@@ -252,19 +252,60 @@ test('rejected', () => {
   assert.equal(failure(reworded.fx)?.kind, 'gateway-refused')
 })
 
-test('pairing: commit, reveal, approved → pin and resolve', () => {
-  const r = run(
+const matches: Event = { on: 'match', ok: true }
+const differs: Event = { on: 'match', ok: false }
+const approved = gateway({ type: 'approved' })
+
+/** Pairing up to the code: unpaired, commit, nonce, reveal. */
+const revealed = () =>
+  run(
     proven({ pin: undefined, pairing: true }),
     gateway({ type: 'unpaired' }),
     gateway({ type: 'nonce', n: 'gn' }),
-    gateway({ type: 'approved' }),
   )
-  assert.deepEqual(r.fx, [
+
+test('pairing pins only after approved and It matches, in either order', async (t) => {
+  const pinned = [{ do: 'approved', fp: KEY }]
+  assert.deepEqual(revealed().fx, [
     { do: 'commit' },
     { do: 'reveal', n: 'gn', fp: KEY },
-    { do: 'approved', fp: KEY },
   ])
-  assert.equal(r.s.phase, 'up')
+  await t.test('approved, then It matches', () => {
+    const a = run(revealed().s, approved)
+    assert.deepEqual(a.fx, []) // approved alone stores nothing
+    assert.equal(a.s.phase, 'connecting')
+    const r = run(a.s, matches)
+    assert.deepEqual(r.fx, pinned)
+    assert.equal(r.s.phase, 'up')
+  })
+  await t.test('It matches, then approved', () => {
+    const m = run(revealed().s, matches)
+    assert.deepEqual(m.fx, [])
+    const r = run(m.s, approved)
+    assert.deepEqual(r.fx, pinned)
+    assert.equal(r.s.phase, 'up')
+  })
+  await t.test(
+    "It doesn't, before or after approved: no pin, the tunnel closes",
+    () => {
+      for (const events of [[differs], [approved, differs]]) {
+        const r = run(revealed().s, ...events, approved, matches)
+        assert.equal(failure(r.fx)?.kind, 'code-mismatch')
+        assert.equal(kinds(r.fx).includes('approved'), false)
+        assert.equal(r.s.phase, 'failed')
+      }
+    },
+  )
+  await t.test('It matches before the code shows does nothing', () => {
+    const r = run(
+      proven({ pin: undefined, pairing: true }),
+      matches,
+      gateway({ type: 'unpaired' }),
+      gateway({ type: 'nonce', n: 'gn' }),
+      approved,
+    )
+    assert.equal(kinds(r.fx).includes('approved'), false)
+  })
 })
 
 test('unpaired without pairing: not-paired', () => {
@@ -380,6 +421,27 @@ test('pairing messages out of order are refused', async (t) => {
       gateway({ type: 'nonce', n: 'a' }),
       gateway({ type: 'nonce', n: 'b' }),
     )
+  })
+  await t.test('a second approved', () => {
+    refused(
+      pairing,
+      gateway({ type: 'unpaired' }),
+      gateway({ type: 'nonce', n: 'a' }),
+      approved,
+      approved,
+    )
+  })
+  await t.test('a second challenge', () => {
+    refused({}, challenge)
+  })
+  await t.test('unpaired or ok before our auth', () => {
+    for (const type of ['unpaired', 'ok']) {
+      const r = run(answered(pairing), gateway({ type }))
+      assert.equal(failure(r.fx)?.message, `gateway's ${type} out of order`)
+    }
+  })
+  await t.test('ok after unpaired', () => {
+    refused(pairing, gateway({ type: 'unpaired' }), gateway({ type: 'ok' }))
   })
   await t.test('a second unpaired', () => {
     refused(

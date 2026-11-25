@@ -6,13 +6,17 @@ import type { PairInfo } from '../../shared/stats'
 export type State =
   | { step: 'idle' }
   | { step: 'connecting'; pair: boolean }
-  | { step: 'code'; code: string }
+  // matched: the user said the gateway shows this code too.
+  | { step: 'code'; code: string; matched: boolean }
   | { step: 'done'; paired: boolean; info: SystemInfo; path: PairInfo | null }
   | { step: 'failed'; err: AppError }
 
-/** The gateway refused this browser's pin: Pair again, not Test. */
+/** No usable pin for the gateway (refused, or a pairing whose codes didn't
+ * match): Pair again, not Test. */
 export const pinUnusable = (e: AppError) =>
-  e.kind === 'not-paired' || e.kind === 'pin-mismatch'
+  e.kind === 'not-paired' ||
+  e.kind === 'pin-mismatch' ||
+  e.kind === 'code-mismatch'
 
 /** Pair shows while this browser has no usable pin. */
 export const showPair = (

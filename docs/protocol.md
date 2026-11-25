@@ -279,8 +279,12 @@ are the Go types in `gateway/internal/sessions/messages.go`, generated as the
 | 4 | browser → gateway | `{type:"commit", h, name}` — h = hex(SHA-256(utf8(nB))), nB = hex(32 random bytes) |
 | 5 | gateway → browser | `{type:"nonce", n: nA}` — only after the commit |
 | 6 | browser → gateway | `{type:"reveal", n: nB}` — gateway checks it against h |
-| 7 | both | `code = uint32_be(SHA-256(utf8(gatewayKeyFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; local gateway page lists the request (name + code), browser shows the code |
-| 8 | gateway → browser | `{type:"approved"}` after **Approve on the local gateway page** (key persisted to `allowlist.json`; browser stores the pin), or `{type:"rejected", reason}` (Reject, 5-min expiry, no free slot, bad signature/reveal, any message out of order) |
+| 7 | both | `code = uint32_be(SHA-256(utf8(gatewayKeyFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; local gateway page lists the request (name + code), browser shows the code and asks "Does the gateway show this code?" (**It matches** / **It doesn't**): the comparison is confirmed on both sides |
+| 8 | gateway → browser | `{type:"approved"}` after **Approve on the local gateway page** (key persisted to `allowlist.json`), or `{type:"rejected", reason}` (Reject, 5-min expiry, no free slot, bad signature/reveal, any message out of order). The browser stores the pin only once it has both `approved` and **It matches**, in either order; **It doesn't** ends the attempt without a pin and closes the connection |
+
+The browser holds the gateway to the same order: after its own `auth` it accepts only
+`ok`, or `unpaired` → (its `commit`) `nonce` → (its `reveal`) `approved`, plus
+`rejected` at any point; any other message, or one repeated, ends the attempt.
 
 The commit makes the code ungrindable: a MITM gets one guess (10⁻⁶). The gateway
 holds that to one guess per connection:

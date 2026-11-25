@@ -569,6 +569,22 @@ test('reject on the local gateway page: refused, stays unpaired @gateways', asyn
   await expect(card(b).getByRole('button', { name: 'Pair' })).toBeVisible()
 })
 
+test("It doesn't: the attempt ends unpaired, pairing again gets a code @gateways", async ({
+  browser,
+  paired,
+}) => {
+  const b = await second(browser, paired.user)
+  const dialog = b.getByRole('dialog')
+  await card(b).getByRole('button', { name: 'Pair' }).click()
+  await expect(dialog.getByLabel('Comparison code')).toBeVisible()
+  await expect(dialog).toContainText('Does the gateway show this code?')
+  await dialog.getByRole('button', { name: "It doesn't" }).click()
+  await expect(dialog.getByText("The codes didn't match")).toBeVisible()
+  // The tunnel closed: the user's one pairing slot is free again.
+  await dialog.getByRole('button', { name: 'Pair this browser' }).click()
+  await expect(dialog.getByLabel('Comparison code')).toBeVisible()
+})
+
 test('closing the dialog mid-pairing frees the slot: pairing again gets a code @gateways', async ({
   browser,
   paired,

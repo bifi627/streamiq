@@ -5,11 +5,12 @@ import type { Route } from '../gateways/connection'
 const dot = (x: number, y: number) =>
   `M${x - 2} ${y}a2 2 0 1 0 4 0a2 2 0 1 0-4 0`
 const ends = (y: number) => dot(4, y) + dot(20, y)
-const forced = (tls: boolean) => ({
+// Past tense: the tunnel keeps it after the toggle goes off, until it reconnects.
+const forced = (tls: boolean, relayed: string) => ({
   label: 'Relayed · forced',
   // the relay path, pinned
   icon: ends(16) + 'M5.3 14.5 9 9.7M15 9.7l3.7 4.8M12 3v6M9 3h6M10 9h4',
-  explain: `Force relay${tls ? ' over TLS (443)' : ''} is on in this browser, so the stream passes an encrypted relay that can't see it · turn it off in Diagnostics → Force relay (TURN)`,
+  explain: `This connection was opened with Force relay${tls ? ' over TLS (443)' : ''} on in this browser, so the stream passes an encrypted relay that can't see it${relayed} · turn it off in Diagnostics → Force relay (TURN), or drop ?relay from the address`,
 })
 
 /** The badge's label, icon path and explanation; relayed: the MB part or ''. */
@@ -38,12 +39,7 @@ export function look(route: Route, relayed: string) {
         explain: `Your networks couldn't connect directly, so the stream passes an encrypted relay that can't see it${relayed}`,
       }
     case 'forced':
-    case 'forcedTls': {
-      const f = forced(route === 'forcedTls')
-      return {
-        ...f,
-        explain: f.explain.replace(' · turn', `${relayed} · turn`),
-      }
-    }
+    case 'forcedTls':
+      return forced(route === 'forcedTls', relayed)
   }
 }

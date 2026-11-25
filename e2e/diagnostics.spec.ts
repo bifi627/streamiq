@@ -132,7 +132,7 @@ test('dock Force relay: the library tunnels over TURN, the badge says it is forc
     .click({ timeout: 30_000 })
   await expect(
     page.getByText(
-      /Force relay is on in this browser, .* · [\d.,]+ MB relayed · turn it off in Diagnostics → Force relay \(TURN\)/,
+      /opened with Force relay on in this browser, .* · [\d.,]+ MB relayed · turn it off in Diagnostics → Force relay \(TURN\)/,
     ),
   ).toBeVisible()
   await expect(page.getByText(/couldn't connect directly/)).toHaveCount(0)

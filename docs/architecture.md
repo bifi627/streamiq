@@ -140,7 +140,7 @@ the broker ignores. A stop (SIGTERM) closes every broker socket through its norm
 within 8 s (`shutdownTimeout`): each open tunnel's TURN credential is revoked (its gateway
 may not hear the `bye`: its socket closes too, and the tunnel ends when the browser's
 connection drops). The web app shows
-a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, or relayed.
+a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, relayed, or relayed · forced (the tunnel was opened with this browser's Force relay on, #945).
 **The tunnel history stays on the gateway** (#782, part of #768): `sessions` hands every
 ended tunnel (`Sessions.Ended`: the report, its user, the offer's time, the throughput) to
 `gateway/internal/history` (`Tunnels.Record`), one line in

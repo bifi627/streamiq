@@ -16,7 +16,7 @@ test('look: a forced relay names the setting and where it is turned off', () => 
   assert.equal(l.label, 'Relayed · forced')
   assert.equal(
     l.explain,
-    "Force relay is on in this browser, so the stream passes an encrypted relay that can't see it · 2.0 MB relayed · turn it off in Diagnostics → Force relay (TURN)",
+    "This connection was opened with Force relay on in this browser, so the stream passes an encrypted relay that can't see it · 2.0 MB relayed · turn it off in Diagnostics → Force relay (TURN), or drop ?relay from the address",
   )
   assert.doesNotMatch(l.explain, /couldn't connect/)
 })
@@ -27,7 +27,7 @@ test('look: the TLS-only variant says so, same label and icon', () => {
   assert.equal(tls.icon, look('forced', '').icon)
   assert.match(
     tls.explain,
-    /^Force relay over TLS \(443\) is on in this browser/,
+    /^This connection was opened with Force relay over TLS \(443\) on/,
   )
 })
 

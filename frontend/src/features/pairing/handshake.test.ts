@@ -422,14 +422,26 @@ test('pairing messages out of order are refused', async (t) => {
       gateway({ type: 'nonce', n: 'b' }),
     )
   })
-  await t.test('a second approved', () => {
-    refused(
-      pairing,
-      gateway({ type: 'unpaired' }),
-      gateway({ type: 'nonce', n: 'a' }),
-      approved,
-      approved,
-    )
+  await t.test(
+    'a second approved, It matches before or after the first',
+    () => {
+      for (const events of [
+        [approved, matches, approved],
+        [matches, approved, approved],
+      ]) {
+        const r = run(
+          proven(pairing),
+          gateway({ type: 'unpaired' }),
+          gateway({ type: 'nonce', n: 'a' }),
+          ...events,
+        )
+        assert.deepEqual(kinds(r.fx), ['commit', 'reveal', 'approved', 'fail'])
+        assert.equal(failure(r.fx)?.message, "gateway's approved out of order")
+      }
+    },
+  )
+  await t.test('a second ok', () => {
+    refused({}, gateway({ type: 'ok' }), gateway({ type: 'ok' }))
   })
   await t.test('a second challenge', () => {
     refused({}, challenge)

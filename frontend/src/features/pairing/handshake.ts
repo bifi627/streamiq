@@ -45,8 +45,15 @@ export type State = Init & {
   grace: boolean
   // The auth channel runs challenge → our auth → ok, or → unpaired → commit →
   // nonce → reveal → approved, each once: anything out of that order is refused.
+  // done: authorized, so any further auth message is out of order.
   stage:
-    'challenge' | 'verifying' | 'signed' | 'committed' | 'revealed' | 'approved'
+    | 'challenge'
+    | 'verifying'
+    | 'signed'
+    | 'committed'
+    | 'revealed'
+    | 'approved'
+    | 'done'
   // The user said the gateway shows the same code (It matches). The pin is
   // stored only with both this and the gateway's approved, in either order.
   matched: boolean
@@ -163,14 +170,13 @@ function onProof(s: State, n: string, keyFp: string | undefined): Step {
 
 // A click before the code shows can't happen (the buttons come with it).
 function onMatch(s: State, ok: boolean): Step {
-  if (!ok)
-    return fail(s, 'code-mismatch', "the user said the codes don't match")
+  if (!ok) return fail(s, 'code-mismatch', 'pairing stopped: codes differ')
   if (s.stage === 'approved') return paired(s)
   return s.stage === 'revealed' ? same({ ...s, matched: true }) : same(s)
 }
 
 const paired = (s: State): Step => ({
-  state: { ...s, phase: 'up' },
+  state: { ...s, phase: 'up', stage: 'done' },
   fx: [{ do: 'approved', fp: s.gatewayFp }],
 })
 
@@ -237,7 +243,10 @@ function onGateway(s: State, m: GatewayAuthMessage): Step {
     case 'ok':
       if (s.stage !== 'signed') return outOfOrder(s, m)
       return s.verdict === 'pinned'
-        ? { state: { ...s, phase: 'up' }, fx: [{ do: 'resolve' }] }
+        ? {
+            state: { ...s, phase: 'up', stage: 'done' },
+            fx: [{ do: 'resolve' }],
+          }
         : fail(
             s,
             'pin-mismatch',

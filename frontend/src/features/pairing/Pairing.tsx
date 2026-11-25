@@ -154,6 +154,7 @@ export function Pairing({
           matched={s.matched}
           lanUrl={lanUrl}
           onAnswer={(ok) => {
+            keep.current = true // the clicked button unmounts: keep the D-pad's place
             confirm.current?.(ok)
             if (ok) setS({ ...s, matched: true })
           }}

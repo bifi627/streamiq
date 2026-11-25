@@ -294,7 +294,11 @@ func TestMemberCountsCoverOnlyTheUsersOwn(t *testing.T) {
 		`INSERT INTO users (id, firebase_uid) VALUES (uuidv7(), uuidv7()::text) RETURNING id::text`,
 	), other, "member")
 	user := apitest.Scalar[string](t, `SELECT user_id::text FROM memberships WHERE tenant_id = $1`, mine)
-	got := apitest.Scalar[string](t, `SELECT string_agg(tenant_id::text || '=' || members, ',') FROM member_counts($1)`, user)
+	got := apitest.Scalar[string](
+		t,
+		`SELECT string_agg(tenant_id::text || '=' || members, ',') FROM member_counts($1)`,
+		user,
+	)
 	if want := mine + "=1"; got != want {
 		t.Fatalf("member_counts = %s, want %s", got, want)
 	}

@@ -20,7 +20,7 @@ export function buildOrder(parentBody: string, open: readonly number[]): number[
   if (order.includes(undefined as never)) return "the parent's Order: names a list position that doesn't exist";
   const missing = open.filter((n) => !order.includes(n));
   if (missing.length > 0) return `missing from the parent's order: ${missing.map((n) => `#${n}`).join(", ")}`;
-  return order.filter((n) => open.includes(n));
+  return [...new Set(order)].filter((n) => open.includes(n));
 }
 
 /** An approved spec: no `needs-spec`, and an "Acceptance criteria" section with at least one item. */

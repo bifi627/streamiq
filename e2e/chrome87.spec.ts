@@ -1,6 +1,7 @@
 // The production build on Chromium 87, the webOS TV's engine: a sign-in
-// through the form to Gateways, failing on any uncaught error or console.error. It
-// catches syntax `build.target` let through and runtime APIs 87 lacks. Not a second
+// through the form to Gateways, then a keyboard pick in a TV Settings picker
+// that must give focus back to its row (87 leaves it on <body>), failing on
+// any uncaught error or console.error. It catches syntax `build.target` let through and runtime APIs 87 lacks. Not a second
 // Playwright project: Playwright launches 87 but its actions and visibility checks
 // need Chrome 105 (`checkVisibility`), so this drives the page with plain DOM calls
 // and waits with waitForFunction (both run in the page itself).
@@ -113,7 +114,7 @@ async function serveBuild() {
   return { url, stop: p.stop }
 }
 
-test('Chromium 87 (webOS): the production build signs in to Gateways @shell', async () => {
+test('Chromium 87 (webOS): the production build signs in to Gateways, a TV picker gives focus back @shell', async () => {
   test.skip(
     !builds[process.platform],
     `no Chromium 87 build for ${process.platform}`,
@@ -160,6 +161,34 @@ test('Chromium 87 (webOS): the production build signs in to Gateways @shell', as
       [...document.querySelectorAll('h1')].some(
         (h) => h.textContent === 'Gateways',
       ),
+    )
+
+    // 87 leaves focus on <body> after dialog.close(): a pick by keyboard in a
+    // TV Settings picker must land back on its row. A second household shows
+    // the Household picker; picking the current one keeps the page (no switch).
+    await user.api('/households', { method: 'POST' })
+    await page.evaluate(() => localStorage.setItem('streamiq.settings.tv', '1'))
+    await page.goto(app.url + '/settings')
+    const row = '[aria-label^="Household: "]'
+    await page.waitForFunction((row) => {
+      const el = document.querySelector<HTMLElement>(row)
+      el?.focus()
+      return el
+    }, row)
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => {
+      const el = document.querySelector<HTMLElement>(
+        'dialog[open] [aria-pressed=true]',
+      )
+      el?.focus()
+      return el
+    })
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(
+      (row) =>
+        !document.querySelector('dialog') &&
+        document.activeElement === document.querySelector(row),
+      row,
     )
     expect(errors).toEqual([])
   } finally {

@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import { PageBar } from '../../shared/PageBar'
 import { useQuery } from '@tanstack/react-query'
 import { toAppError } from '../../shared/errors'
 import { ErrorView, State } from '../../shared/ErrorView'
 import { flag, setFlag } from '../../shared/diag'
-import { arrowFocus } from '../../shared/focus'
 import { useHousehold } from '../households/household'
 import { loadHistory } from './api'
 import { byMember, memberLabel } from './household'
@@ -25,8 +23,8 @@ import {
   type TunnelRow,
 } from './tunnels'
 
-// Tunnels in this household, the last 30 days, ≤ 200 per gateway, read from each
-// gateway: a member's own; an admin's opens on everyone's, with a per-member summary
+// The household details' Activity tile: tunnels in this household, the last
+// 30 days, ≤ 200 per gateway, read from each gateway (mounted only once opened): a member's own; an admin's opens on everyone's, with a per-member summary
 // and a member filter.
 // oxlint-disable-next-line complexity -- render branching; the filters' decisions live in tunnels.ts
 export function Activity() {
@@ -46,14 +44,11 @@ export function Activity() {
   const rows = byUse(byMember(byGateway(tunnels ?? [], gateway), member), all)
 
   return (
-    <section className="settings activity" onKeyDown={arrowFocus}>
-      <PageBar title="Activity" />
-      <div className="head">
-        <p className="muted">
-          {admin ? "Everyone's" : 'Your'} connections to this household's
-          gateways.
-        </p>
-      </div>
+    <div className="activity">
+      <p>
+        {admin ? "Everyone's" : 'Your'} connections to this household's
+        gateways.
+      </p>
       {q.error && <ErrorView error={toAppError(q.error)} />}
       {q.data?.unavailable.map((g) => (
         <p key={g.id} className="muted">
@@ -106,7 +101,7 @@ export function Activity() {
           </p>
         </>
       )}
-    </section>
+    </div>
   )
 }
 

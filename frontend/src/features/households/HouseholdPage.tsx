@@ -1,5 +1,5 @@
 import { useContext, useRef, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { signOut } from '@firebase/auth'
 import { auth } from '../../shared/firebase'
 import { renameHousehold } from '../../shared/api'
@@ -21,9 +21,11 @@ import {
 import { Invites } from './Invites'
 import { Members } from './Members'
 import { PageBar } from '../../shared/PageBar'
+import { Activity } from '../activity/Activity'
 
 // /settings/household: the active household (each page load acts in one):
-// Members and (admin) Invites tiles; Rename and Delete in the title row's ⋮.
+// Members, (admin) Invites and Activity tiles; Rename and Delete in the title
+// row's ⋮.
 export function Household() {
   const { me, current } = useHousehold()
   const setMe = useContext(SetMeContext)
@@ -59,8 +61,21 @@ export function Household() {
             <Invites />
           </Tile>
         )}
+        <ActivityTile />
       </div>
     </section>
+  )
+}
+
+// Opened by /activity's redirect (#activity); loads only once opened, as it
+// opens a tunnel per gateway, and stays mounted (filters kept) after closing.
+function ActivityTile() {
+  const deep = useLocation().hash === 'activity'
+  const [seen, setSeen] = useState(deep)
+  return (
+    <Tile title="Activity" open={deep} wide onOpen={(o) => o && setSeen(true)}>
+      {seen && <Activity />}
+    </Tile>
   )
 }
 

@@ -784,6 +784,9 @@ html.tv .no-tv {
   .tiles {
     grid-template-columns: 1fr 1fr;
   }
+  .tiles > .wide {
+    grid-column: 1 / -1;
+  }
 }
 .card.tile {
   padding: 0 var(--sp-5);
@@ -2216,8 +2219,16 @@ progress::-moz-progress-bar {
   height: 14rem;
 }
 
-/* Activity: Settings' layout, the tunnels as a table that scrolls
-   sideways on a phone instead of the page. */
+/* Activity (the household details' tile): the tunnels as a table that
+   scrolls sideways on a phone instead of the page. */
+.activity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.activity > p {
+  margin: 0;
+}
 .activity .filters {
   display: flex;
   flex-wrap: wrap;

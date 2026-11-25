@@ -26,6 +26,8 @@ import {
   uniqueEmail,
   type User,
   openCategory,
+  openActivity,
+  openHouseholds,
 } from './helpers.ts'
 import { must } from './must.ts'
 
@@ -245,16 +247,22 @@ test('connection badge: one check on a fresh load off the library, its tunnel cl
   await expect(badge(page).locator('.initial')).toHaveCount(0)
   // Its tunnel closed once answered: the gateway wrote its line.
   await expect.poll(() => checks(since).length, { timeout: 15_000 }).toBe(1)
-  // Household: a page that opens no tunnel of its own (Activity reads the gateways).
+  // The household details open no tunnel until their Activity tile is
+  // opened (it reads the gateways).
   const sockets: string[] = []
+  const tunnels = () => sockets.filter((u) => u.includes('/broker/ws'))
   page.on('websocket', (ws) => sockets.push(ws.url()))
-  await page.getByRole('link', { name: 'Household', exact: true }).click()
+  await openHouseholds(page)
+  await page.locator('li.card.hh.active').getByRole('link').click()
+  await expect(page.locator('summary', { hasText: 'Activity' })).toBeVisible()
   await expect(
     badge(page).getByRole('button', { name: 'On your network' }),
   ).toBeVisible()
   // oxlint-disable-next-line playwright/no-wait-for-timeout -- proves no check starts: no state to wait on
   await page.waitForTimeout(2_000)
-  expect(sockets.filter((u) => u.includes('/broker/ws'))).toEqual([])
+  expect(tunnels()).toEqual([])
+  await page.locator('summary', { hasText: 'Activity' }).click()
+  await expect.poll(() => tunnels().length).toBeGreaterThan(0)
 })
 
 test('connection badge: live from the library tunnel, which replaced its own badge (#860) @gateways', async ({
@@ -432,7 +440,7 @@ test('member view: the same card, no Add gateway, no menu on the page (#190) @ga
   await expect(online).toBeVisible() // card loaded
   // The role is in (/me): the households overview shows it. Before that
   // both buttons are hidden for anyone.
-  await m.getByRole('link', { name: 'Household' }).click()
+  await openHouseholds(m)
   await expect(m.locator('li.card.hh.active')).toContainText('Member')
   await m.getByRole('link', { name: 'Gateways' }).click()
   await expect(online).toBeVisible()
@@ -502,7 +510,9 @@ test("activity: an admin sees the household, a member only their own, from the g
   const [g] = await user.api<{ id: string; name: string }[]>('/gateways')
   const member = await signUp(uniqueEmail('act-member'), { alias: 'Bob' })
   await join(user, member)
+  // The old URL: the household details with the Activity tile open.
   const m = await signedInPage(browser, member, '/activity', user.tenantId)
+  await expect(m).toHaveURL(/\/settings\/household#activity$/)
   // Not paired with this browser: named, no rows.
   await expect(m.getByText(`${g.name}: history unavailable`)).toBeVisible()
   await m.getByRole('link', { name: 'Gateways', exact: true }).click()
@@ -513,7 +523,7 @@ test("activity: an admin sees the household, a member only their own, from the g
   ])
   const playback = new RegExp(`${g.name} Playback`)
 
-  await a.getByRole('link', { name: 'Activity' }).click()
+  await openActivity(a)
   // Bob's count and failures include his pairing tunnels; only the seeded one was relayed.
   const summary = a.getByRole('table', { name: "Members' activity" })
   await expect(
@@ -530,7 +540,7 @@ test("activity: an admin sees the household, a member only their own, from the g
   await expect(tunnels.getByRole('row', { name: /Bob/ })).toHaveCount(0)
   await expect(tunnels.getByRole('row', { name: playback })).toHaveCount(1)
 
-  await m.getByRole('link', { name: 'Activity' }).click()
+  await openActivity(m)
   await expect(m.getByRole('row', { name: playback })).toHaveCount(1) // Bob's own
   await expect(m.getByRole('table', { name: "Members' activity" })).toHaveCount(
     0,

@@ -475,6 +475,22 @@ export const pitch = (p: Page) =>
 
 /** Expands a Settings category that opens in place (Display, Account,
  * Diagnostics): they start closed. */
+/** The Main nav → Settings → its Households row: the households overview. */
+export async function openHouseholds(p: Page) {
+  await p
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Settings' })
+    .click()
+  await p.getByRole('link', { name: 'Households' }).click()
+}
+
+/** The overview → the active household's details → its Activity tile, open. */
+export async function openActivity(p: Page) {
+  await openHouseholds(p)
+  await p.locator('li.card.hh.active').getByRole('link').click()
+  await p.locator('summary', { hasText: 'Activity' }).click()
+}
+
 export const openCategory = (p: Page, name: string) =>
   p
     .locator('summary')

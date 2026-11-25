@@ -61,7 +61,7 @@ export const test = base.extend<
       // testcontainers' Ryuk reaps it with the stack if this worker is killed.
       const jf = await startJellyfin({}, undefined, `jellyfin ${parallelIndex}`) // sets E2E_JELLYFIN_URL (startGateway reads it)
       await use(jf.url)
-      await jf.container.stop()
+      await jf.stop()
     },
     // A worker fixture has its own timeout slot (the project's 180 s), so its
     // startup never eats into the first test's budget.

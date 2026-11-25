@@ -115,8 +115,8 @@ const video = (
 const poster = (src: string, hue: number, title: string, out: string) =>
   `${FFMPEG} ${picture(src, hue, '400x600', title, 30)} -frames:v 1 "${out}"`
 
-// Locked local metadata: without it Jellyfin matches invented titles to real films
-// online (real posters, real names) despite EnableInternetProviders: false.
+// Locked local title and year: without them Jellyfin names a film after its folder,
+// year included ("Neon Harbor (2026) (2026)"). Online metadata: none, the jail.
 const nfo = (kind: string, title: string, year: number, out: string) =>
   `printf '<?xml version="1.0"?><${kind}><title>${title}</title><year>${year}</year>` +
   `<lockdata>true</lockdata></${kind}>' > "${out}"`

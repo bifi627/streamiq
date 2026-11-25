@@ -44,8 +44,9 @@ export async function setupJellyfin(
   const post = (path: string, body: unknown, token?: string) =>
     call(path, { method: 'POST', body: JSON.stringify(body) }, token)
 
-  // /System/Info/Public answers before the server is fully up; the wizard
-  // returns 503 (or the socket closes: "fetch failed") until then.
+  // Waits for Jellyfin's start: the jail's forwarder accepts at once and closes
+  // the socket ("fetch failed") until Jellyfin listens, then the wizard returns
+  // 503 until the server is fully up.
   for (let i = 0; ; i++) {
     try {
       await post('/Startup/Configuration', {
@@ -55,7 +56,7 @@ export async function setupJellyfin(
       })
       break
     } catch (e) {
-      if (i >= 60 || !/HTTP 503|fetch failed/.test(String(e))) throw e
+      if (i >= 180 || !/HTTP 503|fetch failed/.test(String(e))) throw e
       await new Promise((r) => setTimeout(r, 1000))
     }
   }

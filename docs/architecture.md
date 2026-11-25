@@ -233,6 +233,7 @@ peaks per local day.
 - Offline jail: the shipped compose Jellyfin sits on an `internal` network, an
   `alpine/socat` forwarder publishes 8096. `gateway jellyfin offline on|off` toggles the
   `# streamiq:<name>` marked blocks (`offline.go`); `upgrade` migrates older files.
+  The e2e and preview Jellyfin run jailed the same way (`e2e/stack.ts`, #942).
 - `serverSteps` (like `configSteps`, against `/System/Configuration`) turns the Person TMDb
   fetchers off.
 

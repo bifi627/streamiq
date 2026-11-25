@@ -8,7 +8,7 @@
 //
 // `up` spawns one detached `serve` process (the stack owner), waits until it
 // wrote ready into .preview/state.json, prints the URLs and exits. `down` kills
-// that process tree, removes the containers (label streamiq.preview=<id>) and
+// that process tree, removes the containers and the Jellyfin jail (label streamiq.preview=<id>) and
 // waits until its ports are closed.
 //
 // --tunnel: also a Cloudflare quick tunnel (https://….trycloudflare.com,
@@ -188,8 +188,11 @@ async function up() {
     fs.mkdirSync(dir, { recursive: true })
     ensureCert()
     const port =
-      Number(opt('--port') ?? process.env.STREAMIQ_PREVIEW_PORT) ||
-      41000 + (parseInt(id.slice(0, 8), 16) % 1000) // stable per worktree: bookmarks keep working
+      Number(opt('--port') ?? process.env.STREAMIQ_PREVIEW_PORT) || 41111 // one per machine, typed on a TV remote's d-pad
+    if (await listening(port))
+      throw new Error(
+        `port ${port} is taken (another worktree's preview? stop it, or --port N)`,
+      )
     const log = fs.openSync(path.join(dir, 'preview.log'), 'w')
     const child = spawn(
       process.execPath,
@@ -267,6 +270,15 @@ async function down(s = read()) {
     .filter(Boolean)
   if (ids.length)
     spawnSync('docker', ['rm', '-f', '-v', ...ids], { stdio: 'ignore' })
+  const nets = spawnSync(
+    'docker',
+    ['network', 'ls', '-q', '--filter', `label=streamiq.preview=${id}`],
+    { encoding: 'utf8' },
+  )
+    .stdout.split(/\s+/)
+    .filter(Boolean)
+  if (nets.length)
+    spawnSync('docker', ['network', 'rm', ...nets], { stdio: 'ignore' }) // the Jellyfin jail
   for (const end = Date.now() + 30_000; ;) {
     const open = []
     for (const p of s.ports ?? [s.port]) if (await listening(p)) open.push(p)

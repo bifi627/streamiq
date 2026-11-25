@@ -188,8 +188,11 @@ async function up() {
     fs.mkdirSync(dir, { recursive: true })
     ensureCert()
     const port =
-      Number(opt('--port') ?? process.env.STREAMIQ_PREVIEW_PORT) ||
-      41000 + (parseInt(id.slice(0, 8), 16) % 1000) // stable per worktree: bookmarks keep working
+      Number(opt('--port') ?? process.env.STREAMIQ_PREVIEW_PORT) || 44444 // one per machine, typed on a TV remote's d-pad
+    if (await listening(port))
+      throw new Error(
+        `port ${port} is taken (another worktree's preview? stop it, or --port N)`,
+      )
     const log = fs.openSync(path.join(dir, 'preview.log'), 'w')
     const child = spawn(
       process.execPath,

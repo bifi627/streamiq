@@ -36,8 +36,10 @@ func smaller(a, b *Disk) *Disk {
 func inContainer(ctx context.Context, compose string) *Disk {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "docker", "compose", "-f", compose,
-		"exec", "-T", "jellyfin", "df", "-B1", "--output=avail,size", "/cache").Output()
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", compose,
+		"exec", "-T", "jellyfin", "df", "-B1", "--output=avail,size", "/cache")
+	cmd.WaitDelay = time.Second // the compose plugin can outlive a killed docker CLI and hold stdout open
+	out, err := cmd.Output()
 	if err != nil {
 		return nil
 	}

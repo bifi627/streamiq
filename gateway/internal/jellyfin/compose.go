@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"time"
 )
 
 // Image is the Jellyfin image this release pins in jellyfin-compose.yml
@@ -112,7 +113,9 @@ func composeQuiet(ctx context.Context, file string, args ...string) error {
 	if err := haveCompose(ctx); err != nil {
 		return err
 	}
-	out, err := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", file}, args...)...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose", "-f", file}, args...)...)
+	cmd.WaitDelay = time.Second // the compose plugin can outlive a killed docker CLI and hold the output open
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker compose %s: %w: %s", args[0], err, bytes.TrimSpace(out))
 	}

@@ -329,6 +329,7 @@ test('a dropped tunnel (#598): a new one, playback goes on at the playhead with 
   ).toBeVisible({ timeout: 30_000 })
   await expect.poll(() => videoTime(page)).toBeGreaterThan(at + 1) // and plays on
   await expect(page.locator('main').getByRole('alert')).toHaveCount(0)
+  await expect(page.getByRole('status', { name: 'Loading' })).toHaveCount(0) // no spinner left
 })
 
 test('compatible mode (#113, #792): an H.264 + AAC file still remuxes; the gateway keeps the profile @player', async ({

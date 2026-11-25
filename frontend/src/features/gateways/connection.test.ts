@@ -16,6 +16,7 @@ test('connPart: only an online gateway, checking until answered', () => {
   assert.equal(connPart('online', { route: 'relay', mb: 2 }), 'relay')
   assert.equal(connPart('online', { route: 'failed' }), 'failed')
   assert.equal(connPart('online', { route: 'unpaired' }), 'unpaired')
+  assert.equal(connPart('online', { route: 'reconnecting' }), 'reconnecting')
 })
 
 test('isRoute: a connection type, not a state', () => {

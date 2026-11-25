@@ -15,6 +15,30 @@
   height: 100%;
   max-height: none;
 }
+/* The stall spinner (stall.ts): under the controls, never takes a click. */
+.player .stall {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3rem;
+  height: 3rem;
+  margin: -1.5rem 0 0 -1.5rem;
+  border: 4px solid rgb(255 255 255 / 30%);
+  border-top-color: white;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: stall 0.9s linear infinite;
+}
+@keyframes stall {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player .stall {
+    animation-duration: 3s;
+  }
+}
 .player[data-idle='true'] {
   cursor: none;
 }

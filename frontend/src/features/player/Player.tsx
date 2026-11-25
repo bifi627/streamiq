@@ -16,6 +16,7 @@ import { Engine, START_VIEW, type View } from './engine'
 import { qualityOptions } from './quality'
 import type { Quality } from './profile'
 import { TICKS_PER_SECOND, type Item } from '../library/items'
+import { STALL_EVENTS, stalls } from './stall'
 
 const episodeLine = (i: Item) =>
   `S${i.ParentIndexNumber ?? '?'} · E${i.IndexNumber ?? '?'} ${i.Name}`
@@ -51,6 +52,7 @@ export function Player({
 }) {
   const { gatewayId } = useTunnel()
   const video = useRef<HTMLVideoElement>(null)
+  const stalled = useStall(video)
   const [view, setView] = useState<View>(START_VIEW)
   const patch = (p: Partial<View>) => setView((v) => ({ ...v, ...p }))
   const { item, file, link, tracks, subs } = view
@@ -152,9 +154,25 @@ export function Player({
         {/* A task later: onEnded may unmount the player at once, and the
             engine's own `ended` listener (the Played save) must run first. */}
         <video ref={video} onEnded={() => onEnded && setTimeout(onEnded)} />
+        {stalled && (
+          <span className="stall" role="status" aria-label="Loading" />
+        )}
       </Controls>
       {view.blocked && <p>Press play to start.</p>}
       {view.err && <ErrorView error={view.err} />}
     </div>
   )
+}
+
+/** Whether the picture is waiting for data (stall.ts). */
+function useStall(video: React.RefObject<HTMLVideoElement | null>) {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    const v = video.current
+    if (!v) return
+    const f = (e: Event) => setOn(stalls(e.type))
+    STALL_EVENTS.forEach((n) => v.addEventListener(n, f))
+    return () => STALL_EVENTS.forEach((n) => v.removeEventListener(n, f))
+  }, [video])
+  return on
 }

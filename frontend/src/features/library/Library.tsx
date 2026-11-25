@@ -70,7 +70,11 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
     () =>
       hold(gatewayId, share, {
         up: setSession,
-        dropped: () => event('tunnel dropped: reconnecting'),
+        dropped: () => {
+          event('tunnel dropped: reconnecting')
+          // the shell badge, until the new tunnel's route
+          qc.setQueryData<Conn>(connKey(gatewayId), { route: 'reconnecting' })
+        },
         error: (e) => {
           const err = toAppError(e)
           setSession(null) // a drop that won't reconnect: off the dead pc

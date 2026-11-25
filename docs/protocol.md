@@ -57,7 +57,8 @@ tunnel (`GET /streamiq/status`, below), so an unpaired browser sees only these.
 
 **Protocol version (#176).** `protocol` is an integer, the version of this gateway ↔ API
 protocol (currently **3**: 2 added a `tunnel` report, #390, which gateways no longer send since #783; 3 is the identity-key `challenge` of the auth channel, #427, which browsers require; Go `onboarding.Protocol`). A breaking change bumps it. The API
-has one minimum (`protocol.MinGatewayProtocol`); raising it is a deliberate step,
+has one minimum (`protocol.MinGatewayProtocol`, currently **3**: browsers need the identity-key
+proof, so #427 raised it with the gateway release); raising it is a deliberate step,
 since every gateway below it stops working until its owner updates. A first heartbeat
 below the minimum, or without `protocol`, gets `1008 "upgrade required"`; the API
 records the version, `GET /api/gateways` reports `upgradeRequired: true`, and the
@@ -326,19 +327,11 @@ its channels end. Signaling can't do this — the tunnel is peer-to-peer and the
 broker never sees client keys. No message is sent; the browser sees the
 connection close, and its next connect gets `unpaired`.
 
-**Shared test vectors** (asserted in `gateway/internal/pairing` and
-`frontend/src/features/pairing/crypto.test.ts`; generated with WebCrypto):
-
-```
-pkcs8     MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNfSxgTmdmEdSnpZREJ8zENfSXNkksKt+maxxPfmM/0OhRANCAASZO24jDJAtjsPMwyNMixSTFrNaCBNOcl++jKq1UlDMtdhrPnx+TVcO+RDzLnEwFciaW/hHW06pJCe99d4wkcc3
-spki      MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmTtuIwyQLY7DzMMjTIsUkxazWggTTnJfvoyqtVJQzLXYaz58fk1XDvkQ8y5xMBXImlv4R1tOqSQnvfXeMJHHNw==
-keyFp     sha-256 40:F0:B4:7F:13:E4:C0:9B:73:86:7F:7A:77:E1:16:71:A2:AF:84:61:A0:8F:9F:15:25:CB:FE:7F:82:8A:C6:10
-gatewayFp   sha-256 D4:F0:BC:5A:29:DE:06:B5:10:F9:AA:42:8F:1E:ED:BA:92:60:12:B5:91:FE:F7:A5:18:E7:76:A7:C9:BD:18:24
-browserFp sha-256 D4:C3:E8:A1:12:56:AB:82:A4:FC:72:56:0E:B4:A2:B0:E8:7B:AD:82:0C:29:0D:D9:B0:36:16:DE:24:0A:A6:DB
-n         00…01 (64 hex chars)
-sig       jXq2DxskrRUJ2/lPhsID2biFys0vK47f+Z9XNWopW2mdfxatIsNm8/UtQV6feHlf/U42r5ERviRotv6W8GE0GQ==   (verifies)
-code(gatewayFp, keyFp, nA="11"×32, nB="22"×32) = 138781
-```
+**Shared test vectors**: `gateway/internal/pairing/testdata/vectors.json`, read by the Go
+tests (`gateway/internal/pairing`) and `frontend/src/features/pairing/crypto.test.ts`: a
+client key (`pkcs8`/`spki`/`keyFp`), both DTLS fingerprints, `n`, the client's `sig`
+(made with WebCrypto, so it catches a P1363-vs-ASN.1 mismatch), the gateway's `proof`
+(made with Go's `Prove`, the same key as identity key) and a comparison `code`.
 
 Once authorized, tunnel requests use the framing below, one channel each.
 

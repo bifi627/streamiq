@@ -79,6 +79,12 @@ func updateAndRollBack(t *testing.T, install string) {
 			t.Fatal(err)
 		}
 	}
+	// The identity a paired browser pins: it must survive the update. A release
+	// from before identity.pem (only cert.pem) has none to keep.
+	var fp string
+	if _, err := os.Stat(filepath.Join(state, identity.File)); err == nil {
+		_, fp, _ = identity.LoadOrCreate(state)
+	}
 	before := files(t, state)
 
 	// The old binary runs the update, if it can be pointed at our release (the
@@ -126,10 +132,10 @@ func updateAndRollBack(t *testing.T, install string) {
 
 	// The new build reads the old state: a format change without a migration
 	// fails here. A deliberate break (feat!) changes this expectation, in its PR.
-	// The identity-key change was a feat!: old cert.pem pins can't carry over, so the new build makes
-	// a new identity key.
-	if _, _, err = identity.LoadOrCreate(state); err != nil {
-		t.Fatalf("identity after the update: %v", err)
+	// cert.pem only: the new build makes its identity key (old pins can't carry over).
+	_, got, err := identity.LoadOrCreate(state)
+	if err != nil || (fp != "" && got != fp) {
+		t.Fatalf("identity after the update: %q, %v; want %q (the old one)", got, err, fp)
 	}
 	ps, err := pairing.Open(state)
 	if err != nil {

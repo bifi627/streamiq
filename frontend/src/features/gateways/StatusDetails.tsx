@@ -9,7 +9,7 @@ import { toAppError } from '../../shared/errors'
 import { detailsMessage } from './list'
 import { loadHints, loadLine } from './host'
 import { RelaySetting } from './RelaySetting'
-import { Tile } from './Tile'
+import { Tile } from '../../shared/Tile'
 
 const tokenText = {
   ok: 'token set',

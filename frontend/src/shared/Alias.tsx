@@ -3,7 +3,7 @@ import { signOut, updateProfile, type User } from '@firebase/auth'
 import { auth } from './firebase'
 import { describe, toAppError } from './errors'
 import { arrowFocus } from './focus'
-import { EditableName, STORED } from '../features/gateways/EditableName'
+import { EditableName, STORED } from './EditableName'
 
 // The alias other household members see instead of your email: the
 // Firebase displayName, set here, never stored by us (no PII in our DB).

@@ -1,8 +1,8 @@
 import type { ReactNode, Ref } from 'react'
-import { Chevron } from '../../shared/Chevron'
+import { Chevron } from './Chevron'
 
-// One of the gateway page's expandable tiles, collapsed until opened. onOpen:
-// whether it is open, so a tile asks its gateway only then.
+// An expandable tile in a .tiles grid, collapsed until opened. onOpen:
+// whether it is open, so a tile loads its data only then.
 export function Tile({
   title,
   onOpen,
@@ -16,14 +16,14 @@ export function Tile({
 }) {
   return (
     <details
-      className="card gw-tile"
+      className="card tile"
       onToggle={(e) => onOpen(e.currentTarget.open)}
     >
       <summary ref={summaryRef}>
         {title}
         <Chevron />
       </summary>
-      <div className="gw-tile-body">{children}</div>
+      <div className="tile-body">{children}</div>
     </details>
   )
 }

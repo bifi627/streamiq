@@ -8,10 +8,14 @@
 // saver: no warm-up and 3 × 1 MiB (~3 MB), not stored (it reads low: ramp-up).
 import { event } from './diag'
 import { pairInfo } from './stats'
-import { burstOn } from '../features/gateways/api'
+import { tunnelFetch } from './tunnel'
 import { burstSize, median } from '../features/player/profile'
 import { dataSaverOn, speedEvery } from './settings'
 import { age, parseReading, plan, switched, type Reading } from './speedPolicy'
+
+// GET /streamiq/burst: the raw response, so the speed test times it.
+const burstOn = (pc: RTCPeerConnection, size: number) =>
+  tunnelFetch(pc, `/streamiq/burst?size=${size}`)
 
 const MIB = 1 << 20
 

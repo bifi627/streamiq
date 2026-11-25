@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { isBack } from '../library/items'
+import { isBack } from '../features/library/items'
 
 // The hint on inputs whose text leaves the user's hardware: our DB or Firebase.
 // Not on what only the gateway keeps (client names): that's their box.
 export const STORED = 'Saved by StreamIQ.'
 
-// The name, plus an inline Rename (a paired client's, a household's): NameForm
+// The name, plus an inline Rename (a paired client's, the alias): NameForm
 // in its place while editing. arrowFocus reaches the controls. children
 // replaces the shown name (the <h2> by default).
 export function EditableName({

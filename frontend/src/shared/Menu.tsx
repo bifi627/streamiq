@@ -4,7 +4,7 @@ export type Action = { label: string; run: () => void }
 
 // The title row's ⋮: the page's actions in a small menu. Closes on a choice,
 // Escape (focus back on ⋮) or a press outside it.
-export function ActionMenu({
+export function Menu({
   label,
   actions,
   button,

@@ -1,11 +1,13 @@
-import { useContext, useState } from 'react'
+import { useContext, useRef, useState } from 'react'
 import { signOut } from '@firebase/auth'
 import { auth } from '../../shared/firebase'
 import { createHousehold, renameHousehold } from '../../shared/api'
 import { AppError, describe, toAppError } from '../../shared/errors'
 import { ErrorView } from '../../shared/ErrorView'
 import { arrowFocus } from '../../shared/focus'
-import { EditableName, STORED } from '../gateways/EditableName'
+import { STORED } from '../../shared/EditableName'
+import { EditableTitle } from '../../shared/EditableTitle'
+import { Menu } from '../../shared/Menu'
 import {
   householdLabel,
   membershipLabel,
@@ -46,22 +48,7 @@ export function Household() {
   }
   return (
     <section className="household" onKeyDown={arrowFocus}>
-      <PageBar
-        title={
-          current ? (
-            <EditableName
-              name={current.name ?? ''}
-              label="Household name"
-              hint={STORED}
-              rename={current.role === 'admin' ? rename : undefined}
-            >
-              <h1>{householdLabel(current)}</h1>
-            </EditableName>
-          ) : (
-            'Household'
-          )
-        }
-      />
+      <Title rename={rename} />
       {current && (
         <div className="head">
           <span className="chip">
@@ -74,6 +61,50 @@ export function Household() {
       {current?.role === 'admin' && <Invites />}
       {current && <CreateAnother />}
     </section>
+  )
+}
+
+// The title row: the name, and for an admin ⋮ → Rename, which turns the
+// title into the rename form.
+function Title({
+  rename,
+}: {
+  rename: (name: string) => Promise<string | null>
+}) {
+  const { current } = useHousehold()
+  const [renaming, setRenaming] = useState(false)
+  const menu = useRef<HTMLButtonElement>(null)
+  const admin = current?.role === 'admin'
+  return (
+    <PageBar
+      title={
+        current ? (
+          <EditableTitle
+            title={householdLabel(current)}
+            editing={renaming && admin}
+            name={current.name ?? ''}
+            label="Household name"
+            hint={STORED}
+            rename={rename}
+            onClose={() => {
+              setRenaming(false)
+              menu.current?.focus() // the form had it: keep the D-pad's place
+            }}
+          />
+        ) : (
+          'Household'
+        )
+      }
+      actions={
+        admin && (
+          <Menu
+            label="Household actions"
+            actions={[{ label: 'Rename', run: () => setRenaming(true) }]}
+            button={menu}
+          />
+        )
+      }
+    />
   )
 }
 

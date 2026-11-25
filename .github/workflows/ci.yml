@@ -90,6 +90,7 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+      - run: docker build --target web --build-arg VITE_FIREBASE_API_KEY=ci --build-arg VITE_FIREBASE_AUTH_DOMAIN=ci --build-arg VITE_FIREBASE_PROJECT_ID=ci . # the Railway image's web stage: it builds from the .dockerignore'd context, not the checkout
 
   gateway-linux:
     needs: draft

@@ -1,9 +1,11 @@
 package broker_test
 
 import (
+	"strconv"
 	"testing"
 
 	"streamiq/api/internal/apitest"
+	"streamiq/protocol"
 )
 
 func gatewayCols(t *testing.T, g *gw, cols string) string {
@@ -20,6 +22,9 @@ func TestAnEnrolledGatewaysCredentialOpensItsSocket(t *testing.T) {
 	}
 }
 
+// minProtocol is what s.online's first heartbeat sends.
+var minProtocol = strconv.Itoa(protocol.MinGatewayProtocol)
+
 func TestAHeartbeatUpdatesOnlyTheSendingGatewaysRow(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
@@ -30,7 +35,7 @@ func TestAHeartbeatUpdatesOnlyTheSendingGatewaysRow(t *testing.T) {
 		t,
 		nas,
 		`lan_url, version, update, protocol`,
-	); got != "http://192.168.1.20:8097/|1.4.0|1.6.0|1" {
+	); got != "http://192.168.1.20:8097/|1.4.0|1.6.0|"+minProtocol {
 		t.Fatal(got)
 	}
 	if got := gatewayCols(
@@ -101,7 +106,7 @@ func TestAnOlderGatewaysTelemetryIsIgnored(t *testing.T) {
 func TestAGatewayAtTheCurrentProtocolIsAcceptedAndStaysOpen(t *testing.T) {
 	s := newBroker(t)
 	nas := s.online("alice@home.test", "nas")
-	if got := gatewayCols(t, nas, `protocol`); got != "1" || !s.b.Online(nas.id) {
+	if got := gatewayCols(t, nas, `protocol`); got != minProtocol || !s.b.Online(nas.id) {
 		t.Fatal(got)
 	}
 	s.heartbeat(nas, nil) // still open

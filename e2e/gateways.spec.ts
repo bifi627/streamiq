@@ -248,7 +248,7 @@ test('connection badge: one check on a fresh load off the library, its tunnel cl
   // Household: a page that opens no tunnel of its own (Activity reads the gateways).
   const sockets: string[] = []
   page.on('websocket', (ws) => sockets.push(ws.url()))
-  await page.getByRole('link', { name: 'Household' }).click()
+  await page.getByRole('link', { name: 'Household', exact: true }).click()
   await expect(
     badge(page).getByRole('button', { name: 'On your network' }),
   ).toBeVisible()

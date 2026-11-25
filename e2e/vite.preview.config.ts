@@ -60,10 +60,10 @@ export default {
   },
   server: {
     headers: base.server?.headers,
-    // No HMR socket: Vite's client reloads the page when it reconnects, so a
+    // No Vite socket: its client reloads the page when it reconnects, so a
     // phone's network change would reload instead of testing the tunnel's
-    // reconnect. Code changes on a device need a manual reload.
-    hmr: false,
+    // reconnect (hmr: false still opens it). Code changes need a manual reload.
+    ws: false,
     // HTTP skips Vite's host check over HTTPS; the HMR socket doesn't.
     allowedHosts: ['.trycloudflare.com'],
     https: {

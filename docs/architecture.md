@@ -300,4 +300,4 @@ peaks per local day.
 
 The POC (2026-07-08) proved cellular→home connectivity (86% direct, cellular 100%), TURN
 fallback, 1080p + subtitles, seek, HEVC transcode and remux over the tunnel, and 4K via
-ABR. Record: `docs/poc-connectivity-spike.md`.
+ABR.

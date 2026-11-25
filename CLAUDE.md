@@ -55,8 +55,7 @@ are off while it's on (#113). **Data saver** = per-device Automatic/On/Off (Auto
 `saveData` or cellular): Auto stays at 480p and the throughput test is 3 × 1 MiB (#291).
 **Project name:** StreamIQ (was "r8er" until 2026-11-06): `streamiq` in code (paths, module, DB,
 binaries), `STREAMIQ_` for env vars, "StreamIQ" in user-visible text. Don't reintroduce the old
-name; historical records (e.g. `docs/poc-connectivity-spike.md`) keep it: those URLs/env vars
-really were `r8er`.
+name.
 
 ## Stack & layout
 

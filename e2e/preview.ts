@@ -29,13 +29,14 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
+import { apply, media, signIns } from './preview-seed.ts'
+
 const dir = path.join(import.meta.dirname, '.preview')
 const stateFile = path.join(dir, 'state.json')
 const cert = path.join(dir, 'cert.pem')
 const key = path.join(dir, 'key.pem')
 const root = path.resolve(import.meta.dirname, '..')
 const id = createHash('sha1').update(root).digest('hex').slice(0, 12)
-const login = { email: 'preview@streamiq.test', password: 'preview-password' }
 const win = process.platform === 'win32'
 
 const args = process.argv.slice(2)
@@ -160,7 +161,7 @@ function print(s: State) {
                 (phone/TV on the same network; accept the certificate warning once)
   local:        ${s.local}
   api:          ${s.api} (auth emulator: ${s.emulator}; for extra seeding)
-  login:        ${login.email} / ${login.password} (account exists)
+  sign-ins:     ${signIns().join('\n                ')}
 ${
   s.tunnel
     ? `  tunnel:       ${s.tunnel} (public while running; TV: open <LAN>/tv)
@@ -341,35 +342,14 @@ async function serve() {
       dir: path.join(dir, 'bin'),
       lan: { port, cert, key },
       media: true,
+      extraMedia: await media(),
       label: id,
       nvenc, // NVIDIA GPU on this machine → Jellyfin transcodes on it
     })
 
-    // Seed: account with its own household (sign-up makes none), then a
-    // gateway onboarded the way "Add gateway" does, until it is online.
-    const signUp = await fetch(
-      `${stack.emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...login,
-          displayName: 'Preview', // no alias prompt
-          returnSecureToken: true,
-        }),
-      },
-    ).then((r) => r.json())
-    if (!signUp.idToken)
-      throw new Error(`emulator signUp: ${JSON.stringify(signUp)}`)
-    const authed = async (p: string, method = 'GET') => {
-      const r = await fetch(`${stack.api}/api${p}`, {
-        method,
-        headers: { Authorization: `Bearer ${signUp.idToken}` },
-      })
-      if (!r.ok) throw new Error(`${method} /api${p}: HTTP ${r.status}`)
-      return r.json()
-    }
-    await authed('/households', 'POST')
+    // Seed (preview-seed.ts): users and households, then a gateway in the
+    // preview user's own one, onboarded the way "Add gateway" does, until online.
+    const authed = await apply(stack.api, stack.emulator)
     const { token } = await authed('/gateways/enrollment-tokens', 'POST')
     const stateDir = path.join(dir, 'gateway-state') // fresh DB each up → fresh gateway
     fs.rmSync(stateDir, { recursive: true, force: true })

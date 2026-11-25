@@ -239,6 +239,9 @@ export type StackOptions = {
   lan?: { port: number; cert: string; key: string }
   /** Also mount the repo's dev-media/ into Jellyfin's library (must exist). */
   media?: boolean
+  /** Also mount this dir's movies/ and each series in its shows/ (the preview's
+   *  extra media, preview-seed.ts). */
+  extraMedia?: string
   /** Docker label on every container (the preview's `down` removes by it). */
   label?: string
   /** Give Jellyfin all NVIDIA GPUs (`--gpus all`) and turn on NVENC. */
@@ -303,58 +306,72 @@ const ENCODE =
   `FFMPEG=${FFMPEG} sh /scripts/gen-test-series.sh /out/shows`
 
 let media: Promise<string> | undefined
-/**
- * The fixture media (ENCODE), encoded once per checkout in a one-off container of
- * the pinned Jellyfin image and cached in e2e/.bin under a hash of the commands,
- * the series script and the pin; startJellyfin copies it in before Jellyfin
- * starts. ponytail: old caches stay until .bin is deleted (a few MB each).
- */
+/** The fixture media (ENCODE), once per checkout in e2e/.bin (encodeOnce). */
 export function fixtureMedia() {
-  return (media ??= (async () => {
-    const image = pin('jellyfin/jellyfin')
-    const scripts = path.join(root, 'scripts')
-    const hash = createHash('sha256')
-      .update(image)
-      .update(ENCODE)
-      .update(fs.readFileSync(path.join(scripts, 'gen-test-series.sh')))
-      .digest('hex')
-      .slice(0, 12)
-    const dir = path.join(import.meta.dirname, '.bin', `media-${hash}`)
-    if (fs.existsSync(dir)) return dir
-    // Into a temp dir, then one rename: a concurrent run never sees half a cache.
-    const tmp = `${dir}-${process.pid}`
+  return (media ??= encodeOnce(
+    path.join(import.meta.dirname, '.bin'),
+    'media',
+    ENCODE,
+    fs.readFileSync(path.join(root, 'scripts', 'gen-test-series.sh'), 'utf8'),
+  ))
+}
+
+/**
+ * <base>/<name>-<hash>: what `script` writes to /out, run once in a one-off
+ * container of the pinned Jellyfin image (its ffmpeg; /scripts = the repo's
+ * scripts/) and cached under a hash of the image, the script and `inputs` (files
+ * it reads). ponytail: old caches stay until deleted (a few MB each).
+ */
+export async function encodeOnce(
+  base: string,
+  name: string,
+  script: string,
+  inputs = '',
+) {
+  const image = pin('jellyfin/jellyfin')
+  const hash = createHash('sha256')
+    .update(image)
+    .update(script)
+    .update(inputs)
+    .digest('hex')
+    .slice(0, 12)
+  const dir = path.join(base, `${name}-${hash}`)
+  if (fs.existsSync(dir)) return dir
+  // Into a temp dir, then one rename: a concurrent run never sees half a cache.
+  const tmp = `${dir}-${process.pid}`
+  fs.rmSync(tmp, { recursive: true, force: true })
+  fs.mkdirSync(tmp, { recursive: true })
+  // A file, not `sh -c`: Windows caps a command line at 32K characters.
+  fs.writeFileSync(path.join(tmp, '.encode.sh'), script)
+  const encode = run(
+    'docker',
+    [
+      'run',
+      '--rm',
+      ...(process.getuid ? ['--user', String(process.getuid())] : []), // host-owned output
+      '-v',
+      `${tmp}:/out`,
+      '-v',
+      `${path.join(root, 'scripts')}:/scripts:ro`,
+      '--entrypoint',
+      'sh',
+      image,
+      '-c',
+      'sh /out/.encode.sh && rm /out/.encode.sh',
+    ],
+    root,
+  )
+  await encode.catch((e) => {
+    fs.rmSync(tmp, { recursive: true, force: true }) // no half-encoded leftover
+    throw e
+  })
+  try {
+    fs.renameSync(tmp, dir)
+  } catch (e) {
     fs.rmSync(tmp, { recursive: true, force: true })
-    fs.mkdirSync(tmp, { recursive: true })
-    const encode = run(
-      'docker',
-      [
-        'run',
-        '--rm',
-        ...(process.getuid ? ['--user', String(process.getuid())] : []), // host-owned output
-        '-v',
-        `${tmp}:/out`,
-        '-v',
-        `${scripts}:/scripts:ro`,
-        '--entrypoint',
-        'sh',
-        image,
-        '-c',
-        ENCODE,
-      ],
-      root,
-    )
-    await encode.catch((e) => {
-      fs.rmSync(tmp, { recursive: true, force: true }) // no half-encoded leftover
-      throw e
-    })
-    try {
-      fs.renameSync(tmp, dir)
-    } catch (e) {
-      fs.rmSync(tmp, { recursive: true, force: true })
-      if (!fs.existsSync(dir)) throw e // else another run made it first
-    }
-    return dir
-  })())
+    if (!fs.existsSync(dir)) throw e // else another run made it first
+  }
+  return dir
 }
 
 // tmpfs over every VOLUME the image declares, so no run leaves an anonymous
@@ -440,14 +457,30 @@ export async function startJellyfin(
       ],
     }
   }
+  // One withBindMounts call: each call replaces the last one's mounts.
+  const binds: { source: string; target: string; mode: 'ro' }[] = []
   if (o.media) {
     const media = path.join(root, 'dev-media')
     if (!fs.existsSync(media))
       throw new Error(`${media} missing (bash scripts/gen-test-media.sh)`)
-    jellyfinContainer.withBindMounts([
-      { source: media, target: '/media/dev-media', mode: 'ro' },
-    ])
+    binds.push({ source: media, target: '/media/dev-media', mode: 'ro' })
   }
+  if (o.extraMedia) {
+    binds.push({
+      source: path.join(o.extraMedia, 'movies'),
+      target: '/media/preview',
+      mode: 'ro',
+    })
+    // One mount per series: Jellyfin takes each folder under /shows as a series.
+    const shows = path.join(o.extraMedia, 'shows')
+    for (const s of fs.readdirSync(shows))
+      binds.push({
+        source: path.join(shows, s),
+        target: `/shows/${s}`,
+        mode: 'ro',
+      })
+  }
+  jellyfinContainer.withBindMounts(binds)
   const jellyfin = await jellyfinContainer.start()
   step('start')
   const url = `http://${jellyfin.getHost()}:${jellyfin.getMappedPort(8096)}`

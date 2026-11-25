@@ -5,7 +5,7 @@ import { isBack } from '../features/library/items'
 // Not on what only the gateway keeps (client names): that's their box.
 export const STORED = 'Saved by StreamIQ.'
 
-// The name, plus an inline Rename (a paired client's, a household's): NameForm
+// The name, plus an inline Rename (a paired client's, the alias): NameForm
 // in its place while editing. arrowFocus reaches the controls. children
 // replaces the shown name (the <h2> by default).
 export function EditableName({

@@ -188,10 +188,6 @@ export async function probe(gatewayId: string, direct: boolean) {
   }
 }
 
-// GET /streamiq/burst: the raw response, so the speed test times it.
-export const burstOn = (pc: PC, size: number) =>
-  tunnelFetch(pc, `/streamiq/burst?size=${size}`)
-
 export const screensOn = (pc: PC) =>
   tunnelJson<Screen[]>(pc, '/streamiq/screens')
 

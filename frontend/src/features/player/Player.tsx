@@ -141,7 +141,9 @@ export function Player({
           </>
         }
       >
-        <video ref={video} onEnded={onEnded} />
+        {/* A task later: onEnded may unmount the player at once, and the
+            engine's own `ended` listener (the Played save) must run first. */}
+        <video ref={video} onEnded={() => onEnded && setTimeout(onEnded)} />
       </Controls>
       {view.blocked && <p>Press play to start.</p>}
       {view.err && <ErrorView error={view.err} />}

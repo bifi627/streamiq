@@ -365,7 +365,7 @@ function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
 }
 
 // Play / stop on the detail page. Outside TV mode ?play= replaces this entry
-// either way, so Back leaves the page in one step (#925).
+// either way, so Back leaves the page in one step.
 function useInline() {
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()

@@ -5,7 +5,7 @@
 // Continue watching's order (the spot; a phone's row) and click-through guard, season tabs
 // (with the title page's D-pad order)
 // and watched marks (the end stops inline playback), inline playback (an episode from Continue
-// watching on its series' page, Back leaves and exit stays (#925), page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
+// watching on its series' page, Back leaves and exit stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'

@@ -312,6 +312,17 @@ export const videoTime = (p: Page) =>
     .locator('video')
     .evaluate((v: HTMLVideoElement) => (v.readyState >= 2 ? v.currentTime : -1))
 
+/** Stops inline playback with the player's own exit (the Back key with focus
+ * in it; a shown bar hides first) and stays on the detail page. */
+export async function exitInline(p: Page) {
+  await expect(async () => {
+    await p.locator('.player').focus()
+    await p.keyboard.press('Escape')
+    await expect(p.locator('.hero-player')).toHaveCount(0, { timeout: 1000 })
+  }).toPass()
+  await expect(p).not.toHaveURL(/[?&]play=/)
+}
+
 /** Test connection (or a pairing) tunneled GET /System/Info/Public: a 2xx
  * (else ErrorView) and the server's version shown from its JSON. */
 export async function tunnelOk(p: Page) {

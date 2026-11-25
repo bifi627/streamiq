@@ -30,8 +30,7 @@ async function playTo(p: Page, sec: number) {
     .locator('video')
     .evaluate((v: HTMLVideoElement, s) => (v.currentTime = s), sec)
   await expect.poll(() => videoTime(p)).toBeGreaterThan(sec)
-  await p.goBack() // leaving the player saves the position
-  await p.goBack() // movie page → folder
+  await p.goBack() // movie page → folder; leaving the player saves the position
   await p.goBack() // folder → library home
 }
 

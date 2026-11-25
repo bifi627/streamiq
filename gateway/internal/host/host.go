@@ -4,8 +4,6 @@ package host
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -27,49 +25,56 @@ func busy(a, b cpuTimes) (pct float64, ok bool) {
 	return 100 * float64(dt-min(di, dt)) / float64(dt), true
 }
 
-// Sampler keeps the CPU busy % fresh in the background, so a status request
-// never waits for a measurement.
+// Sampler keeps the CPU busy % and the cache disk fresh in the background, so a
+// status request never waits for a measurement. Compose is the managed
+// Jellyfin's compose file ("" = no disk).
 type Sampler struct {
-	mu  sync.Mutex
-	cpu *float64
+	Compose string
+	mu      sync.Mutex
+	cpu     *float64
+	disk    *Disk
 }
 
-// Run samples the CPU every Interval until ctx ends.
+// Run samples every Interval until ctx ends.
 func (s *Sampler) Run(ctx context.Context) {
-	prev, ok := readCPU()
-	if !ok {
-		return
-	}
+	prev, cpuOK := readCPU()
 	t := time.NewTicker(Interval)
 	defer t.Stop()
 	for {
+		d := cacheDisk(ctx, s.Compose)
+		s.mu.Lock()
+		s.disk = d
+		s.mu.Unlock()
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
-		cur, ok := readCPU()
-		if !ok {
-			continue
+		if cpuOK {
+			prev = s.sampleCPU(prev)
 		}
-		if pct, ok := busy(prev, cur); ok {
-			s.mu.Lock()
-			s.cpu = &pct
-			s.mu.Unlock()
-		}
-		prev = cur
 	}
 }
 
-// Load is the box's load now. compose is the managed Jellyfin's compose file:
-// disk is the drive of its folder (where jellyfin-config lives), none without it.
-func (s *Sampler) Load(compose string) Load {
+// sampleCPU stores the busy % since prev and returns the new reading.
+func (s *Sampler) sampleCPU(prev cpuTimes) cpuTimes {
+	cur, ok := readCPU()
+	if !ok {
+		return prev
+	}
+	if pct, ok := busy(prev, cur); ok {
+		s.mu.Lock()
+		s.cpu = &pct
+		s.mu.Unlock()
+	}
+	return cur
+}
+
+// Load is the box's load now.
+func (s *Sampler) Load() Load {
 	s.mu.Lock()
-	l := Load{CPU: s.cpu}
+	l := Load{CPU: s.cpu, Disk: s.disk}
 	s.mu.Unlock()
 	l.Memory = readMemory()
-	if _, err := os.Stat(compose); err == nil {
-		l.Disk = readDisk(filepath.Dir(compose))
-	}
 	return l
 }

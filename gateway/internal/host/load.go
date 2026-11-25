@@ -16,7 +16,7 @@ type Memory struct {
 	Total uint64 `json:"total"`
 }
 
-// Disk is the drive holding a folder, in bytes; Free is what this process may use.
+// Disk is the disk transcodes fill (the smaller of /cache in Jellyfin and the compose folder's drive), in bytes; Free is what non-root may use.
 type Disk struct {
 	Free  uint64 `json:"free"`
 	Total uint64 `json:"total"`

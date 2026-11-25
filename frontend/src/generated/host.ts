@@ -19,7 +19,7 @@ export interface Memory {
   total: number /* uint64 */;
 }
 /**
- * Disk is the drive holding a folder, in bytes; Free is what this process may use.
+ * Disk is the disk transcodes fill (the smaller of /cache in Jellyfin and the compose folder's drive), in bytes; Free is what non-root may use.
  */
 export interface Disk {
   free: number /* uint64 */;

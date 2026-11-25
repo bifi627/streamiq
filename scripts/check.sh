@@ -26,7 +26,7 @@ img=rhysd/actionlint:1.7.12
 # Fresh worktrees have no node_modules (gitignored); an interrupted install leaves one without .bin. Install from the lockfile.
 for d in frontend e2e; do [ -d "$d/node_modules/.bin" ] || npm ci --prefix "$d"; done
 
-echo "== frontend: Jellyfin paths + format + lint + test + typecheck + build + image web stage =="
+echo "== frontend: Jellyfin paths + format + lint + test + typecheck + build =="
 bash scripts/check-jellyfin-paths.sh
 npm run format:check --prefix frontend
 (cd e2e && ../frontend/node_modules/.bin/prettier --check .)  # e2e has no own prettier; borrow frontend's
@@ -35,7 +35,9 @@ npm run lint --prefix frontend
 (cd e2e && ../frontend/node_modules/.bin/oxlint --report-unused-disable-directives-severity=error)  # borrowed oxlint, e2e/.oxlintrc.json
 npm test --prefix frontend
 npm run build --prefix frontend
-docker build --target web --build-arg VITE_FIREBASE_API_KEY=ci --build-arg VITE_FIREBASE_AUTH_DOMAIN=ci --build-arg VITE_FIREBASE_PROJECT_ID=ci .  # the Railway image's web stage: it builds from the .dockerignore'd context, not the checkout
+
+echo "== image: the Railway image, from the .dockerignore'd context =="
+docker build --build-arg VITE_FIREBASE_API_KEY=ci --build-arg VITE_FIREBASE_AUTH_DOMAIN=ci --build-arg VITE_FIREBASE_PROJECT_ID=ci .
 
 echo "== Go (gateway + API): release version + fmt + lint + build + test =="
 if command -v go >/dev/null 2>&1; then

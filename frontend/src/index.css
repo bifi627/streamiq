@@ -758,8 +758,7 @@ html.tv .no-tv {
   margin: 0;
   padding-left: var(--sp-5);
 }
-/* Gateway page (GatewayDetail.tsx): the tiles stacked on a phone, two columns
-   from 52rem; each a <details> whose whole <summary> row toggles it. */
+/* Gateway page (GatewayDetail.tsx). */
 .gateway-page {
   display: flex;
   flex-direction: column;
@@ -769,21 +768,23 @@ html.tv .no-tv {
 .gateway-page > .actions {
   margin: 0;
 }
-.gw-tiles {
+/* Tiles (shared/Tile.tsx): stacked on a phone, two columns from 52rem; each
+   a <details> whose whole <summary> row toggles it. */
+.tiles {
   display: grid;
   align-items: start;
   gap: var(--sp-4);
 }
 @media (min-width: 52rem) {
-  .gw-tiles {
+  .tiles {
     grid-template-columns: 1fr 1fr;
   }
 }
-.card.gw-tile {
+.card.tile {
   padding: 0 var(--sp-5);
   gap: 0;
 }
-.card.gw-tile > summary {
+.card.tile > summary {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -794,16 +795,16 @@ html.tv .no-tv {
   font-weight: 600;
   list-style: none;
 }
-.card.gw-tile > summary::-webkit-details-marker {
+.card.tile > summary::-webkit-details-marker {
   display: none;
 }
-.card.gw-tile > summary .chevron {
+.card.tile > summary .chevron {
   transform: rotate(90deg);
 }
-.card.gw-tile[open] > summary .chevron {
+.card.tile[open] > summary .chevron {
   transform: rotate(-90deg);
 }
-.gw-tile-body {
+.tile-body {
   align-self: stretch;
   display: flex;
   flex-direction: column;
@@ -812,19 +813,19 @@ html.tv .no-tv {
   color: var(--text-muted);
   font-size: 0.875rem;
 }
-.gw-tile-body > p,
-.gw-tile-body h3 {
+.tile-body > p,
+.tile-body h3 {
   margin: 0;
 }
-.gw-tile-body ul {
+.tile-body ul {
   margin: 0;
   padding-left: var(--sp-5);
 }
-.gw-tile-body h3 {
+.tile-body h3 {
   color: var(--text);
   font-size: inherit;
 }
-/* The title row's ⋮ menu (ActionMenu.tsx), under its button at the right. */
+/* The title row's ⋮ menu (Menu.tsx), under its button at the right. */
 .menu {
   position: relative;
 }
@@ -1438,14 +1439,14 @@ button.secondary:hover {
 .screen-wait button {
   min-width: 10rem;
 }
-.tiles {
+.poster-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
   padding: 0;
   list-style: none;
 }
-.tile {
+.poster-tile {
   width: 100%;
   text-align: left;
 }
@@ -1722,7 +1723,7 @@ progress::-moz-progress-bar {
   .resume {
     display: none;
   }
-  .tiles {
+  .poster-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }

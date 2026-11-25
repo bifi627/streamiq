@@ -464,7 +464,7 @@ function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
   if (q.error && !items) return <ErrorView error={toAppError(q.error)} focus />
   if (!items)
     return (
-      <ul className="tiles" role="status" aria-label="Loading">
+      <ul className="poster-grid" role="status" aria-label="Loading">
         {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
           <li key={n}>
             <div className="ph poster" />
@@ -475,10 +475,14 @@ function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
     )
   if (!items.length) return <State icon="empty" title="Nothing here." />
   return (
-    <ul className="tiles">
+    <ul className="poster-grid">
       {items.map((i) => (
         <li key={i.Id}>
-          <button type="button" onClick={() => onOpen(i)} className="tile">
+          <button
+            type="button"
+            onClick={() => onOpen(i)}
+            className="poster-tile"
+          >
             <Artwork art={primary(i)} card={i} width={280} className="poster" />
             <div>
               {i.IndexNumber != null &&

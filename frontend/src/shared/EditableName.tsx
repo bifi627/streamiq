@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { isBack } from '../library/items'
+import { isBack } from '../features/library/items'
 
 // The hint on inputs whose text leaves the user's hardware: our DB or Firebase.
 // Not on what only the gateway keeps (client names): that's their box.

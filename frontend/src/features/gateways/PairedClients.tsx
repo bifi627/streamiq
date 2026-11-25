@@ -7,8 +7,8 @@ import {
   type Gateway,
 } from './api'
 import { toAppError } from '../../shared/errors'
-import { EditableName } from './EditableName'
-import { Tile } from './Tile'
+import { EditableName } from '../../shared/EditableName'
+import { Tile } from '../../shared/Tile'
 import {
   clientRenameMessage,
   clientsMessage,

@@ -21,6 +21,7 @@ import {
 // householdLabel() in api.ts: an unnamed household (none renamed yet).
 const label = (u: User) => `Household …${u.tenantId.slice(-6)}`
 const h1 = (p: Page) => p.getByRole('heading', { level: 1 })
+const menu = (p: Page) => p.getByRole('button', { name: 'Household actions' })
 const members = (p: Page) =>
   p.locator('section.card', {
     has: p.getByRole('heading', { name: 'Members' }),
@@ -105,11 +106,12 @@ test('leave: a member lands in its own household, no picker @households', async 
   ).toEqual([A.userId]) // gone from A's household, nothing else changed
 })
 
-test('rename: an admin renames, a member sees no Rename @households', async ({
+test('rename: an admin renames in the title, a member sees no menu @households', async ({
   browser,
 }) => {
   const { A, B, a } = await adminWithMember(browser)
-  await a.getByRole('button', { name: 'Rename' }).click()
+  await menu(a).click()
+  await a.getByRole('menuitem', { name: 'Rename' }).click()
   // Stored by us: the field says so.
   await expect(a.getByLabel('Household name')).toHaveAccessibleDescription(
     'Saved by StreamIQ.',
@@ -117,13 +119,14 @@ test('rename: an admin renames, a member sees no Rename @households', async ({
   await a.getByLabel('Household name').fill('  The A family  ')
   await a.getByRole('button', { name: 'Save' }).click()
   await expect(h1(a)).toHaveText('The A family') // at once, no reload
+  await expect(menu(a)).toBeFocused() // the D-pad keeps its place
   await a.reload()
   await expect(h1(a)).toHaveText('The A family') // stored
 
   const b = await signedInPage(browser, B, '/household', A.tenantId)
   await expect(h1(b)).toHaveText('The A family')
   await expect(b.getByText('You are a member')).toBeVisible()
-  await expect(b.getByRole('button', { name: 'Rename' })).toHaveCount(0)
+  await expect(menu(b)).toHaveCount(0)
 })
 
 test('invites: make, revoke, make another; a member sees none @households', async ({

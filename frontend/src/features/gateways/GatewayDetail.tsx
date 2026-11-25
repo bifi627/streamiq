@@ -9,13 +9,14 @@ import { ErrorView, State } from '../../shared/ErrorView'
 import { PageBar } from '../../shared/PageBar'
 import { useHousehold } from '../households/household'
 import { arrowFocus } from '../../shared/focus'
-import { NameForm, STORED } from './EditableName'
+import { STORED } from '../../shared/EditableName'
+import { EditableTitle } from '../../shared/EditableTitle'
 import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
 import { PairDialog } from './PairDialog'
-import { ActionMenu, type Action } from './ActionMenu'
+import { Menu, type Action } from '../../shared/Menu'
 import { canManage, gatewayName, shownError, type ActErr } from './list'
 import { event } from '../../shared/diag'
 
@@ -133,29 +134,22 @@ function GatewayPage({
       <PageBar
         onBack={() => navigate({ to: '/gateways' })}
         title={
-          renaming ? (
-            <NameForm
-              name={gatewayName(g)}
-              label="Gateway name"
-              hint={STORED}
-              icons
-              rename={onRename}
-              onClose={() => {
-                setRenaming(false)
-                menu.current?.focus() // the form had it: keep the D-pad's place
-              }}
-            />
-          ) : (
-            gatewayName(g)
-          )
+          <EditableTitle
+            title={gatewayName(g)}
+            editing={renaming}
+            name={gatewayName(g)}
+            label="Gateway name"
+            hint={STORED}
+            rename={onRename}
+            onClose={() => {
+              setRenaming(false)
+              menu.current?.focus() // the form had it: keep the D-pad's place
+            }}
+          />
         }
         actions={
           actions.length > 0 && (
-            <ActionMenu
-              label="Gateway actions"
-              actions={actions}
-              button={menu}
-            />
+            <Menu label="Gateway actions" actions={actions} button={menu} />
           )
         }
       />
@@ -184,7 +178,7 @@ function GatewayPage({
           onPaired={() => setUnpaired(false)}
         />
       )}
-      <div className="gw-tiles">
+      <div className="tiles">
         <StatusDetails g={g} manage={manage} />
         <HealthHistory
           g={g}

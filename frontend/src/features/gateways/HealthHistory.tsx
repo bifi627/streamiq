@@ -11,7 +11,7 @@ import {
   versionChanges,
   type HealthRow,
 } from './health'
-import { Tile } from './Tile'
+import { Tile } from '../../shared/Tile'
 
 const at = (ms: number) =>
   new Date(ms).toLocaleString(undefined, {

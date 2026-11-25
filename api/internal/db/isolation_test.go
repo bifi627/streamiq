@@ -273,13 +273,19 @@ func TestEveryTenantColumnHasAPolicy(t *testing.T) {
 	}
 }
 
-// memberships_of runs past RLS: it returns the user's own memberships and nobody else's.
+// memberships_of runs past RLS: it returns the user's own memberships and nobody else's,
+// and its member counts only ever cover those.
 func TestMembershipsOfReturnsOnlyTheUsersOwn(t *testing.T) {
 	apitest.Reset(t)
-	seed(t)
-	seed(t)
-	user := apitest.Scalar[string](t, `SELECT user_id::text FROM memberships LIMIT 1`)
+	mine := seed(t)
+	other := seed(t)
+	apitest.Join(t, apitest.Scalar[string](t,
+		`INSERT INTO users (id, firebase_uid) VALUES (uuidv7(), uuidv7()::text) RETURNING id::text`), other, "member")
+	user := apitest.Scalar[string](t, `SELECT user_id::text FROM memberships WHERE tenant_id = $1`, mine)
 	if n := count(t.Context(), apitest.DB.NoTenant(), `SELECT count(*) FROM memberships_of($1)`, user); n != 1 {
 		t.Fatalf("memberships_of returned %d rows, want the user's 1", n)
+	}
+	if n := count(t.Context(), apitest.DB.NoTenant(), `SELECT sum(members) FROM memberships_of($1)`, user); n != 1 {
+		t.Fatalf("memberships_of counted %d members, want the user's household's 1", n)
 	}
 }

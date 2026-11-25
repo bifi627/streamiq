@@ -52,3 +52,7 @@ export const roleView = (role: 'admin' | 'member') =>
         flip: 'Make admin',
         to: 'admin' as const,
       }
+
+/** A household's member count: "1 member", "3 members". */
+export const membersLabel = (n: number) =>
+  `${n.toLocaleString()} ${n === 1 ? 'member' : 'members'}`

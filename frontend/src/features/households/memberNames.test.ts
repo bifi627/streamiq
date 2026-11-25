@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { emailLine, initial, memberNames, roleView } from './memberNames.ts'
+import {
+  emailLine,
+  initial,
+  memberNames,
+  membersLabel,
+  roleView,
+} from './memberNames.ts'
 
 const m = (userId: string, name: string | null, email?: string) => ({
   userId,
@@ -58,4 +64,10 @@ test('a member row: avatar letter, email line, role flip', () => {
   assert.equal(emailLine(m('1', 'Alex')), '')
   assert.equal(roleView('admin').to, 'member')
   assert.equal(roleView('member').to, 'admin')
+})
+
+test('the member count is singular for one, plural otherwise', () => {
+  assert.equal(membersLabel(1), '1 member')
+  assert.equal(membersLabel(3), '3 members')
+  assert.equal(membersLabel(1200), `${(1200).toLocaleString()} members`)
 })

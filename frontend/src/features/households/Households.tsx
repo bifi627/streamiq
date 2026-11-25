@@ -5,7 +5,7 @@ import { ErrorView } from '../../shared/ErrorView'
 import { arrowFocus } from '../../shared/focus'
 import { useBack } from '../../shared/slots'
 import { activeFirst } from '../gateways/list'
-import { roleView } from './memberNames'
+import { membersLabel, roleView } from './memberNames'
 import {
   householdLabel,
   switchHere,
@@ -73,7 +73,9 @@ function Card({ m, active }: { m: Household; active: boolean }) {
           <span>{householdLabel(m)}</span>
         )}
       </div>
-      <span className="meta muted">{role.label}</span>
+      <span className="meta muted">
+        {role.label} · {membersLabel(m.members)}
+      </span>
       <div className="actions">
         {active ? (
           <>

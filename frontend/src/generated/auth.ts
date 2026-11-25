@@ -11,4 +11,8 @@ export interface Household {
   id: string;
   name: string | null;
   role: 'admin' | 'member';
+  /**
+   * Members counts everyone in the household, the user included.
+   */
+  members: number /* int */;
 }

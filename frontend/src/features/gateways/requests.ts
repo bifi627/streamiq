@@ -1,4 +1,4 @@
-// The web gateway page's pairing requests (#956), kept out of the .tsx so
+// The web gateway page's pairing requests, kept out of the .tsx so
 // node:test can drive them.
 import { describe, type AppError } from '../../shared/errors.ts'
 import type { PairingRequest } from '../../generated/pairing.ts'

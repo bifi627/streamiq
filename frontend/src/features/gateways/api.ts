@@ -141,7 +141,7 @@ export const renameClient = async (id: string, keyFp: string, name: string) =>
     } satisfies ClientKey)
   ).name
 
-// Pending pairing requests, admin-only gateway API (#956): approval goes over
+// Pending pairing requests, admin-only gateway API: approval goes over
 // this browser's own tunnel, never through the API.
 export const listRequests = (id: string) =>
   viaTunnel<PairingRequest[]>(id, '/streamiq/pairing/requests')

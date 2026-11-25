@@ -115,7 +115,7 @@ function Title({
           )
         }
       />
-      {/* ponytail: no delete API yet (#877) */}
+      {/* TODO(#877): a dialog until a delete-household API exists */}
       {deleting && (
         <Dialog title="Delete household" onClose={() => setDeleting(false)}>
           <p>Deleting a household isn't available yet.</p>

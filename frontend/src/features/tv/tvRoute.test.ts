@@ -24,7 +24,11 @@ test('manage and unknown routes hand off', () => {
     '/household',
     '/settings/households',
     '/settings/household',
-    '/join', '/no-such-page', '/gx', '/settingsx'])
+    '/join',
+    '/no-such-page',
+    '/gx',
+    '/settingsx',
+  ])
     assert.equal(tvRoute(p), 'handoff', p)
 })
 

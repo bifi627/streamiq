@@ -147,7 +147,9 @@ test("delete: an admin's Delete says it isn't available yet @households", async 
   await menu(a).click()
   await a.getByRole('menuitem', { name: 'Delete' }).click()
   const dialog = a.getByRole('dialog', { name: 'Delete household' })
-  await expect(dialog).toContainText("Deleting a household isn't available yet.")
+  await expect(dialog).toContainText(
+    "Deleting a household isn't available yet.",
+  )
   await dialog.getByRole('button', { name: 'Close' }).click()
   await expect(dialog).toHaveCount(0)
   expect(await A.api<unknown[]>('/members')).toHaveLength(2) // nothing changed

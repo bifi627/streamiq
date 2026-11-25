@@ -315,6 +315,7 @@ test('Settings overview: categories, Playback page, expandables, D-pad @shell', 
   const h1 = p.getByRole('heading', { level: 1 })
   const rows = p.locator('.categories > li > a, .categories summary')
   await expect(rows).toHaveText([
+    'Households',
     `Account${user.email}`,
     'Playback',
     'Display',
@@ -328,14 +329,14 @@ test('Settings overview: categories, Playback page, expandables, D-pad @shell', 
   const playback = p.getByRole('link', { name: 'Playback' })
   await expect(playback).toBeFocused()
   await p.keyboard.press('ArrowDown')
-  await expect(rows.nth(2)).toBeFocused()
+  await expect(rows.nth(3)).toBeFocused()
   await p.keyboard.press('Enter')
   const tv = p.getByLabel('TV mode')
   await expect(tv).toBeVisible()
   await p.keyboard.press('ArrowDown')
   await expect(tv).toBeFocused()
   await p.keyboard.press('ArrowDown')
-  await expect(rows.nth(3)).toBeFocused()
+  await expect(rows.nth(4)).toBeFocused()
   await p.keyboard.press('ArrowUp')
   await expect(tv).toBeFocused()
   await p.keyboard.press('ArrowUp')

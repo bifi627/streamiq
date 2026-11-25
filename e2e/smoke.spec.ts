@@ -79,8 +79,7 @@ test('first run: sign up, add a gateway, pair, play, resume, Activity, direct + 
       await expect
         .poll(() => videoTime(a), { timeout: 30_000 })
         .toBeGreaterThan(3)
-      await a.goBack() // leaving the player saves the position
-      await a.goBack() // movie page → folder
+      await a.goBack() // movie page → folder; leaving the player saves the position
       await a.goBack() // browser history: folder → library home
       await expect(a.getByRole('button', { name: /Movies/ })).toBeVisible()
       await a.reload()

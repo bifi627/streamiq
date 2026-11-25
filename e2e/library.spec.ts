@@ -5,7 +5,7 @@
 // Continue watching's order (the spot; a phone's row) and click-through guard, season tabs
 // (with the title page's D-pad order)
 // and watched marks (the end stops inline playback), inline playback (an episode from Continue
-// watching on its series' page, Back stops and stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
+// watching on its series' page, Back leaves and exit stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests).
 import type { Page, WebSocket } from '@playwright/test'
@@ -14,6 +14,7 @@ import {
   appUrl,
   bursts,
   countBursts,
+  exitInline,
   keepPcs,
   openLibrary as open,
   videoTime,
@@ -26,15 +27,15 @@ const recent = (p: Page) =>
   p.locator('section.shelf', {
     has: p.getByRole('heading', { name: 'Recently added' }),
   })
-/** From a title page: Play (or Resume), plays past `secs`, back to the title
- * page. Leaving the player saves the position (whole seconds, the
+/** From a title page: Play (or Resume), plays past `secs`, exits back to
+ * the title page. Leaving the player saves the position (whole seconds, the
  * click-through guard off unless the test sets it). */
 async function play(p: Page, secs = 2) {
   await p.getByRole('button', { name: /^(Play|Resume)$/ }).click()
   await expect
     .poll(() => videoTime(p), { timeout: 30_000 })
     .toBeGreaterThan(secs)
-  await p.goBack()
+  await exitInline(p)
 }
 
 test('home: with one gateway, / opens its library (#225) @library', async ({
@@ -294,7 +295,7 @@ test('watched marks: a finished episode reads Watched, a part-played one its tim
   await expect(a.locator('button.hero')).toBeVisible()
   await second.getByRole('button').first().click()
   await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(2)
-  await a.goBack()
+  await exitInline(a)
 
   await expect(first.getByText('Watched', { exact: true })).toBeVisible()
   await expect(first.getByRole('progressbar')).toHaveCount(0)
@@ -304,7 +305,7 @@ test('watched marks: a finished episode reads Watched, a part-played one its tim
   ).toBeVisible()
 })
 
-test('inline playback: in the hero box, Back stops and stays; an episode from Continue watching plays on its series page, also on a phone @library', async ({
+test('inline playback: in the hero box, Back leaves the page, exit stops and stays (#925); an episode from Continue watching plays on its series page, also on a phone @library', async ({
   paired,
 }) => {
   const { page: a } = paired
@@ -371,11 +372,18 @@ test('inline playback: in the hero box, Back stops and stays; an episode from Co
   await expect(
     a.getByRole('heading', { level: 1, name: 'StreamIQ Test Series' }),
   ).toBeVisible()
-  await a.goBack() // stops, stays on the page
+  // Play added no history step: one Back leaves the page.
+  await a.goBack()
+  await expect(a).toHaveURL(appUrl(`/g/${id}`))
+  // Play again, then the player's exit: stops, stays on the page.
+  await a.goForward()
+  await expect(a).toHaveURL(/\/i\/[^/]+\?play=/)
+  await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(0)
+  await exitInline(a)
   await expect(hero).toBeVisible()
   await expect(inline).toHaveCount(0)
   await expect(a).toHaveURL(/\/i\/[^/?]+$/)
-  await a.goBack() // leaves it
+  await a.goBack() // still one step: leaves it
   await expect(a).toHaveURL(appUrl(`/g/${id}`))
 
   // A phone: Continue watching's card → the series page playing that

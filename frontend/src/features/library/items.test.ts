@@ -6,8 +6,6 @@ import {
   clock,
   covers,
   folderUp,
-  inlinePlay,
-  inlineStop,
   inProgress,
   pageItem,
   playable,
@@ -227,13 +225,4 @@ test('playTarget: TV mode → player page; else the detail page playing it', () 
     to: 'player',
     itemId: 'e',
   })
-})
-
-test('inline play: TV mode → player page; Play pushes, a swap replaces; stop is Back only over that push', () => {
-  assert.equal(inlinePlay(true, false), 'player')
-  assert.equal(inlinePlay(true, true), 'player')
-  assert.equal(inlinePlay(false, false), 'push')
-  assert.equal(inlinePlay(false, true), 'replace')
-  assert.equal(inlineStop(true), 'back')
-  assert.equal(inlineStop(false), 'replace')
 })

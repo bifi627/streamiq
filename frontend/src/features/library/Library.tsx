@@ -3,7 +3,7 @@
 // in Home.tsx.
 // Routes (App.tsx): /g/$gatewayId owns the tunnel; its children (home, /i, /play,
 // /screen, /remote) render through <Outlet /> and share it.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PageBar } from '../../shared/PageBar'
 import { useBack } from '../../shared/slots'
 import {
@@ -23,8 +23,6 @@ import { Player } from '../player/Player'
 import {
   clock,
   folderUp,
-  inlinePlay,
-  inlineStop,
   inProgress,
   pageItem,
   playable,
@@ -211,7 +209,7 @@ function Title({
   const failed = ss.error ?? es.error
   const err = failed && !lists ? toAppError(failed) : null
 
-  const { play, stop } = useInline(playing)
+  const { play, stop } = useInline()
   const back = useBack(() =>
     navigate({ to: '/g/$gatewayId', params: { gatewayId } }),
   )
@@ -366,33 +364,19 @@ function Episode({ item, onPlay }: { item: Item; onPlay: (i: Item) => void }) {
   )
 }
 
-// Play / stop on the detail page: inlinePlay / inlineStop (items.ts) on the router.
-function useInline(playing?: string) {
+// Play / stop on the detail page. Outside TV mode ?play= replaces this entry
+// either way, so Back leaves the page in one step.
+function useInline() {
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()
-  const router = useRouter()
-  const pushed = useRef(false)
-  const play = (i: Item) => {
-    const how = inlinePlay(tvOn(), !!playing)
-    if (how === 'player')
-      return navigate({
-        to: '/g/$gatewayId/play/$itemId',
-        params: { gatewayId, itemId: i.Id },
-      })
-    if (how === 'push') pushed.current = true
-    return navigate({
-      to: '.',
-      search: { play: i.Id },
-      replace: how === 'replace',
-    })
-  }
-  const stop = () => {
-    if (inlineStop(pushed.current) === 'back') {
-      pushed.current = false
-      return router.history.back()
-    }
-    return navigate({ to: '.', search: {}, replace: true })
-  }
+  const play = (i: Item) =>
+    tvOn()
+      ? navigate({
+          to: '/g/$gatewayId/play/$itemId',
+          params: { gatewayId, itemId: i.Id },
+        })
+      : navigate({ to: '.', search: { play: i.Id }, replace: true })
+  const stop = () => navigate({ to: '.', search: {}, replace: true })
   return { play, stop }
 }
 

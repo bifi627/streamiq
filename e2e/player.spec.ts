@@ -11,6 +11,7 @@ import {
   appUrl,
   bursts,
   countBursts,
+  exitInline,
   openDock,
   openGateway,
   openLibrary,
@@ -411,7 +412,7 @@ test('Auto measures once per tunnel, then uses the cache @player', async ({
   await openDock(page)
   await expect(page.getByText(/speed: ~[\d.]+ Mbps \(median of/)).toBeVisible()
   expect(await bursts(page)).toBe(4) // warm-up + 3
-  await page.goBack()
+  await exitInline(page)
   await page.getByRole('button', { name: /^(Play|Resume)$/ }).click()
   await expect(
     page.getByText(/speed: ~[\d.]+ Mbps \(cached, \d+ min old; direct/),
@@ -581,9 +582,7 @@ test('next episode (#205, #344, #378): the following one, across seasons; none a
   await a.getByRole('button', { name: 'Exit fullscreen' }).click()
   // The series' last episode: no button.
   await expect(a.getByRole('button', { name: 'Next episode' })).toHaveCount(0)
-  // Next episode swapped in place: one Back stops, the next leaves.
-  await a.goBack()
-  await expect(primary).toBeVisible()
+  // Next episode swapped in place: one Back leaves.
   await a.goBack()
   await expect(
     a.getByRole('button', { name: /StreamIQ Test Series/ }),

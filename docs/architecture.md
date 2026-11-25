@@ -95,7 +95,8 @@ is not a status log: open work lives in `gh issue list`, history in git.
   challenge. Each tunnel gets a fresh DTLS certificate (Pion's default), so tunnels
   aren't linkable by their certificate (#427).
 - Pairing: browser WebCrypto client key, commit/reveal comparison code approved on the
-  local gateway page and confirmed in the browser (It matches, #955), allowlist on the gateway, pins enforced in both directions.
+  local gateway page, or by an admin's paired browser on the web gateway page over its tunnel
+  (`features/gateways/PairingRequests.tsx`, #956), and confirmed in the browser (It matches, #955), allowlist on the gateway, pins enforced in both directions.
 - Revocation: `DELETE /api/gateways/{id}` nulls the credential hash, keeps the row,
   closes its sockets and sessions. Removing a client on the local gateway page
   closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).

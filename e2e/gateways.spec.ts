@@ -4,7 +4,7 @@
 // relay switch, Status paired and unpaired, the shell's
 // connection badge (checked, live, offline, names only when there's more than one), paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
-// local gateway page, It doesn't on the code, a refused broker socket and TV mode.
+// local gateway page, Approve from the web gateway page, It doesn't on the code, a refused broker socket and TV mode.
 // Onboarding through the UI is smoke.spec's, restart, backup, a new certificate,
 // the removes that end sessions and an evicted key lifecycle.spec's; the offline
 // dot (90 s), rejection edge cases and a member's own client list are the Go API
@@ -24,6 +24,7 @@ import {
   seedTunnels,
   signedInPage,
   signUp,
+  tunnelOk,
   uniqueEmail,
   type User,
   openCategory,
@@ -759,4 +760,26 @@ test('TV mode: the pairing code names the gateway page URL (#676) @gateways', as
     /Open the gateway page \(https?:\/\/\S+\) on your home network/,
   )
   await expect(box.getByRole('link')).toHaveCount(0)
+})
+
+test('an admin approves a pairing request from the web gateway page (#956) @gateways', async ({
+  browser,
+  paired,
+}) => {
+  const { user, page: a, gateway, gatewayCtx } = paired
+  await openGateway(a)
+  const b = await second(browser, user)
+  await card(b).getByRole('button', { name: 'Pair' }).click()
+  const code = await b.getByLabel('Comparison code').textContent()
+  const local = (await gatewayTab(gatewayCtx, gateway.pageUrl)).locator(
+    'form[action="/decide"]',
+  )
+  await expect(local).toContainText('Compare this code with theirs')
+  const request = a.getByRole('region', { name: 'Pairing requests' })
+  await expect(request.getByLabel('Comparison code')).toHaveText(code ?? '')
+  await expect(request).toContainText('Compare this code with theirs')
+  await request.getByRole('button', { name: 'Approve' }).click()
+  await expect(request).toHaveCount(0)
+  await b.getByRole('button', { name: 'It matches' }).click()
+  await tunnelOk(b)
 })

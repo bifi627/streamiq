@@ -87,7 +87,7 @@ shared fallback <code>streamiq-viewer</code>. Your password is not stored.</p>{{
 {{range .Pending}}
 <form method="post" action="/decide" style="border:2px solid #c80;padding:.5rem 1rem;margin:.5rem 0">
 <p><b>{{.Name}}</b> wants to pair · code <b style="font-size:1.6em;letter-spacing:.1em">{{.Code}}</b></p>
-<p>Approve only if your browser shows the same code.</p>
+<p>Compare this code with theirs: approve only if it is the same.</p>
 <input type="hidden" name="id" value="{{.ID}}">
 <button name="approve" value="1">Approve</button> <button name="approve" value="0">Reject</button>
 </form>

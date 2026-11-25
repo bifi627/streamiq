@@ -770,6 +770,7 @@ html.tv .no-tv {
   gap: var(--sp-4);
 }
 .gateway-page > .notice,
+.gateway-page > .pairing-requests,
 .gateway-page > .actions {
   margin: 0;
 }
@@ -958,6 +959,13 @@ html.tv .no-tv {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
+}
+.pairing-requests h2 {
+  margin: 0 0 var(--sp-2);
+  font-size: 1rem;
+}
+.pairing-requests .pair-box + .pair-box {
+  margin-top: var(--sp-3);
 }
 .pair-box {
   display: flex;

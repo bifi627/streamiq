@@ -78,3 +78,19 @@ type Profile struct {
 	Compatible bool      `json:"compatible"`
 	ProbedAt   time.Time `json:"probedAt"`
 }
+
+// PairingRequest is one item of GET RequestsPath: a pending request, code first in the UI.
+// User is the requester's users.id.
+type PairingRequest struct {
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	Code    string    `json:"code"`
+	User    string    `json:"user"`
+	Expires time.Time `json:"expires"`
+}
+
+// PairingDecision is the body of POST DecidePath.
+type PairingDecision struct {
+	ID      string `json:"id"`
+	Approve bool   `json:"approve"`
+}

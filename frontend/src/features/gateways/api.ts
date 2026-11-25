@@ -9,7 +9,13 @@ import { pairInfo } from '../../shared/stats'
 import type { Gateway } from '../../generated/gateways'
 import type { EnrollmentToken as Install } from '../../generated/onboarding'
 import type { Name, Relay } from '../../generated/gateway-onboarding'
-import type { Client, ClientKey, ClientName } from '../../generated/pairing'
+import type {
+  Client,
+  ClientKey,
+  ClientName,
+  PairingDecision,
+  PairingRequest,
+} from '../../generated/pairing'
 import type { Status } from '../../generated/status'
 import type { HealthRow } from '../../generated/history'
 import type { Route } from '../../generated/tunnel'
@@ -134,6 +140,17 @@ export const renameClient = async (id: string, keyFp: string, name: string) =>
       name,
     } satisfies ClientKey)
   ).name
+
+// Pending pairing requests, admin-only gateway API (#956): approval goes over
+// this browser's own tunnel, never through the API.
+export const listRequests = (id: string) =>
+  viaTunnel<PairingRequest[]>(id, '/streamiq/pairing/requests')
+
+export const decideRequest = (id: string, reqId: string, approve: boolean) =>
+  viaTunnel(id, '/streamiq/pairing/decide', {
+    id: reqId,
+    approve,
+  } satisfies PairingDecision)
 
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })

@@ -114,7 +114,7 @@ func TestApprovePersistsAndPendingCaps(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, _ := Open(dir)
 		got := make(chan bool)
-		go func() { ok, _ := s.Ask("phone", "fp-1", "123456", nil); got <- ok }()
+		go func() { ok, _ := s.Ask("phone", "fp-1", "123456", "u1", nil); got <- ok }()
 		synctest.Wait() // Ask now waits for Decide
 		if err := s.Decide(s.Pending()[0].ID, true); err != nil || !<-got {
 			t.Fatalf("approve failed: %v", err)
@@ -163,7 +163,7 @@ func TestAskEndsWhenConnectionCloses(t *testing.T) {
 	s, _ := Open(t.TempDir())
 	gone := make(chan struct{})
 	close(gone)
-	if ok, err := s.Ask("phone", "fp-1", "123456", gone); ok || err == nil || len(s.Pending()) != 0 {
+	if ok, err := s.Ask("phone", "fp-1", "123456", "u1", gone); ok || err == nil || len(s.Pending()) != 0 {
 		t.Fatalf("Ask = %v, %v with %d pending", ok, err, len(s.Pending()))
 	}
 }
@@ -173,7 +173,7 @@ func TestRemovePersists(t *testing.T) {
 	dir := t.TempDir() // outside the bubble: its cleanup retries on real time (Windows)
 	synctest.Test(t, func(t *testing.T) {
 		s, _ := Open(dir)
-		go func() { _, _ = s.Ask("phone", "fp-1", "123456", nil) }() // the Decide below answers it
+		go func() { _, _ = s.Ask("phone", "fp-1", "123456", "u1", nil) }() // the Decide below answers it
 		synctest.Wait()
 		if err := s.Decide(s.Pending()[0].ID, true); err != nil {
 			t.Fatal(err)
@@ -212,7 +212,7 @@ func TestDecideAllowlist(t *testing.T) {
 		decide := func(fp string, approve bool) {
 			t.Helper()
 			done := make(chan struct{})
-			go func() { _, _ = s.Ask("phone", fp, "123456", nil); close(done) }() // the Decide below answers it
+			go func() { _, _ = s.Ask("phone", fp, "123456", "u1", nil); close(done) }() // the Decide below answers it
 			synctest.Wait()
 			if err := s.Decide(s.Pending()[0].ID, approve); err != nil {
 				t.Fatal(err)

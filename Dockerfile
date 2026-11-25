@@ -14,6 +14,8 @@ ARG VITE_FIREBASE_PROJECT_ID
 COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 RUN npm ci
 COPY frontend/ ./
+# crypto.test.ts (type-checked by tsc -b) imports the shared pairing vectors from ../gateway.
+COPY gateway/internal/pairing/testdata/vectors.json /gateway/internal/pairing/testdata/vectors.json
 # Fail the build, not sign-in: firebase.ts would silently bake in demo-* fallbacks.
 RUN : "${VITE_FIREBASE_API_KEY:?build arg not set}" "${VITE_FIREBASE_AUTH_DOMAIN:?build arg not set}" "${VITE_FIREBASE_PROJECT_ID:?build arg not set}"
 RUN npm run build

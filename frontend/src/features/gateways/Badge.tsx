@@ -12,6 +12,7 @@ import { event } from '../../shared/diag'
 import { RouteBadge } from '../player/Privacy'
 import { useOnLan, usePairInfo } from '../library/queries'
 import { probe, type Gateway } from './api'
+import { forcedOf } from '../pairing/connect'
 import {
   badgeNames,
   connKey,
@@ -149,9 +150,9 @@ export function LiveRoute({
   useEffect(() => {
     if (p && lan !== null)
       qc.setQueryData<Conn>(connKey(gatewayId), {
-        route: routeOf(p.relay, lan),
+        route: routeOf(p.relay, lan, forcedOf(pc)),
         mb: (p.bytesReceived + p.bytesSent) / 1e6,
       })
-  }, [p, lan, gatewayId, qc])
+  }, [p, lan, gatewayId, qc, pc])
   return null
 }

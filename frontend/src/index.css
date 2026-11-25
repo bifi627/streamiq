@@ -1242,8 +1242,12 @@ html.tv .rows li.no-tv:first-child + li {
   position: relative;
   flex: none;
 }
-.privacy[data-relay='true'] {
+.privacy[data-route='relay'] {
   --c: var(--relayed);
+}
+/* A forced relay is a choice, not a fallback. */
+.privacy[data-route^='forced'] {
+  --c: var(--accent);
 }
 .privacy .badge {
   display: flex;

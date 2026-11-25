@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { authed } from '../../shared/api'
-import { connect, share } from '../pairing/connect'
+import { connect, forcedOf, share } from '../pairing/connect'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../shared/tunnel'
 import { httpError } from '../../shared/errors'
 import { nextAsk } from './host'
@@ -182,7 +182,7 @@ export async function probe(gatewayId: string, direct: boolean) {
         () => false,
       ),
     ])
-    return routeOf(!!pairInfo(stats)?.relay, lan)
+    return routeOf(!!pairInfo(stats)?.relay, lan, forcedOf(s.pc))
   } finally {
     s.close()
   }

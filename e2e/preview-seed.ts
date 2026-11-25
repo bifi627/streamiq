@@ -167,21 +167,35 @@ export async function apply(api: string, emulator: string) {
       household?: string,
     ) => Promise<any>
   > = {}
-  for (const [user, alias] of Object.entries(seed.users)) {
-    const r = await fetch(
-      `${emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`,
+  const idp = (op: string, body: object, admin = false) =>
+    fetch(
+      `${emulator}/identitytoolkit.googleapis.com/v1/accounts:${op}?key=demo-key`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: seed.email(user),
-          password: seed.password,
-          displayName: alias,
-          returnSecureToken: true,
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(admin && { Authorization: 'Bearer owner' }),
+        },
+        body: JSON.stringify(body),
       },
     ).then((r) => r.json())
-    if (!r.idToken) throw new Error(`emulator signUp: ${JSON.stringify(r)}`)
+  for (const [user, alias] of Object.entries(seed.users)) {
+    const login = { email: seed.email(user), password: seed.password }
+    // A fixed UID (only the emulator's admin may set one): the emulator's
+    // refresh token names just the UID, so a browser signed in to an earlier
+    // preview run stays signed in.
+    const made = await idp(
+      'signUp',
+      { ...login, localId: `preview-${user}`, displayName: alias },
+      true,
+    )
+    if (!made.localId)
+      throw new Error(`emulator signUp: ${JSON.stringify(made)}`)
+    const r = await idp('signInWithPassword', {
+      ...login,
+      returnSecureToken: true,
+    })
+    if (!r.idToken) throw new Error(`emulator sign-in: ${JSON.stringify(r)}`)
     calls[user] = async (p, method = 'GET', body, household) => {
       const res = await fetch(`${api}/api${p}`, {
         method,

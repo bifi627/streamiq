@@ -1,6 +1,6 @@
 // The player, on a paired browser with its own gateway (fixtures.ts
 // `paired`): the privacy badge (+ inline fullscreen's title), the profile line, the deep link (inline + the old /play/) + Back key,
-// the bar's controls, volume, quality, compatible mode, Auto on a slow link, the
+// the bar's controls, volume, quality, a dropped tunnel, compatible mode, Auto on a slow link, the
 // speed test's cache and Off setting, data saver, audio, auto audio, subtitles and next episode. Per-device settings
 // are arranged in localStorage before the app loads (their toggles on /settings/playback are
 // shell.spec's). Movies → clip → Play and the Resume spot are smoke.spec's;
@@ -12,6 +12,7 @@ import {
   bursts,
   countBursts,
   exitInline,
+  keepPcs,
   openDock,
   openGateway,
   openLibrary,
@@ -292,6 +293,43 @@ test('quality (#108, #161): Auto and Source only; Source reloads at the playhead
   await expect(
     page.getByRole('menuitem', { name: /^Quality.*Source · Original 360p/ }),
   ).toBeVisible() // remembered
+})
+
+test('a dropped tunnel (#598): a new one, playback goes on at the playhead with the same audio @player', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await keepPcs(page)
+  await arrange(page, DIAG)
+  await play(page, CLIP, 3)
+  await openDock(page)
+  const de = await language(page, 'deu')
+  await menu(page)
+  await page.getByRole('menuitem', { name: /^Audio/ }).click()
+  await page
+    .getByRole('menuitemradio', { name: new RegExp(`^${de}.*AAC mono`) })
+    .click()
+  // The dock's log is newest first: German playing.
+  await expect(
+    page.getByText(
+      /audio copy \(aac 1ch, stream (\d+)\)[\s\S]*audio: switch to stream \1 @/,
+    ),
+  ).toBeVisible()
+  // What a network change leaves: a dead tunnel (closed, like failed).
+  const at = await videoTime(page)
+  await page.evaluate(() =>
+    (window as { pcs?: RTCPeerConnection[] }).pcs
+      ?.findLast((x) => x.connectionState === 'connected')
+      ?.close(),
+  )
+  await expect(
+    page.getByText(
+      /audio copy \(aac 1ch, stream (\d+)\)[\s\S]*reconnected @([3-9]|[1-9]\d)\.[\s\S]*tunnel dropped: reconnecting[\s\S]*audio: switch to stream \1 @/,
+    ),
+  ).toBeVisible({ timeout: 30_000 })
+  await expect.poll(() => videoTime(page)).toBeGreaterThan(at + 1) // and plays on
+  await expect(page.locator('main').getByRole('alert')).toHaveCount(0)
+  await expect(page.getByRole('status', { name: 'Loading' })).toHaveCount(0) // no spinner left
 })
 
 test('compatible mode (#113, #792): an H.264 + AAC file still remuxes; the gateway keeps the profile @player', async ({

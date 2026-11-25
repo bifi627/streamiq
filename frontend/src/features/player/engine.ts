@@ -116,10 +116,10 @@ export class Engine {
   private at0 = 0 // where the current load starts, seconds
   private loads = 0 // only the latest start() attaches (quick quality switches)
 
-  private readonly pc: RTCPeerConnection
+  private readonly tunnel: () => RTCPeerConnection // the current one: it can be replaced
   private readonly v: HTMLVideoElement
   private readonly itemId: string
-  private readonly speed?: Speed
+  private readonly speed: () => Speed | undefined
   private readonly set: (p: Partial<View>) => void // nothing after the teardown
   private readonly close: () => void
   /** The screen's state callback, read on each emit. */
@@ -127,14 +127,14 @@ export class Engine {
   private readonly subs: ReturnType<typeof subtitleTrack>
 
   constructor(d: {
-    pc: RTCPeerConnection
+    pc: () => RTCPeerConnection
     v: HTMLVideoElement
     itemId: string
-    speed?: Speed
+    speed: () => Speed | undefined
     set: (p: Partial<View>) => void
     onState: () => ((s: ScreenState) => void) | undefined
   }) {
-    this.pc = d.pc
+    this.tunnel = d.pc
     this.v = d.v
     this.itemId = d.itemId
     this.speed = d.speed
@@ -158,7 +158,7 @@ export class Engine {
     const unremote = remote?.(this.command)
     this.init(startTicks).catch((e) => this.set({ err: toAppError(e) }))
     const unwatch = watchVideo(v)
-    const unresume = watchResume(this.pc, v, this.itemId, () => !!this.h)
+    const unresume = watchResume(this.tunnel, v, this.itemId, () => !!this.h)
     const state = setInterval(() => this.onState() && this.emit(), 1000)
     const on: [string, () => void][] = [
       ...['play', 'pause', 'seeked', 'ended'].map(
@@ -196,12 +196,12 @@ export class Engine {
     event(`probe: ${describe(caps)}`)
     // Stored on the gateway for its admin's paired clients list; an older
     // gateway's 404 or any failure never touches playback.
-    void tunnelJson(this.pc, '/streamiq/clients/profile', {
+    void tunnelJson(this.tunnel(), '/streamiq/clients/profile', {
       probe: caps,
       compatible: compatibleOn(),
     } satisfies ProfileIn).catch((e) => event(`profile: not stored: ${e}`))
     deviceProfile(caps, false, this.compatible) // throws without H.264, before anything loads
-    const fresh = await tunnelJson<Item>(this.pc, jf.item(this.itemId))
+    const fresh = await tunnelJson<Item>(this.tunnel(), jf.item(this.itemId))
     if (this.gone) return
     this.set({ item: fresh, subs: subtitleTracks(fresh.MediaStreams) })
     this.runTicks = fresh.RunTimeTicks ?? 0
@@ -253,8 +253,8 @@ export class Engine {
     this.at0 = at
     const q = this.q
     const mbps = await (q === 'Auto'
-      ? this.speed?.auto(3000)
-      : this.speed?.known())
+      ? this.speed()?.auto(3000)
+      : this.speed()?.known())
     if (this.gone || load !== this.loads) return
     const saver = dataSaverOn() // caps Auto only (effective)
     const bitrate = this.bitrate
@@ -266,7 +266,7 @@ export class Engine {
       event(
         autoLine({
           mbps,
-          fresh: this.speed?.fresh(),
+          fresh: this.speed()?.fresh(),
           cap,
           bitrate,
           saver,
@@ -280,7 +280,7 @@ export class Engine {
     const allow: Copy = raw ? { video: true, audio: true } : this.copy
     // A new PlaySessionId each time, so Jellyfin starts a new job for new params.
     const info = await tunnelJson<jf.PlaybackInfo>(
-      this.pc,
+      this.tunnel(),
       jf.playbackInfo(this.itemId),
       {
         DeviceProfile: deviceProfile(
@@ -352,7 +352,7 @@ export class Engine {
           : nowPlaying(d.videoCopy, params, size),
     })
     const forced = load <= failLoads() // debug: ?fail=<n>
-    this.h = newHls(this.pc, this.v, {
+    this.h = newHls(this.tunnel(), this.v, {
       startPosition: this.seekTo ?? at,
       // Stream copy, or a transcode after a fallback (may escalate or fail).
       watch:
@@ -400,6 +400,13 @@ export class Engine {
   private refused = (e: Error) => {
     event(`autoplay blocked: ${e.name}`)
     this.set({ blocked: true })
+  }
+
+  /** The tunnel was replaced (a network change): the next load goes
+   * over the new one, at the playhead, with the same choices. */
+  // ponytail: a drop during startup (before the first load) stays its error.
+  reconnect() {
+    this.reload('reconnected')
   }
 
   // Restarts at the playhead: with less stream copy (the fallbacks), another

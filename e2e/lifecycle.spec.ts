@@ -102,9 +102,10 @@ test("Remove on the local gateway page: the open session dies, then it's refused
   await expect(clients).toHaveCount(1)
   await clients.getByRole('button', { name: 'Remove' }).click()
   await expect(clients).toHaveCount(0)
-  // The gateway closed the PeerConnection: the next request on it fails.
+  // The gateway closed the PeerConnection: the library opens a new tunnel,
+  // which the gateway refuses.
   await movies.click()
-  await expect(a.locator('[role=alert][data-kind="tunnel-lost"]')).toBeVisible()
+  await expect(a.locator('[role=alert][data-kind="not-paired"]')).toBeVisible()
   await a
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: 'Gateways' })

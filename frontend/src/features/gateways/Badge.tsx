@@ -119,11 +119,15 @@ function Names({
   )
 }
 
-function Part({ part }: { part: 'checking' | 'failed' | 'unpaired' | null }) {
-  if (part === 'checking')
+function Part({
+  part,
+}: {
+  part: 'checking' | 'reconnecting' | 'failed' | 'unpaired' | null
+}) {
+  if (part === 'checking' || part === 'reconnecting')
     return (
       <span className="muted" role="status">
-        Checking…
+        {part === 'checking' ? 'Checking…' : 'Reconnecting…'}
       </span>
     )
   if (part === 'failed') return <Link to="/diagnostics">Can't connect</Link>

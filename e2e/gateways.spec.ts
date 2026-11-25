@@ -399,7 +399,8 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   await expect(clients).toHaveCount(1)
   await expect(summary).toBeFocused() // the D-pad keeps its place
   await movies.click()
-  await expect(b.locator('[role=alert][data-kind="tunnel-lost"]')).toBeVisible()
+  // B's library opens a new tunnel: refused.
+  await expect(b.locator('[role=alert][data-kind="not-paired"]')).toBeVisible()
   await b
     .getByRole('navigation', { name: 'Main' })
     .getByRole('link', { name: 'Gateways' })

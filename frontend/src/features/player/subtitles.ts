@@ -11,7 +11,7 @@ import * as jf from '../library/jellyfin'
 /** The subtitle <track> of `v`: show(index, source) fetches and shows one
  * (-1 = off); close() removes it for good. */
 export function subtitleTrack(
-  pc: RTCPeerConnection,
+  pc: () => RTCPeerConnection,
   v: HTMLVideoElement,
   itemId: string,
 ) {
@@ -32,7 +32,7 @@ export function subtitleTrack(
     // ponytail: no media source yet (a phone's pick during startup) = the
     // item's id, which is its one source's; multi-version items then get
     // the default version's subtitle.
-    tunnelFetch(pc, jf.subtitle(itemId, source ?? itemId, index))
+    tunnelFetch(pc(), jf.subtitle(itemId, source ?? itemId, index))
       .then((r) => {
         if (r.status !== 200) throw new Error(`HTTP ${r.status}`)
         if (closed || current !== index) return // picked again meanwhile

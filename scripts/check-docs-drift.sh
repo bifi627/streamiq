@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fails when a STREAMIQ_* env var, a gateway API route or a message type in code is missing from the docs (#488):
 #   gateway/ (Go + install scripts)  -> a row of the gateway.env table in docs/install.md
-#   api/, scripts/                   -> named somewhere in docs/ (docs/superpowers is history: not counted)
+#   api/, scripts/                   -> named somewhere in docs/
 #   "/streamiq/..." in gateway Go    -> docs/protocol.md
 #   message `type`s (tstype) in protocol/, gateway/internal/sessions, gateway/internal/screen -> docs/protocol.md, both ways
 #   e2e/*.spec.ts names + the area tags (allowedTags) -> the e2e row of CLAUDE.md
@@ -35,7 +35,7 @@ for n in $gw; do
   grep -qxF "$n" <<<"$table" || { echo "  $n: read under gateway/, no row in the gateway.env table (docs/install.md)" >&2; fail=1; }
 done
 for n in $other; do
-  git grep -qw "$n" -- docs ':!docs/superpowers' || { echo "  $n: read in api/ or scripts/, named nowhere in docs/" >&2; fail=1; }
+  git grep -qw "$n" -- docs || { echo "  $n: read in api/ or scripts/, named nowhere in docs/" >&2; fail=1; }
 done
 
 rc=0; routes=$(git grep -hoE '"/streamiq/[^"]+"' -- 'gateway/*.go' ':!*_test.go' ':!*/testdata/*' | tr -d '"' | sort -u) || rc=$?

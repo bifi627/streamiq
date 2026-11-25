@@ -17,7 +17,6 @@ origin only; clients append `/api/…` themselves.
 
 ## Gateway onboarding
 
-Design: `superpowers/specs/2026-11-01-streamiq-agent-pairing-design.md`.
 Fingerprints everywhere use the form `sha-256 AA:BB:…` (32 upper-case hex
 pairs, SHA-256 over the DER certificate).
 
@@ -252,8 +251,7 @@ the player's privacy indicator (polled every 2 s) and Diagnostics, not the histo
 
 ## Pairing + connection auth
 
-Design: `superpowers/specs/2026-11-01-streamiq-agent-pairing-design.md`. Browser
-identity = non-extractable WebCrypto ECDSA P-256 **client key**; its
+Browser identity = non-extractable WebCrypto ECDSA P-256 **client key**; its
 fingerprint = `sha-256 AA:…` over the SPKI bytes. The **gateway pin** = the
 gateway's DTLS fingerprint (`a=fingerprint` of the answer SDP). The browser
 checks the pin **before** `setRemoteDescription` and refuses on mismatch

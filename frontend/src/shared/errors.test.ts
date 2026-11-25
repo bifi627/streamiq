@@ -109,6 +109,7 @@ test('every kind: a message and the buttons it shows', () => {
     'direct-only': ['retry'],
     'not-paired': ['pair'],
     'pin-mismatch': ['pair'],
+    'code-mismatch': ['pair'],
     'gateway-refused': ['gateways'],
     'tunnel-lost': ['retry'],
     'invite-invalid': ['gateways'],

@@ -71,6 +71,7 @@ const OFFLINE: Kind[] = [
 const LOCK: Kind[] = [
   'not-paired',
   'pin-mismatch',
+  'code-mismatch',
   'gateway-refused',
   'unauthorized',
   'admin-only',

@@ -13,9 +13,8 @@ down costs nothing. How without scope creep: "Ownership in practice" under Worki
 
 Direction and specs live in **GitHub Issues** (+ milestones): a feature's spec is its issue
 (acceptance criteria + out of scope), a multi-PR feature is a parent issue with sub-issues. No
-new spec files in the repo. `docs/superpowers/` (founding design docs and specs up to 2026-11)
-is **history, not authority**: don't plan from it or cite its phasing, checkpoints or
-out-of-scope lists. The rules that hold are below; protocol facts live in `docs/protocol.md`.
+new spec files in the repo. The rules that hold are below; protocol facts live in
+`docs/protocol.md`.
 
 Tool/service inventory + every credential and how to rotate it: `docs/tools.md`. **Update it in
 the same diff** when a tool/service or credential is added, removed or changed (env secret,
@@ -28,10 +27,8 @@ proven on mobile (cellular) and on a TV browser, and the UI design pass (#93) is
 weak and next: the current milestone and the `p1`/`p2` issues, not here. How each area is built
 (paths, endpoints, decisions): `docs/architecture.md`; read an area's section before changing it.
 
-**Glossary** (renamed 2026-11-02, migration #3; `docs/superpowers/` keeps the old words):
-**gateway** = the home box that tunnels Jellyfin (was "agent" / `Device`); **client** = a paired
-browser (was "browser device"; its key = client key); **API** = the control plane (`api/`,
-`STREAMIQ_API_URL`); **broker** = the API's signaling endpoint (`/api/broker/ws` +
+**Glossary:** **gateway** = the home box that tunnels Jellyfin; **client** = a paired browser
+(its key = client key); **API** = the control plane (`api/`, `STREAMIQ_API_URL`); **broker** = the API's signaling endpoint (`/api/broker/ws` +
 `/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home LAN (code:
 `localpage`); **web gateway page** = the web app's page for one gateway (`/gateways/<id>`); a bare
 "gateway page" could be either, so say which; **gateway API** = endpoints

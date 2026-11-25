@@ -77,8 +77,9 @@ the user's own membership in it; a household the user isn't a member of, one tha
 doesn't exist, or a malformed id → `404` with header `X-StreamIQ-Not-Member: 1` (exposed
 to CORS) before the endpoint runs, the same answer in all three cases (an endpoint's own
 `404` never carries that header). `GET /api/me`
-returns `{userId, tenantId, memberships:[{id, name, role}]}` (oldest first; `tenantId`
-= the household this request acts in; `role` = `admin` | `member`).
+returns `{userId, tenantId, memberships:[{id, name, role, members}]}` (oldest first; `tenantId`
+= the household this request acts in; `role` = `admin` | `member`; `members` = everyone in
+that household, the caller included).
 The web app stores the household it acts in per device (`localStorage`
 `streamiq.household`, set on joining one) and sends it on every request; once `/me`
 is in, it sends that household even when it's the default. A `404` with

@@ -261,18 +261,17 @@ test('TV Settings: Household & gateway pickers with 2+ of each, by D-pad; absent
     .click()
   await expect(p).toHaveURL(/\/g\/cabin-gw$/)
 
-  // Household: a pick reloads into it.
+  // Household: a pick reloads into it, still on Settings.
   await p.goto(appUrl('/settings'))
   await household.click()
   await p
     .getByRole('dialog', { name: 'Household' })
     .getByRole('button', { name: `Household …${other.slice(-6)} (admin)` })
     .click()
-  await expect(p).not.toHaveURL(/\/settings$/) // home, in the other household
-  await p.goto(appUrl('/settings'))
   await expect(household).toHaveAccessibleName(
     `Household: Household …${other.slice(-6)} (admin)`,
   )
+  await expect(p).toHaveURL(/\/settings$/)
 
   await openCategory(p, 'Display')
   await p.getByLabel('TV mode').uncheck()

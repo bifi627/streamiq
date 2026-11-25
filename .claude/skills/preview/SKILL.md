@@ -56,7 +56,7 @@ the same. Background: `docs/tools.md` (Preview env + cloudflared rows).
    Preview of <branch> is running.
    - Phone / desktop: <first LAN URL> (accept the certificate warning once)
    - TV: <first LAN URL>/tv → redirects to <tunnel URL>     ← only with --tunnel
-   - Login: preview@streamiq.test / preview-password
+   - Sign-ins: <the `sign-ins:` lines, as printed>
    - Pairing: auto-approved, just press Pair this browser
    - Public while running: anyone with the tunnel URL can reach it  ← only with --tunnel
    - Seeded: <one line per thing seeded, with any extra logins>   ← only with seed instructions
@@ -69,8 +69,12 @@ the same. Background: `docs/tools.md` (Preview env + cloudflared rows).
 
 ## Seed
 
-The base seed (`serve()` in `preview.ts`) is fixed: the preview login, its
-household (admin), one gateway online, `dev-media/`. Anything more the owner
+The base seed is the config in `e2e/preview-seed.ts`, the same on every `up`:
+6 users (`preview` + 5 more, printed as `sign-ins:`), 3 households (`preview` is
+admin of the one with the gateway, member of the other two; one open invite
+there), one gateway online, ~25 movies + 3 series on top of the e2e fixture,
+`dev-media/`. Check it before seeding users or households of your own. A lasting
+change to the base seed goes into that config (a PR). Anything more the owner
 asks for, do on the running stack with the `api:` / `auth emulator:` URLs that
 `up`/`status` print:
 

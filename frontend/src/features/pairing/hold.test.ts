@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { GRACE_MS, RETRY_MS, dropped, hold, retries } from './hold.ts'
+import { noop } from '../../shared/noop.ts'
 
 const s = (connectionState: string, closed = false) => ({
   pc: { connectionState },
@@ -94,15 +95,17 @@ test('past the window the drop ends in the error', async () => {
   const clock = { t: 0 }
   const { share, opened } = stub([false, true, true, true])
   const errors: unknown[] = []
+  let seen = noop
+  const drop = new Promise<void>((r) => (seen = r))
   const stop = hold(
     'g',
     share,
-    { up: () => 0, error: (e) => errors.push(e), dropped: () => 0 },
+    { up: () => 0, error: (e) => errors.push(e), dropped: () => seen() },
     opts(clock),
   )
   await wait(50)
   opened[0].closed = true
-  await wait(5)
+  await drop // the drop is at t = 0; only then the window runs out
   clock.t = RETRY_MS
   await wait(150)
   stop()

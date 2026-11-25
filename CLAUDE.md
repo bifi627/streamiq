@@ -28,8 +28,8 @@ weak and next: the current milestone and the `p1`/`p2` issues, not here. How eac
 (paths, endpoints, decisions): `docs/architecture.md`; read an area's section before changing it.
 
 **Glossary:** **gateway** = the home box that tunnels Jellyfin; **client** = a paired browser
-(its key = client key); **API** = the control plane (`api/`, `STREAMIQ_API_URL`); **broker** = the API's signaling endpoint (`/api/broker/ws` +
-`/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home LAN (code:
+(its key = client key); **API** = the control plane (`api/`, `STREAMIQ_API_URL`); **broker** =
+the API's signaling endpoint (`/api/broker/ws` + `/api/gateways/ws`); **local gateway page** = the page the gateway serves on the home LAN (code:
 `localpage`); **web gateway page** = the web app's page for one gateway (`/gateways/<id>`); a bare
 "gateway page" could be either, so say which; **gateway API** = endpoints
 the gateway serves under `/streamiq/*` over the tunnel (#138; a session carries device = client

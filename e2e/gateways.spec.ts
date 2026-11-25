@@ -4,7 +4,7 @@
 // relay switch, Status paired and unpaired, the shell's
 // connection badge (checked, live, offline, names only when there's more than one), paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
-// local gateway page, a refused broker socket and TV mode.
+// local gateway page, It doesn't on the code, a refused broker socket and TV mode.
 // Onboarding through the UI is smoke.spec's, restart, backup, a new certificate,
 // the removes that end sessions and an evicted key lifecycle.spec's; the offline
 // dot (90 s), rejection edge cases and a member's own client list are the Go API
@@ -580,6 +580,7 @@ test("It doesn't: the attempt ends unpaired, pairing again gets a code @gateways
   await expect(dialog).toContainText('Does the gateway show this code?')
   await dialog.getByRole('button', { name: "It doesn't" }).click()
   await expect(dialog.getByText("The codes didn't match")).toBeVisible()
+  await expect(dialog).toContainText('remove that client under Paired clients')
   // The tunnel closed: the user's one pairing slot is free again.
   await dialog.getByRole('button', { name: 'Pair this browser' }).click()
   await expect(dialog.getByLabel('Comparison code')).toBeVisible()

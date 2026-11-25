@@ -168,7 +168,8 @@ function onProof(s: State, n: string, keyFp: string | undefined): Step {
   }
 }
 
-// A click before the code shows can't happen (the buttons come with it).
+// It matches counts only once the code shows (revealed or later); It doesn't
+// ends the attempt at any stage.
 function onMatch(s: State, ok: boolean): Step {
   if (!ok) return fail(s, 'code-mismatch', 'pairing stopped: codes differ')
   if (s.stage === 'approved') return paired(s)

@@ -24,15 +24,16 @@ const Plan = Schema.Struct({
 });
 
 // A run's key is `<parent>/<anything>`: T3 never frees a key, so the parent alone could run only once.
-const readPlan = (parent, runId) =>
+// `first`: only a starting run yields to another one, or a later start would stop the run it yields to.
+const readPlan = (parent, runId, first) =>
   Effect.gen(function* () {
     const issue = yield* gh("api", `repos/${repo}/issues/${parent}`);
-    const same = yield* runs({ workflow: "group", keyPrefix: `${parent}/` });
+    const same = first ? yield* runs({ workflow: "group", keyPrefix: `${parent}/` }) : [];
     const live = same.find((r) => r.id !== runId && ["running", "waiting", "paused"].includes(r.status));
     if (live) return { title: issue.title, order: [], problem: `run ${live.id} already runs this group` };
     const subs = yield* gh("api", `repos/${repo}/issues/${parent}/sub_issues?per_page=100`);
     const open = subs.filter((s) => s.state === "open").map((s) => s.number);
-    const order = open.length === 0 ? "all sub-issues are closed" : buildOrder(issue.body ?? "", open);
+    const order = open.length === 0 ? [] : buildOrder(issue.body ?? "", open);
     return typeof order === "string"
       ? { title: issue.title, order: [], problem: order }
       : { title: issue.title, order, problem: null };
@@ -85,12 +86,18 @@ workflow(
   "group",
   { version: 1, payload: Schema.Struct({ parent: Schema.Number }) },
   Effect.fn(function* ({ parent }, run) {
-    const plan = yield* step("plan", { returns: Plan }, readPlan(parent, run.id));
-    yield* title(`Group #${parent} ${plan.title}`);
-    if (plan.problem !== null) return yield* stop(plan.problem);
-
     const built = [];
-    for (const n of plan.order) {
+    const visited = [];
+    // The parent is read again before every sub-issue: one added or reordered mid-run takes its place.
+    for (let round = 0; ; round++) {
+      const plan = yield* step(`plan/${round}`, { returns: Plan }, readPlan(parent, run.id, round === 0));
+      if (round === 0) yield* title(`Group #${parent} ${plan.title}`);
+      if (plan.problem !== null) return yield* stop(plan.problem);
+      // `visited`: GitHub closes an issue a moment after its PR merges, so it can still read as open.
+      const n = plan.order.find((m) => !visited.includes(m));
+      if (n === undefined) return round === 0 ? yield* stop("all sub-issues are closed") : { built };
+      visited.push(n);
+
       let sub = yield* step(`read-${n}/0`, { returns: Sub }, readSub(n));
       for (let i = 1; sub.open && sub.pr === null && !sub.ready; i++) {
         const answer = yield* ask(`refine-${n}/${i}`, {
@@ -114,7 +121,7 @@ workflow(
           brief: brief(n),
           returns: Built,
           // ponytail: one idle hour, then the step asks for the result; a build that waits longer on
-          // the owner gives up and pauses the run. Per-question waits if that bites.
+          // the owner gives up and lands in the failed-build question. Per-question waits if that bites.
           quiet: "1 hour",
           timeout: "24 hours",
         });
@@ -138,6 +145,5 @@ workflow(
       const end = yield* pullRequests.wait(`merged-${n}`, { project, url: pr }, { until: "merged" });
       if (Option.isNone(end) || end.value.state !== "merged") return yield* stop(`${pr} was closed without a merge`);
     }
-    return { built };
   }),
 );

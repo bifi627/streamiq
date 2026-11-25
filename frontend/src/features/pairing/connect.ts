@@ -59,15 +59,19 @@ async function challengeAnswer(
 const forcedBy = new WeakMap<RTCPeerConnection, Forced>()
 export const forcedOf = (pc: RTCPeerConnection) => forcedBy.get(pc) ?? 'no'
 
+/** The user's answer to "Does the gateway show this code?" */
+export type Confirm = (matches: boolean) => void
+
 /**
  * Resolves once the gateway lets this browser use the tunnel. With onCode set, an
- * unpaired browser starts pairing and onCode receives the code to compare.
+ * unpaired browser starts pairing and onCode receives the code to compare; a
+ * pairing resolves only once the gateway approved and confirm(true) was called.
  * An aborted signal closes the attempt: the gateway frees its pairing slot.
  * direct: ignore a forced relay (a gateway whose relay is off).
  */
 export async function connect(
   gatewayId: string,
-  onCode?: (code: string) => void,
+  onCode?: (code: string, confirm: Confirm) => void,
   signal?: AbortSignal,
   direct = false,
 ): Promise<Session> {
@@ -151,7 +155,9 @@ export async function connect(
           say({ type: 'reveal', n: nB })
           const code = await comparisonCode(f.fp, key.fp, f.n, nB)
           // A connect that failed during the digest shows no code.
-          return s.phase === 'failed' ? undefined : onCode?.(code)
+          return s.phase === 'failed'
+            ? undefined
+            : onCode?.(code, (ok) => dispatch({ on: 'match', ok }))
         }
         case 'approved':
           await setPin(gatewayId, f.fp)

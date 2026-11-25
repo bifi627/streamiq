@@ -180,6 +180,7 @@ test('evicted client key (#174): message → re-pair right there → stream @gat
     await alert.getByLabel('Comparison code').textContent(),
     'comparison code',
   )
+  await alert.getByRole('button', { name: 'It matches' }).click() // before the approval
   const local = await gatewayTab(gatewayCtx, gateway.pageUrl)
   const request = local.locator('form[action="/decide"]')
   await expect(request).toContainText(code)

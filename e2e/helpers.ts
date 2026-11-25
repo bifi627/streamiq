@@ -362,7 +362,8 @@ export async function gatewayTab(ctx: BrowserContext, url: string) {
   return page
 }
 
-/** Pair from the web app; approve on the gateway page only if the codes match.
+/** Pair from the web app; approve on the gateway page only if the codes match,
+ * then It matches in the app (lifecycle.spec clicks it before the approval).
  * From the overview card's Pair or the gateway page's Pair this browser, both
  * a dialog (closed after, unless keep: the name prompt). */
 export async function pair(
@@ -380,6 +381,8 @@ export async function pair(
   const request = gatewayPage.locator('form[action="/decide"]')
   await expect(request).toContainText(code) // page self-refreshes every 3s
   await request.getByRole('button', { name: 'Approve' }).click()
+  await expect(app.getByText('Does the gateway show this code?')).toBeVisible()
+  await app.getByRole('button', { name: 'It matches' }).click()
   await tunnelOk(app)
   const dialog = app.getByRole('dialog')
   if (!keep && (await dialog.isVisible()))

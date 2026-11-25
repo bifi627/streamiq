@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { browserName, connect } from './connect'
+import { browserName, connect, type Confirm } from './connect'
 import { clientKey, usePin } from './store'
 import { renameMessage, toAppError } from '../../shared/errors'
 import { listClients, renameClient } from '../gateways/api'
@@ -61,6 +61,7 @@ export function Pairing({
   // Leaving the page ends a running attempt: the gateway frees the pairing slot
   // now, not after its 5-minute expiry.
   const attempt = useRef<AbortController>(undefined)
+  const confirm = useRef<Confirm>(undefined)
   useEffect(() => () => attempt.current?.abort(), [])
   // A tick later: dev's StrictMode mounts twice, and the abort above would
   // end the first attempt (its slot freed only later: "busy").
@@ -79,7 +80,12 @@ export function Pairing({
     try {
       const x = await connect(
         gatewayId,
-        pair ? (code) => setS({ step: 'code', code }) : undefined,
+        pair
+          ? (code, c) => {
+              confirm.current = c
+              setS({ step: 'code', code, matched: false })
+            }
+          : undefined,
         attempt.current.signal,
       )
       if (pair) {
@@ -142,7 +148,18 @@ export function Pairing({
           {s.pair ? 'Connecting to start pairing…' : 'Testing the connection…'}
         </p>
       )}
-      {s.step === 'code' && <PairCode code={s.code} lanUrl={lanUrl} />}
+      {s.step === 'code' && (
+        <PairCode
+          code={s.code}
+          matched={s.matched}
+          lanUrl={lanUrl}
+          onAnswer={(ok) => {
+            keep.current = true // the clicked button unmounts: keep the D-pad's place
+            confirm.current?.(ok)
+            if (ok) setS({ ...s, matched: true })
+          }}
+        />
+      )}
       {s.step === 'done' && <TunnelOk s={s} />}
       {s.step === 'done' && s.paired && (
         // Closing it unmounts the focused control: keep the D-pad's place.
@@ -156,9 +173,20 @@ export function Pairing({
   )
 }
 
-// Pairing waits for the approval on the local gateway page. A TV names its
-// URL as text: the phone or PC at home opens it, not the TV's browser.
-function PairCode({ code, lanUrl }: { code: string; lanUrl: string | null }) {
+// Pairing waits for both sides: the user compares the code here, and approves
+// it on the local gateway page. A TV names that page's URL as text: the phone
+// or PC at home opens it, not the TV's browser.
+function PairCode({
+  code,
+  matched,
+  lanUrl,
+  onAnswer,
+}: {
+  code: string
+  matched: boolean
+  lanUrl: string | null
+  onAnswer: (matches: boolean) => void
+}) {
   const gatewayPage = !lanUrl ? (
     'gateway page'
   ) : tvOn() ? (
@@ -181,6 +209,23 @@ function PairCode({ code, lanUrl }: { code: string; lanUrl: string | null }) {
         Open the {gatewayPage} on your home network and approve the request
         showing this code.
       </p>
+      {!matched && (
+        <>
+          <p>Does the gateway show this code?</p>
+          <div className="actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => onAnswer(true)}
+            >
+              It matches
+            </button>
+            <button type="button" onClick={() => onAnswer(false)}>
+              It doesn't
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

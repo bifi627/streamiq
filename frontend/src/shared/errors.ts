@@ -26,6 +26,7 @@ export type Kind =
   | 'direct-only' // ICE failed to a gateway whose relay is off
   | 'not-paired'
   | 'pin-mismatch'
+  | 'code-mismatch' // the user said the gateway shows a different comparison code
   | 'gateway-refused'
   | 'tunnel-lost' // a request on an established tunnel got no (full) response
   | 'media-server-down' // gateway answered 502/503: Jellyfin down or no token
@@ -211,6 +212,12 @@ export function describe(e: AppError): {
           "Refused: this is not the gateway you paired with. Don't continue unless you re-installed the gateway yourself; then pair again.",
         actions: ['pair'],
         loud: true,
+      }
+    case 'code-mismatch':
+      return {
+        message:
+          "The codes didn't match, so this browser wasn't paired. If you approved a request on the gateway page, remove that client under Paired clients. Then pair again and approve only the request showing this browser's code.",
+        actions: ['pair'],
       }
     case 'gateway-refused':
       return {

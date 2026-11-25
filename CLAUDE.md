@@ -32,8 +32,8 @@ weak and next: the current milestone and the `p1`/`p2` issues, not here. How eac
 the API's signaling endpoint (`/api/broker/ws` + `/api/gateways/ws`); **local gateway page** =
 the page the gateway serves on the home LAN (code: `localpage`); **web gateway page** = the web
 app's page for one gateway (`/gateways/<id>`); a bare "gateway page" could be either, so say
-which; **gateway API** = endpoints the gateway serves under `/streamiq/*` over the tunnel (#138; a session carries device = client
-key and user = `users.id` from the broker); **tunnel** = the WebRTC connection from one client to
+which; **gateway API** = endpoints the gateway serves under `/streamiq/*` over the tunnel
+(#138; a session carries device = client key and user = `users.id` from the broker); **tunnel** = the WebRTC connection from one client to
 one gateway, from the browser opening `/api/broker/ws` until that socket closes: direct, relayed,
 or failed (one line in the gateway's tunnel history); "session" stays only the protocol/code name of a tunnel's
 identity (the `session` field, `gateway/internal/sessions`). "Media server" means Jellyfin only;

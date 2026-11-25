@@ -54,6 +54,14 @@ Fixed rules, not judgement. First match wins.
 N is a parent and this thread is its orchestrator (CLAUDE.md "Group related issues").
 It writes no code itself.
 
+- Workflow or thread: before anything else here, ask the owner (AskUserQuestion: run as
+  a workflow / run in this thread). The T3 workflow `group` (`.t3/workflows/group.ts`;
+  setup and what it leaves to the owner: `docs/tools.md`) runs this loop without a
+  thread and waits for each merge itself. Workflow →
+  `~/.t3/bin/t3.cmd workflow start group --input '{"parent":N}' --key N` (the key makes
+  a second start the same run), give the owner the run it prints, and end your turn:
+  nothing below applies. The command fails (workflows off, no CLI, no `group` workflow)
+  → show its output and run the group in this thread.
 - Thread title: if this thread was started for this work, rename it
   `[group] - #N <issue title>` with the T3 tool `t3_thread_update` (`action: "rename"`;
   a deferred tool: load it with ToolSearch). Skip it in a thread that has other work,

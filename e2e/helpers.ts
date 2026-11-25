@@ -284,12 +284,17 @@ export async function newContext(browser: Browser) {
   })
   // Google's gapi, which Firebase's popup sign-in loads even against the
   // emulator: fetched by Playwright outside Chrome, so the error below can't
-  // drop it and a reload can't lose a pending sign-in.
+  // drop it and a reload can't lose a pending sign-in. The last catch: a
+  // context closed with the fetch in flight (fixtures.ts closes them after
+  // each test) rejects fulfill/abort ("Fetch response has been disposed").
   await ctx.route('https://apis.google.com/**', (r) =>
-    r.fetch().then(
-      (response) => r.fulfill({ response }),
-      () => r.abort(),
-    ),
+    r
+      .fetch()
+      .then(
+        (response) => r.fulfill({ response }),
+        () => r.abort(),
+      )
+      .catch(() => {}),
   )
   const reloaded = new WeakSet<Page>()
   ctx.on('requestfailed', (r) => {

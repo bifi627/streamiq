@@ -16,6 +16,7 @@ import {
   uniqueEmail,
   type User,
   openCategory,
+  openHouseholds,
 } from './helpers.ts'
 
 // householdLabel() in api.ts: an unnamed household (none renamed yet).
@@ -28,13 +29,9 @@ const members = (p: Page) => tile(p, 'Members')
 // The overview's cards; the active one is first.
 const cards = (p: Page) => p.locator('li.card.hh')
 const active = (p: Page) => p.locator('li.card.hh.active')
-const tab = (p: Page) =>
-  p
-    .getByRole('navigation', { name: 'Main' })
-    .getByRole('link', { name: 'Household', exact: true })
 /** Nav → the overview → the active household's details, by its ›. */
 async function openDetails(p: Page) {
-  await tab(p).click()
+  await openHouseholds(p)
   // force: the › lets clicks through to the card's link (pointer-events: none).
   await active(p).locator('.chevron').click({ force: true })
   await expect(p).toHaveURL(/\/settings\/household$/)
@@ -111,7 +108,7 @@ test('leave: a member lands in its own household, no picker @households', async 
   await members(b).getByRole('button', { name: 'Leave' }).click()
   // Leaving reloads home, which goes on to /gateways: a click before that is lost.
   await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
-  await tab(b).click()
+  await openHouseholds(b)
   await expect(active(b)).toContainText(label(B))
   await expect(cards(b)).toHaveCount(1) // after /me
   expect(
@@ -189,7 +186,7 @@ test('join: Join lands in the household; a revoked link is refused @households',
   const b = await signedInPage(browser, B, `/join#${token}`)
   await b.getByRole('button', { name: 'Join' }).click()
   await expect(b).not.toHaveURL(/\/join/)
-  await tab(b).click()
+  await openHouseholds(b)
   await expect(active(b)).toContainText(label(A))
   await expect(active(b)).toContainText('Member')
 
@@ -220,7 +217,7 @@ test('invite-first sign-up: only that household, no picker @households', async (
   await c.getByRole('button', { name: 'Continue' }).click()
   await c.getByRole('button', { name: 'Join' }).click()
   await expect(c).not.toHaveURL(/\/join/)
-  await tab(c).click()
+  await openHouseholds(c)
   await expect(cards(c)).toHaveCount(1) // exactly one
   await expect(active(c)).toContainText('Member')
   await openDetails(c)
@@ -261,7 +258,7 @@ test('no household: paste an invite link, Open, Join @households', async ({
   await c.getByRole('button', { name: 'Open' }).click()
   await c.getByRole('button', { name: 'Join' }).click()
   await expect(c).not.toHaveURL(/\/join/)
-  await tab(c).click()
+  await openHouseholds(c)
   await expect(active(c)).toContainText(label(A))
   await expect(active(c)).toContainText('Member')
 })
@@ -273,7 +270,7 @@ test('no household: Create a household, its admin, Gateways opens @households', 
   const c = await signedInPage(browser, C, '/')
   await c.getByRole('button', { name: 'Create a household' }).click()
   await expect(c.getByRole('heading', { name: 'Gateways' })).toBeVisible()
-  await tab(c).click()
+  await openHouseholds(c)
   await expect(active(c)).toContainText('Admin')
   await openDetails(c)
   await expect(members(c).getByText(`${C.email} (you)`)).toBeVisible()
@@ -298,7 +295,7 @@ test('create: + on the overview, Cancel makes none, OK makes it the active one @
   confirmNext(b)
   await create.click() // reloads / in the new household
   await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
-  await tab(b).click()
+  await openHouseholds(b)
   await expect(cards(b)).toHaveCount(2)
   await expect(active(b)).not.toContainText(label(A))
   await expect(active(b)).toContainText('Admin')
@@ -320,7 +317,9 @@ test('alias: asked first, others see it not the email, renamed in Settings @hous
   await expect(alias).toHaveValue(C.email)
   await c.reload()
   await expect(alias).toHaveValue(C.email)
-  await expect(tab(c)).toHaveCount(0)
+  await expect(
+    c.getByRole('navigation', { name: 'Main' }).getByRole('link'),
+  ).toHaveCount(0)
 
   // Picked: the app opens, members show it; others get the alias, not the email.
   await alias.fill('Carol')
@@ -377,7 +376,7 @@ test('overview: Settings row, active first, Switch, details and Back, old URL @h
   await b.goto(appUrl('/settings/households'))
   await cards(b).nth(1).getByRole('button', { name: 'Switch' }).click()
   await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
-  await tab(b).click()
+  await openHouseholds(b)
   await expect(active(b)).toContainText(label(A))
   await expect(active(b)).toContainText('Member')
   await expect(cards(b).nth(1)).toContainText(label(B))
@@ -417,13 +416,15 @@ test('lost membership: removed while open, next action shows the notice @househo
   const b = await signedInPage(browser, B, '/gateways', A.tenantId)
   await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   await A.api(`/members/${B.userId}`, { method: 'DELETE' })
-  // In the open app: the overview uses the loaded /me, the details ask /members.
-  await tab(b).click()
-  await active(b).getByRole('link').click() // not a member
+  // In the open app: Settings asks /gateways (its pickers), refused.
+  await b
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Settings' })
+    .click()
   await expect(
     b.getByRole('status').filter({ hasText: 'no longer a member' }),
   ).toContainText(`You're no longer a member of ${label(A)}.`)
-  await tab(b).click()
+  await openHouseholds(b)
   await expect(active(b)).toContainText(label(B))
   await expect(cards(b)).toHaveCount(1) // after /me
 })

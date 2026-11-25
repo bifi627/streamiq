@@ -13,6 +13,7 @@ import {
   appUrl,
   newContext,
   newPage,
+  openActivity,
   pair,
   password,
   uniqueEmail,
@@ -98,7 +99,7 @@ test('first run: sign up, add a gateway, pair, play, resume, Activity, direct + 
 
     await test.step('Activity lists the tunnels so far as Direct, one for Playback', async () => {
       // Tunnels ended so far: those the gateway reported show their route.
-      await a.getByRole('link', { name: 'Activity' }).click()
+      await openActivity(a)
       await expect(
         a.getByRole('cell', { name: /^Direct( · IPv6)?$/ }).first(),
       ).toBeVisible()

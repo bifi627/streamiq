@@ -1,20 +1,17 @@
-export type Tab = 'gateways' | 'activity' | 'library' | 'household' | 'settings'
+export type Tab = 'gateways' | 'library' | 'household' | 'settings'
 
 /** Where a tab leads (Library: the active gateway, App.tsx). */
 export const TAB_TO = {
   gateways: '/gateways',
-  activity: '/activity',
   household: '/settings/households',
   settings: '/settings',
 } as const
 
-/** The nav's tabs, in order. TV mode: Library and Settings only; in no
- * household only the pages that still open (tvRoute.ts shellPage). */
+/** The nav's tabs, Library in the middle. TV: Library and Settings; in no
+ * household, Household is the way back to the no-household screen. */
 export function tabs(tv: boolean, homeless: boolean): Tab[] {
   if (homeless) return tv ? ['settings'] : ['household', 'settings']
-  return tv
-    ? ['library', 'settings']
-    : ['gateways', 'activity', 'library', 'household', 'settings']
+  return tv ? ['library', 'settings'] : ['gateways', 'library', 'settings']
 }
 
 /** The active gateway (the Library tab's, the badge's, Use as screen's): the

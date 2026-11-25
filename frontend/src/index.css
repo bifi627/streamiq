@@ -780,9 +780,16 @@ html.tv .no-tv {
   align-items: start;
   gap: var(--sp-4);
 }
+/* A tile's wide content (Activity's table) scrolls inside it, not the page. */
+.tiles > * {
+  min-width: 0;
+}
 @media (min-width: 52rem) {
   .tiles {
     grid-template-columns: 1fr 1fr;
+  }
+  .tiles > .wide {
+    grid-column: 1 / -1;
   }
 }
 .card.tile {
@@ -2216,8 +2223,16 @@ progress::-moz-progress-bar {
   height: 14rem;
 }
 
-/* Activity: Settings' layout, the tunnels as a table that scrolls
-   sideways on a phone instead of the page. */
+/* Activity (the household details' tile): the tunnels as a table that
+   scrolls sideways on a phone instead of the page. */
+.activity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.activity > p {
+  margin: 0;
+}
 .activity .filters {
   display: flex;
   flex-wrap: wrap;

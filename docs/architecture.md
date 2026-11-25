@@ -146,7 +146,8 @@ ended tunnel (`Sessions.Ended`: the report, its user, the offer's time, the thro
 re-enrolled gateway (maybe in another household) answers none of its earlier lines. The browser posts its measured
 throughput to its own tunnel (`POST /streamiq/tunnels/throughput`, `pairing/session.ts`,
 kept on `tunnel.Usage`). A member's own tunnels to the household's gateways (30 days, ≤ 200
-per gateway) are on the Activity page (`/activity`): `activity/api.ts` asks every gateway that
+per gateway) are in the household details' Activity tile (`/settings/household`; `/activity`
+redirects there with it open), read only once it is opened: `activity/api.ts` asks every gateway that
 is online and paired with this browser (`GET /streamiq/tunnels` over the tunnel; those are
 management tunnels) and `history.ts` merges the rows; any other gateway, or one that fails,
 is named with "history unavailable". Use, route, duration (the active time when reported),
@@ -258,7 +259,8 @@ peaks per local day.
 - App shell (`App.tsx` `Shell`, tabs in `shell.ts`, `Nav.tsx`): a top bar (logo, nav,
   gateway chip), a title row (back · title · actions) the page fills with `<PageBar>`
   (`shared/PageBar.tsx`, portals into the row) and on a phone (≤ 600 px) the nav as a bottom
-  tab bar above the safe-area inset. TV mode's nav: Library and Settings. The player page
+  tab bar above the safe-area inset. Nav: Gateways · Library · Settings (Household and
+  Activity are under Settings); TV mode's: Library and Settings. The player page
   (`/play/<id>`, TV mode's) hides all of it; elsewhere a title plays inline on its detail
   page (`/i/<id>?play=<id>`, an episode on its series' page; `playTarget` in `items.ts`).
 - Connection badge (`features/gateways/Badge.tsx`), the top bar's right end: the active

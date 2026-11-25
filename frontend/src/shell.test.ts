@@ -8,20 +8,14 @@ import {
   tabs,
 } from './shell.ts'
 
-test('tabs: all five, TV keeps Library + Settings, no household keeps what opens', () => {
-  assert.deepEqual(tabs(false, false), [
-    'gateways',
-    'activity',
-    'library',
-    'household',
-    'settings',
-  ])
+test('tabs: three with Library in the middle, TV keeps Library + Settings, no household keeps Household', () => {
+  assert.deepEqual(tabs(false, false), ['gateways', 'library', 'settings'])
   assert.deepEqual(tabs(true, false), ['library', 'settings'])
   assert.deepEqual(tabs(false, true), ['household', 'settings'])
   assert.deepEqual(tabs(true, true), ['settings'])
 })
 
-test('the Household tab opens the households overview (until #876)', () => {
+test('no household: the Household tab opens a households page (the no-household screen)', () => {
   assert.equal(TAB_TO.household, '/settings/households')
 })
 

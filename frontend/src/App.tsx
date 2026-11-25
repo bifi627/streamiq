@@ -54,7 +54,6 @@ import { HouseholdContext, SetMeContext } from './features/households/household'
 import { SignIn } from './features/signin/SignIn'
 import { Settings } from './features/settings/Settings'
 import { Playback } from './features/settings/Playback'
-import { Activity } from './features/activity/Activity'
 import { event } from './shared/diag'
 
 // Root layout; only mounted while signed in (App gates the whole router). Loads
@@ -266,8 +265,14 @@ const routeTree = rootRoute.addChildren([
   }),
   createRoute({
     getParentRoute: () => rootRoute,
-    path: 'activity',
-    component: Activity,
+    path: 'activity', // now a tile of the household details
+    beforeLoad: () => {
+      throw redirect({
+        to: '/settings/household',
+        hash: 'activity',
+        replace: true,
+      })
+    },
   }),
   createRoute({
     getParentRoute: () => rootRoute,

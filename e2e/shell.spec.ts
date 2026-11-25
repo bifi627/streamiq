@@ -1,6 +1,6 @@
 // The app shell and Settings, no gateway or Jellyfin: sign-in, a signed-out
-// deep link, not-found, the nav (five tabs, Library disabled without a
-// gateway), the title row's Back (Diagnostics), PWA installability, the
+// deep link, not-found, the nav (three tabs, Library disabled without a
+// gateway, Settings active on the household pages, /activity's redirect), the title row's Back (Diagnostics), PWA installability, the
 // Settings overview (categories, the Playback page, expandables, D-pad), each
 // per-device setting persisted, and the D-pad on Playback. TV mode: the first visit
 // on a TV (webOS turns it on, Android TV asks), the handoff page (the household pages: QR
@@ -16,6 +16,7 @@ import {
   signUp,
   uniqueEmail,
 } from './helpers.ts'
+import { must } from './must.ts'
 
 /** A new account signed in on a new browser at path. */
 const signedIn = async (browser: Browser, path = '/gateways') =>
@@ -59,33 +60,49 @@ test('not-found: Go to your gateways @shell', async ({ browser }) => {
   await expect(gatewaysHeading(p)).toBeVisible()
 })
 
-test('nav: five tabs, Library disabled without a gateway @shell', async ({
+test('nav: three tabs, Library in the middle and disabled without a gateway, Settings active on the household pages; /activity opens the Activity tile @shell', async ({
   browser,
 }) => {
   const p = await signedIn(browser, '/settings')
   const nav = p.getByRole('navigation', { name: 'Main' })
   const h1 = p.getByRole('heading', { level: 1 })
+  const activeTab = nav.locator('a[data-status="active"]')
   await expect(nav.getByRole('link')).toHaveText([
     'Gateways',
-    'Activity',
     'Library',
-    'Household',
     'Settings',
   ])
   await expect(nav.getByRole('link', { name: 'Library' })).toBeDisabled()
   await expect(p.getByText('Your files stay on your hardware')).toHaveCount(0)
-  await nav.getByRole('link', { name: 'Activity' }).click()
-  await expect(p).toHaveURL(/\/activity$/)
-  await expect(h1).toHaveText('Activity')
   await nav.getByRole('link', { name: 'Gateways' }).click()
   await expect(p).toHaveURL(/\/gateways$/)
   await expect(h1).toHaveText('Gateways')
-  await nav.getByRole('link', { name: 'Household' }).click()
-  await expect(p).toHaveURL(/\/settings\/households$/)
-  await expect(h1).toHaveText('Households')
+  await expect(activeTab).toHaveText('Gateways')
   await nav.getByRole('link', { name: 'Settings' }).click()
   await expect(p).toHaveURL(/\/settings$/)
   await expect(h1).toHaveText('Settings')
+  await p.getByRole('link', { name: 'Households' }).click()
+  await expect(h1).toHaveText('Households')
+  await expect(activeTab).toHaveText('Settings')
+  await p.locator('li.card.hh.active').getByRole('link').click()
+  await expect(p).toHaveURL(/\/settings\/household$/)
+  await expect(activeTab).toHaveText('Settings')
+  const activity = p.locator('details.tile', {
+    has: p.locator('summary', { hasText: 'Activity' }),
+  })
+  await expect(activity).not.toHaveAttribute('open')
+  // Desktop: both columns of the tiles grid.
+  const grid = must(await p.locator('.tiles').boundingBox(), 'tiles')
+  expect(must(await activity.boundingBox(), 'tile').width).toBeCloseTo(
+    grid.width,
+    0,
+  )
+  await p.goto(appUrl('/activity')) // the old page's URL
+  await expect(p).toHaveURL(/\/settings\/household#activity$/)
+  await expect(activity).toHaveAttribute('open')
+  await expect(
+    activity.getByText('connections to this household'),
+  ).toBeVisible()
 })
 
 test('title row Back: only on a page with a parent; Diagnostics goes to Settings after a direct open @shell', async ({
@@ -171,7 +188,11 @@ test('TV mode: the household pages hand off, the nav keeps Library + Settings, D
   await p.getByLabel('TV mode').uncheck()
   await p.goto(appUrl('/household'))
   await expect(h1).toHaveText(/^Household/)
-  await expect(nav.getByRole('link', { name: 'Household' })).toBeVisible()
+  await expect(nav.getByRole('link')).toHaveText([
+    'Gateways',
+    'Library',
+    'Settings',
+  ])
 })
 
 test('TV Settings: Household & gateway pickers with 2+ of each, by D-pad; absent with one of each and outside TV mode (#871) @shell', async ({

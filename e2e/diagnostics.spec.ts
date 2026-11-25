@@ -9,6 +9,7 @@ import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   appUrl,
+  openActivity,
   openDock,
   openLibrary,
   historyTunnels,
@@ -86,7 +87,7 @@ test('report, direct (#90, #115): probe, throughput, path, history line, no emai
   expect(row.bytesReceived).toBeGreaterThan(0)
   await expect(report(page)).not.toContainText(user.email)
   // Activity hides the test's Diagnostics tunnel until the box is ticked, then remembers it.
-  await page.getByRole('link', { name: 'Activity' }).click()
+  await openActivity(page)
   const diag = page.getByRole('cell', { name: 'Diagnostics', exact: true })
   await expect(page.getByRole('table', { name: 'Tunnels' })).toBeVisible()
   await expect(diag).toHaveCount(0)
@@ -97,6 +98,7 @@ test('report, direct (#90, #115): probe, throughput, path, history line, no emai
     page.getByRole('row', { name: /Diagnostics .* [\d.,]+\s?[kMG]b/ }),
   ).toBeVisible()
   await page.reload() // remembered in this browser
+  await page.locator('summary', { hasText: 'Activity' }).click()
   await expect(diag).toHaveCount(1)
 })
 

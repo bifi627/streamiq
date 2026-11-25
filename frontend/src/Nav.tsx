@@ -5,7 +5,6 @@ import { TAB_TO, type Tab } from './shell'
 // Inline SVG paths (24 × 24, stroked), no icon library.
 const ICON: Record<Tab, string> = {
   gateways: 'M4 6h16v5H4zM4 13h16v5H4zM7 8.5h.01M7 15.5h.01',
-  activity: 'M3 12h4l3-7 4 14 3-7h4',
   library: 'M8 5v14l11-7z',
   household: 'M3 11l9-7 9 7M5 10v10h14V10',
   settings:
@@ -13,7 +12,6 @@ const ICON: Record<Tab, string> = {
 }
 const LABEL: Record<Tab, string> = {
   gateways: 'Gateways',
-  activity: 'Activity',
   library: 'Library',
   household: 'Household',
   settings: 'Settings',

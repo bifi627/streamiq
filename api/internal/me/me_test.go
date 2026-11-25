@@ -45,7 +45,7 @@ func TestMe(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	me.Routes(mux, auth.New(v, apitest.DB))
+	me.Routes(mux, auth.New(v, apitest.DB), apitest.DB)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 	token := apitest.Token(t, "me@home.test")

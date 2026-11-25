@@ -140,9 +140,9 @@ func (a *Auth) caller(ctx context.Context, uid string) (Caller, error) {
 
 // Households is user's memberships as they are now, oldest first.
 func (a *Auth) Households(ctx context.Context, user string) ([]Household, error) {
-	rows, _ := a.db.NoTenant().Query(ctx, `SELECT tenant_id, name, role, members FROM memberships_of($1)`, user)
+	rows, _ := a.db.NoTenant().Query(ctx, `SELECT tenant_id, name, role FROM memberships_of($1)`, user)
 	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (h Household, err error) {
-		return h, r.Scan(&h.ID, &h.Name, &h.Role, &h.Members)
+		return h, r.Scan(&h.ID, &h.Name, &h.Role)
 	})
 }
 

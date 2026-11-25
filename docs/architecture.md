@@ -36,7 +36,7 @@ is not a status log: open work lives in `gh issue list`, history in git.
   password `STREAMIQ_APP_DB_PASSWORD`, set at start by the owner) and sets the tenant
   per transaction only, in `db.InTenant` (or `db.InClaimedTenant`, whose tenant comes from a
   claim in the same transaction). Lookups that run before the tenant is known are
-  `SECURITY DEFINER` functions limited by their argument (`memberships_of(user)`,
+  `SECURITY DEFINER` functions limited by their argument (`memberships_of(user)`, `member_counts(user)` for `/api/me`,
   `gateway_by_credential(hash)` for the gateway socket, `claim_enrollment_token(hash)`
   for enrollment, which also spends the token, `invite_by_hash(hash)` for an invite's
   preview, `claim_invite(hash)` for accept and `create_household(user)` for a new

@@ -6,6 +6,4 @@ type Household struct {
 	ID   string  `json:"id"`
 	Name *string `json:"name"`
 	Role string  `json:"role" tstype:"'admin' | 'member'"`
-	// Members counts everyone in the household, the user included.
-	Members int `json:"members"`
 }

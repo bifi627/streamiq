@@ -13,5 +13,11 @@ memberships empty.
 export interface Me {
   userId: string;
   tenantId: string | null;
-  memberships: auth.Household[];
+  memberships: Membership[];
+}
+export interface Membership extends auth.Household {
+  /**
+   * Members counts everyone in the household, the user included.
+   */
+  members: number /* int */;
 }

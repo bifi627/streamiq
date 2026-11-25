@@ -57,7 +57,7 @@ func main() {
 	}
 	a := auth.New(verifier, d)
 	mux := http.NewServeMux()
-	me.Routes(mux, a)
+	me.Routes(mux, a, d)
 	perMinute, err := strconv.Atoi(env("STREAMIQ_SIGNALING_PER_MINUTE", "120"))
 	if err != nil {
 		log.Fatalf("STREAMIQ_SIGNALING_PER_MINUTE: %v", err)

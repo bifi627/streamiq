@@ -12,7 +12,7 @@ import {
   useCreate,
   useHousehold,
 } from './household'
-import type { Household } from '../../generated/auth'
+import type { Membership } from '../../generated/me'
 
 // /settings/households: a card per household the user is in, the active one
 // first (its details behind the chevron), Switch on the others; + makes one.
@@ -59,7 +59,7 @@ export function Households() {
 }
 
 // The role is in words beside its dot: color is never the only signal.
-function Card({ m, active }: { m: Household; active: boolean }) {
+function Card({ m, active }: { m: Membership; active: boolean }) {
   const role = roleView(m.role)
   return (
     <li className={active ? 'card gw hh active' : 'card gw hh'}>

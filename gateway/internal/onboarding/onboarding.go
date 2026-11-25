@@ -151,6 +151,10 @@ func LoadOrEnroll(ctx context.Context, dir, api, token string) (*State, error) {
 	if name == "" {
 		name, _ = os.Hostname()
 	}
+	// Before the token is spent: a credential that can't be saved is lost for good.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
 	body, _ := json.Marshal(map[string]string{"token": token, "name": name})
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, api+"/api/gateways/enroll", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

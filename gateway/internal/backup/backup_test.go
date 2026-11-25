@@ -427,13 +427,12 @@ func TestCheckNoIdentity(t *testing.T) {
 	if err := checkNoIdentity(writeDir(t, map[string]string{"allowlist.json": "[]"})); err != nil {
 		t.Fatal(err)
 	}
-	// The identity key alone is no gateway: without gateway.json there is nothing to replace.
-	if err := checkNoIdentity(writeDir(t, map[string]string{"identity.pem": "K"})); err != nil {
-		t.Fatal(err)
-	}
-	err := checkNoIdentity(writeDir(t, map[string]string{"gateway.json": "{}"}))
-	if err == nil || !strings.Contains(err.Error(), "gateway.json") {
-		t.Fatalf("err = %v, want one naming gateway.json", err)
+	// A kept identity key (or an older release's certificate) is only replaced with --force.
+	for _, f := range []string{"gateway.json", "identity.pem", "cert.pem"} {
+		err := checkNoIdentity(writeDir(t, map[string]string{f: "K"}))
+		if err == nil || !strings.Contains(err.Error(), f) {
+			t.Fatalf("%s: err = %v, want one naming it", f, err)
+		}
 	}
 }
 

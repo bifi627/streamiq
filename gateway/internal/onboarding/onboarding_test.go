@@ -36,7 +36,7 @@ func TestEnrollOnceThenReuseState(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"gatewayId": "dev-1", "credential": "cred-1"})
 	}))
 	defer srv.Close()
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "state") // not there yet: enrolling creates it
 
 	st, err := LoadOrEnroll(context.Background(), dir, srv.URL, "tok")
 	if err != nil || st.GatewayID != "dev-1" || st.Credential != "cred-1" {

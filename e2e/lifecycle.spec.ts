@@ -17,7 +17,6 @@ import {
   pair,
   password,
   restartGateway,
-  tunnelOk,
   videoTime,
 } from './helpers.ts'
 import { envVar, must } from './must.ts'
@@ -120,7 +119,10 @@ test('an old DTLS certificate pin: pair again once, then no code @gateways', asy
   await pair(a, gatewayCtx, gateway.pageUrl)
   await a.reload() // a fresh tunnel: the new pin holds, no code
   await a.getByRole('button', { name: 'Test' }).click()
-  await tunnelOk(a)
+  await expect(
+    a.getByRole('main').getByRole('button', { name: 'On your network' }),
+  ).toBeVisible({ timeout: 30_000 })
+  await expect(a.locator('[role=alert]')).toHaveCount(0)
 })
 
 test("Remove on the local gateway page: the open session dies, then it's refused @gateways", async ({

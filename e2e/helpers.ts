@@ -268,6 +268,20 @@ export const cspScope = {
   current: { violations: [] as string[], contexts: [] as BrowserContext[] },
 }
 
+/** Serves page's real /api/gateways list through edit. The list is polled, so a
+ * fetch can still be in flight when the test navigates or ends; its response is
+ * disposed then and fulfill rejects. Any failure aborts the request instead,
+ * and an abort that fails too (page gone) is ignored. */
+export const editGateways = <T>(page: Page, edit: (list: T[]) => unknown[]) =>
+  page.route('**/api/gateways', (r) =>
+    r
+      .fetch()
+      .then(async (res) =>
+        r.fulfill({ response: res, json: edit((await res.json()) as T[]) }),
+      )
+      .catch(() => r.abort().catch(() => {})),
+  )
+
 /** browser.newContext() for every context a test opens (app or local gateway page).
  * Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
  * interfaces change, e.g. Docker adding a container for another worker on CI:

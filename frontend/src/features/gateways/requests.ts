@@ -8,17 +8,25 @@ import type { PairingRequest } from '../../generated/pairing.ts'
 export const nextRequestsAsk = (failed: boolean): number | false =>
   failed ? false : 5_000
 
-// What the section shows: hidden = nothing at all (no requests, or a 404: a
-// gateway older than remote approval); else the requests or the error's line.
+// A failed decide's line, shown until the next poll: at = the list's
+// dataUpdatedAt right after the decide's refetch.
+export type DecideLine = { text: string; at: number }
+export const currentLine = (l: DecideLine | null, dataAt: number) =>
+  l?.at === dataAt ? l.text : null
+
+// What the section shows: hidden = nothing at all (no requests and no current
+// decide line, or a 404: a gateway older than remote approval); else the
+// requests (maybe none, under the line) or the error's line.
 export function requestsView(
   list: PairingRequest[] | undefined,
   err: AppError | null,
+  line: string | null = null,
 ): 'hidden' | { msg: string } | PairingRequest[] {
   if (err)
     return err.context.status === 404
       ? 'hidden'
       : { msg: describe(err).message }
-  return list?.length ? list : 'hidden'
+  return list?.length || line ? (list ?? []) : 'hidden'
 }
 
 // Who asks: the member's name when the web app knows the user, then the

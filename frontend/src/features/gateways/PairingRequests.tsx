@@ -4,7 +4,9 @@ import { decideRequest, listRequests, type Gateway } from './api'
 import { toAppError } from '../../shared/errors'
 import { useMembers } from '../activity/useMembers'
 import {
+  currentLine,
   decideMessage,
+  type DecideLine,
   nextRequestsAsk,
   requesterLine,
   requestsView,
@@ -24,10 +26,10 @@ export function PairingRequests({ g }: { g: Gateway }) {
     retry: false,
   })
   const { names } = useMembers(true, undefined)
-  // A failed decide's line, until the next poll (at = its dataUpdatedAt).
-  const [msg, setMsg] = useState<{ text: string; at: number } | null>(null)
+  const [msg, setMsg] = useState<DecideLine | null>(null)
   const [busy, setBusy] = useState(false)
-  const view = requestsView(q.data, q.error ? toAppError(q.error) : null)
+  const line = currentLine(msg, q.dataUpdatedAt)
+  const view = requestsView(q.data, q.error ? toAppError(q.error) : null, line)
   if (view === 'hidden') return null
 
   async function decide(id: string, approve: boolean) {
@@ -46,7 +48,7 @@ export function PairingRequests({ g }: { g: Gateway }) {
   return (
     <section className="pairing-requests" aria-label="Pairing requests">
       <h2>Pairing requests</h2>
-      {msg?.at === q.dataUpdatedAt && <p role="status">{msg.text}</p>}
+      {line && <p role="status">{line}</p>}
       {'msg' in view ? (
         <p role="status">{view.msg}</p>
       ) : (

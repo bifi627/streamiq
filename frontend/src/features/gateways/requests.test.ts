@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { AppError } from '../../shared/errors.ts'
 import {
+  currentLine,
   decideMessage,
   nextRequestsAsk,
   requesterLine,
@@ -28,6 +29,13 @@ test('the requester: the member name when known, then the browser name', () => {
   assert.equal(requesterLine(r, new Map([['u1', 'Alex']])), 'Alex · Pixel')
   assert.equal(requesterLine(r, new Map()), 'Pixel')
   assert.equal(requesterLine(r, undefined), 'Pixel')
+})
+
+test('a decide 404 that emptied the list still shows its line, until the next poll', () => {
+  const line = currentLine({ text: decideMessage(e(404)), at: 5 }, 5)
+  assert.deepEqual(requestsView([], null, line), [])
+  assert.equal(currentLine({ text: 'x', at: 5 }, 6), null) // a poll landed since
+  assert.equal(requestsView([], null, null), 'hidden')
 })
 
 test('a decide 404 says the request ended', () => {

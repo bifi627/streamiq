@@ -13,6 +13,7 @@ import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
   appUrl,
+  editGateways,
   gatewayTab,
   historyTunnels,
   join,
@@ -108,14 +109,9 @@ test('page: the update banner on top, tiles collapsed, Status with Version, the 
   paired,
 }) => {
   const { page } = paired
-  await page.route('**/api/gateways', async (r) => {
-    const res = await r.fetch()
-    const list = (await res.json()) as object[]
-    await r.fulfill({
-      response: res,
-      json: list.map((g) => ({ ...g, update: '99.0.0' })),
-    })
-  })
+  await editGateways(page, (list: object[]) =>
+    list.map((g) => ({ ...g, update: '99.0.0' })),
+  )
   await openGateway(page)
   await expect(detail(page).locator('.notice').first()).toContainText(
     'Update available: 99.0.0.',
@@ -291,14 +287,9 @@ test('connection badge: an offline gateway shows offline and opens no tunnel (#8
 }) => {
   const { page, user } = paired
   const [g] = await user.api<{ name: string }[]>('/gateways')
-  await page.route('**/api/gateways', async (route) => {
-    const res = await route.fetch()
-    const list = (await res.json()) as { online: boolean }[]
-    await route.fulfill({
-      response: res,
-      json: list.map((x) => ({ ...x, online: false })),
-    })
-  })
+  await editGateways(page, (list: object[]) =>
+    list.map((x) => ({ ...x, online: false })),
+  )
   const sockets: string[] = []
   page.on('websocket', (ws) => sockets.push(ws.url()))
   await page.goto(appUrl('/settings'))
@@ -317,17 +308,10 @@ test('connection badge: the gateway name with 2+ gateways, the household initial
 }) => {
   const { page, user } = paired
   const [g] = await user.api<{ id: string; name: string }[]>('/gateways')
-  await page.route('**/api/gateways', async (route) => {
-    const res = await route.fetch()
-    const list = (await res.json()) as { id: string; online: boolean }[]
-    await route.fulfill({
-      response: res,
-      json: [
-        ...list,
-        { ...list[0], id: 'fake-2', name: 'Other', online: false },
-      ],
-    })
-  })
+  await editGateways(page, (list: object[]) => [
+    ...list,
+    { ...list[0], id: 'fake-2', name: 'Other', online: false },
+  ])
   await join(await signUp(uniqueEmail('host')), user)
   const me = await user.api<{
     tenantId: string
@@ -648,19 +632,12 @@ test('overview: status dots, the active card first, Switch → the Library tab o
     online: false,
     ...x,
   })
-  await page.route('**/api/gateways', async (r) => {
-    const res = await r.fetch()
-    const [real] = (await res.json()) as object[]
-    await r.fulfill({
-      response: res,
-      json: [
-        fake('update-gw', 'Office', { online: true, update: '99.0.0' }),
-        fake('old-gw', 'Attic', { upgradeRequired: true }),
-        real,
-        fake('offline-gw', 'Cabin', {}),
-      ],
-    })
-  })
+  await editGateways(page, ([real]: object[]) => [
+    fake('update-gw', 'Office', { online: true, update: '99.0.0' }),
+    fake('old-gw', 'Attic', { upgradeRequired: true }),
+    real,
+    fake('offline-gw', 'Cabin', {}),
+  ])
   // Cabin was the last opened on this device: the active one.
   await page.evaluate(() =>
     localStorage.setItem('streamiq.lastGateway', 'offline-gw'),

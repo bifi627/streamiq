@@ -64,20 +64,28 @@ export function Player({
     stateRef.current = onState
   })
 
+  // A new pc (the tunnel was replaced) keeps the engine: it reloads.
+  const tunnel = useRef({ pc, speed })
+  useEffect(() => {
+    if (tunnel.current.pc === pc) return
+    tunnel.current = { pc, speed }
+    engine.current?.reconnect()
+  }, [pc, speed])
+
   useEffect(() => {
     const v = video.current
     if (!v) return
     const e = new Engine({
-      pc,
+      pc: () => tunnel.current.pc,
       v,
       itemId,
-      speed,
+      speed: () => tunnel.current.speed,
       set: patch,
       onState: () => stateRef.current,
     })
     engine.current = e
     return e.open(gatewayId, startTicks, remote)
-  }, [pc, speed, itemId, startTicks, remote, gatewayId])
+  }, [itemId, startTicks, remote, gatewayId])
 
   return (
     <div>

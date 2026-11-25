@@ -246,6 +246,11 @@ peaks per local day.
   is a path builder in `features/library/jellyfin.ts`, mirroring the gateway allowlist
   (`scripts/check-jellyfin-paths.sh` fails on a Jellyfin path elsewhere); the HLS stream
   URL is the one PlaybackInfo returns (`TranscodingUrl`).
+- A network change (Wi-Fi ↔ cellular) kills a tunnel: there is no ICE restart. The library
+  layout's hold on its shared tunnel (`features/pairing/hold.ts`) replaces it when it is
+  failed or closed, or has been disconnected for more than 5 s. It retries for 60 s, then
+  shows the error. The player keeps its engine and reloads at the playhead over the new
+  pc. Each tunnel is its own history line.
 - Household context: Shell loads `/me` once per page load and shares it
   (`HouseholdContext`, `useHousehold()` in `features/households/household.ts`); a picker
   on the Household page shows with more than one membership. The chosen household is per device

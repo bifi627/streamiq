@@ -13,6 +13,8 @@ import {
   useRouter,
 } from '@tanstack/react-router'
 import { share, type Session } from '../pairing/connect'
+import { hold } from '../pairing/hold'
+import { event } from '../../shared/diag'
 import { Pairing } from '../pairing/Pairing'
 import { AppError, toAppError } from '../../shared/errors'
 import { ErrorView, State } from '../../shared/ErrorView'
@@ -62,27 +64,23 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
   const [attempt, setAttempt] = useState(0) // bumped after an inline re-pair
   const qc = useQueryClient()
 
-  useEffect(() => {
-    const { session, release } = share(gatewayId)
-    let gone = false
-    session.then(
-      (x) => {
-        if (gone) return
-        setSession(x)
-      },
-      (e) => {
-        const err = toAppError(e)
-        setErr(err)
-        qc.setQueryData<Conn>(connKey(gatewayId), {
-          route: err.kind === 'not-paired' ? 'unpaired' : 'failed',
-        }) // the shell badge
-      },
-    )
-    return () => {
-      gone = true
-      release()
-    }
-  }, [gatewayId, attempt, qc])
+  // A dropped tunnel is replaced by a new one: the pages keep showing
+  // until it is up, then get its pc.
+  useEffect(
+    () =>
+      hold(gatewayId, share, {
+        up: setSession,
+        dropped: () => event('tunnel dropped: reconnecting'),
+        error: (e) => {
+          const err = toAppError(e)
+          setErr(err)
+          qc.setQueryData<Conn>(connKey(gatewayId), {
+            route: err.kind === 'not-paired' ? 'unpaired' : 'failed',
+          }) // the shell badge
+        },
+      }),
+    [gatewayId, attempt, qc],
+  )
 
   return (
     // D-pad: the whole library, the not-paired block included; the

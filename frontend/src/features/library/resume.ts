@@ -13,7 +13,7 @@ import { TICKS_PER_SECOND } from './items'
  * reports while a reload detaches the media). The returned stop reports
  * once more and returns the last save, for the pages left behind. */
 export function watchResume(
-  pc: RTCPeerConnection,
+  pc: () => RTCPeerConnection,
   v: HTMLVideoElement,
   itemId: string,
   attached: () => boolean,
@@ -29,7 +29,7 @@ export function watchResume(
     lastT = t
   }
   const save = (body: object) =>
-    (saving = tunnelJson(pc, jf.userData(itemId), body).catch((e) =>
+    (saving = tunnelJson(pc(), jf.userData(itemId), body).catch((e) =>
       event(`resume: save failed: ${e}`),
     ))
   const report = () => {

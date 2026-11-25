@@ -154,7 +154,7 @@ export function Player({
         {/* A task later: onEnded may unmount the player at once, and the
             engine's own `ended` listener (the Played save) must run first. */}
         <video ref={video} onEnded={() => onEnded && setTimeout(onEnded)} />
-        {stalled && (
+        {stalled && !view.err && (
           <span className="stall" role="status" aria-label="Loading" />
         )}
       </Controls>

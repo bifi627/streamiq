@@ -404,7 +404,7 @@ export class Engine {
 
   /** The tunnel was replaced (a network change): the next load goes
    * over the new one, at the playhead, with the same choices. */
-  // ponytail: a drop during startup (before the probe) stays that load's error.
+  // ponytail: a drop during startup (before the first load) stays its error.
   reconnect() {
     this.reload('reconnected')
   }

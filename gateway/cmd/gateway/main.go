@@ -417,7 +417,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, cert *we
 	go checkUpdates(ctx, &notice, &newer)
 	remote := newRemote(&newer)
 	started := time.Now().UTC()
-	load := &host.Sampler{}
+	load := &host.Sampler{Compose: compose}
 	go load.Run(ctx)
 	b := &box{setup: setup, compose: compose, sess: sess, load: load}
 	go b.record(ctx, health)

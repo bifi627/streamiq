@@ -54,7 +54,7 @@ func sleep(ctx context.Context, d time.Duration) bool {
 
 func (b *box) health(ctx context.Context) history.Sample {
 	v := b.setup.View()
-	l := b.load.Load(b.compose)
+	l := b.load.Load()
 	h := history.Sample{
 		Jellyfin: history.Jellyfin{Reachable: v.Reachable, Version: v.Version},
 		OS:       runtime.GOOS, Arch: runtime.GOARCH, Transcoding: v.Transcoding(),
@@ -89,7 +89,7 @@ func (b *box) status(started time.Time, store *pairing.Store, remote *update.Rem
 			PairedClients: len(store.Paired()), ActiveSessions: b.sess.Active(),
 			Viewer:       b.setup.ViewerState(tunnel.SessionOf(r).User),
 			RemoteUpdate: remoteUpdate(remote),
-			Host:         b.load.Load(b.compose),
+			Host:         b.load.Load(),
 		})
 	})
 }

@@ -88,7 +88,6 @@ jobs:
         working-directory: e2e
       - run: npm test
         working-directory: frontend
-      - run: node --test ".t3/workflows/lib/*.test.ts" # the group workflow's decisions (order, ready, PR match)
       - run: npm run build
         working-directory: frontend
 

@@ -3,6 +3,7 @@ package jellyfin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"maps"
 	"testing"
 )
@@ -219,5 +220,29 @@ func TestLibrariesUserJellyfin(t *testing.T) {
 	}
 	if err := s.SetExtras(context.Background(), "a", true); err == nil || f.libPosts != 0 {
 		t.Fatalf("changed a user's library: %v", err)
+	}
+}
+
+// A refused admin password isn't tried again (Jellyfin locks the user out
+// after failed sign-ins) until the stored one changes.
+func TestLibrariesRefusedAdmin(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.poll(context.Background())
+	f.mu.Lock()
+	f.users[adminName].pw = "changed in Jellyfin"
+	f.mu.Unlock()
+	if _, err := s.Libraries(context.Background()); !unauthorized(err) || !s.refused {
+		t.Fatalf("first try: %v, refused %v", err, s.refused)
+	}
+	n := f.signIns
+	for range 3 {
+		if _, err := s.Libraries(context.Background()); !errors.Is(err, errRefused) {
+			t.Fatal(err)
+		}
+	}
+	if f.signIns != n {
+		t.Fatalf("%d more sign-ins after the refusal", f.signIns-n)
 	}
 }

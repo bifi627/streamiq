@@ -6,6 +6,9 @@ export const LIBRARIES_POLL = 3_000
 // Jellyfin queues a Rescan: the library reads idle until the scan starts.
 export const RESCAN_GRACE = 10_000
 
+export const rescanPending = (rescanAt: number, now: number) =>
+  now - rescanAt < RESCAN_GRACE
+
 // ms, false = stop: polled while a library scans (or a Rescan may still start), never after an error.
 export const nextLibrariesAsk = (
   list: Library[] | undefined,
@@ -13,7 +16,7 @@ export const nextLibrariesAsk = (
   rescanAt: number,
   now: number,
 ): number | false =>
-  !failed && (list?.some((l) => l.scanning) || now - rescanAt < RESCAN_GRACE)
+  !failed && (list?.some((l) => l.scanning) || rescanPending(rescanAt, now))
     ? LIBRARIES_POLL
     : false
 

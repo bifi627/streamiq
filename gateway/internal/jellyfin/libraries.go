@@ -20,6 +20,10 @@ var extras = []string{"EnableTrickplayImageExtraction", "ExtractTrickplayImagesD
 // errUserJellyfin: library calls are only for a Jellyfin the gateway set up.
 var errUserJellyfin = errors.New("only for a Jellyfin this gateway set up")
 
+// errRefused: Jellyfin refused the stored admin password; it isn't tried again until it changes.
+var errRefused = errors.New("Jellyfin refused the gateway's admin password: " +
+	"store the current one with `gateway jellyfin login` or on the local gateway page")
+
 type folder struct {
 	Name, ItemId, CollectionType string
 	LibraryOptions               map[string]any
@@ -139,12 +143,20 @@ func (s *Setup) asAdmin(ctx context.Context, fn func(admin string) error) error 
 	s.vmu.Lock()
 	defer s.vmu.Unlock()
 	s.mu.Lock()
-	c := s.creds
+	c, refused := s.creds, s.refused
 	s.mu.Unlock()
 	if !c.managed() {
 		return errUserJellyfin
 	}
+	if refused { // no retry: Jellyfin locks users out after failed sign-ins
+		return errRefused
+	}
 	admin, err := s.signIn(ctx, c.User, c.Password)
+	if unauthorized(err) {
+		s.mu.Lock()
+		s.refused = s.creds.Password == c.Password
+		s.mu.Unlock()
+	}
 	if err != nil {
 		return err
 	}

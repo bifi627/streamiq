@@ -19,7 +19,7 @@ func libAPI(s *Setup) *tunnel.Router {
 }
 
 // The gateway API's library endpoints on a managed Jellyfin (admin-only is
-// cmd/gateway's TestGatewayAPIRoles): the list with its scan state, the #322
+// cmd/gateway's route table test): the list with its scan state, the #322
 // writes, Rescan, and Jellyfin's errors with its message.
 func TestLibrariesAPI(t *testing.T) {
 	f, srv := newFake(t, false)

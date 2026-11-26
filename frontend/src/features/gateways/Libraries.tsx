@@ -9,7 +9,12 @@ import {
 } from './api'
 import { toAppError } from '../../shared/errors'
 import { Tile } from '../../shared/Tile'
-import { extrasLabel, librariesMessage, nextLibrariesAsk } from './libraryList'
+import {
+  extrasLabel,
+  librariesMessage,
+  nextLibrariesAsk,
+  rescanPending,
+} from './libraryList'
 
 // A managed Jellyfin's libraries (admin, paired browser), read live from
 // Jellyfin over the shared tunnel once the tile opens; polled only while a
@@ -108,7 +113,9 @@ export function Libraries({ g }: { g: Gateway }) {
                 </label>
                 <button
                   type="button"
-                  disabled={busy || l.scanning}
+                  disabled={
+                    busy || l.scanning || rescanPending(rescanAt, Date.now())
+                  }
                   onClick={() => act(() => rescanLibrary(g.id, l.id), true)}
                 >
                   Rescan

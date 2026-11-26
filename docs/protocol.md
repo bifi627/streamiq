@@ -406,12 +406,12 @@ tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (the route option
 `tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name`,
-`/streamiq/relay`, `/streamiq/update` and `/streamiq/pairing/*` so far; #89 decides per endpoint. `/streamiq/clients*` is
+`/streamiq/relay`, `/streamiq/update`, `/streamiq/pairing/*` and `/streamiq/libraries*` so far; #89 decides per endpoint. `/streamiq/clients*` is
 open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
 its feature, registered in `gateway/cmd/gateway/main.go`). The request and response
 bodies are Go types in a types-only file of the package that serves them, generated
-into `frontend/src/generated/`: `gateway/internal/{tunnel,screen,pairing,onboarding,update,history}/types.go`,
+into `frontend/src/generated/`: `gateway/internal/{tunnel,screen,pairing,onboarding,update,history}/types.go`, `gateway/internal/jellyfin/librarytypes.go`,
 and `/streamiq/status` in `gateway/cmd/gateway/status.go` (with `host/load.go`,
 `jellyfin/viewer.go`).
 
@@ -540,9 +540,9 @@ Offline and Extras change only their own fields of that library's options (#322)
 Rescan starts Jellyfin's refresh of that one library (`POST /Items/{id}/Refresh`,
 recursive, metadata and images only where missing: new, changed and removed files)
 and returns at once; Jellyfin queues it, so the list may read idle for a moment
-before `scanning`. All four: no id `400`; a Jellyfin the gateway didn't set up
+before `scanning`. The POSTs without an id: `400`. All four: a Jellyfin the gateway didn't set up
 `409` (the web app says the libraries are managed in Jellyfin's Dashboard); a
-Jellyfin failure (unreachable, an error, an unknown id) `502` with
+Jellyfin failure (unreachable, an error, an unknown id, the stored admin password refused) `502` with
 `{ "error": "<Jellyfin's message>" }`. A gateway older than this answers `404`.
 **`POST /streamiq/clients/profile`** (#792) `{ "probe": { "h264": {…} | null, "hevc": {…} | null,
 "av1": {…} | null, "audio": ["aac", …], "surround": true }, "compatible": false }` → `200 {}`:

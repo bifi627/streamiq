@@ -163,8 +163,8 @@ func TestStatusJSON(t *testing.T) {
 	}
 }
 
-// Libraries moved to the web gateway page (#429): the local page has no
-// /libraries and links nowhere for them, also for a managed Jellyfin.
+// The local page has no library part (libraries are on the web gateway page):
+// no /libraries, no link, also for a managed Jellyfin.
 func TestNoLibraries(t *testing.T) {
 	store, err := pairing.Open(t.TempDir())
 	if err != nil {

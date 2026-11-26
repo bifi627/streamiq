@@ -100,6 +100,27 @@ func TestAddRemoveRoundTrip(t *testing.T) {
 	}
 }
 
+// $ is compose's interpolation: written as $$, read back as $.
+func TestMountDollar(t *testing.T) {
+	orig := []byte(readFile(t, shipped))
+	added, m, err := AddMount(orig, "/gw", `C:\Users\$Media`, "")
+	if err != nil || m.Target != "/media/$Media" ||
+		!strings.Contains(string(added), "source: 'C:\\Users\\$$Media'\n        target: '/media/$$Media'\n") {
+		t.Fatalf("%+v, %v\n%s", m, err, added)
+	}
+	if ms, _ := Mounts(added); ms[1].Source != `C:\Users\$Media` || ms[1].Target != "/media/$Media" {
+		t.Fatalf("list: %+v", ms)
+	}
+	if _, _, err := AddMount(added, "/gw", `C:\Users\$Media`, "x"); err == nil {
+		t.Fatal("mounted twice")
+	}
+	for _, which := range []string{`C:\Users\$Media`, "/media/$Media", "/media/$Media/"} {
+		if back, _, err := RemoveMount(added, "/gw", which); err != nil || !bytes.Equal(back, orig) {
+			t.Fatalf("remove %q: %v", which, err)
+		}
+	}
+}
+
 func TestAddMountNames(t *testing.T) {
 	b := []byte(readFile(t, shipped))
 	for _, tc := range []struct{ source, name, want string }{

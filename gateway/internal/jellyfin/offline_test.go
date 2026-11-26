@@ -1,6 +1,7 @@
 package jellyfin
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -287,9 +288,20 @@ func TestComposeVariantsParse(t *testing.T) {
 	}
 	variants := map[string][]byte{"on": on, "off": off, "migrated": migrated, "gpu": gpu, "folder": folder}
 	for name, b := range variants {
-		if out, err := exec.Command("docker", "compose", "-f", write(t, b), "config", "--quiet").
-			CombinedOutput(); err != nil {
-			t.Errorf("%s: %v: %s", name, err, out)
+		if out, cerr := exec.Command("docker", "compose", "-f", write(t, b), "config", "--quiet").
+			CombinedOutput(); cerr != nil {
+			t.Errorf("%s: %v: %s", name, cerr, out)
 		}
+	}
+	// $ in a path or name: compose mounts what was asked, not an interpolated $VAR
+	dollar, _, err := AddMount(on, t.TempDir(), filepath.Join(t.TempDir(), "$Media ${X}"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("docker", "compose", "-f", write(t, dollar), "config", "--format", "json").Output()
+	// config prints $ escaped again ($$), as it reads it
+	if err != nil || !bytes.Contains(out, []byte(`$$Media $${X}",`)) ||
+		!bytes.Contains(out, []byte(`"target": "/media/$$Media $${X}"`)) {
+		t.Errorf("$ interpolated: %v\n%s", err, out)
 	}
 }

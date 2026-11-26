@@ -101,12 +101,12 @@ func parseMount(ls []string, m Mount) Mount {
 	first := strings.TrimSpace(ls[m.first])[1:]
 	kv := itemKey.FindStringSubmatch(strings.TrimSpace(first))
 	if kv == nil {
-		return shortMount(scalar(first), m)
+		return shortMount(composeValue(first), m)
 	}
 	m.ReadWrite = true
 	keys := indent(ls[m.first]) + 1 + indent(first) // the column of the dash line's key
 	set := func(k, v string) {
-		switch v = scalar(v); k {
+		switch v = composeValue(v); k {
 		case "type":
 			m.bind = v == "bind"
 		case "source":
@@ -143,6 +143,10 @@ func shortMount(s string, m Mount) Mount {
 	m.bind = strings.ContainsAny(m.Source, `/\.~`) // else a named volume
 	return m
 }
+
+// composeValue is a compose file value as Docker reads it: the YAML scalar
+// with $$ (compose's escape, as against $VAR interpolation) as $.
+func composeValue(v string) string { return strings.ReplaceAll(scalar(v), "$$", "$") }
 
 // scalar is a YAML scalar's value: quoted (single or double) or plain, with a
 // trailing comment cut.
@@ -299,8 +303,11 @@ func mountName(source, name string, taken func(string) bool) (string, error) {
 	return name, nil
 }
 
-// quote is s as a single-quoted YAML scalar (no escapes: Windows paths stay as typed).
-func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+// quote is s as a single-quoted YAML scalar (no backslash escapes: Windows
+// paths stay as typed), with $ as $$: compose interpolates $VAR in every value.
+func quote(s string) string {
+	return "'" + strings.NewReplacer("'", "''", "$", "$$").Replace(s) + "'"
+}
 
 // RemoveMount removes every media bind whose target is which, or whose source
 // is the host path which (relative sources taken from dir), with its lines;
@@ -313,7 +320,7 @@ func RemoveMount(b []byte, dir, which string) (out []byte, removed []Mount, err 
 	}
 	for i := len(all) - 1; i >= 0; i-- {
 		m := all[i]
-		if m.media() && (m.Target == which || samePath(dir, m.Source, which)) {
+		if m.media() && (m.Target == strings.TrimRight(which, "/") || samePath(dir, m.Source, which)) {
 			ls = slices.Delete(ls, m.first, m.last+1)
 			removed = append([]Mount{m}, removed...)
 		}

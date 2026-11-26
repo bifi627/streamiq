@@ -65,7 +65,7 @@ test('backup → wiped state → restore: same gateway, no new pairing (#52) @ga
   const history = path.join(stateDir, 'history') // the gateway's own history
   const list = () => (fs.existsSync(history) ? fs.readdirSync(history) : [])
   // A tunnel's line is written when it ends, so a day file can first appear
-  // after the backup (on stop): the zip holds at least `before`, at most `after`.
+  // between the backup and the stop: the zip holds at least `before`, at most `after`.
   const before = list()
   expect(cli('backup', zip)).toContain('NOT encrypted') // while it runs
   await gateway.stop()

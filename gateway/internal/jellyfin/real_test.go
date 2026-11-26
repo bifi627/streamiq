@@ -285,12 +285,12 @@ func scan(ctx context.Context, t *testing.T, s *Setup, media string) {
 	}
 	var seen []int // progress while scanning
 	for deadline := time.Now().Add(3 * time.Minute); ; {
-		libs, err := s.Libraries(ctx)
-		if err != nil || len(libs) != 1 {
-			t.Fatalf("while scanning: %+v, %v", libs, err)
+		cur, err := s.Libraries(ctx)
+		if err != nil || len(cur) != 1 {
+			t.Fatalf("while scanning: %+v, %v", cur, err)
 		}
-		if libs[0].Scanning {
-			seen = append(seen, libs[0].Progress)
+		if cur[0].Scanning {
+			seen = append(seen, cur[0].Progress)
 		} else if len(seen) > 0 {
 			break // Jellyfin queues the refresh: idle until it starts
 		}

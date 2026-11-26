@@ -11,8 +11,8 @@ import (
 	"streamiq/api/internal/iplimit"
 )
 
-// home is alice's household (bob a member, one gateway, an invite, a month of relay
-// usage) next to dave's cabin, which bob is in too.
+// home is alice's household (bob a member, one gateway, an invite, an enrollment token,
+// a month of relay usage) next to dave's cabin, which bob is in too.
 type home struct {
 	s                *apitest.Client
 	alice, bob, dave string
@@ -35,6 +35,8 @@ func newHome(t *testing.T) home {
 			VALUES (uuidv7(), $1, 'nas', uuidv7()::text) RETURNING id::text`, tenant)
 		apitest.Exec(t, `INSERT INTO invites (id, tenant_id, token_hash, expires_at)
 			VALUES (uuidv7(), $1, uuidv7()::text, now() + interval '1 day')`, tenant)
+		apitest.Exec(t, `INSERT INTO enrollment_tokens (id, tenant_id, token_hash, expires_at)
+			VALUES (uuidv7(), $1, uuidv7()::text, now() + interval '1 day')`, tenant)
 		apitest.Exec(t, `INSERT INTO relay_usage (tenant_id, gateway_id, month, bytes)
 			VALUES ($1, uuidv7(), date_trunc('month', now()), 1)`, tenant)
 	}
@@ -49,7 +51,8 @@ func (h home) remove(t *testing.T, token, household string) apitest.Answer {
 func rows(t *testing.T, household string) int {
 	return apitest.Scalar[int](t, `SELECT (SELECT count(*) FROM tenants WHERE id = $1)
 		+ (SELECT count(*) FROM memberships WHERE tenant_id = $1) + (SELECT count(*) FROM gateways WHERE tenant_id = $1)
-		+ (SELECT count(*) FROM invites WHERE tenant_id = $1) + (SELECT count(*) FROM relay_usage WHERE tenant_id = $1)`,
+		+ (SELECT count(*) FROM invites WHERE tenant_id = $1) + (SELECT count(*) FROM relay_usage WHERE tenant_id = $1)
+		+ (SELECT count(*) FROM enrollment_tokens WHERE tenant_id = $1)`,
 		household)
 }
 
@@ -65,8 +68,8 @@ func TestAnAdminDeletesTheHouseholdWithEverythingInIt(t *testing.T) {
 		t.Fatalf("closed %v, want the household's gateway %s", closed, h.nas)
 	}
 	// Bob is still in the cabin, untouched; alice is in no household now.
-	if n := rows(t, h.cabin); n != 6 {
-		t.Fatalf("the cabin has %d rows, want 6", n)
+	if n := rows(t, h.cabin); n != 7 {
+		t.Fatalf("the cabin has %d rows, want 7", n)
 	}
 	if a := h.s.Do(t, http.MethodPut, "/api/households/current/name", h.alice, h.id, `{"name":"x"}`); a.Status !=
 		http.StatusNotFound || a.Header.Get(auth.NotMemberHeader) != "1" {
@@ -89,7 +92,7 @@ func TestOnlyAnAdminOfTheHouseholdDeletesIt(t *testing.T) {
 	if a := h.remove(t, "", h.id); a.Status != http.StatusUnauthorized {
 		t.Fatalf("signed out: %d", a.Status)
 	}
-	if n, m := rows(t, h.id), rows(t, h.cabin); n != 6 || m != 6 || closed != nil {
+	if n, m := rows(t, h.id), rows(t, h.cabin); n != 7 || m != 7 || closed != nil {
 		t.Fatalf("rows %d, %d; closed %v", n, m, closed)
 	}
 }
@@ -100,7 +103,7 @@ func TestDeleteHouseholdRefusesAMember(t *testing.T) {
 	if got := apitest.Scalar[*[]string](t, `SELECT delete_household($1, $2)::text[]`, h.id, h.bobUser); got != nil {
 		t.Fatalf("%v, want NULL", *got)
 	}
-	if n := rows(t, h.id); n != 6 {
+	if n := rows(t, h.id); n != 7 {
 		t.Fatalf("%d rows", n)
 	}
 }
@@ -124,7 +127,7 @@ func TestAnAdminDemotedWhileDeletingDeletesNothing(t *testing.T) {
 	}
 	_ = tx.Commit(t.Context())
 	wg.Wait()
-	if n := rows(t, h.id); got != http.StatusForbidden || n != 6 {
+	if n := rows(t, h.id); got != http.StatusForbidden || n != 7 {
 		t.Fatalf("%d, %d rows", got, n)
 	}
 }

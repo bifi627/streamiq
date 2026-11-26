@@ -6,7 +6,7 @@ import {
   librariesMessage,
   nextLibrariesAsk,
   RESCAN_GRACE,
-} from './libraries.ts'
+} from './libraryList.ts'
 import type { Library } from '../../generated/jellyfin.ts'
 
 const lib = (scanning: boolean): Library => ({

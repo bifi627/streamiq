@@ -9,7 +9,7 @@ import {
 } from './api'
 import { toAppError } from '../../shared/errors'
 import { Tile } from '../../shared/Tile'
-import { extrasLabel, librariesMessage, nextLibrariesAsk } from './libraries'
+import { extrasLabel, librariesMessage, nextLibrariesAsk } from './libraryList'
 
 // A managed Jellyfin's libraries (admin, paired browser), read live from
 // Jellyfin over the shared tunnel once the tile opens; polled only while a

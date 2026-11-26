@@ -10,5 +10,5 @@ scripts/check-jellyfin-paths.sh refs 1
 scripts/check.sh refs 5
 scripts/gen-test-media.sh refs 2
 scripts/next-gateway-version.sh refs 1
-scripts/prune-worktrees.ps1 refs 2
+scripts/prune.ps1 refs 2
 scripts/review-level.sh refs 1

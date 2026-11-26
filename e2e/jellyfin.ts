@@ -1,7 +1,9 @@
 // Completes Jellyfin's first-run wizard over its HTTP API (admin JELLYFIN_ADMIN)
 // and adds the /media (Movies) + /shows (Shows) libraries. The gateway then
 // connects the real way: an admin login on its local page (stack.ts), which
-// gives it its viewer token. Test-only.
+// gives it its viewer token. The preview leaves the wizard to the gateway
+// (managed, as on an install) and only adds the libraries (addLibraries).
+// Test-only.
 const AUTH =
   'MediaBrowser Client="streamiq-e2e", Device="e2e", DeviceId="streamiq-e2e", Version="1"'
 
@@ -24,11 +26,7 @@ export async function jellyfinAdminGet(base: string, path: string) {
   return res.json()
 }
 
-export async function setupJellyfin(
-  base: string,
-  nvenc = false,
-  step = (_: string) => {}, // logs the time each step took (stack.ts)
-): Promise<void> {
+const client = (base: string) => {
   const call = async (path: string, init: RequestInit = {}, token?: string) => {
     const res = await fetch(base + path, {
       ...init,
@@ -43,7 +41,14 @@ export async function setupJellyfin(
   }
   const post = (path: string, body: unknown, token?: string) =>
     call(path, { method: 'POST', body: JSON.stringify(body) }, token)
+  return { call, post }
+}
 
+export async function setupJellyfin(
+  base: string,
+  step = (_: string) => {}, // logs the time each step took (stack.ts)
+): Promise<void> {
+  const { post, call } = client(base)
   // Waits for Jellyfin's start: the jail's forwarder accepts at once and closes
   // the socket ("fetch failed") until Jellyfin listens, then the wizard returns
   // 503 until the server is fully up.
@@ -68,43 +73,21 @@ export async function setupJellyfin(
   await post('/Startup/RemoteAccess', { EnableRemoteAccess: true })
   await post('/Startup/Complete', {})
   step('wizard')
+  await addLibraries(base, JELLYFIN_ADMIN, step)
+}
 
+/** Adds the Movies + Shows libraries as `admin` and waits for their scan. */
+export async function addLibraries(
+  base: string,
+  admin: { user: string; pw: string },
+  step = (_: string) => {},
+): Promise<void> {
+  const { post, call } = client(base)
   const login = await post('/Users/AuthenticateByName', {
-    Username: JELLYFIN_ADMIN.user,
-    Pw: JELLYFIN_ADMIN.pw,
+    Username: admin.user,
+    Pw: admin.pw,
   })
   const token: string = login.AccessToken
-  if (nvenc) {
-    // The preview's GPU (stack.ts): the core of the gateway's hwAccel("nvenc")
-    // (gateway/internal/jellyfin), set as the admin since the gateway doesn't
-    // manage a Jellyfin it didn't set up.
-    const enc = await call('/System/Configuration/encoding', {}, token)
-    await post(
-      '/System/Configuration/encoding',
-      {
-        ...enc,
-        HardwareAccelerationType: 'nvenc',
-        HardwareDecodingCodecs: [
-          'h264',
-          'hevc',
-          'mpeg2video',
-          'vc1',
-          'vp8',
-          'vp9',
-          'av1',
-        ],
-        EnableDecodingColorDepth10Hevc: true,
-        EnableDecodingColorDepth10Vp9: true,
-        EnableEnhancedNvdecDecoder: true,
-        EnableHardwareEncoding: true,
-        EnableTonemapping: true,
-        EncoderPreset: 'fast', // "auto" is NVENC's lowest quality (p1)
-        EnableThrottling: true, // the gateway's configSteps
-        EnableSegmentDeletion: true,
-      },
-      token,
-    )
-  }
   await post(
     '/Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fmedia&refreshLibrary=true',
     { LibraryOptions: { EnableInternetProviders: false } },

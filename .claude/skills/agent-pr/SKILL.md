@@ -206,8 +206,8 @@ repos/bifi627/streamiq/pulls/N/reviews --input <file>`, `commit_id` = headRefOid
 6. Built by an agent (body ends with the agent signature) and no `## Noticed` or no
    `## Merge danger` section: `Noticed: missing` / `Merge danger: missing`.
 7. CI from `gh pr checks N`: pass / failing check names / pending / `skipped (draft)`
-   (CI runs once the PR is marked ready; the `e2e` gate is red on a draft by design: no result
-   yet, not a failure).
+   (CI runs once the PR is marked ready; the `e2e` gate is red on a draft by design, and stays the draft run's red one until the
+   ready run on that sha completes (`gh run list -c <sha>`): no result yet, not a failure).
 8. Any `security` finding: "<k> finding(s) sent to owner privately".
 9. Any LOW: the LOW record, every LOW candidate (listed ones too), one line each
    `category · path:line · finding` (`path` alone without a line), blank lines around

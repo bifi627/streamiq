@@ -8,7 +8,8 @@
 //
 // `up` spawns one detached `serve` process (the stack owner), waits until it
 // wrote ready into .preview/state.json, prints the URLs and exits. `down` kills
-// that process tree, removes the containers and the Jellyfin jail (label streamiq.preview=<id>) and
+// that process tree, removes the containers and the Jellyfin jail (label streamiq.preview=<id>),
+// the Jellyfin volumes (named streamiq-preview-<id>-*; `up` too, after a dead run) and
 // waits until its ports are closed.
 //
 // --tunnel: also a Cloudflare quick tunnel (https://….trycloudflare.com,
@@ -264,6 +265,22 @@ const listening = (port: number) =>
     c.once('error', () => resolve(false))
   })
 
+/** This preview's named Jellyfin volumes (stack.ts names them); true when none is left. */
+function removeVolumes() {
+  const ls = () =>
+    spawnSync(
+      'docker',
+      ['volume', 'ls', '-q', '--filter', `name=streamiq-preview-${id}-`],
+      { encoding: 'utf8' },
+    )
+      .stdout.split(/\s+/)
+      .filter(Boolean)
+  const vols = ls()
+  if (vols.length)
+    spawnSync('docker', ['volume', 'rm', ...vols], { stdio: 'ignore' })
+  return !ls().length
+}
+
 async function down(s = read()) {
   if (!s) return console.log('no preview running for this worktree')
   for (const pid of [s.pid, ...(s.pids ?? [])]) kill(pid)
@@ -285,6 +302,7 @@ async function down(s = read()) {
     .filter(Boolean)
   if (nets.length)
     spawnSync('docker', ['network', 'rm', ...nets], { stdio: 'ignore' }) // the Jellyfin jail
+  removeVolumes()
   for (const end = Date.now() + 30_000; ;) {
     const open = []
     for (const p of s.ports ?? [s.port]) if (await listening(p)) open.push(p)
@@ -352,6 +370,11 @@ async function serve() {
   }
   process.on('SIGTERM', () => cleanup(0)) // POSIX down; Windows: taskkill /T
   try {
+    // A Jellyfin with a finished wizard breaks the gateway's managed setup.
+    if (!removeVolumes())
+      throw new Error(
+        `a volume streamiq-preview-${id}-* is left from an earlier run (docker volume rm it)`,
+      )
     const port = Number(process.env.PREVIEW_PORT)
     // Always mounted (gitignored): gen-test-media.sh output or your own files.
     fs.mkdirSync(path.join(root, 'dev-media'), { recursive: true })

@@ -405,7 +405,7 @@ export async function encodeOnce(
 // tmpfs over every VOLUME the image declares, so no run leaves an anonymous
 // volume behind (stop() removes them, but Ryuk's reaping after a crash or
 // Ctrl+C doesn't). Jellyfin's transcodes (/cache) land in RAM too, so not in
-// the preview (startStack).
+// the preview (startJellyfin: named volumes instead).
 const NO_VOLUMES = {
   postgres: { '/var/lib/postgresql': 'rw' },
   'jellyfin/jellyfin': { '/config': 'rw', '/cache': 'rw' },
@@ -467,8 +467,7 @@ export async function startJellyfin(
         { source: path.join(cache, 'shows'), target: '/shows' },
       ]),
   )
-  // Not in the preview: a long 4K stream keeps GBs of segments in /cache. Its
-  // anonymous volumes go with `preview down` (docker rm -v) instead.
+  // Not in the preview: a long 4K stream keeps GBs of segments in /cache.
   if (!o.label) jellyfinContainer.withTmpFs(NO_VOLUMES['jellyfin/jellyfin'])
   // A transcode's ffmpeg takes every core; with a Jellyfin per worker the spikes
   // stack and timing specs flake. The preview's 4K device tests need the CPU.
@@ -487,7 +486,17 @@ export async function startJellyfin(
     }
   }
   // One withBindMounts call: each call replaces the last one's mounts.
-  const binds: { source: string; target: string; mode: 'ro' }[] = []
+  const binds: { source: string; target: string; mode: 'ro' | 'rw' }[] = []
+  // The preview's VOLUMEs are named after it, so its next up/down removes them
+  // (preview.ts, by this prefix) even when Ryuk reaped the container, which
+  // keeps anonymous volumes.
+  if (o.label)
+    for (const v of Object.keys(NO_VOLUMES['jellyfin/jellyfin']))
+      binds.push({
+        source: `streamiq-preview-${o.label}-${name.replace(/\W/g, '')}${v.replace('/', '-')}`,
+        target: v,
+        mode: 'rw',
+      })
   if (o.media) {
     const media = path.join(root, 'dev-media')
     if (!fs.existsSync(media))

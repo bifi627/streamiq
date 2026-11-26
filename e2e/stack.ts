@@ -102,10 +102,12 @@ export function freePort() {
 /**
  * Runs the gateway binary built in global setup. stateDir survives stop/start
  * (that's the cert-swap step); the token is only needed for the first run.
+ * managed: Jellyfin's wizard is left to the gateway (the preview), so no page login.
  */
 export async function startGateway(
   stateDir: string,
   env: Record<string, string>,
+  managed = false,
 ) {
   const port = await freePort()
   const pageUrl = `http://127.0.0.1:${port}`
@@ -113,8 +115,8 @@ export async function startGateway(
     STREAMIQ_STATE_DIR: stateDir,
     STREAMIQ_PAGE_PORT: String(port),
     STREAMIQ_LAN_URL: pageUrl,
-    STREAMIQ_ORIGIN: envVar('E2E_JELLYFIN_URL'),
     ...env,
+    STREAMIQ_ORIGIN: env.STREAMIQ_ORIGIN ?? envVar('E2E_JELLYFIN_URL'),
   }
   const p = process.env.E2E_GATEWAY_IMAGE
     ? await dockerGateway(process.env.E2E_GATEWAY_IMAGE, port, gwEnv)
@@ -143,7 +145,7 @@ export async function startGateway(
   await waitHttp(pageUrl, p, undefined, headers)
   // First start: connect Jellyfin the way a person does, with an admin login on
   // the local page; the gateway keeps only its viewer token (state/jellyfin.json).
-  if (!fs.existsSync(path.join(stateDir, 'jellyfin.json'))) {
+  if (!managed && !fs.existsSync(path.join(stateDir, 'jellyfin.json'))) {
     const res = await fetch(pageUrl + '/jellyfin/login', {
       method: 'POST',
       headers: { Origin: pageUrl, ...headers },
@@ -157,6 +159,25 @@ export async function startGateway(
     }
   }
   return { ...p, pageUrl, pageCookie, stateDir }
+}
+
+/** The admin the gateway's wizard bootstrap created on its managed Jellyfin
+ * (state/jellyfin.json), once it ran: Jellyfin answers its first poll only
+ * after its boot. */
+export async function gatewayAdmin(gateway: { stateDir: string } & Proc) {
+  const file = path.join(gateway.stateDir, 'jellyfin.json')
+  for (const end = Date.now() + 5 * 60_000; ;) {
+    try {
+      const c = JSON.parse(fs.readFileSync(file, 'utf8'))
+      if (c.password)
+        return { user: c.user as string, pw: c.password as string }
+    } catch {
+      // not written yet
+    }
+    if (Date.now() > end || gateway.proc.exitCode !== null)
+      throw new Error(`${file}: no admin (see e2e/logs)`)
+    await new Promise((r) => setTimeout(r, 1000))
+  }
 }
 
 /**
@@ -248,8 +269,11 @@ export type StackOptions = {
   extraMedia?: string
   /** Docker label on every container (the preview's `down` removes by it). */
   label?: string
-  /** Give Jellyfin all NVIDIA GPUs (`--gpus all`) and turn on NVENC. */
+  /** Give Jellyfin all NVIDIA GPUs (`--gpus all`); the gateway turns NVENC on. */
   nvenc?: boolean
+  /** Leave Jellyfin's setup wizard to the gateway (the preview, as an install
+   *  does): no setup here; the caller adds the libraries (addLibraries). */
+  managed?: boolean
   /** How many Jellyfins start with the stack (default 1; their URLs go to
    *  E2E_JELLYFIN_URLS). The e2e: one per worker in CI, else 0 and a worker
    *  starts its own on first use (fixtures.ts). */
@@ -411,7 +435,8 @@ async function emulatorImage() {
 /**
  * Jellyfin with the fixture media and its libraries (setupJellyfin): the slow part
  * of the stack: in CI global setup starts one per worker, locally a worker starts
- * its own when a spec asks (fixtures.ts).
+ * its own when a spec asks (fixtures.ts). Managed: wizard not done, for one
+ * gateway to set up; its caller adds the libraries (addLibraries).
  */
 export async function startJellyfin(
   o: Partial<StackOptions> = {},
@@ -496,9 +521,9 @@ export async function startJellyfin(
     const r = await jellyfin.exec(['nvidia-smi', '-L'])
     if (r.exitCode !== 0) throw new Error(`nvidia-smi: ${r.output}`)
   }
-  await setupJellyfin(url, o.nvenc, step)
+  if (!o.managed) await setupJellyfin(url, step)
 
-  process.env.E2E_JELLYFIN_URL = url
+  if (!o.managed) process.env.E2E_JELLYFIN_URL = url // a managed one belongs to one gateway: its caller passes STREAMIQ_ORIGIN
   return {
     url,
     async stop() {

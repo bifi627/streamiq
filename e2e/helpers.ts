@@ -176,9 +176,10 @@ export async function join(host: User, user: User) {
 /**
  * user's new gateway, onboarded the way "Add gateway" does (smoke.spec.ts
  * drives that UI): an enrollment token, the gateway started with it, online.
- * Needs the `jellyfin` fixture (the gateway connects to it).
+ * Needs the `jellyfin` fixture (the gateway connects to it), or `managed`: the
+ * URL of a fresh Jellyfin (startJellyfin({ managed })) this gateway sets up.
  */
-export async function onboardGateway(user: User) {
+export async function onboardGateway(user: User, managed?: string) {
   const { token } = await user.api('/gateways/enrollment-tokens', {
     method: 'POST',
   })
@@ -187,7 +188,9 @@ export async function onboardGateway(user: User) {
     {
       STREAMIQ_API_URL: envVar('E2E_API_URL'),
       STREAMIQ_ENROLL_TOKEN: token,
+      ...(managed && { STREAMIQ_ORIGIN: managed }),
     },
+    !!managed,
   )
   try {
     await expect

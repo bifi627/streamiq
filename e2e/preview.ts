@@ -20,8 +20,11 @@
 // flow still runs; only the human code comparison is skipped. With --tunnel,
 // anyone with the URL + preview login gets paired (owner accepted).
 //
-// GPU: with an NVIDIA GPU (nvidia-smi works), Jellyfin gets it and NVENC is on,
-// as an installed gateway with STREAMIQ_JELLYFIN_HWACCEL=nvenc. Else CPU.
+// Jellyfin: fresh each run, set up by the gateway (managed), as on an install:
+// the stack only adds the libraries, as the admin the gateway created.
+//
+// GPU: with an NVIDIA GPU (nvidia-smi works), Jellyfin gets it and the gateway
+// turns NVENC on (STREAMIQ_JELLYFIN_HWACCEL=nvenc), as on an install. Else CPU.
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -29,6 +32,8 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
+import { addLibraries } from './jellyfin.ts'
+import { envVar } from './must.ts'
 import { apply, media, signIns } from './preview-seed.ts'
 
 const dir = path.join(import.meta.dirname, '.preview')
@@ -57,6 +62,7 @@ type State = {
   gatewayPage?: string
   tunnel?: string
   jellyfin?: string
+  jellyfinPassword?: string // the admin `streamiq` the gateway created
   nvenc?: boolean
   pids?: number[] // API, vite, gateway: down kills them even if serve died
   ports?: number[]
@@ -169,7 +175,7 @@ ${
     : ''
 }${
     s.jellyfin
-      ? `  jellyfin:     ${s.jellyfin} (streamiq / streamiq-e2e; new files in ${path.join(root, 'dev-media')}: Scan All Libraries)
+      ? `  jellyfin:     ${s.jellyfin} (streamiq / ${s.jellyfinPassword}; new files in ${path.join(root, 'dev-media')}: Scan All Libraries)
   transcoding:  ${s.nvenc ? 'NVIDIA GPU (NVENC)' : 'CPU (no nvidia-smi)'}
 `
       : ''
@@ -338,7 +344,7 @@ async function ensureCloudflared() {
 
 // The detached stack owner: everything below runs in the background process.
 async function serve() {
-  const { start, startStack, startGateway, started } =
+  const { gatewayAdmin, start, startStack, startGateway, started } =
     await import('./stack.ts')
   const cleanup = async (code: number) => {
     await Promise.all(started.map((p) => p.stop()))
@@ -357,6 +363,7 @@ async function serve() {
       extraMedia: await media(),
       label: id,
       nvenc, // NVIDIA GPU on this machine → Jellyfin transcodes on it
+      managed: true,
     })
 
     // Seed (preview-seed.ts): users and households, then a gateway in the
@@ -366,14 +373,23 @@ async function serve() {
     const stateDir = path.join(dir, 'gateway-state') // fresh DB each up → fresh gateway
     fs.rmSync(stateDir, { recursive: true, force: true })
     fs.mkdirSync(stateDir)
-    const gateway = await startGateway(stateDir, {
-      STREAMIQ_API_URL: stack.api,
-      STREAMIQ_ENROLL_TOKEN: token,
-    })
+    const jellyfin = envVar('E2E_JELLYFIN_URLS') // the one, managed: no E2E_JELLYFIN_URL
+    const gateway = await startGateway(
+      stateDir,
+      {
+        STREAMIQ_ORIGIN: jellyfin,
+        STREAMIQ_API_URL: stack.api,
+        STREAMIQ_ENROLL_TOKEN: token,
+        STREAMIQ_JELLYFIN_HWACCEL: nvenc ? 'nvenc' : '',
+      },
+      true,
+    )
     for (let i = 0; !(await authed('/gateways'))[0]?.online; i++) {
       if (i > 60) throw new Error('gateway not online after 60 s')
       await new Promise((r) => setTimeout(r, 1000))
     }
+    const admin = await gatewayAdmin(gateway)
+    await addLibraries(jellyfin, admin)
 
     // ponytail: scrapes the page's /decide forms; breaks if the form markup changes.
     const page = gateway.pageCookie && {
@@ -432,7 +448,8 @@ async function serve() {
       port,
       ready: true,
       tunnel,
-      jellyfin: process.env.E2E_JELLYFIN_URL,
+      jellyfin,
+      jellyfinPassword: admin.pw,
       nvenc,
       lan: lanIps().map((ip) => `https://${ip}:${port}`),
       local: stack.app,

@@ -225,7 +225,10 @@ test('managed Jellyfin: the gateway sets it up; Libraries lists, Online lookups 
         (await libraries.locator('.lib-head b').allInnerTexts()).sort(),
       )
       .toEqual(['Movies', 'Shows'])
-    const movies = libraries.locator('li', { hasText: 'Movies' })
+    // by its name: another row's folder picker says "(in Movies)"
+    const movies = libraries.locator('.libraries > li').filter({
+      has: page.locator('.lib-head b', { hasText: /^Movies$/ }),
+    })
     const online = movies.getByRole('checkbox', { name: 'Online lookups' })
     await expect(online).toBeChecked()
     await online.click() // the box follows Jellyfin's answer

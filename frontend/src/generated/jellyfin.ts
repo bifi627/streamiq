@@ -9,6 +9,11 @@
 export interface Library {
   id: string;
   name: string;
+  type: string; // Jellyfin's collection type: movies, tvshows, … ("" = mixed)
+  /**
+   * folder paths as Jellyfin sees them (/media/<name> for one added here)
+   */
+  folders: string[];
   /**
    * every type the library can hold has every metadata and image fetcher off
    */
@@ -18,7 +23,29 @@ export interface Library {
   progress: number /* int */; // 0–100 while scanning
 }
 /**
- * LibraryID is the body of POST /streamiq/libraries/rescan.
+ * MediaFolder is one folder of GET /streamiq/libraries/folders.
+ */
+export interface MediaFolder {
+  path: string; // /media/<name>
+  libraries: string[]; // names of the libraries using it
+}
+/**
+ * NewLibrary is the body of POST /streamiq/libraries/create.
+ */
+export interface NewLibrary {
+  name: string;
+  type: string; // movies | tvshows
+  folders: string[]; // paths from the folder list, one or more
+}
+/**
+ * LibraryFolder is the body of POST /streamiq/libraries/folders/add and /remove.
+ */
+export interface LibraryFolder {
+  id: string;
+  folder: string;
+}
+/**
+ * LibraryID is the body of POST /streamiq/libraries/rescan and /remove.
  */
 export interface LibraryID {
   id: string;

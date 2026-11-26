@@ -46,7 +46,8 @@ type fake struct {
 	cfgPosts  int
 	libs      []map[string]any // /Library/VirtualFolders
 	libPosts  int
-	refreshed []string         // POST /Items/{id}/Refresh: id?query
+	refreshed []string         // POST /Items/{id}/Refresh: id?query; a library write's refreshLibrary=true: "scan"
+	dirs      []string         // GET /Environment/DirectoryContents?path=/media
 	sessions  []map[string]any // GET /Sessions (admin only); nil = 500
 }
 
@@ -266,7 +267,8 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewEncoder(w).Encode(f.libs)
 	case "GET /Libraries/AvailableOptions":
-		types := map[string][]string{"movies": {"Movie"}, "": {"Movie", "Series", "Season", "Episode"}}[r.URL.Query().Get("LibraryContentType")]
+		types := map[string][]string{"movies": {"Movie"}, "tvshows": {"Series", "Season", "Episode"},
+			"": {"Movie", "Series", "Season", "Episode"}}[r.URL.Query().Get("LibraryContentType")]
 		var to []map[string]any
 		for _, t := range types {
 			isNew := r.URL.Query().Get("IsNewLibrary") == "true" // like Jellyfin: else every fetcher is "default"
@@ -276,6 +278,13 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}})
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"TypeOptions": to})
+	case "GET /Environment/DirectoryContents", "POST /Library/VirtualFolders", "DELETE /Library/VirtualFolders",
+		"POST /Library/VirtualFolders/Paths", "DELETE /Library/VirtualFolders/Paths":
+		if !admin {
+			deny(401)
+			return
+		}
+		f.libraryEdit(w, r)
 	case "POST /Items/{id}/Refresh":
 		if !admin {
 			deny(401)

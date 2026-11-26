@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"reflect"
 	"testing"
 )
 
@@ -79,7 +80,7 @@ func lib(id, contentType string, typeOptions []any, extrasOn ...bool) map[string
 	for i, on := range extrasOn {
 		o[extras[i]] = on
 	}
-	l := map[string]any{"Name": "lib " + id, "ItemId": id, "LibraryOptions": o}
+	l := map[string]any{"Name": "lib " + id, "ItemId": id, "LibraryOptions": o, "Locations": []any{"/media/" + id}}
 	if contentType != "" {
 		l["CollectionType"] = contentType
 	}
@@ -121,16 +122,17 @@ func TestLibraryState(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Library{
-		{ID: "empty", Name: "lib empty", Extras: "off"},
-		{ID: "off", Name: "lib off", Offline: true, Extras: "on"},
-		{ID: "grabber", Name: "lib grabber", Extras: "custom", Scanning: true, Progress: 43},
-		{ID: "mixed", Name: "lib mixed", Extras: "off"},
+		{ID: "empty", Name: "lib empty", Type: "movies", Folders: []string{"/media/empty"}, Extras: "off"},
+		{ID: "off", Name: "lib off", Type: "movies", Folders: []string{"/media/off"}, Offline: true, Extras: "on"},
+		{ID: "grabber", Name: "lib grabber", Type: "movies", Folders: []string{"/media/grabber"}, Extras: "custom",
+			Scanning: true, Progress: 43},
+		{ID: "mixed", Name: "lib mixed", Folders: []string{"/media/mixed"}, Extras: "off"},
 	}
 	if len(libs) != len(want) {
 		t.Fatalf("got %+v", libs)
 	}
 	for i := range want {
-		if libs[i] != want[i] {
+		if !reflect.DeepEqual(libs[i], want[i]) {
 			t.Errorf("got %+v, want %+v", libs[i], want[i])
 		}
 	}

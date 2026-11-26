@@ -38,8 +38,9 @@ func TestLibrariesAPI(t *testing.T) {
 	f.libs = []map[string]any{lib("a", "movies", []any{}), lib("b", "movies", []any{})}
 	f.libs[1]["RefreshProgress"] = 7.0
 	f.mu.Unlock()
-	want := `[{"id":"a","name":"lib a","offline":false,"extras":"off","scanning":false,"progress":0},` +
-		`{"id":"b","name":"lib b","offline":false,"extras":"off","scanning":true,"progress":7}]`
+	want := `[{"id":"a","name":"lib a","type":"movies","folders":["/media/a"],"offline":false,"extras":"off",` +
+		`"scanning":false,"progress":0},{"id":"b","name":"lib b","type":"movies","folders":["/media/b"],` +
+		`"offline":false,"extras":"off","scanning":true,"progress":7}]`
 	if st, reply := do("GET", LibrariesPath, ""); st != 200 || reply != want {
 		t.Fatalf("list: %d %s", st, reply)
 	}
@@ -53,7 +54,7 @@ func TestLibrariesAPI(t *testing.T) {
 		}
 	}
 	if st, reply := do("GET", LibrariesPath, ""); st != 200 ||
-		!strings.HasPrefix(reply, `[{"id":"a","name":"lib a","offline":true,"extras":"on",`) {
+		!strings.HasPrefix(reply, `[{"id":"a","name":"lib a","type":"movies","folders":["/media/a"],"offline":true,"extras":"on",`) {
 		t.Fatalf("after the writes: %d %s", st, reply)
 	}
 	const refresh = "a?Recursive=true&MetadataRefreshMode=Default&ImageRefreshMode=Default"

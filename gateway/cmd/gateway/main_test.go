@@ -169,7 +169,14 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Member, "POST", jellyfin.LibrariesOnlinePath, `{"id":"a"}`, http.StatusForbidden},
 		{tunnel.Member, "POST", jellyfin.LibrariesExtrasPath, `{"id":"a","on":true}`, http.StatusForbidden},
 		{tunnel.Member, "POST", jellyfin.LibrariesRescanPath, `{"id":"a"}`, http.StatusForbidden},
+		{tunnel.Member, "GET", jellyfin.LibrariesFoldersPath, "", http.StatusForbidden},
+		{tunnel.Member, "POST", jellyfin.LibrariesCreatePath, `{"name":"a","type":"movies","folders":["/media/a"]}`, http.StatusForbidden},
+		{tunnel.Member, "POST", jellyfin.LibrariesFolderAddPath, `{"id":"a","folder":"/media/a"}`, http.StatusForbidden},
+		{tunnel.Member, "POST", jellyfin.LibrariesFolderRemovePath, `{"id":"a","folder":"/media/a"}`, http.StatusForbidden},
+		{tunnel.Member, "POST", jellyfin.LibrariesRemovePath, `{"id":"a"}`, http.StatusForbidden},
 		{tunnel.Admin, "GET", jellyfin.LibrariesPath, "", http.StatusConflict},
+		{tunnel.Admin, "GET", jellyfin.LibrariesFoldersPath, "", http.StatusConflict},
+		{tunnel.Admin, "POST", jellyfin.LibrariesRemovePath, `{"id":"a"}`, http.StatusConflict},
 		{tunnel.Admin, "POST", jellyfin.LibrariesRescanPath, `{"id":"a"}`, http.StatusConflict},
 	} {
 		if s, _, _, _ := tunnel.Do(rt, tunnel.Session{Role: c.role}, c.method, c.path, c.body); s != c.want {

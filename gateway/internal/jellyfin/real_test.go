@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -229,6 +230,13 @@ func roundTrip(t *testing.T, compose []byte) {
 	if u := users(t, r, admin); slices.Contains(u, added) || !slices.Contains(u, adminName) {
 		t.Fatalf("users after the restore: %v", u)
 	}
+
+	// last: its scans would fail the backup above
+	// a second folder under /media (#430), inside the container: ./media is the only mount
+	if out, err := docker(ctx, "exec", "-T", service, "mkdir", "-p", "/media/more"); err != nil {
+		t.Fatalf("mkdir /media/more: %v: %s", err, out)
+	}
+	editLibraries(ctx, t, r, filepath.Join(dir, "media"))
 }
 
 func signIn(t *testing.T, s *Setup) string {
@@ -310,5 +318,55 @@ func scan(ctx context.Context, t *testing.T, s *Setup, media string) {
 		if l, err := s.Libraries(ctx); err != nil || l[0].Offline == on {
 			t.Fatalf("online %v: %+v, %v", on, l, err)
 		}
+	}
+}
+
+// editLibraries (#430): a Shows library made from /media/more lists offline
+// with extras off; /media/media added and /media/more removed; the last folder
+// stays; removing the library leaves the files.
+func editLibraries(ctx context.Context, t *testing.T, s *Setup, media string) {
+	t.Helper()
+	fs, err := s.MediaFolders(ctx)
+	if err != nil || len(fs) != 2 || fs[0].Path != "/media/media" || !slices.Equal(fs[0].Libraries, []string{"Films"}) ||
+		fs[1].Path != "/media/more" || len(fs[1].Libraries) != 0 {
+		t.Fatalf("folders: %+v, %v", fs, err)
+	}
+	if err := s.CreateLibrary(ctx, NewLibrary{Name: "Shows", Type: "tvshows", Folders: []string{"/media/more"}}); err != nil {
+		t.Fatal(err)
+	}
+	shows := func(folders ...string) string {
+		t.Helper()
+		libs, err := s.Libraries(ctx)
+		i := slices.IndexFunc(libs, func(l Library) bool { return l.Name == "Shows" })
+		if i >= 0 {
+			slices.Sort(libs[i].Folders) // Jellyfin's order, not the order added
+		}
+		if err != nil || i < 0 || !libs[i].Offline || libs[i].Extras != "off" || libs[i].Type != "tvshows" ||
+			!slices.Equal(libs[i].Folders, folders) {
+			t.Fatalf("want Shows offline, extras off, in %v: %+v, %v", folders, libs, err)
+		}
+		return libs[i].ID
+	}
+	id := shows("/media/more")
+	if err := s.AddFolder(ctx, id, "/media/media"); err != nil {
+		t.Fatal(err)
+	}
+	shows("/media/media", "/media/more")
+	if err := s.RemoveFolder(ctx, id, "/media/more"); err != nil {
+		t.Fatal(err)
+	}
+	shows("/media/media")
+	var bad badRequest
+	if err := s.RemoveFolder(ctx, id, "/media/media"); !errors.As(err, &bad) {
+		t.Fatalf("removing the last folder: %v", err)
+	}
+	if err := s.RemoveLibrary(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if libs, err := s.Libraries(ctx); err != nil || len(libs) != 1 || libs[0].Name != "Films" {
+		t.Fatalf("after removing Shows: %+v, %v", libs, err)
+	}
+	if _, err := os.Stat(filepath.Join(media, "Film 000 (2001)", "Film 000 (2001).mkv")); err != nil {
+		t.Fatalf("a file is gone: %v", err)
 	}
 }

@@ -27,6 +27,7 @@ var errRefused = errors.New("refused the gateway's admin password: " +
 
 type folder struct {
 	Name, ItemId, CollectionType string
+	Locations                    []string // its folders
 	LibraryOptions               map[string]any
 	RefreshProgress              *float64 // set while a scan of it runs
 }
@@ -35,8 +36,8 @@ type folder struct {
 func (s *Setup) Libraries(ctx context.Context) ([]Library, error) {
 	var out []Library
 	err := s.asAdmin(ctx, func(admin string) error {
-		var fs []folder
-		if err := s.call(ctx, "GET", "/Library/VirtualFolders", admin, "", &fs); err != nil {
+		fs, err := s.folders(ctx, admin)
+		if err != nil {
 			return err
 		}
 		types := map[string][]string{} // content type → item types it can hold
@@ -48,8 +49,12 @@ func (s *Setup) Libraries(ctx context.Context) ([]Library, error) {
 				}
 				types[f.CollectionType] = t
 			}
-			l := Library{ID: f.ItemId, Name: f.Name, Offline: offline(f.LibraryOptions, types[f.CollectionType]),
-				Extras: extrasState(f.LibraryOptions), Scanning: f.RefreshProgress != nil}
+			l := Library{ID: f.ItemId, Name: f.Name, Type: f.CollectionType, Folders: f.Locations,
+				Offline: offline(f.LibraryOptions, types[f.CollectionType]),
+				Extras:  extrasState(f.LibraryOptions), Scanning: f.RefreshProgress != nil}
+			if l.Folders == nil {
+				l.Folders = []string{}
+			}
 			if l.Scanning {
 				l.Progress = int(math.Round(*f.RefreshProgress))
 			}
@@ -70,17 +75,23 @@ func (s *Setup) SetOnline(ctx context.Context, id string, on bool) error {
 			return err
 		}
 		tos, _ := f.LibraryOptions["TypeOptions"].([]any)
-		for _, t := range av {
-			m := typeOption(tos, t.Type)
-			if m == nil {
-				m = map[string]any{"Type": t.Type}
-				tos = append(tos, m)
-			}
-			m["MetadataFetchers"], m["ImageFetchers"] = enabled(t.MetadataFetchers, on), enabled(t.ImageFetchers, on)
-		}
-		f.LibraryOptions["TypeOptions"] = tos
+		f.LibraryOptions["TypeOptions"] = setFetchers(tos, av, on)
 		return nil
 	})
+}
+
+// setFetchers sets every type of av in tos (TypeOptions) to Jellyfin's
+// new-library fetchers (on) or none (off), adding the types tos lacks.
+func setFetchers(tos []any, av []typeFetchers, on bool) []any {
+	for _, t := range av {
+		m := typeOption(tos, t.Type)
+		if m == nil {
+			m = map[string]any{"Type": t.Type}
+			tos = append(tos, m)
+		}
+		m["MetadataFetchers"], m["ImageFetchers"] = enabled(t.MetadataFetchers, on), enabled(t.ImageFetchers, on)
+	}
+	return tos
 }
 
 // SetExtras turns all of library id's extras on or off.
@@ -106,20 +117,40 @@ func (s *Setup) Rescan(ctx context.Context, id string) error {
 // editLibrary round-trips library id's whole LibraryOptions through edit.
 func (s *Setup) editLibrary(ctx context.Context, id string, edit func(admin string, f folder) error) error {
 	return s.asAdmin(ctx, func(admin string) error {
-		var fs []folder
-		if err := s.call(ctx, "GET", "/Library/VirtualFolders", admin, "", &fs); err != nil {
+		f, err := s.library(ctx, admin, id)
+		if err != nil {
 			return err
 		}
-		i := slices.IndexFunc(fs, func(f folder) bool { return f.ItemId == id })
-		if i < 0 || fs[i].LibraryOptions == nil {
-			return errors.New("library not found (removed in Jellyfin?)")
+		if f.LibraryOptions == nil {
+			return errNoLibrary
 		}
-		if err := edit(admin, fs[i]); err != nil {
+		if err := edit(admin, f); err != nil {
 			return err
 		}
-		b, _ := json.Marshal(map[string]any{"Id": id, "LibraryOptions": fs[i].LibraryOptions})
+		b, _ := json.Marshal(map[string]any{"Id": id, "LibraryOptions": f.LibraryOptions})
 		return s.call(ctx, "POST", "/Library/VirtualFolders/LibraryOptions", admin, string(b), nil)
 	})
+}
+
+var errNoLibrary = errors.New("library not found (removed in Jellyfin?)")
+
+func (s *Setup) folders(ctx context.Context, admin string) ([]folder, error) {
+	var fs []folder
+	err := s.call(ctx, "GET", "/Library/VirtualFolders", admin, "", &fs)
+	return fs, err
+}
+
+// library is library id; Jellyfin's calls on a library's folders take its name.
+func (s *Setup) library(ctx context.Context, admin, id string) (folder, error) {
+	fs, err := s.folders(ctx, admin)
+	if err != nil {
+		return folder{}, err
+	}
+	i := slices.IndexFunc(fs, func(f folder) bool { return f.ItemId == id })
+	if i < 0 {
+		return folder{}, errNoLibrary
+	}
+	return fs[i], nil
 }
 
 type fetcher struct {

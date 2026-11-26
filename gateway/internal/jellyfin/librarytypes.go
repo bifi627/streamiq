@@ -7,6 +7,9 @@ package jellyfin
 type Library struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	Type string `json:"type"` // Jellyfin's collection type: movies, tvshows, … ("" = mixed)
+	// folder paths as Jellyfin sees them (/media/<name> for one added here)
+	Folders []string `json:"folders"`
 	// every type the library can hold has every metadata and image fetcher off
 	Offline  bool   `json:"offline"`
 	Extras   string `json:"extras"` // on | off | custom
@@ -14,7 +17,26 @@ type Library struct {
 	Progress int    `json:"progress"` // 0–100 while scanning
 }
 
-// LibraryID is the body of POST /streamiq/libraries/rescan.
+// MediaFolder is one folder of GET /streamiq/libraries/folders.
+type MediaFolder struct {
+	Path      string   `json:"path"`      // /media/<name>
+	Libraries []string `json:"libraries"` // names of the libraries using it
+}
+
+// NewLibrary is the body of POST /streamiq/libraries/create.
+type NewLibrary struct {
+	Name    string   `json:"name"`
+	Type    string   `json:"type"`    // movies | tvshows
+	Folders []string `json:"folders"` // paths from the folder list, one or more
+}
+
+// LibraryFolder is the body of POST /streamiq/libraries/folders/add and /remove.
+type LibraryFolder struct {
+	ID     string `json:"id"`
+	Folder string `json:"folder"`
+}
+
+// LibraryID is the body of POST /streamiq/libraries/rescan and /remove.
 type LibraryID struct {
 	ID string `json:"id"`
 }

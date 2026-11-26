@@ -318,6 +318,11 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	rt.Handle("POST "+jellyfin.LibrariesOnlinePath, http.HandlerFunc(setup.ServeOnline), tunnel.AdminOnly)
 	rt.Handle("POST "+jellyfin.LibrariesExtrasPath, http.HandlerFunc(setup.ServeExtras), tunnel.AdminOnly)
 	rt.Handle("POST "+jellyfin.LibrariesRescanPath, http.HandlerFunc(setup.ServeRescan), tunnel.AdminOnly)
+	rt.Handle("GET "+jellyfin.LibrariesFoldersPath, http.HandlerFunc(setup.ServeFolders), tunnel.AdminOnly)
+	rt.Handle("POST "+jellyfin.LibrariesCreatePath, http.HandlerFunc(setup.ServeCreate), tunnel.AdminOnly)
+	rt.Handle("POST "+jellyfin.LibrariesFolderAddPath, http.HandlerFunc(setup.ServeFolderAdd), tunnel.AdminOnly)
+	rt.Handle("POST "+jellyfin.LibrariesFolderRemovePath, http.HandlerFunc(setup.ServeFolderRemove), tunnel.AdminOnly)
+	rt.Handle("POST "+jellyfin.LibrariesRemovePath, http.HandlerFunc(setup.ServeRemove), tunnel.AdminOnly)
 	return rt
 }
 

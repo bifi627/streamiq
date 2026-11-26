@@ -72,7 +72,7 @@ func main() {
 	if job := relayusage.FromEnv(d); job != nil {
 		go job.Run(ctx)
 	}
-	household.Routes(mux, a, d, ips)
+	household.Routes(mux, a, d, ips, b.Revoke)
 	members.Routes(mux, a, d)
 	invites.Routes(mux, a, d, ips)
 	onboarding.Routes(mux, a, d, ips, onboarding.Install{

@@ -1,9 +1,10 @@
 // The households overview, the household details page and the no-household
-// screen, no gateway or Jellyfin: members and roles, remove and leave,
-// rename and delete, invites, join, invite-first sign-up and life without a
-// household, a second household of one's own, the alias, Switch, and a
-// membership lost while the app is open. Permission and edge cases (member refused, last admin, single-use,
-// expired) are the Go API tests (members, invites, household).
+// screen, no gateway or Jellyfin: members and roles, remove and leave, rename
+// and delete (typed name; the admin and a member land elsewhere), invites, join,
+// invite-first sign-up and life without a household, a second household of
+// one's own, the alias, Switch, and a membership lost while the app is open.
+// Permission and edge cases (member refused, last admin, single-use, expired)
+// are the Go API tests (members, invites, household).
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -138,19 +139,34 @@ test('rename: an admin renames in the title, a member sees no menu @households',
   await expect(menu(b)).toHaveCount(0)
 })
 
-test("delete: an admin's Delete says it isn't available yet @households", async ({
+test('delete: typed name, the admin has none left, a member moves on @households', async ({
   browser,
 }) => {
-  const { A, a } = await adminWithMember(browser)
+  const { A, B, a } = await adminWithMember(browser)
+  const b = await signedInPage(browser, B, '/gateways', A.tenantId)
+  await expect(b.getByRole('heading', { name: 'Gateways' })).toBeVisible()
   await menu(a).click()
   await a.getByRole('menuitem', { name: 'Delete' }).click()
   const dialog = a.getByRole('dialog', { name: 'Delete household' })
-  await expect(dialog).toContainText(
-    "Deleting a household isn't available yet.",
-  )
-  await dialog.getByRole('button', { name: 'Close' }).click()
-  await expect(dialog).toHaveCount(0)
-  expect(await A.api<unknown[]>('/members')).toHaveLength(2) // nothing changed
+  const remove = dialog.getByRole('button', { name: 'Delete household' })
+  // Unnamed: the id tag its label ends in, as "…" is hard to type.
+  const typed = dialog.getByLabel(`Type ${A.tenantId.slice(-6)} to confirm`)
+  await typed.fill(label(A))
+  await expect(remove).toBeDisabled()
+  await typed.fill(A.tenantId.slice(-6))
+  await remove.click()
+  await expect(none(a)).toBeVisible() // A was in no other household
+  expect((await B.api('/me')).memberships).toHaveLength(1) // B's own only
+  // B's open app: the next request is refused, B lands in B's own household.
+  await b
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('link', { name: 'Settings' })
+    .click()
+  await expect(
+    b.getByRole('status').filter({ hasText: 'no longer a member' }),
+  ).toContainText(`You're no longer a member of ${label(A)}.`)
+  await openHouseholds(b)
+  await expect(active(b)).toContainText(label(B))
 })
 
 test('invites: make, revoke, make another; a member sees none @households', async ({

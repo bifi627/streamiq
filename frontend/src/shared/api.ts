@@ -99,6 +99,9 @@ export type { Me }
 // Any signed-in user: a new household with them as its admin.
 export const createHousehold = () =>
   authed<Created>('/households', { method: 'POST' })
+// Admin only: the active household with its gateways, members and invites.
+export const deleteHousehold = () =>
+  authed<null>('/households/current', { method: 'DELETE' })
 // Admin only; the stored (trimmed) name comes back. loaded keeps it too,
 // for a later "no longer a member of …" notice.
 export const renameHousehold = (name: string) =>

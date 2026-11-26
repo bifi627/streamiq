@@ -15,10 +15,16 @@ import (
 
 func TestMain(m *testing.M) { os.Exit(apitest.Run(m)) }
 
+// closed is the gateways whose sockets the last server was told to close.
+var closed []string
+
 func server(t *testing.T, ips *iplimit.Limiter) *apitest.Client {
 	t.Helper()
 	apitest.Reset(t)
-	return apitest.Server(t, func(mux *http.ServeMux, a *auth.Auth) { household.Routes(mux, a, apitest.DB, ips) })
+	closed = nil
+	return apitest.Server(t, func(mux *http.ServeMux, a *auth.Auth) {
+		household.Routes(mux, a, apitest.DB, ips, func(id string) { closed = append(closed, id) })
+	})
 }
 
 func TestCreatingAHouseholdMakesTheCallerItsAdminWithOrWithoutOneAlready(t *testing.T) {

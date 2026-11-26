@@ -21,8 +21,8 @@ var extras = []string{"EnableTrickplayImageExtraction", "ExtractTrickplayImagesD
 var errUserJellyfin = errors.New("only for a Jellyfin this gateway set up")
 
 // errRefused: Jellyfin refused the stored admin password; it isn't tried again until it changes.
-var errRefused = errors.New("Jellyfin refused the gateway's admin password: " +
-	"store the current one with `gateway jellyfin login` or on the local gateway page")
+var errRefused = errors.New("refused the gateway's admin password: " +
+	"store the current one with gateway jellyfin login or on the local gateway page")
 
 type folder struct {
 	Name, ItemId, CollectionType string

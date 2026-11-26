@@ -100,7 +100,7 @@ type Setup struct {
 	version   string
 	err       string
 	warned    string // version already warned about
-	// refused: Jellyfin refused the gateway's admin while making a viewer. No
+	// refused: Jellyfin refused the gateway's admin (a viewer, telemetry, a library call). No
 	// retry until the stored admin password changes (BYO: a page login; managed:
 	// a page login as that admin, or an edit of the file): Jellyfin locks users out after failed sign-ins.
 	refused bool

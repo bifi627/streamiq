@@ -56,7 +56,8 @@ func TestLibrariesAPI(t *testing.T) {
 		!strings.HasPrefix(reply, `[{"id":"a","name":"lib a","offline":true,"extras":"on",`) {
 		t.Fatalf("after the writes: %d %s", st, reply)
 	}
-	if len(f.refreshed) != 1 || f.refreshed[0] != "a?Recursive=true&MetadataRefreshMode=Default&ImageRefreshMode=Default" {
+	const refresh = "a?Recursive=true&MetadataRefreshMode=Default&ImageRefreshMode=Default"
+	if len(f.refreshed) != 1 || f.refreshed[0] != refresh {
 		t.Fatalf("refreshed %v", f.refreshed)
 	}
 	if st, reply := do("POST", LibrariesRescanPath, `{"id":"gone"}`); st != http.StatusBadGateway ||
@@ -84,7 +85,8 @@ func TestLibrariesAPIUserJellyfin(t *testing.T) {
 		{"POST", LibrariesExtrasPath, `{"id":"a","on":true}`},
 		{"POST", LibrariesRescanPath, `{"id":"a"}`},
 	} {
-		if st, _, _, _ := tunnel.Do(libAPI(s), tunnel.Session{Role: tunnel.Admin}, c.method, c.path, c.body); st != http.StatusConflict {
+		st, _, _, _ := tunnel.Do(libAPI(s), tunnel.Session{Role: tunnel.Admin}, c.method, c.path, c.body)
+		if st != http.StatusConflict {
 			t.Fatalf("%s %s: %d", c.method, c.path, st)
 		}
 	}

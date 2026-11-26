@@ -289,8 +289,8 @@ export const editGateways = <T>(page: Page, edit: (list: T[]) => unknown[]) =>
  * Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
  * interfaces change, e.g. Docker adding a container for another worker on CI:
  * a failed module never renders the app, a failed meta refresh leaves the
- * local gateway page on Chrome's error page. Reload once per tab, for that
- * error on a page or its scripts only: anything else still fails the test. */
+ * local gateway page on Chrome's error page. Reload the tab, for that error on
+ * a page or its scripts only: anything else still fails the test. */
 export async function newContext(browser: Browser) {
   const ctx = await browser.newContext()
   // The test that opened this context, not whichever test runs when a report arrives.
@@ -313,7 +313,12 @@ export async function newContext(browser: Browser) {
       )
       .catch(() => {}),
   )
-  const reloaded = new WeakSet<Page>()
+  // One container start changes the interfaces more than once (a network, then
+  // a veth), ~0.5 s apart: a reload inside that burst fails again. So reload
+  // once the failures stopped for a second.
+  // ponytail: 3 reloads per tab, then the test fails as before.
+  const reloads = new WeakMap<Page, number>()
+  const timers = new WeakMap<Page, ReturnType<typeof setTimeout>>()
   ctx.on('requestfailed', (r) => {
     if (
       r.failure()?.errorText !== 'net::ERR_NETWORK_CHANGED' ||
@@ -321,10 +326,17 @@ export async function newContext(browser: Browser) {
     )
       return
     const p = r.frame().page()
-    if (reloaded.has(p)) return
-    reloaded.add(p)
-    console.warn(`e2e: ${r.url()} hit ERR_NETWORK_CHANGED, reloading once`)
-    void p.reload().catch(() => {}) // a test's own navigation may overtake it
+    const n = reloads.get(p) ?? 0
+    if (n >= 3) return
+    clearTimeout(timers.get(p))
+    timers.set(
+      p,
+      setTimeout(() => {
+        reloads.set(p, n + 1)
+        console.warn(`e2e: ${r.url()} hit ERR_NETWORK_CHANGED, reloading`)
+        void p.reload().catch(() => {}) // a test's own navigation may overtake it
+      }, 1000),
+    )
   })
   return ctx
 }

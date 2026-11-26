@@ -242,10 +242,12 @@ jobs:
             e2e/playwright-report/
 
   # The required check `e2e` (ruleset, release-gateway's needs): passes only when every shard
-  # succeeded. Skipped for a draft like the shards; a failed, cancelled or skipped shard fails it.
+  # succeeded; a failed, cancelled or skipped shard fails it. Red on a draft, not skipped: its
+  # check run appears only once the shards end, and until then a skipped `e2e` from a draft run
+  # on the same sha would satisfy the merge gate.
   e2e:
     needs: [draft, e2e-shard]
-    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - run: test "$RESULT" = success

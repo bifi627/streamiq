@@ -170,14 +170,20 @@ jobs:
         env:
           STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE: ${{ runner.temp }}/jellyfin-compose.yml
 
-  # The e2e specs (smoke, multi-user, households, compat: the last gateway release), 3 workers on one stack (no sharding:
-  # e2e/playwright.config.ts). Containers via testcontainers-node, API/Vite/gateway as
-  # real processes — see e2e/global-setup.ts.
-  e2e:
+  # The e2e specs (smoke, multi-user, households, compat: the last gateway release) in 3 shards
+  # (#972), each its own stack with 3 workers (e2e/playwright.config.ts). Playwright splits per
+  # test (fullyParallel), so every test runs in exactly one shard. More shards: extend the list
+  # and the total. Containers via testcontainers-node, API/Vite/gateway as real processes — see
+  # e2e/global-setup.ts.
+  e2e-shard:
     needs: draft
     if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false # a red shard shouldn't hide the others' failures
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       # The Jellyfins are global setup's critical path once the emulator comes from the cache (#504):
@@ -219,7 +225,7 @@ jobs:
           until grep -q '^pulled all' "$RUNNER_TEMP/pull.log" || ! kill -0 "$(cat "$RUNNER_TEMP/pull.pid")" 2> /dev/null; do sleep 1; done
           cat "$RUNNER_TEMP/pull.log"
           grep -q '^pulled all' "$RUNNER_TEMP/pull.log"
-      - run: npx playwright test
+      - run: npx playwright test --shard=${{ matrix.shard }}/3
         working-directory: e2e
         env:
           GH_TOKEN: ${{ github.token }} # compat.spec.ts downloads the last gateway release (#459)
@@ -229,11 +235,22 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-logs
+          name: e2e-logs-${{ matrix.shard }}
           path: |
             e2e/logs/
             e2e/test-results/
             e2e/playwright-report/
+
+  # The required check `e2e` (ruleset, release-gateway's needs): passes only when every shard
+  # succeeded. Skipped for a draft like the shards; a failed, cancelled or skipped shard fails it.
+  e2e:
+    needs: [draft, e2e-shard]
+    if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "$RESULT" = success
+        env:
+          RESULT: ${{ needs.e2e-shard.result }}
 
   # Push to main only: is there a gateway release to make (scripts/next-gateway-version.sh)?
   changes:

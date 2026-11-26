@@ -173,7 +173,7 @@ ${
   transcoding:  ${s.nvenc ? 'NVIDIA GPU (NVENC)' : 'CPU (no nvidia-smi)'}
 `
       : ''
-  }  pairing:      auto-approved (gateway page: ${s.gatewayPage})
+  }  pairing:      auto-approved (local gateway page: ${s.gatewayPage})
   logs:         ${path.join(dir, 'logs')}, ${path.join(dir, 'preview.log')}
   stop:         npm run preview --prefix e2e -- down`)
 }

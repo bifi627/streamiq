@@ -53,7 +53,7 @@ export const useScreens = (gatewayId: string, pc: PC, screenId: string) =>
   })
 
 /** The gateway's open screens for Play on…; a screen opened meanwhile
- * shows within 10 s. ponytail: a poll per gateway page, not pushed. */
+ * shows within 10 s. ponytail: a poll per web gateway page, not pushed. */
 export const useOpenScreens = (gatewayId: string, pc: PC, enabled: boolean) =>
   useQuery({
     enabled,

@@ -89,7 +89,7 @@ const cue = (tv: Page) =>
       .join(),
   )
 
-test('entry (#248, #872, #870): the top bar in TV mode only, not on the gateway page @player', async ({
+test('entry (#248, #872, #870): the top bar in TV mode only, not on the web gateway page @player', async ({
   paired,
 }) => {
   const { page } = paired

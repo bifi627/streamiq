@@ -99,7 +99,7 @@ test(
     })
 
     // The one test with a paired member: its list shows only itself (the 403 on another's key: pairing/api_test.go).
-    await test.step('B (member) unpairs its own browser from the gateway page (#341)', async () => {
+    await test.step('B (member) unpairs its own browser from the web gateway page (#341)', async () => {
       await b.goto(appUrl('/gateways'))
       await openGateway(b)
       const card = b.locator('.gateway-page')

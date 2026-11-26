@@ -188,12 +188,12 @@ function PairCode({
   onAnswer: (matches: boolean) => void
 }) {
   const gatewayPage = !lanUrl ? (
-    'gateway page'
+    'local gateway page'
   ) : tvOn() ? (
-    `gateway page (${lanUrl})`
+    `local gateway page (${lanUrl})`
   ) : (
     <a href={lanUrl} target="_blank" rel="noreferrer">
-      gateway page
+      local gateway page
     </a>
   )
   return (

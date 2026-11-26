@@ -168,7 +168,7 @@ func TestAskEndsWhenConnectionCloses(t *testing.T) {
 	}
 }
 
-// Remove on the gateway page: the key is no longer allowed, also after a restart.
+// Remove on the local gateway page: the key is no longer allowed, also after a restart.
 func TestRemovePersists(t *testing.T) {
 	dir := t.TempDir() // outside the bubble: its cleanup retries on real time (Windows)
 	synctest.Test(t, func(t *testing.T) {

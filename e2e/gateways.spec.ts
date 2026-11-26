@@ -34,9 +34,9 @@ import {
 import { must } from './must.ts'
 
 const card = (p: Page) => p.locator('li.card')
-/** The gateway page's body (the title row is the shell's). */
+/** The web gateway page's body (the title row is the shell's). */
 const detail = (p: Page) => p.locator('.gateway-page')
-/** The gateway page's tile titled name, opened. */
+/** The web gateway page's tile titled name, opened. */
 async function tile(p: Page, name: string) {
   await detail(p).locator('summary', { hasText: name }).click()
   return detail(p).locator('details[open]', { hasText: name })
@@ -106,7 +106,7 @@ test('not found: an unknown gateway id says so, with a link to Gateways @gateway
   await expect(page).toHaveURL(/\/gateways$/)
 })
 
-test('page: the update banner on top, tiles collapsed, Status with Version, the gateway page link and Connection (#870) @gateways', async ({
+test('page: the update banner on top, tiles collapsed, Status with Version, the local gateway page link and Connection (#870) @gateways', async ({
   paired,
 }) => {
   const { page } = paired
@@ -125,7 +125,9 @@ test('page: the update banner on top, tiles collapsed, Status with Version, the 
   ])
   const status = await tile(page, 'Status')
   await expect(status.getByText(/^Version /)).toBeVisible()
-  await expect(status.getByRole('link', { name: 'Gateway page' })).toBeVisible()
+  await expect(
+    status.getByRole('link', { name: 'Local gateway page' }),
+  ).toBeVisible()
   await expect(
     status.getByRole('heading', { name: 'Connection' }),
   ).toBeVisible()
@@ -718,7 +720,7 @@ test('overview: Add gateway opens the install commands in a dialog; a click on t
   await expect(page).toHaveURL(new RegExp(`/gateways/${g.id}$`))
 })
 
-test('TV mode: the overview keeps Active and Test, no Add; a gateway page hands off (#663) @gateways', async ({
+test('TV mode: the overview keeps Active and Test, no Add; a web gateway page hands off (#663) @gateways', async ({
   paired,
 }) => {
   const { page } = paired
@@ -739,7 +741,7 @@ test('TV mode: the overview keeps Active and Test, no Add; a gateway page hands 
   ).toBeVisible()
 })
 
-test('TV mode: the pairing code names the gateway page URL (#676) @gateways', async ({
+test('TV mode: the pairing code names the local gateway page URL (#676) @gateways', async ({
   browser,
   paired,
 }) => {
@@ -750,14 +752,16 @@ test('TV mode: the pairing code names the gateway page URL (#676) @gateways', as
     await expect(box.getByLabel('Comparison code')).toBeVisible()
   }
   await pairCode() // no reload before: too soon lands on the sign-in page
-  await expect(box.getByRole('link', { name: 'gateway page' })).toBeVisible()
+  await expect(
+    box.getByRole('link', { name: 'local gateway page' }),
+  ).toBeVisible()
   await b.goto(appUrl('/settings'))
   await openCategory(b, 'Display')
   await b.getByLabel('TV mode').check()
   await b.goto(appUrl('/gateways'))
   await pairCode()
   await expect(box).toContainText(
-    /Open the gateway page \(https?:\/\/\S+\) on your home network/,
+    /Open the local gateway page \(https?:\/\/\S+\) on your home network/,
   )
   await expect(box.getByRole('link')).toHaveCount(0)
 })

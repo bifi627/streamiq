@@ -7,10 +7,10 @@
     "preview": "node preview.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "eslint-plugin-playwright": "^2.12.2",
-    "testcontainers": "^12.2.1"
+    "testcontainers": "^12.2.2"
   },
   "overrides": {
     "glob": "^14.0.2",

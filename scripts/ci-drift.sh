@@ -54,9 +54,9 @@ found=$(
       log=$(gh run view -R "$repo" "$id" --attempt "$a" --log-failed 2>/dev/null || true)
       # no failed job (a cancelled attempt), or the e2e gate on a draft PR (red by design): not a flake
       [ -n "$log" ] || continue
-      grep -q 'skipped = draft PR' <<<"$log" && continue
+      grep -q 'e2e shards skipped' <<<"$log" && continue
       # keyed without the line number, which moves between commits; Go subtests fold into their test
-      tests=$( { grep '✘' <<<"$log" | grep -oE '[a-z0-9-]+\.spec\.ts:[0-9]+:[0-9]+ › .*' | sed -E 's/:[0-9]+:[0-9]+ / /; s/ *\([0-9.]+m?s\)$//; s/ +$//'
+      tests=$( { grep '✘' <<<"$log" | grep -oE '[a-z0-9-]+\.spec\.ts:[0-9]+:[0-9]+ › .*' | sed -E 's/:[0-9]+:[0-9]+ / /; s/ *\([0-9.]+(ms|s|m|h)\)$//; s/ +$//'
                  grep -oE -- '--- FAIL: [^ /]+' <<<"$log" | sed 's/--- FAIL: //'; } | sort -u)
       [ -n "$tests" ] || tests="(no test name; job: $(cut -f1 <<<"$log" | sort -u | paste -sd, -))"
       while read -r t; do echo "$t	$branch https://github.com/$repo/actions/runs/$id/attempts/$a"; done <<<"$tests"

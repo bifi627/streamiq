@@ -109,7 +109,7 @@ test(
       await expect(clients).toContainText('(this browser)')
       await expect(
         card.locator('summary', { hasText: 'Libraries' }),
-      ).toHaveCount(0) // admin-only (#429)
+      ).toHaveCount(0) // admin-only
       b.once('dialog', (d) => d.accept())
       await clients.getByRole('button', { name: 'Remove' }).click()
       await expect(

@@ -1,0 +1,47 @@
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Mondays 03:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+      # Each target in turn for 5 minutes; a finding doesn't stop the others. Every run starts
+      # from the seeds + committed findings: the fuzz cache would otherwise come back with the
+      # restored build cache. -fuzzminimizetime: with the 60 s default a short run spends most
+      # of its time shrinking new inputs at 0 execs/sec.
+      - name: Fuzz every target
+        run: |
+          set -uo pipefail
+          go clean -fuzzcache
+          failed=()
+          found=0
+          for pkg in $(go list ./gateway/...); do
+            list=$(go test -run '^$' -list '^Fuzz' "$pkg") || { failed+=("$pkg (build)"); continue; }
+            for target in $(grep '^Fuzz' <<<"$list"); do
+              found=$((found + 1))
+              echo "::group::$pkg $target"
+              go test "$pkg" -run '^$' -fuzz "^${target}\$" -fuzztime 5m -fuzzminimizetime 2s || failed+=("$pkg $target")
+              echo "::endgroup::"
+            done
+          done
+          echo "Fuzzed $found targets"
+          [ "$found" -gt 0 ] || { echo "::error::no fuzz targets found"; exit 1; }
+          for f in "${failed[@]}"; do echo "::error::finding in $f (failing input: artifact fuzz-findings)"; done
+          [ "${#failed[@]}" -eq 0 ]
+      # The failing input lands in <package>/testdata/fuzz/<target>/: commit it with the fix.
+      - name: Upload findings
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-findings
+          path: gateway/**/testdata/fuzz/

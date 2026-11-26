@@ -91,6 +91,7 @@ SKIP_E2E=1 bash scripts/check.sh        # same, no e2e stage: a change without e
 powershell -File scripts/dev.ps1        # run the app: emulator + Go API (:5028) + frontend (:5173); Ctrl+C stops all
 powershell -File scripts/prune.ps1 [-DryRun]  # after merges (`/prune`): worktrees + local branches already on main (skips dirty ones), then unused Docker leftovers machine-wide
 bash scripts/issue-lint.sh              # open issues breaking a tracking rule (labels, needs-spec vs AC, board column); exit 1 on findings, fixes nothing
+bash scripts/ci-drift.sh                # median CI job times on main, this week vs last, + tests that passed on a rerun (minutes; the weekly maintenance sweep runs it)
 bash scripts/gen-types.sh [--check]     # frontend/src/generated/ from protocol/ + the API and gateway slices in scripts/tygo.yaml (tygo); --check: fail when stale
 
 docker compose up -d                    # deps: postgres, jellyfin, firebase auth emulator

@@ -27,12 +27,12 @@ jobs:
           found=0
           for pkg in $(go list ./gateway/...); do
             list=$(go test -run '^$' -list '^Fuzz' "$pkg") || { failed+=("$pkg (build)"); continue; }
-            for target in $(grep '^Fuzz' <<<"$list"); do
+            while read -r target; do
               found=$((found + 1))
               echo "::group::$pkg $target"
-              go test "$pkg" -run '^$' -fuzz "^${target}\$" -fuzztime 5m -fuzzminimizetime 2s || failed+=("$pkg $target")
+              go test "$pkg" -run '^$' -fuzz "^${target}\$" -fuzztime 5m -fuzzminimizetime 2s </dev/null || failed+=("$pkg $target")
               echo "::endgroup::"
-            done
+            done < <(grep '^Fuzz' <<<"$list")
           done
           echo "Fuzzed $found targets"
           [ "$found" -gt 0 ] || { echo "::error::no fuzz targets found"; exit 1; }

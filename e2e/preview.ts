@@ -8,7 +8,8 @@
 //
 // `up` spawns one detached `serve` process (the stack owner), waits until it
 // wrote ready into .preview/state.json, prints the URLs and exits. `down` kills
-// that process tree, removes the containers and the Jellyfin jail (label streamiq.preview=<id>) and
+// that process tree, removes the containers and the Jellyfin jail (label streamiq.preview=<id>),
+// the Jellyfin volumes (named streamiq-preview-<id>-*; `up` too, after a dead run) and
 // waits until its ports are closed.
 //
 // --tunnel: also a Cloudflare quick tunnel (https://….trycloudflare.com,
@@ -285,6 +286,15 @@ async function down(s = read()) {
     .filter(Boolean)
   if (nets.length)
     spawnSync('docker', ['network', 'rm', ...nets], { stdio: 'ignore' }) // the Jellyfin jail
+  const vols = spawnSync(
+    'docker',
+    ['volume', 'ls', '-q', '--filter', `name=streamiq-preview-${id}-`], // stack.ts names them
+    { encoding: 'utf8' },
+  )
+    .stdout.split(/\s+/)
+    .filter(Boolean)
+  if (vols.length)
+    spawnSync('docker', ['volume', 'rm', ...vols], { stdio: 'ignore' })
   for (const end = Date.now() + 30_000; ;) {
     const open = []
     for (const p of s.ports ?? [s.port]) if (await listening(p)) open.push(p)

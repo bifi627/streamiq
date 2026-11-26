@@ -245,7 +245,7 @@ func jellyfinCmds(ctx context.Context, exe, compose string) []*cobra.Command {
 				Args:              none,
 				ValidArgsFunction: noFiles,
 				Short:             "Start Jellyfin in Docker",
-				Long:              "Start Jellyfin in Docker (downloads jellyfin-compose.yml once: point its media folders at yours, then run it again).",
+				Long:              "Start Jellyfin in Docker (downloads jellyfin-compose.yml once: mount your media folders with `gateway jellyfin folder add`, then run it again).",
 				Example:           "  gateway jellyfin up",
 				RunE:              func(*cobra.Command, []string) error { return jellyfinUp(ctx, compose) },
 			},

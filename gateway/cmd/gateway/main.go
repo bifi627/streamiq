@@ -274,7 +274,7 @@ func jellyfinUp(ctx context.Context, file string) error {
 		if err := os.MkdirAll(filepath.Join(filepath.Dir(file), "media"), 0o755); err != nil {
 			return err
 		}
-		fmt.Printf("Downloaded %s. Point its media folders at yours, then run `gateway jellyfin up` again.\n", file)
+		fmt.Printf("Downloaded %s. Mount your media folders (`gateway jellyfin folder add <path>`), then run `gateway jellyfin up` again.\n", file)
 	}
 	return jellyfin.Compose(ctx, file, "up", "-d")
 }

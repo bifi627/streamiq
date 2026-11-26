@@ -541,10 +541,11 @@ test("health history: an incident, a version change and daily peaks from the gat
       name: /Gateway 1\.4\.0 /,
     }),
   ).toBeVisible()
-  // The row's local day: whichever it is, its peaks are these.
+  // The row's local day: whichever it is, its peaks are these. Transcodes is
+  // empty, or 0 when the gateway's own row could already read Jellyfin.
   await expect(
     c.getByRole('table', { name: 'Daily peaks' }).getByRole('row', {
-      name: / 2\s+100%/,
+      name: / 2\s+(0\s+)?100%/,
     }),
   ).toBeVisible()
 })

@@ -113,8 +113,11 @@ export function Libraries({ g }: { g: Gateway }) {
                 </label>
                 <button
                   type="button"
+                  // the last read's time, not Date.now(): render stays pure, and polls continue through the grace
                   disabled={
-                    busy || l.scanning || rescanPending(rescanAt, Date.now())
+                    busy ||
+                    l.scanning ||
+                    rescanPending(rescanAt, q.dataUpdatedAt)
                   }
                   onClick={() => act(() => rescanLibrary(g.id, l.id), true)}
                 >

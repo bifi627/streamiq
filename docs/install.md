@@ -172,7 +172,8 @@ changed and removed files in that library right away and shows its progress:
   Jellyfin uses only what's in your folders. On shows when at least one is on, or
   the library never got explicit settings (Jellyfin then runs every fetcher);
   switching it on sets the fetchers Jellyfin enables for a new library. In the
-  jail the lookups fail anyway; off stops the errors and keeps the library
+  jail the lookups fail anyway (the tile says so while the jail is on); off
+  stops the errors and keeps the library
   offline if you ever turn the jail off. A finer choice of fetchers stays in
   Jellyfin's own **Dashboard → Libraries** (library → *Manage library*).
 - **Seek previews, chapter images, loudness scan**: trickplay, chapter images

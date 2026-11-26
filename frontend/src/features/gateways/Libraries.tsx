@@ -6,6 +6,8 @@ import {
   setLibraryExtras,
   setLibraryOnline,
   type Gateway,
+  type Library,
+  useGatewayStatus,
 } from './api'
 import { toAppError } from '../../shared/errors'
 import { Tile } from '../../shared/Tile'
@@ -26,6 +28,9 @@ export function Libraries({ g }: { g: Gateway }) {
   const [rescan, setRescan] = useState({ id: '', at: 0 })
   const [msg, setMsg] = useState<string | null>(null) // an action's error
   const [pending, setPending] = useState<Record<string, LibraryAction>>({})
+  // the offline jail blocks every lookup, whatever a library says
+  const jailed =
+    useGatewayStatus(g.id, open).data?.jellyfin?.offline === 'enforced'
   const q = useQuery({
     queryKey: ['libraries', g.id],
     queryFn: async () => {
@@ -88,83 +93,113 @@ export function Libraries({ g }: { g: Gateway }) {
             previews, chapter images and the loudness scan cost CPU and disk,
             and StreamIQ doesn&apos;t show them.
           </p>
+          {jailed && (
+            <p className="hint muted">
+              The offline jail is on: Jellyfin has no internet, so online
+              lookups fail until you run{' '}
+              <code>gateway jellyfin offline off</code> on the gateway.
+            </p>
+          )}
           <ul className="libraries">
-            {q.data.map((l) => {
-              const action = pending[l.id]
-              // the last read's time, not Date.now(): render stays pure, and polls continue through the grace
-              const queued =
-                rescan.id === l.id && rescanPending(rescan.at, q.dataUpdatedAt)
-              const status = libraryStatus(l, action, queued)
-              return (
-                <li key={l.id} aria-busy={!!action}>
-                  <div className="lib-head">
-                    <b>{l.name}</b>
-                    {status ? (
-                      <span className="muted">{status}</span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="link"
-                        disabled={!!action}
-                        onClick={() =>
-                          act(l.id, 'rescan', () => rescanLibrary(g.id, l.id))
-                        }
-                      >
-                        Rescan
-                      </button>
-                    )}
-                  </div>
-                  {l.scanning && (
-                    <progress
-                      max={100}
-                      value={l.progress}
-                      aria-label={`${l.name}: scan progress`}
-                    />
-                  )}
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={!l.offline}
-                      disabled={!!action}
-                      onChange={(e) => {
-                        const on = e.currentTarget.checked
-                        void act(l.id, 'online', () =>
-                          setLibraryOnline(g.id, l.id, on),
-                        )
-                      }}
-                    />{' '}
-                    Online lookups
-                    {action === 'online' && (
-                      <span className="muted"> · saving…</span>
-                    )}
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={l.extras === 'on'}
-                      disabled={!!action}
-                      onChange={(e) => {
-                        const on = e.currentTarget.checked
-                        void act(l.id, 'extras', () =>
-                          setLibraryExtras(g.id, l.id, on),
-                        )
-                      }}
-                    />{' '}
-                    Seek previews, chapter images, loudness scan
-                    {action === 'extras' ? (
-                      <span className="muted"> · saving…</span>
-                    ) : (
-                      l.extras === 'custom' && (
-                        <span className="muted"> · a mix, set in Jellyfin</span>
-                      )
-                    )}
-                  </label>
-                </li>
-              )
-            })}
+            {q.data.map((l) => (
+              <LibraryRow
+                key={l.id}
+                g={g}
+                l={l}
+                action={pending[l.id]}
+                // the last read's time, not Date.now(): render stays pure, and polls continue through the grace
+                queued={
+                  rescan.id === l.id &&
+                  rescanPending(rescan.at, q.dataUpdatedAt)
+                }
+                jailed={jailed}
+                act={act}
+              />
+            ))}
           </ul>
         </>
       )}
     </Tile>
+  )
+}
+
+type Act = (
+  id: string,
+  what: LibraryAction,
+  run: () => Promise<unknown>,
+) => Promise<void>
+
+function LibraryRow(p: {
+  g: Gateway
+  l: Library
+  action: LibraryAction | undefined
+  queued: boolean
+  jailed: boolean
+  act: Act
+}) {
+  const { g, l, action, act } = p
+  const status = libraryStatus(l, action, p.queued)
+  return (
+    <li aria-busy={!!action}>
+      <div className="lib-head">
+        <b>{l.name}</b>
+        {status ? (
+          <span className="muted">{status}</span>
+        ) : (
+          <button
+            type="button"
+            className="link"
+            disabled={!!action}
+            onClick={() => act(l.id, 'rescan', () => rescanLibrary(g.id, l.id))}
+          >
+            Rescan
+          </button>
+        )}
+      </div>
+      {l.scanning && (
+        <progress
+          max={100}
+          value={l.progress}
+          aria-label={`${l.name}: scan progress`}
+        />
+      )}
+      <label>
+        <input
+          type="checkbox"
+          checked={!l.offline}
+          disabled={!!action}
+          onChange={(e) => {
+            const on = e.currentTarget.checked
+            void act(l.id, 'online', () => setLibraryOnline(g.id, l.id, on))
+          }}
+        />{' '}
+        Online lookups
+        {action === 'online' ? (
+          <span className="muted"> · saving…</span>
+        ) : (
+          p.jailed &&
+          !l.offline && <span className="muted"> · no effect: jail on</span>
+        )}
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={l.extras === 'on'}
+          disabled={!!action}
+          onChange={(e) => {
+            const on = e.currentTarget.checked
+            void act(l.id, 'extras', () => setLibraryExtras(g.id, l.id, on))
+          }}
+        />{' '}
+        Seek previews, chapter images, loudness scan
+        {action === 'extras' ? (
+          <span className="muted"> · saving…</span>
+        ) : (
+          l.extras === 'custom' && (
+            <span className="muted"> · a mix, set in Jellyfin</span>
+          )
+        )}
+      </label>
+    </li>
   )
 }

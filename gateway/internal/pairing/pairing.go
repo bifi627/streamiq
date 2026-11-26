@@ -101,6 +101,8 @@ type Paired struct {
 	KeyFp   string    `json:"keyFp"`
 	Name    string    `json:"name"`
 	AddedAt time.Time `json:"addedAt"`
+	// ApprovedBy is the client key that approved it on the web gateway page; empty = the local page.
+	ApprovedBy string `json:"approvedBy,omitempty"`
 }
 
 // Request is a pairing request waiting for Approve on the local page or the web
@@ -268,8 +270,11 @@ func (s *Store) Ask(name, keyFp, code, user string, gone <-chan struct{}) (bool,
 // ErrNoRequest: Decide on an id that isn't pending (expired, or decided already).
 var ErrNoRequest = errors.New("no such request (expired?)")
 
-// Decide is Approve/Reject, from the local page or the web gateway page.
-func (s *Store) Decide(id string, approve bool) error {
+// Decide is the local page's Approve/Reject.
+func (s *Store) Decide(id string, approve bool) error { return s.DecideBy(id, approve, "") }
+
+// DecideBy is Approve/Reject; by = the approving client key (the web gateway page), "" = the local page.
+func (s *Store) DecideBy(id string, approve bool, by string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	i := slices.IndexFunc(s.pending, func(r *Request) bool { return r.ID == id })
@@ -278,7 +283,7 @@ func (s *Store) Decide(id string, approve bool) error {
 	}
 	r := s.pending[i]
 	if approve && !slices.ContainsFunc(s.paired, func(p Paired) bool { return p.KeyFp == r.KeyFp }) {
-		s.paired = append(s.paired, Paired{KeyFp: r.KeyFp, Name: r.Name, AddedAt: time.Now().UTC()})
+		s.paired = append(s.paired, Paired{KeyFp: r.KeyFp, Name: r.Name, AddedAt: time.Now().UTC(), ApprovedBy: by})
 		if err := s.save(); err != nil {
 			return err
 		}

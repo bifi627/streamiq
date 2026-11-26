@@ -13,7 +13,8 @@ import (
 // Gateway API (docs/protocol.md), both admin-only (tunnel.AdminOnly at
 // registration): RequestsPath lists the pending pairing requests, GET →
 // [PairingRequest]; DecidePath approves or rejects one like the local page,
-// POST PairingDecision → 200 {}, an unknown or expired id 404.
+// POST PairingDecision → 200 {}, an unknown or expired id 404. An approved key
+// records the approving session's client key (Paired.ApprovedBy).
 const (
 	RequestsPath = "/streamiq/pairing/requests"
 	DecidePath   = "/streamiq/pairing/decide"
@@ -36,7 +37,7 @@ func (s *Store) ServeDecide(w http.ResponseWriter, r *http.Request) {
 		tunnel.Fail(w, http.StatusBadRequest, errors.New("gateway API: decide pairing: bad body"))
 		return
 	}
-	switch err := s.Decide(in.ID, in.Approve); {
+	switch err := s.DecideBy(in.ID, in.Approve, tunnel.SessionOf(r).Key); {
 	case errors.Is(err, ErrNoRequest):
 		tunnel.Fail(w, http.StatusNotFound, fmt.Errorf("gateway API: decide pairing: %w", err))
 	case err != nil:

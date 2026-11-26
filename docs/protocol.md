@@ -517,7 +517,9 @@ the gateway: the API never sees or stores them.
 the pending pairing requests (memory only, the local gateway page's list); `user` = the
 requester's `users.id` (`offer.user`), so the web app can name the member.
 **`POST /streamiq/pairing/decide`** (#956, admin-only) `{ "id": "…", "approve": true }` →
-Approve/Reject exactly like the local gateway page, then `200 {}`; an unknown, expired or
+Approve/Reject exactly like the local gateway page, then `200 {}`; an approved key's
+`allowlist.json` entry records the approving session's client key (`approvedBy`; absent
+for a local page approval); an unknown, expired or
 already decided id `404`, no id `400`, a failed save of `allowlist.json` `500`. Approval
 goes over the admin's own paired tunnel, never through the API or broker. A gateway older
 than this answers `404`: the web gateway page then shows no requests. The first device of

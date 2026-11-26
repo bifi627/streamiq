@@ -119,8 +119,8 @@ func TestApprovePersistsAndPendingCaps(t *testing.T) {
 		if err := s.Decide(s.Pending()[0].ID, true); err != nil || !<-got {
 			t.Fatalf("approve failed: %v", err)
 		}
-		if s2, _ := Open(dir); !s2.Allowed("fp-1") {
-			t.Fatal("approval not persisted")
+		if s2, _ := Open(dir); !s2.Allowed("fp-1") || s2.Paired()[0].ApprovedBy != "" {
+			t.Fatal("approval not persisted, or a local page approval names an approver")
 		}
 
 		for i := range MaxPending {

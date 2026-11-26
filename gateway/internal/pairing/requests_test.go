@@ -11,7 +11,7 @@ import (
 
 // GET /streamiq/pairing/requests + POST /streamiq/pairing/decide (#956): admin-only, the list
 // carries the requester's users.id, decide ends the exchange like the local page, an unknown id
-// 404s.
+// 404s, and an approval records the approving client key.
 func TestRequestsAPI(t *testing.T) {
 	dir := t.TempDir() // outside the bubble: its cleanup retries on real time (Windows)
 	synctest.Test(t, func(t *testing.T) { requestsAPI(t, dir) })
@@ -57,6 +57,12 @@ func requestsAPI(t *testing.T, dir string) {
 	}
 	if !<-got || !store.Allowed("fp-1") {
 		t.Error("approve did not pair the key")
+	}
+	if p := store.Paired(); len(p) != 1 || p[0].ApprovedBy != "aa" {
+		t.Errorf("approvedBy: %+v, want the approving session's key aa", p)
+	}
+	if reopened, _ := Open(dir); reopened.Paired()[0].ApprovedBy != "aa" {
+		t.Error("approvedBy not persisted")
 	}
 	if s, _ := call(tunnel.Admin, "POST", DecidePath, `{"id":"`+id+`","approve":true}`); s != http.StatusNotFound {
 		t.Errorf("decided twice: %d, want 404", s)

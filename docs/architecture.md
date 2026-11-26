@@ -96,7 +96,12 @@ is not a status log: open work lives in `gh issue list`, history in git.
   aren't linkable by their certificate (#427).
 - Pairing: browser WebCrypto client key, commit/reveal comparison code approved on the
   local gateway page, or by an admin's paired browser on the web gateway page over its tunnel
-  (`features/gateways/PairingRequests.tsx`, #956), and confirmed in the browser (It matches, #955), allowlist on the gateway, pins enforced in both directions.
+  (`features/gateways/PairingRequests.tsx`, #956), and confirmed in the browser (It matches, #955),
+  allowlist on the gateway, pins enforced in both directions. Who approval trusts: the local
+  gateway page needs a person on the home LAN; remote approval trusts the household role the
+  API sends with the tunnel's offer (`tunnel.AdminOnly`), from a browser already paired with
+  the gateway. A remotely approved entry records the approving client key (`approvedBy` in
+  `allowlist.json`).
 - Revocation: `DELETE /api/gateways/{id}` nulls the credential hash, keeps the row,
   closes its sockets and sessions. Removing a client on the local gateway page
   closes its open sessions (gateway-side `pc.Close()`; the API never knows client keys).

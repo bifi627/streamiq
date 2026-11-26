@@ -80,7 +80,11 @@ is not a status log: open work lives in `gh issue list`, history in git.
   leaves; an admin removes and promotes/demotes. A household always keeps an admin
   (`409`; the check runs under a lock on the tenant row). A user left with no household
   stays without one. Removing a member deletes their pending invites in the same
-  transaction. An admin names the household (`api/internal/household`).
+  transaction. An admin names the household (`api/internal/household`) and deletes it
+  (`DELETE /api/households/current`, the name typed to confirm): the app role can't delete
+  tenants, so `delete_household(tenant, user)` (`SECURITY DEFINER`, admin check under the
+  tenant row lock) deletes the row, everything tenant-owned cascades, and its gateways'
+  sockets close as on a revoke. Members land in another household or none.
 - Tests: the Go API's (above), real emulator tokens through the prod verify path.
 
 ## Gateway onboarding and pairing

@@ -9,7 +9,6 @@ import { arrowFocus } from '../../shared/focus'
 import { STORED } from '../../shared/EditableName'
 import { EditableTitle } from '../../shared/EditableTitle'
 import { Menu } from '../../shared/Menu'
-import { Dialog } from '../../shared/Dialog'
 import { Tile } from '../../shared/Tile'
 import { useBack } from '../../shared/slots'
 import {
@@ -18,6 +17,7 @@ import {
   useCreate,
   useHousehold,
 } from './household'
+import { DeleteHousehold } from './DeleteHousehold'
 import { Invites } from './Invites'
 import { Members } from './Members'
 import { PageBar } from '../../shared/PageBar'
@@ -130,11 +130,11 @@ function Title({
           )
         }
       />
-      {/* TODO(#877): a dialog until a delete-household API exists */}
-      {deleting && (
-        <Dialog title="Delete household" onClose={() => setDeleting(false)}>
-          <p>Deleting a household isn't available yet.</p>
-        </Dialog>
+      {deleting && current && (
+        <DeleteHousehold
+          household={current}
+          onClose={() => setDeleting(false)}
+        />
       )}
     </>
   )

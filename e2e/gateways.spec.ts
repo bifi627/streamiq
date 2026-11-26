@@ -202,11 +202,12 @@ test('relay switch: off over the tunnel, mirrored by the API; direct only after 
 test('managed Jellyfin: the gateway sets it up; Libraries lists, Online lookups off survives a reload, Rescan; Status says CPU (#969) @gateways', async ({
   browser,
 }) => {
-  const jf = await startJellyfin(
-    { managed: true },
-    undefined,
-    'jellyfin managed',
-  )
+  // CI: global setup started it before any browser opened (retries: 0, so it
+  // stays fresh); locally only when this test runs.
+  const ready = process.env.E2E_JELLYFIN_MANAGED_URL
+  const jf = ready
+    ? { url: ready, stop: async () => {} }
+    : await startJellyfin({ managed: true }, undefined, 'jellyfin managed')
   const user = await signUp(uniqueEmail('managed'))
   const gateway = await onboardGateway(user, jf.url)
   const gatewayCtx = await newContext(browser)

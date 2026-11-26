@@ -1,7 +1,7 @@
 // The e2e stack (startStack in stack.ts); Playwright calls the returned teardown.
 import path from 'node:path'
 import type { FullConfig } from '@playwright/test'
-import { fixtureMedia, startStack, timed } from './stack.ts'
+import { fixtureMedia, startJellyfin, startStack, timed } from './stack.ts'
 
 // The area tags whose specs never start a gateway, so never a Jellyfin
 // (playwright.config.ts lists them all).
@@ -25,7 +25,7 @@ function mayNeedJellyfin() {
 export default async function globalSetup(config: FullConfig) {
   // Inside this checkout, not os.tmpdir(): a shared path lets another
   // worktree's build overwrite (or, on Windows, fail on) the running binary.
-  const [stack] = await timed(
+  const [stack, , managed] = await timed(
     'total',
     Promise.all([
       startStack({
@@ -38,7 +38,19 @@ export default async function globalSetup(config: FullConfig) {
       // Here, once, so no two workers encode the fixtures at the same time; not
       // for a run of Jellyfin-free areas (no image pull, no encode).
       mayNeedJellyfin() && timed('fixture media', fixtureMedia()),
+      // CI: the managed test's (gateways.spec.ts) too, so its new Docker network
+      // and containers don't trip ERR_NETWORK_CHANGED in parallel tests' pages.
+      // ponytail: every shard starts it, one runs the test; skip it per shard
+      // if the setup time shows it.
+      process.env.CI &&
+        timed(
+          'jellyfin managed',
+          startJellyfin({ managed: true }, undefined, 'jellyfin managed'),
+        ),
     ]),
   )
-  return stack.stop
+  if (managed) process.env.E2E_JELLYFIN_MANAGED_URL = managed.url // gateways.spec.ts
+  return async () => {
+    await Promise.all([stack.stop(), managed && managed.stop()])
+  }
 }

@@ -405,7 +405,7 @@ export async function encodeOnce(
 // tmpfs over every VOLUME the image declares, so no run leaves an anonymous
 // volume behind (stop() removes them, but Ryuk's reaping after a crash or
 // Ctrl+C doesn't). Jellyfin's transcodes (/cache) land in RAM too, so not in
-// the preview (startStack).
+// the preview (startJellyfin: named volumes instead).
 const NO_VOLUMES = {
   postgres: { '/var/lib/postgresql': 'rw' },
   'jellyfin/jellyfin': { '/config': 'rw', '/cache': 'rw' },

@@ -172,7 +172,7 @@ func TestRemoveMount(t *testing.T) {
 		t.Fatalf("got\n%s", out)
 	}
 	for _, which := range []string{"/media/named", "/media/vol2", "/media/x", "/config", "/media/old", "/media/nope"} {
-		if _, _, err := RemoveMount(b, "/gw", which); err == nil {
+		if _, _, rerr := RemoveMount(b, "/gw", which); rerr == nil {
 			t.Errorf("%s: removed", which)
 		}
 	}

@@ -320,7 +320,7 @@ func awaitUp(ctx context.Context, t *testing.T, s *Setup, after string) {
 	}
 }
 
-// folderMount (#431): a folder `gateway jellyfin folder add` mounts is in
+// folderMount: a folder `gateway jellyfin folder add` mounts is in
 // Jellyfin's folder picker under /media/ after the recreate, and gone after
 // `folder remove`; its files stay.
 func folderMount(ctx context.Context, t *testing.T, s *Setup, file string) {

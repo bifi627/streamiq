@@ -11,7 +11,7 @@ import (
 	"unicode"
 )
 
-// MediaDir is where the jellyfin service's media folders are mounted (#431).
+// MediaDir is where the jellyfin service's media folders are mounted.
 const MediaDir = "/media/"
 
 // Mount is one item of the jellyfin service's volumes:.
@@ -36,8 +36,21 @@ func volumeItems(ls []string) (items []Mount, dash int, err error) {
 	if svc < 0 {
 		return nil, 0, fmt.Errorf("%w: no jellyfin service under services:", errShape)
 	}
-	vol, ki := -1, -1
-	for j := svc + 1; j < end && vol < 0; j++ {
+	vol, ki := volumesLine(ls, svc, end)
+	if vol < 0 {
+		return nil, 0, fmt.Errorf("%w: the jellyfin service has no volumes: list", errShape)
+	}
+	if items, dash = listItems(ls, vol, ki, end); len(items) == 0 {
+		return nil, 0, fmt.Errorf("%w: the jellyfin service's volumes: list has no items", errShape)
+	}
+	return items, dash, nil
+}
+
+// volumesLine is the volumes: key of the service at line svc (-1 without
+// one) and the indent of the service's keys.
+func volumesLine(ls []string, svc, end int) (vol, ki int) {
+	ki = -1
+	for j := svc + 1; j < end; j++ {
 		l := ls[j]
 		if strings.TrimSpace(l) == "" || l[indent(l)] == '#' {
 			continue
@@ -49,37 +62,37 @@ func volumeItems(ls []string) (items []Mount, dash int, err error) {
 			ki = indent(l)
 		}
 		if indent(l) == ki && volumesKey.MatchString(l) {
-			vol = j
+			return j, ki
 		}
 	}
-	if vol < 0 {
-		return nil, 0, fmt.Errorf("%w: the jellyfin service has no volumes: list", errShape)
-	}
+	return -1, ki
+}
+
+// listItems are the items of the block list under the key at line key (keys
+// indented ki): a dash line each, up to its last non-comment line.
+func listItems(ls []string, key, ki, end int) (items []Mount, dash int) {
 	dash = -1
-list:
-	for j := vol + 1; j < end; j++ {
+	for j := key + 1; j < end; j++ {
 		l := ls[j]
 		t := strings.TrimSpace(l)
 		if t == "" || t[0] == '#' {
 			continue
 		}
-		isItem := t[0] == '-' && (dash < 0 || indent(l) == dash)
-		if isItem && dash < 0 && indent(l) >= ki {
+		if dash < 0 && t[0] == '-' && indent(l) >= ki {
 			dash = indent(l)
 		}
 		switch {
-		case isItem && indent(l) == dash:
+		case dash < 0:
+			return nil, dash
+		case indent(l) == dash && t[0] == '-':
 			items = append(items, Mount{first: j, last: j})
-		case dash >= 0 && indent(l) > dash:
+		case indent(l) > dash:
 			items[len(items)-1].last = j
 		default:
-			break list // the next key
+			return items, dash // the next key
 		}
 	}
-	if len(items) == 0 {
-		return nil, 0, fmt.Errorf("%w: the jellyfin service's volumes: list has no items", errShape)
-	}
-	return items, dash, nil
+	return items, dash
 }
 
 // parseMount fills m from its lines: the short form (`- src:target[:ro]`) or

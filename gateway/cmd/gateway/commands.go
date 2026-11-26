@@ -376,7 +376,7 @@ func exitOnCancel(ctx context.Context, exit func(int)) (release func()) {
 	}
 }
 
-// folderCmd is `gateway jellyfin folder`: host folders mounted into the Docker Jellyfin (#431).
+// folderCmd is `gateway jellyfin folder`: host folders mounted into the Docker Jellyfin.
 func folderCmd(ctx context.Context, compose string) *cobra.Command {
 	var yes bool
 	f := func() jellyfin.FolderIO {

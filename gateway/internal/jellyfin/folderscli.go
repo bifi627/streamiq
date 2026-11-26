@@ -81,10 +81,10 @@ func FolderAdd(ctx context.Context, f FolderIO, path, name string) error {
 	if err != nil {
 		return err
 	}
-	if fi, err := os.Stat(abs); errors.Is(err, os.ErrNotExist) {
+	if fi, serr := os.Stat(abs); errors.Is(serr, os.ErrNotExist) {
 		return fmt.Errorf("%s doesn't exist", abs)
-	} else if err != nil {
-		return err
+	} else if serr != nil {
+		return serr
 	} else if !fi.IsDir() {
 		return fmt.Errorf("%s is not a folder", abs)
 	}

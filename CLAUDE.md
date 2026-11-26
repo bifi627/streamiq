@@ -89,7 +89,7 @@ bash scripts/check.sh                   # GOLDEN PATH: all checks (mirrors CI). 
 E2E_GREP='@player|@library' bash scripts/check.sh  # same, e2e only for the area tags the change touched (a build's default)
 SKIP_E2E=1 bash scripts/check.sh        # same, no e2e stage: a change without e2e impact (CI still runs every spec)
 powershell -File scripts/dev.ps1        # run the app: emulator + Go API (:5028) + frontend (:5173); Ctrl+C stops all
-powershell -File scripts/prune-worktrees.ps1 [-DryRun]  # remove worktrees + local branches already on main (merged PR / no commits); skips dirty ones
+powershell -File scripts/prune.ps1 [-DryRun]  # after merges (`/prune`): worktrees + local branches already on main (skips dirty ones), then unused Docker leftovers machine-wide
 bash scripts/issue-lint.sh              # open issues breaking a tracking rule (labels, needs-spec vs AC, board column); exit 1 on findings, fixes nothing
 bash scripts/gen-types.sh [--check]     # frontend/src/generated/ from protocol/ + the API and gateway slices in scripts/tygo.yaml (tygo); --check: fail when stale
 

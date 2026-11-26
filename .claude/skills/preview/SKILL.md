@@ -104,5 +104,5 @@ The seed lives only as long as this run: `down`/`up` starts from the base seed a
 
 Stop when the owner says so, when the thread's device testing is done, and
 before ending work in a worktree that will be pruned
-(`scripts/prune-worktrees.ps1` also runs `down`). Leaving it running for the
+(`scripts/prune.ps1` also runs `down`). Leaving it running for the
 owner is fine: say so explicitly in the handback.

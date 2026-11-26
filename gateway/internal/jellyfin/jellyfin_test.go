@@ -46,7 +46,7 @@ type fake struct {
 	cfgPosts  int
 	libs      []map[string]any // /Library/VirtualFolders
 	libPosts  int
-	refreshed []string // POST /Items/{id}/Refresh: id?query
+	refreshed []string         // POST /Items/{id}/Refresh: id?query
 	sessions  []map[string]any // GET /Sessions (admin only); nil = 500
 }
 

@@ -9,7 +9,10 @@ case $status in
   "In review") opt=a4f62931 ;; Done) opt=bee00628 ;;
   *) echo "unknown status: $status" >&2; exit 1 ;;
 esac
-item=$(gh project item-add 2 --owner bifi627 --url "https://github.com/bifi627/streamiq/issues/$n" --format json -q .id)
+add() { gh project item-add 2 --owner bifi627 --url "https://github.com/bifi627/streamiq/issues/$n" --format json -q .id; }
+# Right after `gh issue create` the board's auto-add races this add and one fails with
+# "Content already exists"; a second add returns the existing item.
+item=$(add) || item=$(add)
 gh project item-edit --id "$item" --project-id PVT_kwHOBRnrLM4BqwMu \
   --field-id PVTSSF_lAHOBRnrLM4BqwMuzhpF3x4 --single-select-option-id "$opt" >/dev/null
 echo "#$n -> $status"

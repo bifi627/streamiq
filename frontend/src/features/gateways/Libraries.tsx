@@ -7,7 +7,9 @@ import {
   setLibraryOnline,
   type Gateway,
   type Library,
+  type MediaFolder,
   useGatewayStatus,
+  useMediaFolders,
 } from './api'
 import { toAppError } from '../../shared/errors'
 import { Tile } from '../../shared/Tile'
@@ -19,6 +21,7 @@ import {
   rescanSeen,
   type LibraryAction,
 } from './libraryList'
+import { AddLibrary, LibraryFolders } from './LibraryEdit'
 
 // A managed Jellyfin's libraries (admin, paired browser), read live from
 // Jellyfin over the shared tunnel once the tile opens; polled only while a
@@ -52,6 +55,8 @@ export function Libraries({ g }: { g: Gateway }) {
     retry: false,
   })
 
+  const folders = useMediaFolders(g.id, open, !!q.data)
+
   async function act(
     id: string,
     what: LibraryAction,
@@ -65,7 +70,7 @@ export function Libraries({ g }: { g: Gateway }) {
     } catch (x) {
       setMsg(librariesMessage(toAppError(x)))
     }
-    await q.refetch()
+    await Promise.all([q.refetch(), folders.refetch()])
     setPending((p) => {
       const next = { ...p }
       delete next[id]
@@ -82,9 +87,7 @@ export function Libraries({ g }: { g: Gateway }) {
     <Tile title="Libraries" onOpen={setOpen}>
       {note && <p role="status">{note}</p>}
       {msg && <p role="alert">{msg}</p>}
-      {q.data?.length === 0 && (
-        <p>No libraries yet. Add one in Jellyfin: Dashboard → Libraries.</p>
-      )}
+      {q.data?.length === 0 && <p>No libraries yet.</p>}
       {!!q.data?.length && (
         <>
           <p className="hint muted">
@@ -113,12 +116,14 @@ export function Libraries({ g }: { g: Gateway }) {
                   rescanPending(rescan.at, q.dataUpdatedAt)
                 }
                 jailed={jailed}
+                folders={folders.data}
                 act={act}
               />
             ))}
           </ul>
         </>
       )}
+      <AddLibrary g={g} ready={!!q.data} folders={folders.data} act={act} />
     </Tile>
   )
 }
@@ -135,6 +140,7 @@ function LibraryRow(p: {
   action: LibraryAction | undefined
   queued: boolean
   jailed: boolean
+  folders: MediaFolder[] | undefined
   act: Act
 }) {
   const { g, l, action, act } = p
@@ -200,6 +206,13 @@ function LibraryRow(p: {
           )
         )}
       </label>
+      <LibraryFolders
+        g={g}
+        l={l}
+        folders={p.folders}
+        busy={!!action}
+        act={act}
+      />
     </li>
   )
 }

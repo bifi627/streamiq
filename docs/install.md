@@ -108,11 +108,26 @@ The page warns when Jellyfin runs a version the gateway wasn't tested with.
 
 ## 4. Add your media libraries
 
-Open Jellyfin at `http://localhost:8096`, sign in as the admin (step 3) and go
-to **Dashboard → Libraries → Add Media Library**. With the Docker compose file,
-pick the folder **inside the container**: a bind with `target: /media/movies`
-appears as `/media/movies`, not as `D:\Movies`. Jellyfin scans the library; that
-can take a while for big collections.
+First mount each media folder into Jellyfin: one `type: bind` entry per folder in
+`jellyfin-compose.yml` (see the file's comments), with a `target` right under
+`/media` (`target: /media/movies`), then `gateway jellyfin up`. Your files stay
+where they are, read-only.
+
+**In the web app** (a Jellyfin the gateway set up): StreamIQ → Gateways → the
+gateway → **Libraries** → **Add library**, from a household admin's browser
+paired with it. Give it a name, pick Movies or Shows and one or more of the
+folders under `/media`; it's created with online lookups and the extras off
+(see [Libraries](#libraries-online-lookups-and-extras)) and Jellyfin scans it,
+which can take a while for big collections. Each library there lists its folders:
+**Add folder**, **Remove folder** (a library keeps at least one), and
+**Remove library**. Removing never deletes a file.
+
+**In Jellyfin's Dashboard** (any Jellyfin, every library option): open Jellyfin at
+`http://localhost:8096`, sign in as the admin (step 3) and go to **Dashboard →
+Libraries → Add Media Library**. With the Docker compose file, pick the folder
+**inside the container**: a bind with `target: /media/movies` appears as
+`/media/movies`, not as `D:\Movies`. A library added there starts with every
+online fetcher on; the web app's *Online lookups* switch turns them off.
 
 ## 5. Pair a browser and watch
 

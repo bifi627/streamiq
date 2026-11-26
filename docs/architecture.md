@@ -297,10 +297,11 @@ peaks per local day.
   browser, and the collapsed Status / Health / Paired clients tiles, plus Libraries for an
   admin's paired browser; no Open, no Use as screen: that is TV mode's top bar), off TV
   mode's allowlist.
-- Library management (#429, #47) lives only on the web gateway page: `Libraries.tsx` calls
-  the admin-only `/streamiq/libraries*` gateway API, whose handlers (`jellyfin/api.go`) read
-  and change a managed Jellyfin's libraries live as its stored admin (`jellyfin/libraries.go`;
-  nothing stored, a BYO Jellyfin is never touched). The local gateway page has no library part.
+- Library management (#429, #430, #47) lives only on the web gateway page: `Libraries.tsx` +
+  `LibraryEdit.tsx` call the admin-only `/streamiq/libraries*` gateway API, whose handlers
+  (`jellyfin/api.go`) read and change a managed Jellyfin's libraries live as its stored admin
+  (`jellyfin/libraries.go`; creating and folders, only from `/media/<name>`:
+  `jellyfin/libraryedit.go`; nothing stored, a BYO Jellyfin is never touched). The local gateway page has no library part.
 - Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its
   first-visit default (`features/tv/tv.ts`: known TV → on, Android box → ask once, #309). Its routes
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the

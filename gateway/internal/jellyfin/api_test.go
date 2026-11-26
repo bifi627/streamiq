@@ -54,7 +54,8 @@ func TestLibrariesAPI(t *testing.T) {
 		}
 	}
 	if st, reply := do("GET", LibrariesPath, ""); st != 200 ||
-		!strings.HasPrefix(reply, `[{"id":"a","name":"lib a","type":"movies","folders":["/media/a"],"offline":true,"extras":"on",`) {
+		!strings.HasPrefix(reply, `[{"id":"a","name":"lib a","type":"movies","folders":["/media/a"],`+
+			`"offline":true,"extras":"on",`) {
 		t.Fatalf("after the writes: %d %s", st, reply)
 	}
 	const refresh = "a?Recursive=true&MetadataRefreshMode=Default&ImageRefreshMode=Default"

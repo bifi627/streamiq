@@ -24,8 +24,11 @@ import type { Refused, Started } from '../../generated/update'
 import type {
   Library,
   LibraryError,
+  LibraryFolder,
   LibrarySwitch,
   LibraryID,
+  MediaFolder,
+  NewLibrary,
 } from '../../generated/jellyfin'
 
 export type { Gateway, Install }
@@ -33,7 +36,16 @@ export type { Gateway, Install }
 // The gateway API's bodies (docs/protocol.md, "Gateway API"), generated from the
 // gateway's Go types. Status: any field may be missing, older gateways send fewer.
 export type GatewayStatus = Partial<Status>
-export type { Client, Library, Route, Screen, ScreenCommand, ScreenState }
+export type {
+  Client,
+  Library,
+  MediaFolder,
+  NewLibrary,
+  Route,
+  Screen,
+  ScreenCommand,
+  ScreenState,
+}
 
 export const getGateways = () => authed<Gateway[]>('/gateways')
 
@@ -159,7 +171,8 @@ export const decideRequest = (id: string, reqId: string, approve: boolean) =>
   } satisfies PairingDecision)
 
 // A managed Jellyfin's libraries, admin-only gateway API. A 502 with a body
-// is Jellyfin's own error: thrown as an 'http' AppError with its message.
+// is Jellyfin's own error, a 400 with a body why the gateway refused: thrown
+// as an 'http' AppError with its message.
 async function viaLibraries<T>(id: string, url: string, body?: unknown) {
   const { session, release } = share(id)
   try {
@@ -170,9 +183,9 @@ async function viaLibraries<T>(id: string, url: string, body?: unknown) {
     )
     const text = new TextDecoder().decode(r.body)
     if (r.status >= 200 && r.status <= 299) return JSON.parse(text) as T
-    if (r.status === 502 && text.startsWith('{'))
+    if ((r.status === 502 || r.status === 400) && text.startsWith('{'))
       throw new AppError('http', (JSON.parse(text) as LibraryError).error, {
-        status: 502,
+        status: r.status,
       })
     throw httpError('tunnel', r.status, url)
   } finally {
@@ -197,6 +210,42 @@ export const setLibraryExtras = (id: string, lib: string, on: boolean) =>
 
 export const rescanLibrary = (id: string, lib: string) =>
   viaLibraries(id, '/streamiq/libraries/rescan', {
+    id: lib,
+  } satisfies LibraryID)
+
+export const listMediaFolders = (id: string) =>
+  viaLibraries<MediaFolder[]>(id, '/streamiq/libraries/folders')
+
+// The folders under /media, for Add library and Add folder: read once the
+// tile is open and the list has loaded.
+export const useMediaFolders = (gw: string, open: boolean, listed: boolean) =>
+  useQuery({
+    queryKey: ['library-folders', gw],
+    queryFn: () => listMediaFolders(gw),
+    enabled: open && listed,
+    gcTime: 0,
+    refetchOnWindowFocus: false, // a retry would open a tunnel
+    refetchOnReconnect: false,
+    retry: false,
+  })
+
+export const createLibrary = (id: string, lib: NewLibrary) =>
+  viaLibraries(id, '/streamiq/libraries/create', lib)
+
+export const addLibraryFolder = (id: string, lib: string, folder: string) =>
+  viaLibraries(id, '/streamiq/libraries/folders/add', {
+    id: lib,
+    folder,
+  } satisfies LibraryFolder)
+
+export const removeLibraryFolder = (id: string, lib: string, folder: string) =>
+  viaLibraries(id, '/streamiq/libraries/folders/remove', {
+    id: lib,
+    folder,
+  } satisfies LibraryFolder)
+
+export const removeLibrary = (id: string, lib: string) =>
+  viaLibraries(id, '/streamiq/libraries/remove', {
     id: lib,
   } satisfies LibraryID)
 

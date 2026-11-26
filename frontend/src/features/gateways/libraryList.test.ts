@@ -2,6 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { AppError, httpError } from '../../shared/errors.ts'
 import {
+  addableFolders,
+  canRemoveFolder,
+  draftReady,
+  emptyDraft,
+  folderLabel,
+  toggleFolder,
   LIBRARIES_POLL,
   librariesMessage,
   libraryStatus,
@@ -14,6 +20,8 @@ import type { Library } from '../../generated/jellyfin.ts'
 const lib = (scanning: boolean): Library => ({
   id: 'a',
   name: 'Films',
+  type: 'movies',
+  folders: ['/media/films'],
   offline: true,
   extras: 'off',
   scanning,
@@ -78,4 +86,39 @@ test("a Rescan's wait ends when its library scans, not another's", () => {
   const r = { id: 'a', at: 5 }
   assert.deepEqual(rescanSeen(r, [{ ...lib(true), id: 'b' }]), r)
   assert.deepEqual(rescanSeen(r, [lib(true)]), { id: '', at: 0 })
+})
+
+test('Add folder offers only the folders a library lacks, labelled with their users', () => {
+  const all = [
+    { path: '/media/films', libraries: ['Films'] },
+    { path: '/media/more', libraries: [] },
+  ]
+  assert.deepEqual(addableFolders(all, lib(false)), [all[1]])
+  assert.equal(folderLabel(all[0]), '/media/films (in Films)')
+  assert.equal(folderLabel(all[1]), '/media/more')
+})
+
+test('a library keeps its last folder', () => {
+  assert.equal(canRemoveFolder(lib(false)), false)
+  assert.equal(
+    canRemoveFolder({ ...lib(false), folders: ['/media/a', '/media/b'] }),
+    true,
+  )
+})
+
+test('Create needs a name and a folder; a folder toggles', () => {
+  assert.equal(draftReady(emptyDraft), false)
+  const d = toggleFolder({ ...emptyDraft, name: ' Shows ' }, '/media/a')
+  assert.equal(draftReady(d), true)
+  assert.equal(draftReady({ ...d, name: '  ' }), false)
+  assert.deepEqual(toggleFolder(d, '/media/a').folders, [])
+})
+
+test("the gateway's 400 reads as its own message", () => {
+  assert.equal(
+    librariesMessage(
+      new AppError('http', 'Pick at least one folder.', { status: 400 }),
+    ),
+    'Pick at least one folder.',
+  )
 })

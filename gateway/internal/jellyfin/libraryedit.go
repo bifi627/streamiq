@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Libraries made and changed from the web app (#430): only from folders the
+// Libraries made and changed from the web app: only from folders the
 // managed Jellyfin sees under mediaRoot, always created offline. Jellyfin
 // addresses a library by name, the web app by id. No file is ever deleted.
 
@@ -64,7 +64,7 @@ func (s *Setup) MediaFolders(ctx context.Context) ([]MediaFolder, error) {
 }
 
 // CreateLibrary creates a library of in.Type over in.Folders with every
-// fetcher off (an empty TypeOptions would mean every fetcher on, #314) and the
+// fetcher off (an empty TypeOptions would mean every fetcher on) and the
 // extras off, then Jellyfin scans it.
 func (s *Setup) CreateLibrary(ctx context.Context, in NewLibrary) error {
 	name := strings.TrimSpace(in.Name)

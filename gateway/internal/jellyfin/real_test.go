@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -327,11 +328,14 @@ func scan(ctx context.Context, t *testing.T, s *Setup, media string) {
 func editLibraries(ctx context.Context, t *testing.T, s *Setup, media string) {
 	t.Helper()
 	fs, err := s.MediaFolders(ctx)
-	if err != nil || len(fs) != 2 || fs[0].Path != "/media/media" || !slices.Equal(fs[0].Libraries, []string{"Films"}) ||
-		fs[1].Path != "/media/more" || len(fs[1].Libraries) != 0 {
+	want := []MediaFolder{{"/media/media", []string{"Films"}}, {"/media/more", []string{}}}
+	if err != nil || !reflect.DeepEqual(fs, want) {
 		t.Fatalf("folders: %+v, %v", fs, err)
 	}
-	if err := s.CreateLibrary(ctx, NewLibrary{Name: "Shows", Type: "tvshows", Folders: []string{"/media/more"}}); err != nil {
+	if err := s.CreateLibrary(
+		ctx,
+		NewLibrary{Name: "Shows", Type: "tvshows", Folders: []string{"/media/more"}},
+	); err != nil {
 		t.Fatal(err)
 	}
 	shows := func(folders ...string) string {

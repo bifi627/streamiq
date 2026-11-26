@@ -395,7 +395,7 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/relay`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile`, `/streamiq/pairing/decide`, `/streamiq/libraries/online`, `/streamiq/libraries/extras`, `/streamiq/libraries/rescan` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
+`/streamiq/name`, `/streamiq/relay`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile`, `/streamiq/pairing/decide`, `/streamiq/libraries/online`, `/streamiq/libraries/extras`, `/streamiq/libraries/rescan`, `/streamiq/libraries/create`, `/streamiq/libraries/folders/add`, `/streamiq/libraries/folders/remove`, `/streamiq/libraries/remove` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
 percent-encoded path under the prefix is `404`; a known path with another method
 is `405` with an `Allow` header listing its methods, no body (#436; `HEAD` is never
 served, so a `GET` path answers it `405` with `Allow: GET`), checked before the
@@ -526,9 +526,10 @@ goes over the admin's own paired tunnel, never through the API or broker. A gate
 than this answers `404`: the web gateway page then shows no requests. The first device of
 a gateway still pairs only on the local gateway page.
 **`GET /streamiq/libraries`** (#429, admin-only: a member `403`) → `200`
-`[{ "id": "…", "name": "Films", "offline": true, "extras": "off", "scanning": true, "progress": 42 }]`:
+`[{ "id": "…", "name": "Films", "type": "<collection type>", "folders": ["/media/films"], "offline": true, "extras": "off", "scanning": true, "progress": 42 }]`:
 a managed Jellyfin's libraries, read live from Jellyfin (`GET /Library/VirtualFolders`;
-the gateway stores nothing about them). `offline`: every metadata and image fetcher
+the gateway stores nothing about them). `type` is Jellyfin's collection type (`movies`,
+`tvshows`, …; `""` mixed), `folders` its paths as Jellyfin sees them. `offline`: every metadata and image fetcher
 of every type the library holds is off; `extras` `on` / `off` / `custom` (trickplay,
 chapter images, LUFS: all, none, a mix); `scanning` while Jellyfin refreshes it, with
 `progress` 0–100 (else `0`). Each call signs the gateway's Jellyfin admin in and out:
@@ -545,6 +546,23 @@ before `scanning`. The POSTs without an id: `400`. All four: a Jellyfin the gate
 `409` (the web app says the libraries are managed in Jellyfin's Dashboard); a
 Jellyfin failure (unreachable, an error, an unknown id, the stored admin password refused) `502` with
 `{ "error": "<Jellyfin's message>" }`. A gateway older than this answers `404`.
+**`GET /streamiq/libraries/folders`** (#430, admin-only) → `200`
+`[{ "path": "/media/films", "libraries": ["Films"] }]`: the folders the managed Jellyfin
+sees right under `/media` (`GET /Environment/DirectoryContents`), each with the names of
+the libraries using it. Mounting a folder there happens only on the gateway's host.
+**`POST /streamiq/libraries/create`** `{ "name": "Shows", "type": "<movies | tvshows>", "folders": ["/media/shows"] }`
+(`type` `movies` or `tvshows`, one or more folders) creates the library with every metadata
+and image fetcher off for every type it can hold and the extras off (it lists `offline: true`,
+`extras: "off"`), then Jellyfin scans it.
+**`POST /streamiq/libraries/folders/add`** and **`…/folders/remove`** `{ "id": "…", "folder": "/media/more" }`
+add a folder to a library or take one out (never its last: remove the library instead);
+**`POST /streamiq/libraries/remove`** `{ "id": "…" }` removes the library from Jellyfin.
+No file is ever deleted. All → `200 {}` (#430, admin-only); Jellyfin addresses a library by
+name, the gateway resolves it from the id. A folder is checked on the cleaned path
+(`path.Clean`): anything but `/media/<name>` (`..` included), a duplicate library name
+(any case), an unknown `type`, no folders, a folder already in or not in the library, or a
+library's last folder → `400 { "error": "<why>" }`, which the web app shows as is. A
+missing id or an unreadable body `400` without one; `409` and `502` as above.
 **`POST /streamiq/clients/profile`** (#792) `{ "probe": { "h264": {…} | null, "hevc": {…} | null,
 "av1": {…} | null, "audio": ["aac", …], "surround": true }, "compatible": false }` → `200 {}`:
 the web app's capability probe (`Probe` in `gateway/internal/pairing/types.go`) and its

@@ -235,8 +235,11 @@ func jellyfinCmds(ctx context.Context, exe, compose string) []*cobra.Command {
 			Use:     "jellyfin",
 			GroupID: "jellyfin",
 			Short:   "Run, configure and repair the Jellyfin the gateway set up",
-			Long:    "Run, configure and repair Jellyfin. up, upgrade, offline and gpu drive the Docker Jellyfin from jellyfin-compose.yml.",
+			Long:    "Run, configure and repair Jellyfin. up, upgrade, offline, gpu and folder drive the Docker Jellyfin from jellyfin-compose.yml.",
+			Example: `  gateway jellyfin up
+  gateway jellyfin folder add "D:\My Movies"   mount a folder for a library`,
 		},
+			folderCmd(ctx, compose),
 			&cobra.Command{
 				Use:               "up",
 				Args:              none,
@@ -371,4 +374,52 @@ func exitOnCancel(ctx context.Context, exit func(int)) (release func()) {
 		close(done)
 		<-gone // the watcher has stopped before ctx can end
 	}
+}
+
+// folderCmd is `gateway jellyfin folder`: host folders mounted into the Docker Jellyfin (#431).
+func folderCmd(ctx context.Context, compose string) *cobra.Command {
+	var yes bool
+	f := func() jellyfin.FolderIO {
+		return jellyfin.FolderIO{File: compose, Yes: yes, In: os.Stdin, Out: os.Stdout}
+	}
+	add := &cobra.Command{
+		Use: "add <path>", Args: args(cobra.ExactArgs(1)),
+		Short: "Mount a folder read-only into Jellyfin, under /media/",
+		Long: `Mount a folder of this machine read-only into Jellyfin at /media/<name> (its
+folder name unless --as), then restart Jellyfin. Pick it as a library folder in
+Jellyfin's Dashboard afterwards.`,
+		Example: `  gateway jellyfin folder add "D:\My Movies"
+  gateway jellyfin folder add /srv/tv --as tv`,
+	}
+	as := add.Flags().String("as", "", "the name under /media/")
+	add.RunE = func(_ *cobra.Command, a []string) error { return jellyfin.FolderAdd(ctx, f(), a[0], *as) }
+	cmd := group(&cobra.Command{
+		Use:   "folder",
+		Short: "Mount this machine's folders into Jellyfin (list, add, remove)",
+		Long: `Mount this machine's folders into the Docker Jellyfin, read-only under /media/:
+edits the jellyfin service's volumes: in jellyfin-compose.yml and restarts Jellyfin.`,
+		Example: `  gateway jellyfin folder list
+  gateway jellyfin folder add "D:\My Movies"
+  gateway jellyfin folder remove "/media/My Movies"`,
+	},
+		&cobra.Command{
+			Use: "list", Args: none, ValidArgsFunction: noFiles,
+			Short:   "List the folders mounted under /media/",
+			Example: "  gateway jellyfin folder list",
+			RunE:    func(*cobra.Command, []string) error { return jellyfin.FolderList(f()) },
+		},
+		add,
+		&cobra.Command{
+			Use: "remove <path|/media/name>", Args: args(cobra.ExactArgs(1)),
+			Short: "Unmount a folder from Jellyfin (its files stay)",
+			Long: `Unmount a folder from Jellyfin, by its path or its /media/ name, then restart
+Jellyfin. Libraries using it lose its titles until it is mounted again; no file
+is deleted.`,
+			Example: `  gateway jellyfin folder remove "D:\My Movies"
+  gateway jellyfin folder remove /media/tv`,
+			RunE: func(_ *cobra.Command, a []string) error { return jellyfin.FolderRemove(ctx, f(), a[0]) },
+		},
+	)
+	cmd.PersistentFlags().BoolVarP(&yes, "yes", "y", false, "don't ask to confirm")
+	return cmd
 }

@@ -281,7 +281,12 @@ func TestComposeVariantsParse(t *testing.T) {
 	off, _, _ := SetOffline(on, false)
 	migrated, _, _ := Jail([]byte(readFile(t, "testdata/jellyfin-compose-pre321.yml")))
 	gpu, _, _ := SetGPU(on, true)
-	for name, b := range map[string][]byte{"on": on, "off": off, "migrated": migrated, "gpu": gpu} {
+	folder, _, err := AddMount(on, t.TempDir(), filepath.Join(t.TempDir(), "My 'Films'"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	variants := map[string][]byte{"on": on, "off": off, "migrated": migrated, "gpu": gpu, "folder": folder}
+	for name, b := range variants {
 		if out, err := exec.Command("docker", "compose", "-f", write(t, b), "config", "--quiet").
 			CombinedOutput(); err != nil {
 			t.Errorf("%s: %v: %s", name, err, out)

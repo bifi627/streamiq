@@ -33,7 +33,8 @@ services:
       - ./jellyfin-config:/config
       - cache:/cache
       # Media folders, read-only. One entry per folder, any number of drives.
-      # Windows paths work as-is, e.g. source: 'D:\Movies'.
+      # `gateway jellyfin folder add <path>` adds one (list, remove too); by
+      # hand, Windows paths work as-is, e.g. source: 'D:\Movies'.
       - type: bind
         source: ./media
         target: /media/media

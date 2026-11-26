@@ -245,6 +245,9 @@ peaks per local day.
   `alpine/socat` forwarder publishes 8096. `gateway jellyfin offline on|off` toggles the
   `# streamiq:<name>` marked blocks (`offline.go`); `upgrade` migrates older files.
   The e2e and preview Jellyfin run jailed the same way (`e2e/stack.ts`, #942).
+- Media mounts: `gateway jellyfin folder list|add|remove` edits the binds under `/media/`
+  in the jellyfin service's `volumes:` (`folders.go`, every other byte kept) and recreates
+  Jellyfin. Host-only on purpose: nothing about mounts goes over the tunnel or the API (#47).
 - `serverSteps` (like `configSteps`, against `/System/Configuration`) turns the Person TMDb
   fetchers off.
 

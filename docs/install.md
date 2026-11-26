@@ -24,9 +24,10 @@ Pick one:
 - **Docker:** install the gateway first (step 2), then run `gateway jellyfin up`
   in its install dir. It downloads `jellyfin-compose.yml` there (checked against
   the release's `SHA256SUMS`) and starts it: just Jellyfin, pinned to the version
-  the gateway was tested with, on port 8096. Edit the media folders in that file:
-  one read-only bind per folder, any number of drives, Windows paths like
-  `'D:\Movies'` work. Each `source` folder must exist. Then run
+  the gateway was tested with, on port 8096. Mount your media folders with
+  `gateway jellyfin folder add <path>` ([step 4](#4-add-your-media-libraries)),
+  or edit them in that file: one read-only bind per folder, any number of drives,
+  Windows paths like `'D:\Movies'` work. Each `source` folder must exist. Then run
   `gateway jellyfin up` again and leave the setup wizard alone. The file is
   yours; updates never overwrite it. Needs Docker with Compose v2
   (`docker compose`); the gateway says so if it's missing.
@@ -107,6 +108,23 @@ change up within a minute without a restart. Check with `gateway status`.
 The page warns when Jellyfin runs a version the gateway wasn't tested with.
 
 ## 4. Add your media libraries
+
+With the Docker compose file, first mount each media folder into Jellyfin, on
+the gateway's machine:
+
+```
+gateway jellyfin folder add "D:\My Movies"        # → /media/My Movies, read-only
+gateway jellyfin folder add /srv/tv --as tv      # → /media/tv
+gateway jellyfin folder list
+gateway jellyfin folder remove /media/tv         # by /media/ name or by path; no file is deleted
+```
+
+`add` and `remove` edit the `volumes:` of the jellyfin service in
+`jellyfin-compose.yml` (editing it by hand still works) and restart Jellyfin, so
+streams playing at that moment stop; they ask first (`--yes` skips that).
+Removing a folder a library uses takes its titles out of that library until it
+is mounted again. Folders are mounted only from the gateway's machine, never
+from the web app: a stolen StreamIQ account can't expose your other folders.
 
 Open Jellyfin at `http://localhost:8096`, sign in as the admin (step 3) and go
 to **Dashboard → Libraries → Add Media Library**. With the Docker compose file,

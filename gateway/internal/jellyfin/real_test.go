@@ -153,6 +153,7 @@ func roundTrip(t *testing.T, compose []byte) {
 		t.Fatalf("not managed: %+v", s.View())
 	}
 	scan(ctx, t, s, filepath.Join(dir, "media"))
+	folderMount(ctx, t, s, file)
 	creds, err := os.ReadFile(s.path())
 	if err != nil {
 		t.Fatal(err)
@@ -196,21 +197,7 @@ func roundTrip(t *testing.T, compose []byte) {
 		t.Fatalf("upgrade: %v\n%s", err, &out)
 	}
 	t.Log(strings.TrimSpace(out.String()))
-	// Up again: a sign-in, not /System/Info/Public, which a starting Jellyfin answers before it restarts its listener.
-	for deadline := time.Now().Add(3 * time.Minute); ; {
-		s.mu.Lock()
-		pw := s.creds.Password
-		s.mu.Unlock()
-		token, err := s.signIn(ctx, adminName, pw)
-		if err == nil {
-			s.logout(ctx, token)
-			break
-		}
-		if unauthorized(err) || time.Now().After(deadline) || ctx.Err() != nil {
-			t.Fatalf("Jellyfin after the upgrade: %v", err)
-		}
-		time.Sleep(2 * time.Second) //nolint:forbidigo // a real Jellyfin container, polled every 2 s
-	}
+	awaitUp(ctx, t, s, "the upgrade")
 
 	// 4. The restore.
 	out.Reset()
@@ -311,4 +298,72 @@ func scan(ctx context.Context, t *testing.T, s *Setup, media string) {
 			t.Fatalf("online %v: %+v, %v", on, l, err)
 		}
 	}
+}
+
+// awaitUp waits for Jellyfin back up after a recreate: a sign-in, not
+// /System/Info/Public, which a starting Jellyfin answers before it restarts its listener.
+func awaitUp(ctx context.Context, t *testing.T, s *Setup, after string) {
+	t.Helper()
+	for deadline := time.Now().Add(3 * time.Minute); ; {
+		s.mu.Lock()
+		pw := s.creds.Password
+		s.mu.Unlock()
+		token, err := s.signIn(ctx, adminName, pw)
+		if err == nil {
+			s.logout(ctx, token)
+			return
+		}
+		if unauthorized(err) || time.Now().After(deadline) || ctx.Err() != nil {
+			t.Fatalf("Jellyfin after %s: %v", after, err)
+		}
+		time.Sleep(2 * time.Second) //nolint:forbidigo // a real Jellyfin container, polled every 2 s
+	}
+}
+
+// folderMount (#431): a folder `gateway jellyfin folder add` mounts is in
+// Jellyfin's folder picker under /media/ after the recreate, and gone after
+// `folder remove`; its files stay.
+func folderMount(ctx context.Context, t *testing.T, s *Setup, file string) {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "My Films")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	f := FolderIO{File: file, Yes: true, Out: &out}
+	if err := FolderAdd(ctx, f, dir, ""); err != nil {
+		t.Fatalf("folder add: %v\n%s", err, &out)
+	}
+	awaitUp(ctx, t, s, "folder add")
+	if d := mediaDirs(t, s); !slices.Contains(d, "/media/My Films") {
+		t.Fatalf("after folder add, Jellyfin sees %v", d)
+	}
+	if err := FolderRemove(ctx, f, "/media/My Films"); err != nil {
+		t.Fatalf("folder remove: %v\n%s", err, &out)
+	}
+	awaitUp(ctx, t, s, "folder remove")
+	if d := mediaDirs(t, s); slices.Contains(d, "/media/My Films") || !slices.Contains(d, "/media/media") {
+		t.Fatalf("after folder remove, Jellyfin sees %v", d)
+	}
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// mediaDirs is what Jellyfin's folder picker (Dashboard → Libraries) lists in /media.
+func mediaDirs(t *testing.T, s *Setup) []string {
+	t.Helper()
+	admin := signIn(t, s)
+	defer s.logout(t.Context(), admin)
+	var ds []struct{ Path string }
+	err := s.call(t.Context(), "GET", "/Environment/DirectoryContents?path=%2Fmedia&includeDirectories=true",
+		admin, "", &ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, d := range ds {
+		paths = append(paths, d.Path)
+	}
+	return paths
 }

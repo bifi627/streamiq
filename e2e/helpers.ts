@@ -286,7 +286,7 @@ export const editGateways = <T>(page: Page, edit: (list: T[]) => unknown[]) =>
  * Chrome fails in-flight loads with ERR_NETWORK_CHANGED when the host's
  * interfaces change, e.g. Docker adding a container for another worker on CI:
  * a failed module never renders the app, a failed meta refresh leaves the
- * gateway page on Chrome's error page. Reload once per tab, for that
+ * local gateway page on Chrome's error page. Reload once per tab, for that
  * error on a page or its scripts only: anything else still fails the test. */
 export async function newContext(browser: Browser) {
   const ctx = await browser.newContext()
@@ -362,9 +362,9 @@ export async function gatewayTab(ctx: BrowserContext, url: string) {
   return page
 }
 
-/** Pair from the web app; approve on the gateway page only if the codes match,
+/** Pair from the web app; approve on the local gateway page only if the codes match,
  * then It matches in the app (lifecycle.spec clicks it before the approval).
- * From the overview card's Pair or the gateway page's Pair this browser, both
+ * From the overview card's Pair or the web gateway page's Pair this browser, both
  * a dialog (closed after, unless keep: the name prompt). */
 export async function pair(
   app: Page,

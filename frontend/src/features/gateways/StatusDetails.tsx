@@ -13,7 +13,7 @@ import { Tile } from '../../shared/Tile'
 
 const tokenText = {
   ok: 'token set',
-  missing: 'token missing: open the gateway page and Connect Jellyfin',
+  missing: 'token missing: open the local gateway page and Connect Jellyfin',
 }
 
 // Liveness from the heartbeat (works unpaired); the details from the gateway API
@@ -36,7 +36,7 @@ export function StatusDetails({ g, manage }: { g: Gateway; manage: boolean }) {
         {g.lanUrl && (
           <li>
             <a href={g.lanUrl} target="_blank" rel="noreferrer">
-              Gateway page
+              Local gateway page
             </a>{' '}
             (on your home network)
           </li>

@@ -72,7 +72,7 @@ func Auth(token string, h http.Handler) http.Handler {
 			return
 		}
 		if r.Method != http.MethodGet {
-			http.Error(w, "sign in to the gateway page first", http.StatusForbidden)
+			http.Error(w, "sign in to the local gateway page first", http.StatusForbidden)
 			return
 		}
 		w.WriteHeader(http.StatusUnauthorized)

@@ -37,7 +37,7 @@ npm test --prefix frontend
 npm run build --prefix frontend
 
 echo "== image: the Railway image, from the .dockerignore'd context =="
-# Tagged per checkout and removed again: untagged, every run left a dangling image (#976).
+# Tagged per checkout and removed again, so no run leaves a dangling image behind.
 # rmi drops only this tag when another checkout's tag shares the image; the build cache stays.
 railway_img="streamiq-check:$(pwd | cksum | cut -d' ' -f1)"
 docker build -t "$railway_img" --build-arg VITE_FIREBASE_API_KEY=ci --build-arg VITE_FIREBASE_AUTH_DOMAIN=ci --build-arg VITE_FIREBASE_PROJECT_ID=ci .

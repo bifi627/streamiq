@@ -202,7 +202,7 @@ func TestFolderInUse(t *testing.T) {
 		t.Fatalf("folders: %+v, %v", fs, err)
 	}
 	var bad badRequest
-	if err := s.AddFolder(context.Background(), "x", "/media/a"); !errors.As(err, &bad) {
+	if err = s.AddFolder(context.Background(), "x", "/media/a"); !errors.As(err, &bad) {
 		t.Fatalf("add: %v", err)
 	}
 	err = s.CreateLibrary(context.Background(), NewLibrary{Name: "n", Type: "movies", Folders: []string{"/media/a"}})

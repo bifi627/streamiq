@@ -99,8 +99,8 @@ func (s *Setup) CreateLibrary(ctx context.Context, in NewLibrary) error {
 			return badRequest(fmt.Sprintf("There is already a library named %q.", name))
 		}
 		for _, p := range paths {
-			if err := taken(fs, p["Path"]); err != nil {
-				return err
+			if e := taken(fs, p["Path"]); e != nil {
+				return e
 			}
 		}
 		av, err := s.available(ctx, admin, in.Type, true)

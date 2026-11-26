@@ -71,14 +71,14 @@ test('rename form: a gateway 500 names the gateway, never the media server', () 
   assert.equal(m(500), "The gateway couldn't save the name; see its log.")
   assert.equal(m(404), 'This gateway is too old to rename: update it.')
   assert.equal(m(400), 'Use 1–100 characters, no control characters.')
-  assert.equal(m(403), 'Request failed.')
+  assert.equal(m(403), 'The request failed. Try again.')
 })
 
 test('relay switch: an old gateway (404) is told to update', () => {
   const m = (s: number) =>
     relayMessage(httpError('tunnel', s, '/streamiq/relay'))
   assert.equal(m(404), 'This gateway is too old for this setting: update it.')
-  assert.equal(m(403), 'Request failed.')
+  assert.equal(m(403), 'The request failed. Try again.')
 })
 
 test('toAppError keeps AppErrors and wraps the rest as unknown', () => {
@@ -136,4 +136,19 @@ test('every kind: a message and the buttons it shows', () => {
   assert.equal(primaryAction(['gateways', 'pair']), undefined)
   // playback: the player's own wording
   assert.equal(describe(new AppError('playback', 'decode')).message, 'decode')
+})
+
+test('the texts that say what to do next (#356)', () => {
+  const texts: Partial<Record<Kind, string>> = {
+    'no-household':
+      "You're no longer in a household. Reload to create or join one.",
+    http: 'The request failed. Try again.',
+    network: "Couldn't reach StreamIQ. Are you offline?",
+    unknown: 'Something went wrong. Try again.',
+    'rate-limited': 'Too many requests. Reload the page to continue.',
+    'broker-unreachable':
+      "Couldn't reach StreamIQ. Wait a minute and try again.",
+  }
+  for (const [k, text] of Object.entries(texts) as [Kind, string][])
+    assert.equal(describe(new AppError(k, 'd')).message, text, k)
 })

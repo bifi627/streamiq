@@ -170,8 +170,8 @@ jobs:
         env:
           STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE: ${{ runner.temp }}/jellyfin-compose.yml
 
-  # The e2e specs (smoke, multi-user, households, compat: the last gateway release) in 3 shards
-  # (#972), each its own stack with 3 workers (e2e/playwright.config.ts). Playwright splits per
+  # The e2e specs (smoke, multi-user, households, compat: the last gateway release) in 3 shards,
+  # each its own stack with 3 workers (e2e/playwright.config.ts). Playwright splits per
   # test (fullyParallel), so every test runs in exactly one shard. More shards: extend the list
   # and the total. Containers via testcontainers-node, API/Vite/gateway as real processes — see
   # e2e/global-setup.ts.

@@ -280,8 +280,8 @@ are the Go types in `gateway/internal/sessions/messages.go`, generated as the
 | 4 | browser → gateway | `{type:"commit", h, name}` — h = hex(SHA-256(utf8(nB))), nB = hex(32 random bytes) |
 | 5 | gateway → browser | `{type:"nonce", n: nA}` — only after the commit |
 | 6 | browser → gateway | `{type:"reveal", n: nB}` — gateway checks it against h |
-| 7 | both | `code = uint32_be(SHA-256(utf8(gatewayKeyFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; local gateway page lists the request (name + code), browser shows the code and asks "Does the gateway show this code?" (**It matches** / **It doesn't**): the comparison is confirmed on both sides |
-| 8 | gateway → browser | `{type:"approved"}` after **Approve on the local gateway page** (key persisted to `allowlist.json`), or `{type:"rejected", reason}` (Reject, 5-min expiry, no free slot, bad signature/reveal, any message out of order). The browser stores the pin only once it has both `approved` and **It matches**, in either order; **It doesn't** ends the attempt without a pin and closes the connection |
+| 7 | both | `code = uint32_be(SHA-256(utf8(gatewayKeyFp + "\|" + keyFp + "\|" + nA + "\|" + nB))[0..4]) mod 1e6`, zero-padded to 6 digits; the local gateway page and, for an admin with a paired browser, the web gateway page (`GET /streamiq/pairing/requests`, #956) list the request (code + name, "Compare this code with theirs"), browser shows the code and asks "Does the gateway show this code?" (**It matches** / **It doesn't**): the comparison is confirmed on both sides |
+| 8 | gateway → browser | `{type:"approved"}` after **Approve on the local gateway page or the web gateway page** (`POST /streamiq/pairing/decide`; key persisted to `allowlist.json`), or `{type:"rejected", reason}` (Reject, 5-min expiry, no free slot, bad signature/reveal, any message out of order). The browser stores the pin only once it has both `approved` and **It matches**, in either order; **It doesn't** ends the attempt without a pin and closes the connection |
 
 The browser holds the gateway to the same order: after its own `auth` it accepts only
 `ok`, or `unpaired` → (its `commit`) `nonce` → (its `reveal`) `approved`, plus
@@ -302,7 +302,7 @@ holds that to one guess per connection:
   requests`) and no `nonce`. The slot is held until the exchange ends: Approve,
   Reject, expiry (5 min for the `reveal`, 5 min for the decision), a bad `reveal`,
   or the channel or connection closing. A request whose connection closed leaves
-  the local gateway page. An exchange that ends between `commit` and `reveal` is
+  the pending list. An exchange that ends between `commit` and `reveal` is
   logged.
 - **One slot per user** (`offer.user`, `pairing.MaxPendingPerUser`): a second
   `commit` from a user whose exchange still runs gets `rejected` (`this user is
@@ -395,7 +395,7 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/relay`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
+`/streamiq/name`, `/streamiq/relay`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile`, `/streamiq/pairing/decide` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
 percent-encoded path under the prefix is `404`; a known path with another method
 is `405` with an `Allow` header listing its methods, no body (#436; `HEAD` is never
 served, so a `GET` path answers it `405` with `Allow: GET`), checked before the
@@ -406,7 +406,7 @@ tunnel request it exists only after connection auth: an unpaired browser gets
 no tunnel channels. The session's user (`offer.user`) and role (`offer.role`) are
 known to handlers. An endpoint can be marked **admin-only** (the route option
 `tunnel.AdminOnly`): a session whose role isn't `admin` gets `403`: `/streamiq/name`,
-`/streamiq/relay` and `/streamiq/update` so far; #89 decides per endpoint. `/streamiq/clients*` is
+`/streamiq/relay`, `/streamiq/update` and `/streamiq/pairing/*` so far; #89 decides per endpoint. `/streamiq/clients*` is
 open to a member for its own client key only (#341, below). Code: the router in
 `gateway/internal/tunnel/api.go` (`net/http` handlers, each in the package that owns
 its feature, registered in `gateway/cmd/gateway/main.go`). The request and response
@@ -513,6 +513,18 @@ with until it opens again. The web app offers it once right after pairing (prefi
 with the paired name, Skip keeps it) and on the Paired clients list; a gateway older
 than this answers `404`. Names and keys stay on
 the gateway: the API never sees or stores them.
+**`GET /streamiq/pairing/requests`** (#956, admin-only: a member `403`) → `200`
+`[{ "id": "…", "name": "Pixel 8 · Chrome", "code": "123456", "user": "<users.id>", "expires": "2026-11-25T10:05:00Z" }]`:
+the pending pairing requests (memory only, the local gateway page's list); `user` = the
+requester's `users.id` (`offer.user`), so the web app can name the member.
+**`POST /streamiq/pairing/decide`** (#956, admin-only) `{ "id": "…", "approve": true }` →
+Approve/Reject exactly like the local gateway page, then `200 {}`; an approved key's
+`allowlist.json` entry records the approving session's client key (`approvedBy`; absent
+for a local page approval); an unknown, expired or
+already decided id `404`, no id `400`, a failed save of `allowlist.json` `500`. Approval
+goes over the admin's own paired tunnel, never through the API or broker. A gateway older
+than this answers `404`: the web gateway page then shows no requests. The first device of
+a gateway still pairs only on the local gateway page.
 **`POST /streamiq/clients/profile`** (#792) `{ "probe": { "h264": {…} | null, "hevc": {…} | null,
 "av1": {…} | null, "audio": ["aac", …], "surround": true }, "compatible": false }` → `200 {}`:
 the web app's capability probe (`Probe` in `gateway/internal/pairing/types.go`) and its

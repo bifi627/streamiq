@@ -95,3 +95,21 @@ export interface Profile {
   compatible: boolean;
   probedAt: string;
 }
+/**
+ * PairingRequest is one item of GET RequestsPath: a pending request, code first in the UI.
+ * User is the requester's users.id.
+ */
+export interface PairingRequest {
+  id: string;
+  name: string;
+  code: string;
+  user: string;
+  expires: string;
+}
+/**
+ * PairingDecision is the body of POST DecidePath.
+ */
+export interface PairingDecision {
+  id: string;
+  approve: boolean;
+}

@@ -187,7 +187,7 @@ func (a *authRun) commit(m Commit) {
 	go func() {
 		defer a.s.Store.Release(a.user)
 		defer a.pre.pairing.Store(false)
-		a.s.pair(a.id, a.keyFp, m.H, trim(m.Name), nA, a.reveal, a.done, a.fail, func() {
+		a.s.pair(a.id, a.keyFp, m.H, trim(m.Name), nA, a.user, a.reveal, a.done, a.fail, func() {
 			a.s.authorize(a.user, a.pre, a.authed)
 			a.say(Approved{Type: "approved"})
 		})
@@ -198,7 +198,7 @@ func (a *authRun) commit(m Commit) {
 // pair is the exchange after an accepted commit; its caller holds the pairing
 // slot until it returns, however the exchange ends.
 func (s *Sessions) pair(
-	id, keyFp, commit, name, nA string,
+	id, keyFp, commit, name, nA, user string,
 	reveal <-chan string,
 	done <-chan struct{},
 	fail func(string),
@@ -218,7 +218,7 @@ func (s *Sessions) pair(
 		fail("reveal does not match commit")
 		return
 	}
-	ok, err := s.Store.Ask(name, keyFp, pairing.Code(s.Fp, keyFp, nA, nB), done)
+	ok, err := s.Store.Ask(name, keyFp, pairing.Code(s.Fp, keyFp, nA, nB), user, done)
 	switch {
 	case err != nil:
 		fail(err.Error())

@@ -101,13 +101,16 @@ type Paired struct {
 	KeyFp   string    `json:"keyFp"`
 	Name    string    `json:"name"`
 	AddedAt time.Time `json:"addedAt"`
+	// ApprovedBy is the client key that approved it on the web gateway page; empty = the local page.
+	ApprovedBy string `json:"approvedBy,omitempty"`
 }
 
-// Request is a pairing request waiting for Approve on the local page.
+// Request is a pairing request waiting for Approve on the local page or the web
+// gateway page. User is the requester's users.id (the session's).
 type Request struct {
-	ID, Name, KeyFp, Code string
-	Expires               time.Time
-	decide                chan bool
+	ID, Name, KeyFp, Code, User string
+	Expires                     time.Time
+	decide                      chan bool
 }
 
 // Store holds the allowlist (persisted) and pending requests (memory only: an
@@ -243,11 +246,11 @@ func (s *Store) Release(user string) {
 	}
 }
 
-// Ask queues a request and blocks until the local page decides, it expires, or
+// Ask queues a request and blocks until an admin decides, it expires, or
 // gone closes (the asking connection ended). Approve persists the key before
 // returning true. The caller holds a slot from Reserve: that is the cap.
-func (s *Store) Ask(name, keyFp, code string, gone <-chan struct{}) (bool, error) {
-	r := &Request{ID: Nonce()[:16], Name: name, KeyFp: keyFp, Code: code,
+func (s *Store) Ask(name, keyFp, code, user string, gone <-chan struct{}) (bool, error) {
+	r := &Request{ID: Nonce()[:16], Name: name, KeyFp: keyFp, Code: code, User: user,
 		Expires: time.Now().Add(PendingFor), decide: make(chan bool, 1)}
 	s.mu.Lock()
 	s.pending = append(s.pending, r)
@@ -264,17 +267,23 @@ func (s *Store) Ask(name, keyFp, code string, gone <-chan struct{}) (bool, error
 	}
 }
 
+// ErrNoRequest: Decide on an id that isn't pending (expired, or decided already).
+var ErrNoRequest = errors.New("no such request (expired?)")
+
 // Decide is the local page's Approve/Reject.
-func (s *Store) Decide(id string, approve bool) error {
+func (s *Store) Decide(id string, approve bool) error { return s.DecideBy(id, approve, "") }
+
+// DecideBy is Approve/Reject; by = the approving client key (the web gateway page), "" = the local page.
+func (s *Store) DecideBy(id string, approve bool, by string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	i := slices.IndexFunc(s.pending, func(r *Request) bool { return r.ID == id })
 	if i < 0 {
-		return errors.New("no such request (expired?)")
+		return ErrNoRequest
 	}
 	r := s.pending[i]
 	if approve && !slices.ContainsFunc(s.paired, func(p Paired) bool { return p.KeyFp == r.KeyFp }) {
-		s.paired = append(s.paired, Paired{KeyFp: r.KeyFp, Name: r.Name, AddedAt: time.Now().UTC()})
+		s.paired = append(s.paired, Paired{KeyFp: r.KeyFp, Name: r.Name, AddedAt: time.Now().UTC(), ApprovedBy: by})
 		if err := s.save(); err != nil {
 			return err
 		}

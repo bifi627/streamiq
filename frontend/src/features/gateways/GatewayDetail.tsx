@@ -16,11 +16,12 @@ import { StatusDetails } from './StatusDetails'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
 import { PairDialog } from './PairDialog'
+import { PairingRequests } from './PairingRequests'
 import { Menu, type Action } from '../../shared/Menu'
 import { canManage, gatewayName, shownError, type ActErr } from './list'
 import { event } from '../../shared/diag'
 
-// `/gateways/$id`: one gateway's page: the update banner, Pair, and the Status,
+// `/gateways/$id`: one gateway's page: the update banner, Pair, pairing requests, and the Status,
 // Health and Paired clients tiles; Rename and Remove in the title row's menu.
 export function GatewayDetail({ id }: { id: string }) {
   const q = useGateways(5000)
@@ -178,6 +179,7 @@ function GatewayPage({
           onPaired={() => setUnpaired(false)}
         />
       )}
+      {manage && <PairingRequests g={g} />}
       <div className="tiles">
         <StatusDetails g={g} manage={manage} />
         <HealthHistory

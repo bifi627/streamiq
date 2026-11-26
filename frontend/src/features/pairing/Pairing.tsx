@@ -174,7 +174,7 @@ export function Pairing({
 }
 
 // Pairing waits for both sides: the user compares the code here, and approves
-// it on the local gateway page. A TV names that page's URL as text: the phone
+// it on the local gateway page (or an admin on the web gateway page). A TV names that page's URL as text: the phone
 // or PC at home opens it, not the TV's browser.
 function PairCode({
   code,
@@ -207,7 +207,8 @@ function PairCode({
       </output>
       <p>
         Open the {gatewayPage} on your home network and approve the request
-        showing this code.
+        showing this code, or ask a household admin to approve it on this
+        gateway's page in the web app.
       </p>
       {!matched && (
         <>

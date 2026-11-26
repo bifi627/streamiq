@@ -17,8 +17,8 @@ Report only: change no code, file, issue, label or board card. Uses the owner's 
    A `n/a` change is a job that didn't run or had another name last week: say so, no finding.
 2. **Dependencies:** run the outdated commands of `deps-bump`'s "Derive the work" section
    read-only (read it with `MSYS_NO_PATHCONV=1 git show origin/main:.claude/skills/deps-bump/SKILL.md`):
-   `npm outdated` in `frontend/` and `e2e/`, `go list -m -u all` (direct modules only: the
-   ones in `go.mod`'s first `require` block), the open Dependabot alerts query, and the pins
+   `npm outdated` in `frontend/` and `e2e/`, Go direct modules only
+   (`go list -m -u -f '{{if and (not .Indirect) .Update}}{{.Path}} {{.Version}} -> {{.Update.Version}}{{end}}' all`), the open Dependabot alerts query, and the pins
    in `docker-compose.yml`, `.devcontainer/devcontainer.json` and `.github/workflows/*.yml`
    against their latest releases. Install nothing, change no lockfile.
    Group by patch / minor / major; Dependabot alerts first, with their patched version.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI drift for the weekly maintenance sweep (#981): median job durations on main this week
+# CI drift for the weekly maintenance sweep: median job durations on main this week
 # vs the week before, and the tests that failed and then passed on a rerun. Reads gh only.
 #   bash scripts/ci-drift.sh
 set -euo pipefail
@@ -9,12 +9,13 @@ now=$(date -u +%F)
 
 # "<run> <job> <seconds>" for the required build jobs of the last 50 successful ci runs on
 # main created in $1 (a gh `created` range). Shards and the e2e gate all count as `e2e`: the
-# gate only waits for the shards (#973), so a run's longest `e2e` line is its slowest shard.
+# gate only waits for the shards, so a run's longest `e2e` line is its slowest shard.
 # ponytail: 50 runs per week (one API call each) are enough for a median
 job_times() {
   local ids
   ids=$(gh api "repos/$repo/actions/workflows/ci.yml/runs?branch=main&status=success&created=$1&per_page=50" --jq '.workflow_runs[].id')
   for id in $ids; do
+    # shellcheck disable=SC2016 # $n in the --jq program is a jq variable, not a shell one
     gh api "repos/$repo/actions/runs/$id/jobs?per_page=100" --jq '.jobs[]
       | select(.conclusion == "success")
       | (.name | sub(" \\(.*"; "") | sub("^e2e-shard$"; "e2e")) as $n
@@ -51,12 +52,13 @@ found=$(
     [ -n "$id" ] || continue
     for ((a = 1; a < attempts; a++)); do
       log=$(gh run view -R "$repo" "$id" --attempt "$a" --log-failed 2>/dev/null || true)
-      # the e2e gate on a draft PR fails by design: not a flake
+      # no failed job (a cancelled attempt), or the e2e gate on a draft PR (red by design): not a flake
+      [ -n "$log" ] || continue
       grep -q 'skipped = draft PR' <<<"$log" && continue
-      tests=$( { grep '✘' <<<"$log" | grep -oE '[a-z0-9-]+\.spec\.ts:[0-9]+:[0-9]+ › .*' | sed -E 's/ *\([0-9.]+m?s\)$//; s/ +$//'
-                 grep -oE -- '--- FAIL: [^ ]+' <<<"$log" | sed 's/--- FAIL: //'; } | sort -u)
+      # keyed without the line number, which moves between commits; Go subtests fold into their test
+      tests=$( { grep '✘' <<<"$log" | grep -oE '[a-z0-9-]+\.spec\.ts:[0-9]+:[0-9]+ › .*' | sed -E 's/:[0-9]+:[0-9]+ / /; s/ *\([0-9.]+m?s\)$//; s/ +$//'
+                 grep -oE -- '--- FAIL: [^ /]+' <<<"$log" | sed 's/--- FAIL: //'; } | sort -u)
       [ -n "$tests" ] || tests="(no test name; job: $(cut -f1 <<<"$log" | sort -u | paste -sd, -))"
-      [ -n "$log" ] || tests="(log expired)"
       while read -r t; do echo "$t	$branch https://github.com/$repo/actions/runs/$id/attempts/$a"; done <<<"$tests"
     done
   done <<<"$runs"

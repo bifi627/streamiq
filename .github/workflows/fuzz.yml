@@ -19,29 +19,46 @@ jobs:
       # from the seeds + committed findings: the fuzz cache would otherwise come back with the
       # restored build cache. -fuzzminimizetime: with the 60 s default a short run spends most
       # of its time shrinking new inputs at 0 execs/sec.
+      # The repo is public and a finding is usually a security bug: the targets print the
+      # failing input, so their output goes to files that leave the runner only encrypted.
       - name: Fuzz every target
         run: |
           set -uo pipefail
+          test -s .github/fuzz-findings.asc || { echo "::error::.github/fuzz-findings.asc (owner public key) missing"; exit 1; }
           go clean -fuzzcache
+          out=$RUNNER_TEMP/fuzz-out
+          mkdir -p "$out"
           failed=()
           found=0
           for pkg in $(go list ./gateway/...); do
-            list=$(go test -run '^$' -list '^Fuzz' "$pkg") || { failed+=("$pkg (build)"); continue; }
+            list=$(go test -run '^$' -list '^Fuzz' "$pkg") || { failed+=("$pkg (does not build)"); continue; }
             while read -r target; do
               found=$((found + 1))
-              echo "::group::$pkg $target"
-              go test "$pkg" -run '^$' -fuzz "^${target}\$" -fuzztime 5m -fuzzminimizetime 2s </dev/null || failed+=("$pkg $target")
-              echo "::endgroup::"
+              log=$out/${pkg//\//_}.$target.log
+              if go test "$pkg" -run '^$' -fuzz "^${target}\$" -fuzztime 5m -fuzzminimizetime 2s </dev/null >"$log" 2>&1; then
+                echo "$pkg $target: $(grep -o 'execs: [0-9]*' "$log" | tail -n 1)"
+              else
+                failed+=("$pkg $target")
+              fi
             done < <(grep '^Fuzz' <<<"$list")
           done
           echo "Fuzzed $found targets"
           [ "$found" -gt 0 ] || { echo "::error::no fuzz targets found"; exit 1; }
-          for f in "${failed[@]}"; do echo "::error::finding in $f (failing input: artifact fuzz-findings)"; done
+          for f in "${failed[@]}"; do echo "::error::$f failed: output + input in the encrypted artifact fuzz-findings"; done
           [ "${#failed[@]}" -eq 0 ]
-      # The failing input lands in <package>/testdata/fuzz/<target>/: commit it with the fix.
+      # Decrypt: gpg -d fuzz-findings.tgz.gpg | tar xz. The failing input is the new file under
+      # <package>/testdata/fuzz/<target>/: commit it with the fix (docs/tools.md).
+      - name: Encrypt findings
+        if: failure()
+        run: |
+          set -euo pipefail
+          git ls-files -o --exclude-standard -- gateway | grep '/testdata/fuzz/' >"$RUNNER_TEMP/new-inputs" || true
+          tar czf "$RUNNER_TEMP/findings.tgz" -T "$RUNNER_TEMP/new-inputs" -C "$RUNNER_TEMP" fuzz-out
+          gpg --batch --trust-model always --recipient-file .github/fuzz-findings.asc -o fuzz-findings.tgz.gpg -e "$RUNNER_TEMP/findings.tgz"
       - name: Upload findings
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: fuzz-findings
-          path: gateway/**/testdata/fuzz/
+          path: fuzz-findings.tgz.gpg
+          retention-days: 7

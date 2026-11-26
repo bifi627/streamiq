@@ -216,7 +216,7 @@ export function describe(e: AppError): {
     case 'code-mismatch':
       return {
         message:
-          "The codes didn't match, so this browser wasn't paired. If you approved a request on the local gateway page, remove that client under Paired clients. Then pair again and approve only the request showing this browser's code.",
+          "The codes didn't match, so this browser wasn't paired. If you approved a request, remove that client: under Paired browsers on the local gateway page, or Paired clients on the web gateway page. Then pair again and approve only the request showing this browser's code.",
         actions: ['pair'],
       }
     case 'gateway-refused':

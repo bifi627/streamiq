@@ -583,7 +583,7 @@ test("It doesn't: the attempt ends unpaired, pairing again gets a code @gateways
   await expect(dialog).toContainText('Does the gateway show this code?')
   await dialog.getByRole('button', { name: "It doesn't" }).click()
   await expect(dialog.getByText("The codes didn't match")).toBeVisible()
-  await expect(dialog).toContainText('remove that client under Paired clients')
+  await expect(dialog).toContainText('Paired clients on the web gateway page')
   // The tunnel closed: the user's one pairing slot is free again.
   await dialog.getByRole('button', { name: 'Pair this browser' }).click()
   await expect(dialog.getByLabel('Comparison code')).toBeVisible()

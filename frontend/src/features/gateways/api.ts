@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { authed } from '../../shared/api'
 import { connect, forcedOf, share } from '../pairing/connect'
 import { tunnelFetch, tunnelJson, tunnelLines } from '../../shared/tunnel'
-import { httpError } from '../../shared/errors'
+import { AppError, httpError } from '../../shared/errors'
 import { nextAsk } from './host'
 import { routeOf } from './connection'
 import { pairInfo } from '../../shared/stats'
@@ -21,13 +21,19 @@ import type { HealthRow } from '../../generated/history'
 import type { Route } from '../../generated/tunnel'
 import type { Screen, ScreenCommand, ScreenState } from '../../generated/screen'
 import type { Refused, Started } from '../../generated/update'
+import type {
+  Library,
+  LibraryError,
+  LibraryExtras,
+  LibraryID,
+} from '../../generated/jellyfin'
 
 export type { Gateway, Install }
 
 // The gateway API's bodies (docs/protocol.md, "Gateway API"), generated from the
 // gateway's Go types. Status: any field may be missing, older gateways send fewer.
 export type GatewayStatus = Partial<Status>
-export type { Client, Route, Screen, ScreenCommand, ScreenState }
+export type { Client, Library, Route, Screen, ScreenCommand, ScreenState }
 
 export const getGateways = () => authed<Gateway[]>('/gateways')
 
@@ -151,6 +157,47 @@ export const decideRequest = (id: string, reqId: string, approve: boolean) =>
     id: reqId,
     approve,
   } satisfies PairingDecision)
+
+// A managed Jellyfin's libraries, admin-only gateway API. A 502 with a body
+// is Jellyfin's own error: thrown as an 'http' AppError with its message.
+async function viaLibraries<T>(id: string, url: string, body?: unknown) {
+  const { session, release } = share(id)
+  try {
+    const r = await tunnelFetch(
+      (await session).pc,
+      url,
+      body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) },
+    )
+    const text = new TextDecoder().decode(r.body)
+    if (r.status >= 200 && r.status <= 299) return JSON.parse(text) as T
+    if (r.status === 502 && text.startsWith('{'))
+      throw new AppError('http', (JSON.parse(text) as LibraryError).error, {
+        status: 502,
+      })
+    throw httpError('tunnel', r.status, url)
+  } finally {
+    release()
+  }
+}
+
+export const listLibraries = (id: string) =>
+  viaLibraries<Library[]>(id, '/streamiq/libraries')
+
+export const makeLibraryOffline = (id: string, lib: string) =>
+  viaLibraries(id, '/streamiq/libraries/offline', {
+    id: lib,
+  } satisfies LibraryID)
+
+export const setLibraryExtras = (id: string, lib: string, on: boolean) =>
+  viaLibraries(id, '/streamiq/libraries/extras', {
+    id: lib,
+    on,
+  } satisfies LibraryExtras)
+
+export const rescanLibrary = (id: string, lib: string) =>
+  viaLibraries(id, '/streamiq/libraries/rescan', {
+    id: lib,
+  } satisfies LibraryID)
 
 export const createEnrollmentToken = () =>
   authed<Install>('/gateways/enrollment-tokens', { method: 'POST' })

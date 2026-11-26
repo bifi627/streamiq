@@ -1,6 +1,7 @@
 // The gateways overview and a gateway's page, on a paired browser with its own
 // gateway (fixtures.ts `paired`): the overview's cards (status dot, Add, Pair,
-// Test, Switch), the page (menu, banner, Pair, tiles, not found), rename, the
+// Test, Switch), the page (menu, banner, Pair, tiles, not found, Libraries on
+// e2e's BYO Jellyfin), rename, the
 // relay switch, Status paired and unpaired, the shell's
 // connection badge (checked, live, offline, names only when there's more than one), paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
@@ -106,7 +107,7 @@ test('not found: an unknown gateway id says so, with a link to Gateways @gateway
   await expect(page).toHaveURL(/\/gateways$/)
 })
 
-test('page: the update banner on top, tiles collapsed, Status with Version, the local gateway page link and Connection (#870) @gateways', async ({
+test('page: the update banner on top, tiles collapsed, Status with Version, the local gateway page link and Connection (#870), Libraries on a BYO Jellyfin (#429) @gateways', async ({
   paired,
 }) => {
   const { page } = paired
@@ -122,7 +123,13 @@ test('page: the update banner on top, tiles collapsed, Status with Version, the 
     'Status',
     'Health',
     'Paired clients',
+    'Libraries',
   ])
+  // e2e's Jellyfin is BYO: the gateway API answers 409.
+  const libraries = await tile(page, 'Libraries')
+  await expect(libraries.getByRole('status')).toHaveText(
+    "Libraries are managed in your Jellyfin's Dashboard.",
+  )
   const status = await tile(page, 'Status')
   await expect(status.getByText(/^Version /)).toBeVisible()
   await expect(

@@ -159,10 +159,12 @@ yourself or run natively reaches the internet as you set it up.
 
 ### Libraries: Offline and Extras
 
-On a Jellyfin the gateway set up, the local gateway page links to **Libraries**:
-each library with two states, read from Jellyfin every time you open it (the
-gateway stores nothing about libraries, and changes one only when you press its
-button):
+On a Jellyfin the gateway set up, a household admin manages its libraries on
+the web gateway page (StreamIQ → Gateways → the gateway → **Libraries**, from a
+browser paired with it, from anywhere): each library with two states, read from
+Jellyfin every time you open it (the gateway stores nothing about libraries, and
+changes one only when you press its button), and **Rescan**, which looks for new,
+changed and removed files in that library right away and shows its progress:
 
 - **Offline**: Jellyfin looks nothing up online for that library: every metadata
   and image fetcher is off, *Screen Grabber* too (a grabbed frame can show the
@@ -174,7 +176,7 @@ button):
   own **Dashboard → Libraries** (library → *Manage library*).
 - **Extras**: seek thumbnails (trickplay), chapter images and audio
   normalization (LUFS). StreamIQ doesn't show them, and they cost CPU and disk.
-  **On** / **Off** turns all of them on or off together; **Custom (set in
+  The checkbox turns all of them on or off together; **custom (set in
   Jellyfin)** means you set a mix in the Dashboard.
 
 The gateway also turns TMDb off for people (*Refresh People* looks up cast

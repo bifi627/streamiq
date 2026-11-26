@@ -895,6 +895,20 @@ html.tv .no-tv {
 .card .clients .profile {
   flex-basis: 100%;
 }
+/* libraries: the name, then its state and controls */
+.card .libraries li {
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+}
+.card .libraries li > b {
+  flex-basis: 100%;
+}
+.card .libraries li + li {
+  margin-top: var(--sp-3);
+}
 .install {
   display: flex;
   flex-direction: column;

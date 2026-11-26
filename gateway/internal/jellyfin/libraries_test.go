@@ -3,6 +3,7 @@ package jellyfin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"maps"
 	"testing"
 )
@@ -113,16 +114,17 @@ func TestLibraryState(t *testing.T) {
 			[]any{off},
 		), // Series, Season, Episode missing
 	}
+	f.libs[2]["RefreshProgress"] = 42.6 // a scan runs
 	f.mu.Unlock()
 	libs, err := s.Libraries(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []Library{
-		{"empty", "lib empty", false, "Off"},
-		{"off", "lib off", true, "On"},
-		{"grabber", "lib grabber", false, "Custom"},
-		{"mixed", "lib mixed", false, "Off"},
+		{ID: "empty", Name: "lib empty", Extras: "off"},
+		{ID: "off", Name: "lib off", Offline: true, Extras: "on"},
+		{ID: "grabber", Name: "lib grabber", Extras: "custom", Scanning: true, Progress: 43},
+		{ID: "mixed", Name: "lib mixed", Extras: "off"},
 	}
 	if len(libs) != len(want) {
 		t.Fatalf("got %+v", libs)
@@ -168,7 +170,7 @@ func TestLibraryWrites(t *testing.T) {
 		return m
 	}
 
-	if err := s.MakeOffline(ctx, "a"); err != nil {
+	if err := s.SetOnline(ctx, "a", false); err != nil {
 		t.Fatal(err)
 	}
 	a, origA := opts(0), orig[0]["LibraryOptions"].(map[string]any)
@@ -187,17 +189,27 @@ func TestLibraryWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	a = opts(0)
-	if extrasState(a) != "On" || !offline(a, []string{"Movie", "Series", "Season", "Episode"}) ||
+	if extrasState(a) != "on" || !offline(a, []string{"Movie", "Series", "Season", "Episode"}) ||
 		a["SeasonZeroDisplayName"] != "Specials" {
 		t.Fatalf("extras on: %v", a)
 	}
-	if err := s.SetExtras(ctx, "a", false); err != nil || extrasState(opts(0)) != "Off" {
+	if err := s.SetExtras(ctx, "a", false); err != nil || extrasState(opts(0)) != "off" {
 		t.Fatalf("extras off: %v %v", err, opts(0))
 	}
 	if bo, _ := json.Marshal(opts(1)); string(bo) != mustJSON(orig[1]["LibraryOptions"]) {
 		t.Fatalf("another library changed: %s", bo)
 	}
-	if err := s.MakeOffline(ctx, "gone"); err == nil || f.libPosts != 3 {
+	// online again: Jellyfin's defaults for a new library, here TheMovieDb but not OMDb
+	if err := s.SetOnline(ctx, "a", true); err != nil {
+		t.Fatal(err)
+	}
+	a = opts(0)
+	if m := typeOption(a["TypeOptions"].([]any), "Series"); offline(a, []string{"Movie"}) ||
+		mustJSON(m["MetadataFetchers"]) != `["TheMovieDb"]` || mustJSON(m["ImageFetchers"]) != `[]` ||
+		extrasState(a) != "off" {
+		t.Fatalf("online: %v", a)
+	}
+	if err := s.SetOnline(ctx, "gone", false); err == nil || f.libPosts != 4 {
 		t.Fatalf("unknown library: %v, %d posts", err, f.libPosts)
 	}
 }
@@ -218,5 +230,29 @@ func TestLibrariesUserJellyfin(t *testing.T) {
 	}
 	if err := s.SetExtras(context.Background(), "a", true); err == nil || f.libPosts != 0 {
 		t.Fatalf("changed a user's library: %v", err)
+	}
+}
+
+// A refused admin password isn't tried again (Jellyfin locks the user out
+// after failed sign-ins) until the stored one changes.
+func TestLibrariesRefusedAdmin(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.poll(context.Background())
+	f.mu.Lock()
+	f.users[adminName].pw = "changed in Jellyfin"
+	f.mu.Unlock()
+	if _, err := s.Libraries(context.Background()); !unauthorized(err) || !s.refused {
+		t.Fatalf("first try: %v, refused %v", err, s.refused)
+	}
+	n := f.signIns
+	for range 3 {
+		if _, err := s.Libraries(context.Background()); !errors.Is(err, errRefused) {
+			t.Fatal(err)
+		}
+	}
+	if f.signIns != n {
+		t.Fatalf("%d more sign-ins after the refusal", f.signIns-n)
 	}
 }

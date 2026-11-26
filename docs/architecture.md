@@ -230,8 +230,6 @@ peaks per local day.
   the installer); loopback is exempt.
 - Never shows the Jellyfin admin password, only the path of `state/jellyfin.json` (0600)
   that holds it.
-- `/libraries`: a managed Jellyfin's per-library Offline / Extras state, read live (nothing
-  stored), with *Make offline* and an Extras toggle (`jellyfin/libraries.go`).
 
 ## Jellyfin integration (`gateway/internal/jellyfin`)
 
@@ -296,8 +294,13 @@ peaks per local day.
   badge's check) also feeds the badge. Add gateway and Pair open as a modal
   (`shared/Dialog.tsx`, native `<dialog>`). A card's link opens `/gateways/<id>`
   (`GatewayDetail.tsx`: Rename/Remove in the title row's ⋮ menu, the update banner, Pair this
-  browser, and the collapsed Status / Health / Paired clients tiles; no Open, no Use as
-  screen: that is TV mode's top bar), off TV mode's allowlist.
+  browser, and the collapsed Status / Health / Paired clients tiles, plus Libraries for an
+  admin's paired browser; no Open, no Use as screen: that is TV mode's top bar), off TV
+  mode's allowlist.
+- Library management (#429, #47) lives only on the web gateway page: `Libraries.tsx` calls
+  the admin-only `/streamiq/libraries*` gateway API, whose handlers (`jellyfin/api.go`) read
+  and change a managed Jellyfin's libraries live as its stored admin (`jellyfin/libraries.go`;
+  nothing stored, a BYO Jellyfin is never touched). The local gateway page has no library part.
 - Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its
   first-visit default (`features/tv/tv.ts`: known TV → on, Android box → ask once, #309). Its routes
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the

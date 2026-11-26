@@ -17,6 +17,7 @@ import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
 import { PairDialog } from './PairDialog'
 import { PairingRequests } from './PairingRequests'
+import { Libraries } from './Libraries'
 import { Menu, type Action } from '../../shared/Menu'
 import { canManage, gatewayName, shownError, type ActErr } from './list'
 import { event } from '../../shared/diag'
@@ -188,6 +189,7 @@ function GatewayPage({
         />
         {/* A member's list is just this browser. */}
         <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
+        {manage && <Libraries g={g} />}
       </div>
     </div>
   )

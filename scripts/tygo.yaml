@@ -106,7 +106,7 @@ packages:
     include_files: ["load.go"]
   - path: "streamiq/gateway/internal/jellyfin"
     output_path: "frontend/src/generated/jellyfin.ts"
-    include_files: ["viewer.go"]
+    include_files: ["viewer.go", "librarytypes.go"]
   - path: "streamiq/gateway/cmd/gateway"
     output_path: "frontend/src/generated/status.ts"
     include_files: ["status.go"]

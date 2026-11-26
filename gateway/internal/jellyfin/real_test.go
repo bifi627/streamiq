@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -151,6 +152,7 @@ func roundTrip(t *testing.T, compose []byte) {
 	if !s.View().Managed {
 		t.Fatalf("not managed: %+v", s.View())
 	}
+	scan(ctx, t, s, filepath.Join(dir, "media"))
 	creds, err := os.ReadFile(s.path())
 	if err != nil {
 		t.Fatal(err)
@@ -252,4 +254,61 @@ func users(t *testing.T, s *Setup, admin string) []string {
 		names = append(names, u.Name)
 	}
 	return names
+}
+
+// scan (#429): a library over the compose file's ./media, Rescan, and the list
+// shows it scanning with a progress, then idle.
+func scan(ctx context.Context, t *testing.T, s *Setup, media string) {
+	t.Helper()
+	for i := range 300 { // enough files for the scan to be seen running
+		d := filepath.Join(media, fmt.Sprintf("Film %03d (2001)", i))
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, filepath.Base(d)+".mkv"), []byte("not a video"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	admin := signIn(t, s)
+	err := s.call(ctx, "POST", "/Library/VirtualFolders?name=Films&collectionType=movies&paths=%2Fmedia%2Fmedia"+
+		"&refreshLibrary=false", admin, `{"LibraryOptions":{}}`, nil)
+	s.logout(ctx, admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	libs, err := s.Libraries(ctx)
+	if err != nil || len(libs) != 1 || libs[0].Scanning {
+		t.Fatalf("before the scan: %+v, %v", libs, err)
+	}
+	if err := s.Rescan(ctx, libs[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	var seen []int // progress while scanning
+	for deadline := time.Now().Add(3 * time.Minute); ; {
+		cur, err := s.Libraries(ctx)
+		if err != nil || len(cur) != 1 {
+			t.Fatalf("while scanning: %+v, %v", cur, err)
+		}
+		if cur[0].Scanning {
+			seen = append(seen, cur[0].Progress)
+		} else if len(seen) > 0 {
+			break // Jellyfin queues the refresh: idle until it starts
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			t.Fatalf("no scan, or still scanning: %v", seen)
+		}
+		time.Sleep(300 * time.Millisecond) //nolint:forbidigo // a real Jellyfin container's scan
+	}
+	if len(seen) == 0 || slices.ContainsFunc(seen, func(p int) bool { return p < 0 || p > 100 }) {
+		t.Fatalf("progress while scanning: %v", seen)
+	}
+	t.Logf("scan progress: %v", seen)
+	for _, on := range []bool{false, true, false} {
+		if err := s.SetOnline(ctx, libs[0].ID, on); err != nil {
+			t.Fatal(err)
+		}
+		if l, err := s.Libraries(ctx); err != nil || l[0].Offline == on {
+			t.Fatalf("online %v: %+v, %v", on, l, err)
+		}
+	}
 }

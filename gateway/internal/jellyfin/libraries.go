@@ -4,28 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/url"
 	"slices"
+	"strconv"
 )
 
-// Libraries on a managed Jellyfin: the local page shows each one's
-// Offline and Extras state, read from Jellyfin every time, and changes a
+// Libraries on a managed Jellyfin: the web gateway page shows each one's
+// Offline, Extras and scan state, read from Jellyfin every time, and changes a
 // library only when its button is pressed. Nothing about libraries is stored.
 
 // extras are the heavy local jobs StreamIQ doesn't use (trickplay, chapter images, LUFS).
 var extras = []string{"EnableTrickplayImageExtraction", "ExtractTrickplayImagesDuringLibraryScan",
 	"EnableChapterImageExtraction", "ExtractChapterImagesDuringLibraryScan", "EnableLUFSScan"}
 
-// Library is one row of the local page's list.
-type Library struct {
-	ID, Name string
-	Offline  bool   // every type the library can hold has every metadata and image fetcher off
-	Extras   string // "On", "Off" or "Custom"
-}
+// errUserJellyfin: library calls are only for a Jellyfin the gateway set up.
+var errUserJellyfin = errors.New("only for a Jellyfin this gateway set up")
+
+// errRefused: Jellyfin refused the stored admin password; it isn't tried again until it changes.
+var errRefused = errors.New("refused the gateway's admin password: " +
+	"store the current one with gateway jellyfin login or on the local gateway page")
 
 type folder struct {
 	Name, ItemId, CollectionType string
 	LibraryOptions               map[string]any
+	RefreshProgress              *float64 // set while a scan of it runs
 }
 
 // Libraries lists the libraries of a Jellyfin the gateway set up.
@@ -45,33 +48,35 @@ func (s *Setup) Libraries(ctx context.Context) ([]Library, error) {
 				}
 				types[f.CollectionType] = t
 			}
-			out = append(
-				out,
-				Library{ID: f.ItemId, Name: f.Name, Offline: offline(f.LibraryOptions, types[f.CollectionType]),
-					Extras: extrasState(f.LibraryOptions)},
-			)
+			l := Library{ID: f.ItemId, Name: f.Name, Offline: offline(f.LibraryOptions, types[f.CollectionType]),
+				Extras: extrasState(f.LibraryOptions), Scanning: f.RefreshProgress != nil}
+			if l.Scanning {
+				l.Progress = int(math.Round(*f.RefreshProgress))
+			}
+			out = append(out, l)
 		}
 		return nil
 	})
 	return out, err
 }
 
-// MakeOffline turns every metadata and image fetcher of library id off, for
-// every type it can hold. Other options stay as they are.
-func (s *Setup) MakeOffline(ctx context.Context, id string) error {
+// SetOnline sets the metadata and image fetchers of library id, for every
+// type it can hold: off, every one; on, the ones Jellyfin enables for a new
+// library. Other options stay as they are.
+func (s *Setup) SetOnline(ctx context.Context, id string, on bool) error {
 	return s.editLibrary(ctx, id, func(admin string, f folder) error {
-		types, err := s.itemTypes(ctx, admin, f.CollectionType)
+		av, err := s.available(ctx, admin, f.CollectionType, true)
 		if err != nil {
 			return err
 		}
 		tos, _ := f.LibraryOptions["TypeOptions"].([]any)
-		for _, t := range types {
-			m := typeOption(tos, t)
+		for _, t := range av {
+			m := typeOption(tos, t.Type)
 			if m == nil {
-				m = map[string]any{"Type": t}
+				m = map[string]any{"Type": t.Type}
 				tos = append(tos, m)
 			}
-			m["MetadataFetchers"], m["ImageFetchers"] = []string{}, []string{}
+			m["MetadataFetchers"], m["ImageFetchers"] = enabled(t.MetadataFetchers, on), enabled(t.ImageFetchers, on)
 		}
 		f.LibraryOptions["TypeOptions"] = tos
 		return nil
@@ -85,6 +90,16 @@ func (s *Setup) SetExtras(ctx context.Context, id string, on bool) error {
 			f.LibraryOptions[k] = on
 		}
 		return nil
+	})
+}
+
+// Rescan starts Jellyfin's refresh of library id: new, changed and removed
+// files, metadata only where it's missing (what the Dashboard's "Scan library"
+// sends). It returns once Jellyfin has queued it.
+func (s *Setup) Rescan(ctx context.Context, id string) error {
+	return s.asAdmin(ctx, func(admin string) error {
+		return s.call(ctx, "POST", "/Items/"+url.PathEscape(id)+"/Refresh?Recursive=true"+
+			"&MetadataRefreshMode=Default&ImageRefreshMode=Default", admin, "", nil)
 	})
 }
 
@@ -107,21 +122,50 @@ func (s *Setup) editLibrary(ctx context.Context, id string, edit func(admin stri
 	})
 }
 
-// itemTypes are the item types a library of contentType ("" = mixed) can hold.
-func (s *Setup) itemTypes(ctx context.Context, admin, contentType string) ([]string, error) {
-	var o struct{ TypeOptions []struct{ Type string } }
-	q := "/Libraries/AvailableOptions?IsNewLibrary=false"
+type fetcher struct {
+	Name           string
+	DefaultEnabled bool
+}
+
+// typeFetchers: an item type a library can hold, with the fetchers Jellyfin offers for it.
+type typeFetchers struct {
+	Type                            string
+	MetadataFetchers, ImageFetchers []fetcher
+}
+
+// available: what Jellyfin offers a library of contentType ("" = mixed).
+// DefaultEnabled is a new library's default only with isNew: else it is
+// every fetcher the server-wide options don't disable.
+func (s *Setup) available(ctx context.Context, admin, contentType string, isNew bool) ([]typeFetchers, error) {
+	var o struct{ TypeOptions []typeFetchers }
+	q := "/Libraries/AvailableOptions?IsNewLibrary=" + strconv.FormatBool(isNew)
 	if contentType != "" {
 		q += "&LibraryContentType=" + url.QueryEscape(contentType)
 	}
-	if err := s.call(ctx, "GET", q, admin, "", &o); err != nil {
-		return nil, err
-	}
+	err := s.call(ctx, "GET", q, admin, "", &o)
+	return o.TypeOptions, err
+}
+
+// itemTypes are the item types a library of contentType can hold.
+func (s *Setup) itemTypes(ctx context.Context, admin, contentType string) ([]string, error) {
+	av, err := s.available(ctx, admin, contentType, false)
 	var ts []string
-	for _, t := range o.TypeOptions {
+	for _, t := range av {
 		ts = append(ts, t.Type)
 	}
-	return ts, nil
+	return ts, err
+}
+
+// enabled: on, the fetchers Jellyfin enables by default; off, none. Never nil:
+// a missing list reads as every fetcher on.
+func enabled(fs []fetcher, on bool) []string {
+	out := []string{}
+	for _, f := range fs {
+		if on && f.DefaultEnabled {
+			out = append(out, f.Name)
+		}
+	}
+	return out
 }
 
 // asAdmin runs fn as the gateway's stored admin of a Jellyfin it set up, then
@@ -130,12 +174,20 @@ func (s *Setup) asAdmin(ctx context.Context, fn func(admin string) error) error 
 	s.vmu.Lock()
 	defer s.vmu.Unlock()
 	s.mu.Lock()
-	c := s.creds
+	c, refused := s.creds, s.refused
 	s.mu.Unlock()
 	if !c.managed() {
-		return errors.New("only for a Jellyfin this gateway set up")
+		return errUserJellyfin
+	}
+	if refused { // no retry: Jellyfin locks users out after failed sign-ins
+		return errRefused
 	}
 	admin, err := s.signIn(ctx, c.User, c.Password)
+	if unauthorized(err) {
+		s.mu.Lock()
+		s.refused = s.creds.Password == c.Password
+		s.mu.Unlock()
+	}
 	if err != nil {
 		return err
 	}
@@ -179,9 +231,9 @@ func extrasState(opts map[string]any) string {
 	}
 	switch n {
 	case 0:
-		return "Off"
+		return "off"
 	case len(extras):
-		return "On"
+		return "on"
 	}
-	return "Custom"
+	return "custom"
 }

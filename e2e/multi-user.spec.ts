@@ -98,7 +98,7 @@ test(
       await resume(/0:1[5-9]/)
     })
 
-    // The one test with a paired member: its list shows only itself (the 403 on another's key: pairing/api_test.go).
+    // The one test with a paired member: no Libraries tile, its list shows only itself (the 403 on another's key: pairing/api_test.go).
     await test.step('B (member) unpairs its own browser from the web gateway page (#341)', async () => {
       await b.goto(appUrl('/gateways'))
       await openGateway(b)
@@ -107,6 +107,9 @@ test(
       const clients = card.locator('.clients li')
       await expect(clients).toHaveCount(1)
       await expect(clients).toContainText('(this browser)')
+      await expect(
+        card.locator('summary', { hasText: 'Libraries' }),
+      ).toHaveCount(0) // admin-only
       b.once('dialog', (d) => d.accept())
       await clients.getByRole('button', { name: 'Remove' }).click()
       await expect(

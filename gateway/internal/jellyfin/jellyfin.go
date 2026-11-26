@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -405,9 +406,16 @@ func (s *Setup) signIn(ctx context.Context, user, pw string) (string, error) {
 type httpErr struct {
 	method, path string
 	status       int
+	msg          string // the start of Jellyfin's reply body: its message
 }
 
-func (e httpErr) Error() string { return fmt.Sprintf("%s %s: HTTP %d", e.method, e.path, e.status) }
+func (e httpErr) Error() string {
+	s := fmt.Sprintf("%s %s: HTTP %d", e.method, e.path, e.status)
+	if e.msg != "" {
+		s += ": " + e.msg
+	}
+	return s
+}
 
 func unauthorized(err error) bool { return status(err) == http.StatusUnauthorized }
 
@@ -457,7 +465,8 @@ func (s *Setup) callAs(ctx context.Context, timeout time.Duration, hdr, method, 
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
 		p, _, _ := strings.Cut(path, "?")
-		return httpErr{method, p, resp.StatusCode}
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 200))
+		return httpErr{method, p, resp.StatusCode, strings.TrimSpace(strings.ToValidUTF8(string(msg), ""))}
 	}
 	if out != nil {
 		return json.NewDecoder(resp.Body).Decode(out)

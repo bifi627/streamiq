@@ -2,8 +2,6 @@ package localpage
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -165,9 +163,9 @@ func TestStatusJSON(t *testing.T) {
 	}
 }
 
-// The library list (#322): a button's Jellyfin error shows above the list,
-// which stays readable; no list without a managed Jellyfin.
-func TestLibrariesPage(t *testing.T) {
+// Libraries moved to the web gateway page (#429): the local page has no
+// /libraries and links nowhere for them, also for a managed Jellyfin.
+func TestNoLibraries(t *testing.T) {
 	store, err := pairing.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -175,65 +173,19 @@ func TestLibrariesPage(t *testing.T) {
 	var beat atomic.Int64
 	var upd atomic.Pointer[string]
 	upd.Store(new(string))
-	type lib struct {
-		ID, Name string
-		Offline  bool
-		Extras   string
-	}
-	var offlined, extras string
-	c := Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store,
+	h := Handler(Config{Name: func() string { return "" }, LastBeat: &beat, Update: &upd, Store: store,
 		Jellyfin: func() any {
 			return struct {
 				Reachable, HasKey, NeedsLogin, Untested, Managed          bool
 				Version, Tested, Err, User, Viewer, PasswordFile, HWAccel string
 			}{Reachable: true, HasKey: true, Managed: true}
 		},
-		Libraries: func(context.Context) (any, error) {
-			return []lib{{"a", "Home videos", false, "Custom"}, {"b", "Films", true, "On"}}, nil
-		},
-		MakeOffline: func(_ context.Context, id string) error { offlined = id; return errors.New("HTTP 500") },
-		SetExtras:   func(_ context.Context, id string, on bool) error { extras = fmt.Sprint(id, " ", on); return nil },
-	}
-	do := func(c Config, method, path, form string) *httptest.ResponseRecorder {
-		r := httptest.NewRequest(method, path, strings.NewReader(form))
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	})
+	for _, path := range []string{"/", "/libraries"} {
 		w := httptest.NewRecorder()
-		Handler(c).ServeHTTP(w, r)
-		return w
-	}
-	if w := do(c, "GET", "/", ""); !strings.Contains(w.Body.String(), `href="/libraries"`) {
-		t.Fatalf("no link:\n%s", w.Body)
-	}
-	body := do(c, "GET", "/libraries", "").Body.String()
-	for _, want := range []string{"Home videos", "Online (set in Jellyfin)", "Make offline", "Custom (set in Jellyfin)", "Films", "<b>Offline</b>"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("missing %q:\n%s", want, body)
+		h.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if path == "/libraries" && w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), "ibraries") {
+			t.Fatalf("GET %s: %d\n%s", path, w.Code, w.Body)
 		}
-	}
-	if strings.Count(body, "Make offline") != 1 {
-		t.Errorf("Make offline on an offline library:\n%s", body)
-	}
-	if w := do(c, "POST", "/libraries/extras", "id=a&on=1"); w.Code != http.StatusSeeOther || extras != "a true" {
-		t.Fatalf("extras: %d %q", w.Code, extras)
-	}
-	if w := do(
-		c,
-		"POST",
-		"/libraries/offline",
-		"id=a",
-	); offlined != "a" ||
-		!strings.Contains(w.Body.String(), "Jellyfin: HTTP 500") ||
-		!strings.Contains(w.Body.String(), "Home videos") {
-		t.Fatalf("error: %d\n%s", w.Code, w.Body)
-	}
-	c.Libraries = nil
-	if w := do(
-		c,
-		"GET",
-		"/libraries",
-		"",
-	); w.Code != http.StatusNotFound ||
-		strings.Contains(do(c, "GET", "/", "").Body.String(), "/libraries") {
-		t.Fatalf("no Libraries: %d", w.Code)
 	}
 }

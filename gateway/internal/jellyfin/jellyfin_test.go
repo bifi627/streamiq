@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -45,6 +46,7 @@ type fake struct {
 	cfgPosts  int
 	libs      []map[string]any // /Library/VirtualFolders
 	libPosts  int
+	refreshed []string // POST /Items/{id}/Refresh: id?query
 	sessions  []map[string]any // GET /Sessions (admin only); nil = 500
 }
 
@@ -95,6 +97,9 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var id string
 	if m := regexp.MustCompile(`^/Users/(id-[^/]+)/(Password|Policy)$`).FindStringSubmatch(path); m != nil {
 		id, path = m[1], "/Users/{id}/"+m[2]
+	}
+	if m := regexp.MustCompile(`^/Items/([^/]+)/Refresh$`).FindStringSubmatch(path); m != nil {
+		id, path = m[1], "/Items/{id}/Refresh"
 	}
 	byID := func() *fakeUser {
 		for _, u := range f.users {
@@ -267,6 +272,17 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			to = append(to, map[string]any{"Type": t, "MetadataFetchers": []any{map[string]any{"Name": "TheMovieDb"}}})
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"TypeOptions": to})
+	case "POST /Items/{id}/Refresh":
+		if !admin {
+			deny(401)
+			return
+		}
+		if !slices.ContainsFunc(f.libs, func(l map[string]any) bool { return l["ItemId"] == id }) {
+			http.Error(w, "Item not found.", http.StatusNotFound)
+			return
+		}
+		f.refreshed = append(f.refreshed, id+"?"+r.URL.RawQuery)
+		w.WriteHeader(http.StatusNoContent)
 	case "POST /Library/VirtualFolders/LibraryOptions":
 		var b struct {
 			Id             string

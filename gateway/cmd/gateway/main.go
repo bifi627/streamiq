@@ -297,7 +297,7 @@ func instance(file string) error {
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
 // route are tunnel's own. status is GET /streamiq/status.
 func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler,
-	health http.Handler, tunnels *history.Tunnels,
+	health http.Handler, tunnels *history.Tunnels, setup *jellyfin.Setup,
 ) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	screen.Register(rt)
@@ -314,6 +314,10 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	rt.Handle("POST "+pairing.ClientsProfilePath, http.HandlerFunc(store.ServeProfile))
 	rt.Handle("GET "+pairing.RequestsPath, http.HandlerFunc(store.ServeRequests), tunnel.AdminOnly)
 	rt.Handle("POST "+pairing.DecidePath, http.HandlerFunc(store.ServeDecide), tunnel.AdminOnly)
+	rt.Handle("GET "+jellyfin.LibrariesPath, http.HandlerFunc(setup.ServeLibraries), tunnel.AdminOnly)
+	rt.Handle("POST "+jellyfin.LibrariesOfflinePath, http.HandlerFunc(setup.ServeOffline), tunnel.AdminOnly)
+	rt.Handle("POST "+jellyfin.LibrariesExtrasPath, http.HandlerFunc(setup.ServeExtras), tunnel.AdminOnly)
+	rt.Handle("POST "+jellyfin.LibrariesRescanPath, http.HandlerFunc(setup.ServeRescan), tunnel.AdminOnly)
 	return rt
 }
 
@@ -419,7 +423,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, key *ecd
 	go load.Run(ctx)
 	b := &box{setup: setup, compose: compose, sess: sess, load: load}
 	go b.record(ctx, health)
-	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), health, tunnels)
+	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), health, tunnels, setup)
 	token, err := localpage.Token(stateDir, lan)
 	if err != nil {
 		log.Fatalf("gateway: page token: %v", err)
@@ -430,9 +434,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, key *ecd
 			Name: st.CurrentName, GatewayID: st.GatewayID, Fingerprint: fp, Version: version,
 			LastBeat: &lastBeat, Update: &notice, Store: store,
 			Jellyfin: func() any { return setup.View() }, Login: setup.Login,
-			Offline:     func() string { return jellyfin.Offline(compose) },
-			Libraries:   func(ctx context.Context) (any, error) { return setup.Libraries(ctx) },
-			MakeOffline: setup.MakeOffline, SetExtras: setup.SetExtras,
+			Offline: func() string { return jellyfin.Offline(compose) },
 		})
 		// ponytail: no WriteTimeout, handlers wait on Jellyfin; header + idle limits are free
 		srv := &http.Server{Addr: ":" + port, Handler: localpage.Guard(lanHost, localpage.Auth(token, page)),

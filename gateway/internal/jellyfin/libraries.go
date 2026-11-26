@@ -4,28 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/url"
 	"slices"
 )
 
-// Libraries on a managed Jellyfin: the local page shows each one's
-// Offline and Extras state, read from Jellyfin every time, and changes a
+// Libraries on a managed Jellyfin: the web gateway page shows each one's
+// Offline, Extras and scan state, read from Jellyfin every time, and changes a
 // library only when its button is pressed. Nothing about libraries is stored.
 
 // extras are the heavy local jobs StreamIQ doesn't use (trickplay, chapter images, LUFS).
 var extras = []string{"EnableTrickplayImageExtraction", "ExtractTrickplayImagesDuringLibraryScan",
 	"EnableChapterImageExtraction", "ExtractChapterImagesDuringLibraryScan", "EnableLUFSScan"}
 
-// Library is one row of the local page's list.
-type Library struct {
-	ID, Name string
-	Offline  bool   // every type the library can hold has every metadata and image fetcher off
-	Extras   string // "On", "Off" or "Custom"
-}
+// errUserJellyfin: library calls are only for a Jellyfin the gateway set up.
+var errUserJellyfin = errors.New("only for a Jellyfin this gateway set up")
 
 type folder struct {
 	Name, ItemId, CollectionType string
 	LibraryOptions               map[string]any
+	RefreshProgress              *float64 // set while a scan of it runs
 }
 
 // Libraries lists the libraries of a Jellyfin the gateway set up.
@@ -45,11 +43,12 @@ func (s *Setup) Libraries(ctx context.Context) ([]Library, error) {
 				}
 				types[f.CollectionType] = t
 			}
-			out = append(
-				out,
-				Library{ID: f.ItemId, Name: f.Name, Offline: offline(f.LibraryOptions, types[f.CollectionType]),
-					Extras: extrasState(f.LibraryOptions)},
-			)
+			l := Library{ID: f.ItemId, Name: f.Name, Offline: offline(f.LibraryOptions, types[f.CollectionType]),
+				Extras: extrasState(f.LibraryOptions), Scanning: f.RefreshProgress != nil}
+			if l.Scanning {
+				l.Progress = int(math.Round(*f.RefreshProgress))
+			}
+			out = append(out, l)
 		}
 		return nil
 	})
@@ -85,6 +84,16 @@ func (s *Setup) SetExtras(ctx context.Context, id string, on bool) error {
 			f.LibraryOptions[k] = on
 		}
 		return nil
+	})
+}
+
+// Rescan starts Jellyfin's refresh of library id: new, changed and removed
+// files, metadata only where it's missing (what the Dashboard's "Scan library"
+// sends). It returns once Jellyfin has queued it.
+func (s *Setup) Rescan(ctx context.Context, id string) error {
+	return s.asAdmin(ctx, func(admin string) error {
+		return s.call(ctx, "POST", "/Items/"+url.PathEscape(id)+"/Refresh?Recursive=true"+
+			"&MetadataRefreshMode=Default&ImageRefreshMode=Default", admin, "", nil)
 	})
 }
 
@@ -133,7 +142,7 @@ func (s *Setup) asAdmin(ctx context.Context, fn func(admin string) error) error 
 	c := s.creds
 	s.mu.Unlock()
 	if !c.managed() {
-		return errors.New("only for a Jellyfin this gateway set up")
+		return errUserJellyfin
 	}
 	admin, err := s.signIn(ctx, c.User, c.Password)
 	if err != nil {
@@ -179,9 +188,9 @@ func extrasState(opts map[string]any) string {
 	}
 	switch n {
 	case 0:
-		return "Off"
+		return "off"
 	case len(extras):
-		return "On"
+		return "on"
 	}
-	return "Custom"
+	return "custom"
 }

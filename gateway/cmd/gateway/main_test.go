@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"streamiq/gateway/internal/history"
+	"streamiq/gateway/internal/jellyfin"
 	"streamiq/gateway/internal/onboarding"
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/screen"
@@ -140,6 +141,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }),
 		&history.Health{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "health"}},
 		&history.Tunnels{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "tunnels"}},
+		&jellyfin.Setup{StateDir: dir}, // not set up by the gateway: a user's Jellyfin
 	)
 	for _, c := range []struct {
 		role, method, path, body string
@@ -163,6 +165,12 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Member, "POST", pairing.DecidePath, `{"id":"x","approve":true}`, http.StatusForbidden},
 		{tunnel.Admin, "GET", pairing.RequestsPath, "", http.StatusOK},
 		{tunnel.Admin, "POST", pairing.DecidePath, `{"id":"x","approve":true}`, http.StatusNotFound},
+		{tunnel.Member, "GET", jellyfin.LibrariesPath, "", http.StatusForbidden},
+		{tunnel.Member, "POST", jellyfin.LibrariesOfflinePath, `{"id":"a"}`, http.StatusForbidden},
+		{tunnel.Member, "POST", jellyfin.LibrariesExtrasPath, `{"id":"a","on":true}`, http.StatusForbidden},
+		{tunnel.Member, "POST", jellyfin.LibrariesRescanPath, `{"id":"a"}`, http.StatusForbidden},
+		{tunnel.Admin, "GET", jellyfin.LibrariesPath, "", http.StatusConflict},
+		{tunnel.Admin, "POST", jellyfin.LibrariesRescanPath, `{"id":"a"}`, http.StatusConflict},
 	} {
 		if s, _, _, _ := tunnel.Do(rt, tunnel.Session{Role: c.role}, c.method, c.path, c.body); s != c.want {
 			t.Errorf("%s %s %s: %d, want %d", c.role, c.method, c.path, s, c.want)

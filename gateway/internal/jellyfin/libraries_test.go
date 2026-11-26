@@ -113,16 +113,17 @@ func TestLibraryState(t *testing.T) {
 			[]any{off},
 		), // Series, Season, Episode missing
 	}
+	f.libs[2]["RefreshProgress"] = 42.6 // a scan runs
 	f.mu.Unlock()
 	libs, err := s.Libraries(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []Library{
-		{"empty", "lib empty", false, "Off"},
-		{"off", "lib off", true, "On"},
-		{"grabber", "lib grabber", false, "Custom"},
-		{"mixed", "lib mixed", false, "Off"},
+		{ID: "empty", Name: "lib empty", Extras: "off"},
+		{ID: "off", Name: "lib off", Offline: true, Extras: "on"},
+		{ID: "grabber", Name: "lib grabber", Extras: "custom", Scanning: true, Progress: 43},
+		{ID: "mixed", Name: "lib mixed", Extras: "off"},
 	}
 	if len(libs) != len(want) {
 		t.Fatalf("got %+v", libs)
@@ -187,11 +188,11 @@ func TestLibraryWrites(t *testing.T) {
 		t.Fatal(err)
 	}
 	a = opts(0)
-	if extrasState(a) != "On" || !offline(a, []string{"Movie", "Series", "Season", "Episode"}) ||
+	if extrasState(a) != "on" || !offline(a, []string{"Movie", "Series", "Season", "Episode"}) ||
 		a["SeasonZeroDisplayName"] != "Specials" {
 		t.Fatalf("extras on: %v", a)
 	}
-	if err := s.SetExtras(ctx, "a", false); err != nil || extrasState(opts(0)) != "Off" {
+	if err := s.SetExtras(ctx, "a", false); err != nil || extrasState(opts(0)) != "off" {
 		t.Fatalf("extras off: %v %v", err, opts(0))
 	}
 	if bo, _ := json.Marshal(opts(1)); string(bo) != mustJSON(orig[1]["LibraryOptions"]) {

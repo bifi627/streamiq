@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/url"
 	"slices"
+	"strconv"
 )
 
 // Libraries on a managed Jellyfin: the web gateway page shows each one's
@@ -64,7 +65,7 @@ func (s *Setup) Libraries(ctx context.Context) ([]Library, error) {
 // library. Other options stay as they are.
 func (s *Setup) SetOnline(ctx context.Context, id string, on bool) error {
 	return s.editLibrary(ctx, id, func(admin string, f folder) error {
-		av, err := s.available(ctx, admin, f.CollectionType)
+		av, err := s.available(ctx, admin, f.CollectionType, true)
 		if err != nil {
 			return err
 		}
@@ -133,9 +134,11 @@ type typeFetchers struct {
 }
 
 // available: what Jellyfin offers a library of contentType ("" = mixed).
-func (s *Setup) available(ctx context.Context, admin, contentType string) ([]typeFetchers, error) {
+// DefaultEnabled is a new library's default only with isNew: else it is
+// every fetcher the server-wide options don't disable.
+func (s *Setup) available(ctx context.Context, admin, contentType string, isNew bool) ([]typeFetchers, error) {
 	var o struct{ TypeOptions []typeFetchers }
-	q := "/Libraries/AvailableOptions?IsNewLibrary=false"
+	q := "/Libraries/AvailableOptions?IsNewLibrary=" + strconv.FormatBool(isNew)
 	if contentType != "" {
 		q += "&LibraryContentType=" + url.QueryEscape(contentType)
 	}
@@ -145,7 +148,7 @@ func (s *Setup) available(ctx context.Context, admin, contentType string) ([]typ
 
 // itemTypes are the item types a library of contentType can hold.
 func (s *Setup) itemTypes(ctx context.Context, admin, contentType string) ([]string, error) {
-	av, err := s.available(ctx, admin, contentType)
+	av, err := s.available(ctx, admin, contentType, false)
 	var ts []string
 	for _, t := range av {
 		ts = append(ts, t.Type)

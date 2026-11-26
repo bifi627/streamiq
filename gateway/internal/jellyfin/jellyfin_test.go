@@ -269,8 +269,9 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		types := map[string][]string{"movies": {"Movie"}, "": {"Movie", "Series", "Season", "Episode"}}[r.URL.Query().Get("LibraryContentType")]
 		var to []map[string]any
 		for _, t := range types {
+			isNew := r.URL.Query().Get("IsNewLibrary") == "true" // like Jellyfin: else every fetcher is "default"
 			to = append(to, map[string]any{"Type": t, "MetadataFetchers": []any{
-				map[string]any{"Name": "TheMovieDb", "DefaultEnabled": true}, map[string]any{"Name": "OMDb"}}})
+				map[string]any{"Name": "TheMovieDb", "DefaultEnabled": true}, map[string]any{"Name": "OMDb", "DefaultEnabled": !isNew}}})
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"TypeOptions": to})
 	case "POST /Items/{id}/Refresh":

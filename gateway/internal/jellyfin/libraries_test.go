@@ -170,7 +170,7 @@ func TestLibraryWrites(t *testing.T) {
 		return m
 	}
 
-	if err := s.MakeOffline(ctx, "a"); err != nil {
+	if err := s.SetOnline(ctx, "a", false); err != nil {
 		t.Fatal(err)
 	}
 	a, origA := opts(0), orig[0]["LibraryOptions"].(map[string]any)
@@ -199,7 +199,17 @@ func TestLibraryWrites(t *testing.T) {
 	if bo, _ := json.Marshal(opts(1)); string(bo) != mustJSON(orig[1]["LibraryOptions"]) {
 		t.Fatalf("another library changed: %s", bo)
 	}
-	if err := s.MakeOffline(ctx, "gone"); err == nil || f.libPosts != 3 {
+	// online again: Jellyfin's defaults for a new library, here TheMovieDb but not OMDb
+	if err := s.SetOnline(ctx, "a", true); err != nil {
+		t.Fatal(err)
+	}
+	a = opts(0)
+	if m := typeOption(a["TypeOptions"].([]any), "Series"); offline(a, []string{"Movie"}) ||
+		mustJSON(m["MetadataFetchers"]) != `["TheMovieDb"]` || mustJSON(m["ImageFetchers"]) != `[]` ||
+		extrasState(a) != "off" {
+		t.Fatalf("online: %v", a)
+	}
+	if err := s.SetOnline(ctx, "gone", false); err == nil || f.libPosts != 4 {
 		t.Fatalf("unknown library: %v, %d posts", err, f.libPosts)
 	}
 }

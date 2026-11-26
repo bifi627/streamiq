@@ -303,4 +303,12 @@ func scan(ctx context.Context, t *testing.T, s *Setup, media string) {
 		t.Fatalf("progress while scanning: %v", seen)
 	}
 	t.Logf("scan progress: %v", seen)
+	for _, on := range []bool{false, true, false} {
+		if err := s.SetOnline(ctx, libs[0].ID, on); err != nil {
+			t.Fatal(err)
+		}
+		if l, err := s.Libraries(ctx); err != nil || l[0].Offline == on {
+			t.Fatalf("online %v: %+v, %v", on, l, err)
+		}
+	}
 }

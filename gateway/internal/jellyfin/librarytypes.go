@@ -14,13 +14,13 @@ type Library struct {
 	Progress int    `json:"progress"` // 0–100 while scanning
 }
 
-// LibraryID is the body of POST /streamiq/libraries/offline and /rescan.
+// LibraryID is the body of POST /streamiq/libraries/rescan.
 type LibraryID struct {
 	ID string `json:"id"`
 }
 
-// LibraryExtras is the body of POST /streamiq/libraries/extras.
-type LibraryExtras struct {
+// LibrarySwitch is the body of POST /streamiq/libraries/online and /extras.
+type LibrarySwitch struct {
 	ID string `json:"id"`
 	On bool   `json:"on"`
 }

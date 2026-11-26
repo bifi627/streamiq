@@ -59,22 +59,23 @@ func (s *Setup) Libraries(ctx context.Context) ([]Library, error) {
 	return out, err
 }
 
-// MakeOffline turns every metadata and image fetcher of library id off, for
-// every type it can hold. Other options stay as they are.
-func (s *Setup) MakeOffline(ctx context.Context, id string) error {
+// SetOnline sets the metadata and image fetchers of library id, for every
+// type it can hold: off, every one; on, the ones Jellyfin enables for a new
+// library. Other options stay as they are.
+func (s *Setup) SetOnline(ctx context.Context, id string, on bool) error {
 	return s.editLibrary(ctx, id, func(admin string, f folder) error {
-		types, err := s.itemTypes(ctx, admin, f.CollectionType)
+		av, err := s.available(ctx, admin, f.CollectionType)
 		if err != nil {
 			return err
 		}
 		tos, _ := f.LibraryOptions["TypeOptions"].([]any)
-		for _, t := range types {
-			m := typeOption(tos, t)
+		for _, t := range av {
+			m := typeOption(tos, t.Type)
 			if m == nil {
-				m = map[string]any{"Type": t}
+				m = map[string]any{"Type": t.Type}
 				tos = append(tos, m)
 			}
-			m["MetadataFetchers"], m["ImageFetchers"] = []string{}, []string{}
+			m["MetadataFetchers"], m["ImageFetchers"] = enabled(t.MetadataFetchers, on), enabled(t.ImageFetchers, on)
 		}
 		f.LibraryOptions["TypeOptions"] = tos
 		return nil
@@ -120,21 +121,48 @@ func (s *Setup) editLibrary(ctx context.Context, id string, edit func(admin stri
 	})
 }
 
-// itemTypes are the item types a library of contentType ("" = mixed) can hold.
-func (s *Setup) itemTypes(ctx context.Context, admin, contentType string) ([]string, error) {
-	var o struct{ TypeOptions []struct{ Type string } }
+type fetcher struct {
+	Name           string
+	DefaultEnabled bool
+}
+
+// typeFetchers: an item type a library can hold, with the fetchers Jellyfin offers for it.
+type typeFetchers struct {
+	Type                            string
+	MetadataFetchers, ImageFetchers []fetcher
+}
+
+// available: what Jellyfin offers a library of contentType ("" = mixed).
+func (s *Setup) available(ctx context.Context, admin, contentType string) ([]typeFetchers, error) {
+	var o struct{ TypeOptions []typeFetchers }
 	q := "/Libraries/AvailableOptions?IsNewLibrary=false"
 	if contentType != "" {
 		q += "&LibraryContentType=" + url.QueryEscape(contentType)
 	}
-	if err := s.call(ctx, "GET", q, admin, "", &o); err != nil {
-		return nil, err
-	}
+	err := s.call(ctx, "GET", q, admin, "", &o)
+	return o.TypeOptions, err
+}
+
+// itemTypes are the item types a library of contentType can hold.
+func (s *Setup) itemTypes(ctx context.Context, admin, contentType string) ([]string, error) {
+	av, err := s.available(ctx, admin, contentType)
 	var ts []string
-	for _, t := range o.TypeOptions {
+	for _, t := range av {
 		ts = append(ts, t.Type)
 	}
-	return ts, nil
+	return ts, err
+}
+
+// enabled: on, the fetchers Jellyfin enables by default; off, none. Never nil:
+// a missing list reads as every fetcher on.
+func enabled(fs []fetcher, on bool) []string {
+	out := []string{}
+	for _, f := range fs {
+		if on && f.DefaultEnabled {
+			out = append(out, f.Name)
+		}
+	}
+	return out
 }
 
 // asAdmin runs fn as the gateway's stored admin of a Jellyfin it set up, then

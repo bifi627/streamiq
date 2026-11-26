@@ -31,5 +31,22 @@ export const librariesMessage = (e: AppError) =>
         ? `Jellyfin: ${e.message}`
         : describe(e).message
 
-export const extrasLabel = (extras: string) =>
-  extras === 'custom' ? 'Extras: custom (set in Jellyfin)' : 'Extras'
+export type Rescan = { id: string; at: number }
+
+// A Rescan's wait ends once its scan shows: a short one may finish inside the grace.
+export const rescanSeen = (r: Rescan, list: Library[]): Rescan =>
+  list.some((l) => l.id === r.id && l.scanning) ? { id: '', at: 0 } : r
+
+export type LibraryAction = 'online' | 'extras' | 'rescan'
+
+// Beside a library's name: its scan, or a Rescan sent (pressed, or queued in Jellyfin).
+export const libraryStatus = (
+  l: Library,
+  action: LibraryAction | undefined,
+  queued: boolean,
+) =>
+  l.scanning
+    ? 'Scanning'
+    : action === 'rescan' || queued
+      ? 'Rescan queued…'
+      : null

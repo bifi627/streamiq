@@ -157,7 +157,7 @@ the release's `jellyfin-compose.yml`, and replace the jellyfin service's `ports:
 with `networks: [jail]`). Only this Jellyfin is covered: one you installed
 yourself or run natively reaches the internet as you set it up.
 
-### Libraries: Offline and Extras
+### Libraries: online lookups and extras
 
 On a Jellyfin the gateway set up, a household admin manages its libraries on
 the web gateway page (StreamIQ → Gateways → the gateway → **Libraries**, from a
@@ -166,18 +166,19 @@ Jellyfin every time you open it (the gateway stores nothing about libraries, and
 changes one only when you press its button), and **Rescan**, which looks for new,
 changed and removed files in that library right away and shows its progress:
 
-- **Offline**: Jellyfin looks nothing up online for that library: every metadata
-  and image fetcher is off, *Screen Grabber* too (a grabbed frame can show the
-  content itself). **Online (set in Jellyfin)** means at least one is on, or the
-  library never got explicit settings (Jellyfin then runs every fetcher).
-  **Make offline** turns them all off. In the jail the lookups fail anyway; this
-  stops the errors and keeps the library offline if you ever turn the jail off.
-  There is no "make online" button: online lookups stay possible in Jellyfin's
-  own **Dashboard → Libraries** (library → *Manage library*).
-- **Extras**: seek thumbnails (trickplay), chapter images and audio
-  normalization (LUFS). StreamIQ doesn't show them, and they cost CPU and disk.
-  The checkbox turns all of them on or off together; **custom (set in
-  Jellyfin)** means you set a mix in the Dashboard.
+- **Online lookups**: whether Jellyfin fetches titles, posters and descriptions
+  for that library from the internet. Off turns every metadata and image fetcher
+  off, *Screen Grabber* too (a grabbed frame can show the content itself), so
+  Jellyfin uses only what's in your folders. On shows when at least one is on, or
+  the library never got explicit settings (Jellyfin then runs every fetcher);
+  switching it on sets the fetchers Jellyfin enables for a new library. In the
+  jail the lookups fail anyway; off stops the errors and keeps the library
+  offline if you ever turn the jail off. A finer choice of fetchers stays in
+  Jellyfin's own **Dashboard → Libraries** (library → *Manage library*).
+- **Seek previews, chapter images, loudness scan**: trickplay, chapter images
+  and audio normalization (LUFS). StreamIQ doesn't show them, and they cost CPU
+  and disk. The switch turns all of them on or off together; **a mix, set in
+  Jellyfin** means you set them apart in the Dashboard.
 
 The gateway also turns TMDb off for people (*Refresh People* looks up cast
 names server-wide, whatever the libraries say) and empties Jellyfin's plugin

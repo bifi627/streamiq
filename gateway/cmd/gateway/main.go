@@ -315,7 +315,7 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	rt.Handle("GET "+pairing.RequestsPath, http.HandlerFunc(store.ServeRequests), tunnel.AdminOnly)
 	rt.Handle("POST "+pairing.DecidePath, http.HandlerFunc(store.ServeDecide), tunnel.AdminOnly)
 	rt.Handle("GET "+jellyfin.LibrariesPath, http.HandlerFunc(setup.ServeLibraries), tunnel.AdminOnly)
-	rt.Handle("POST "+jellyfin.LibrariesOfflinePath, http.HandlerFunc(setup.ServeOffline), tunnel.AdminOnly)
+	rt.Handle("POST "+jellyfin.LibrariesOnlinePath, http.HandlerFunc(setup.ServeOnline), tunnel.AdminOnly)
 	rt.Handle("POST "+jellyfin.LibrariesExtrasPath, http.HandlerFunc(setup.ServeExtras), tunnel.AdminOnly)
 	rt.Handle("POST "+jellyfin.LibrariesRescanPath, http.HandlerFunc(setup.ServeRescan), tunnel.AdminOnly)
 	return rt

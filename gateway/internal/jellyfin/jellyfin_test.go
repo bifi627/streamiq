@@ -269,7 +269,8 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		types := map[string][]string{"movies": {"Movie"}, "": {"Movie", "Series", "Season", "Episode"}}[r.URL.Query().Get("LibraryContentType")]
 		var to []map[string]any
 		for _, t := range types {
-			to = append(to, map[string]any{"Type": t, "MetadataFetchers": []any{map[string]any{"Name": "TheMovieDb"}}})
+			to = append(to, map[string]any{"Type": t, "MetadataFetchers": []any{
+				map[string]any{"Name": "TheMovieDb", "DefaultEnabled": true}, map[string]any{"Name": "OMDb"}}})
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"TypeOptions": to})
 	case "POST /Items/{id}/Refresh":

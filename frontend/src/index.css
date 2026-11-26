@@ -895,19 +895,28 @@ html.tv .no-tv {
 .card .clients .profile {
   flex-basis: 100%;
 }
-/* libraries: the name, then its state and controls */
+/* libraries: the name with Rescan or its scan state, then one switch per line */
+.card .libraries {
+  padding: 0;
+  list-style: none;
+}
 .card .libraries li {
   overflow-wrap: anywhere;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2) var(--sp-3);
+  flex-direction: column;
+  gap: var(--sp-2);
 }
-.card .libraries li > b {
-  flex-basis: 100%;
+.card .libraries .lib-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+.card .libraries progress {
+  width: 100%;
 }
 .card .libraries li + li {
-  margin-top: var(--sp-3);
+  margin-top: var(--sp-4);
 }
 .install {
   display: flex;

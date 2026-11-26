@@ -4,6 +4,8 @@ import { AppError, httpError } from '../../shared/errors.ts'
 import {
   LIBRARIES_POLL,
   librariesMessage,
+  libraryStatus,
+  rescanSeen,
   nextLibrariesAsk,
   RESCAN_GRACE,
 } from './libraryList.ts'
@@ -63,4 +65,17 @@ test("a gateway too old (404), a BYO Jellyfin (409), Jellyfin's message", () => 
     librariesMessage(httpError('tunnel', 502, p)),
     /^Jellyfin:/,
   )
+})
+
+test('a row says Scanning, else Rescan queued… from the press until the scan shows', () => {
+  assert.equal(libraryStatus(lib(true), 'rescan', true), 'Scanning')
+  assert.equal(libraryStatus(lib(false), 'rescan', false), 'Rescan queued…')
+  assert.equal(libraryStatus(lib(false), undefined, true), 'Rescan queued…')
+  assert.equal(libraryStatus(lib(false), 'online', false), null)
+})
+
+test("a Rescan's wait ends when its library scans, not another's", () => {
+  const r = { id: 'a', at: 5 }
+  assert.deepEqual(rescanSeen(r, [{ ...lib(true), id: 'b' }]), r)
+  assert.deepEqual(rescanSeen(r, [lib(true)]), { id: '', at: 0 })
 })

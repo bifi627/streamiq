@@ -166,7 +166,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Admin, "GET", pairing.RequestsPath, "", http.StatusOK},
 		{tunnel.Admin, "POST", pairing.DecidePath, `{"id":"x","approve":true}`, http.StatusNotFound},
 		{tunnel.Member, "GET", jellyfin.LibrariesPath, "", http.StatusForbidden},
-		{tunnel.Member, "POST", jellyfin.LibrariesOfflinePath, `{"id":"a"}`, http.StatusForbidden},
+		{tunnel.Member, "POST", jellyfin.LibrariesOnlinePath, `{"id":"a"}`, http.StatusForbidden},
 		{tunnel.Member, "POST", jellyfin.LibrariesExtrasPath, `{"id":"a","on":true}`, http.StatusForbidden},
 		{tunnel.Member, "POST", jellyfin.LibrariesRescanPath, `{"id":"a"}`, http.StatusForbidden},
 		{tunnel.Admin, "GET", jellyfin.LibrariesPath, "", http.StatusConflict},

@@ -24,7 +24,7 @@ import type { Refused, Started } from '../../generated/update'
 import type {
   Library,
   LibraryError,
-  LibraryExtras,
+  LibrarySwitch,
   LibraryID,
 } from '../../generated/jellyfin'
 
@@ -183,16 +183,17 @@ async function viaLibraries<T>(id: string, url: string, body?: unknown) {
 export const listLibraries = (id: string) =>
   viaLibraries<Library[]>(id, '/streamiq/libraries')
 
-export const makeLibraryOffline = (id: string, lib: string) =>
-  viaLibraries(id, '/streamiq/libraries/offline', {
+export const setLibraryOnline = (id: string, lib: string, on: boolean) =>
+  viaLibraries(id, '/streamiq/libraries/online', {
     id: lib,
-  } satisfies LibraryID)
+    on,
+  } satisfies LibrarySwitch)
 
 export const setLibraryExtras = (id: string, lib: string, on: boolean) =>
   viaLibraries(id, '/streamiq/libraries/extras', {
     id: lib,
     on,
-  } satisfies LibraryExtras)
+  } satisfies LibrarySwitch)
 
 export const rescanLibrary = (id: string, lib: string) =>
   viaLibraries(id, '/streamiq/libraries/rescan', {

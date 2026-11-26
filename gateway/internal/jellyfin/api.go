@@ -13,15 +13,15 @@ import (
 
 // Gateway API (docs/protocol.md), admin-only: a managed Jellyfin's libraries.
 // LibrariesPath lists them: GET → [Library]. The POSTs answer 200 {}:
-// LibrariesOfflinePath {id} turns its fetchers off, LibrariesExtrasPath
+// LibrariesOnlinePath {id, on} sets its fetchers, LibrariesExtrasPath
 // {id, on} its extras, LibrariesRescanPath {id} starts a scan. A bad body is
 // 400; a Jellyfin the gateway didn't set up 409; a Jellyfin failure 502 with
 // LibraryError (Jellyfin's message).
 const (
-	LibrariesPath        = "/streamiq/libraries"
-	LibrariesOfflinePath = "/streamiq/libraries/offline"
-	LibrariesExtrasPath  = "/streamiq/libraries/extras"
-	LibrariesRescanPath  = "/streamiq/libraries/rescan"
+	LibrariesPath       = "/streamiq/libraries"
+	LibrariesOnlinePath = "/streamiq/libraries/online"
+	LibrariesExtrasPath = "/streamiq/libraries/extras"
+	LibrariesRescanPath = "/streamiq/libraries/rescan"
 )
 
 // ServeLibraries is GET LibrariesPath.
@@ -37,10 +37,10 @@ func (s *Setup) ServeLibraries(w http.ResponseWriter, r *http.Request) {
 	tunnel.JSON(w, http.StatusOK, libs)
 }
 
-// ServeOffline is POST LibrariesOfflinePath.
-func (s *Setup) ServeOffline(w http.ResponseWriter, r *http.Request) {
-	if in, ok := libIn(w, r, "offline"); ok {
-		libReply(w, "offline", s.MakeOffline(r.Context(), in.ID))
+// ServeOnline is POST LibrariesOnlinePath.
+func (s *Setup) ServeOnline(w http.ResponseWriter, r *http.Request) {
+	if in, ok := libIn(w, r, "online"); ok {
+		libReply(w, "online", s.SetOnline(r.Context(), in.ID, in.On))
 	}
 }
 
@@ -58,9 +58,9 @@ func (s *Setup) ServeRescan(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// libIn reads a body with an id (LibraryExtras: LibraryID plus on); ok = false:
+// libIn reads a body with an id (LibrarySwitch: LibraryID plus on); ok = false:
 // answered 400.
-func libIn(w http.ResponseWriter, r *http.Request, what string) (in LibraryExtras, ok bool) {
+func libIn(w http.ResponseWriter, r *http.Request, what string) (in LibrarySwitch, ok bool) {
 	b, _ := io.ReadAll(io.LimitReader(r.Body, 4<<10))
 	if json.Unmarshal(b, &in) != nil || in.ID == "" {
 		tunnel.Fail(w, http.StatusBadRequest, fmt.Errorf("gateway API: library %s: bad body", what))

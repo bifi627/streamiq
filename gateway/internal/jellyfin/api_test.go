@@ -12,7 +12,7 @@ import (
 func libAPI(s *Setup) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	rt.Handle("GET "+LibrariesPath, http.HandlerFunc(s.ServeLibraries))
-	rt.Handle("POST "+LibrariesOfflinePath, http.HandlerFunc(s.ServeOffline))
+	rt.Handle("POST "+LibrariesOnlinePath, http.HandlerFunc(s.ServeOnline))
 	rt.Handle("POST "+LibrariesExtrasPath, http.HandlerFunc(s.ServeExtras))
 	rt.Handle("POST "+LibrariesRescanPath, http.HandlerFunc(s.ServeRescan))
 	return rt
@@ -44,7 +44,7 @@ func TestLibrariesAPI(t *testing.T) {
 		t.Fatalf("list: %d %s", st, reply)
 	}
 	for _, c := range []struct{ path, body string }{
-		{LibrariesOfflinePath, `{"id":"a"}`},
+		{LibrariesOnlinePath, `{"id":"a","on":false}`},
 		{LibrariesExtrasPath, `{"id":"a","on":true}`},
 		{LibrariesRescanPath, `{"id":"a"}`},
 	} {
@@ -81,7 +81,7 @@ func TestLibrariesAPIUserJellyfin(t *testing.T) {
 	}
 	for _, c := range []struct{ method, path, body string }{
 		{"GET", LibrariesPath, ""},
-		{"POST", LibrariesOfflinePath, `{"id":"a"}`},
+		{"POST", LibrariesOnlinePath, `{"id":"a","on":true}`},
 		{"POST", LibrariesExtrasPath, `{"id":"a","on":true}`},
 		{"POST", LibrariesRescanPath, `{"id":"a"}`},
 	} {

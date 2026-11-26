@@ -395,7 +395,7 @@ Every tunnel request whose path starts with `/streamiq/` (the prefix matched
 case-insensitively, like Jellyfin's routing) is answered by the **gateway
 itself** and never proxied to Jellyfin; none needs a Jellyfin token. Only an
 exact, unencoded path with its method (`GET`, or `POST` on the screen endpoints,
-`/streamiq/name`, `/streamiq/relay`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile`, `/streamiq/pairing/decide`, `/streamiq/libraries/offline`, `/streamiq/libraries/extras`, `/streamiq/libraries/rescan` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
+`/streamiq/name`, `/streamiq/relay`, `/streamiq/clients/remove`, `/streamiq/clients/rename`, `/streamiq/clients/profile`, `/streamiq/pairing/decide`, `/streamiq/libraries/online`, `/streamiq/libraries/extras`, `/streamiq/libraries/rescan` and `/streamiq/update`) matches an endpoint; an unknown, unclean or
 percent-encoded path under the prefix is `404`; a known path with another method
 is `405` with an `Allow` header listing its methods, no body (#436; `HEAD` is never
 served, so a `GET` path answers it `405` with `Allow: GET`), checked before the
@@ -533,10 +533,11 @@ of every type the library holds is off; `extras` `on` / `off` / `custom` (trickp
 chapter images, LUFS: all, none, a mix); `scanning` while Jellyfin refreshes it, with
 `progress` 0–100 (else `0`). Each call signs the gateway's Jellyfin admin in and out:
 the web app polls it only while a library scans, every 3 s.
-**`POST /streamiq/libraries/offline`** `{ "id": "…" }` (Make offline),
+**`POST /streamiq/libraries/online`** `{ "id": "…", "on": false }` (off: every
+fetcher off; on: the fetchers Jellyfin enables for a new library),
 **`POST /streamiq/libraries/extras`** `{ "id": "…", "on": true }` and
 **`POST /streamiq/libraries/rescan`** `{ "id": "…" }` (#429, admin-only) → `200 {}`.
-Offline and Extras change only their own fields of that library's options (#322).
+Online and Extras change only their own fields of that library's options (#322).
 Rescan starts Jellyfin's refresh of that one library (`POST /Items/{id}/Refresh`,
 recursive, metadata and images only where missing: new, changed and removed files)
 and returns at once; Jellyfin queues it, so the list may read idle for a moment

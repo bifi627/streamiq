@@ -18,15 +18,15 @@ export interface Library {
   progress: number /* int */; // 0–100 while scanning
 }
 /**
- * LibraryID is the body of POST /streamiq/libraries/offline and /rescan.
+ * LibraryID is the body of POST /streamiq/libraries/rescan.
  */
 export interface LibraryID {
   id: string;
 }
 /**
- * LibraryExtras is the body of POST /streamiq/libraries/extras.
+ * LibrarySwitch is the body of POST /streamiq/libraries/online and /extras.
  */
-export interface LibraryExtras {
+export interface LibrarySwitch {
   id: string;
   on: boolean;
 }

@@ -2,18 +2,20 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   listLibraries,
-  makeLibraryOffline,
   rescanLibrary,
   setLibraryExtras,
+  setLibraryOnline,
   type Gateway,
 } from './api'
 import { toAppError } from '../../shared/errors'
 import { Tile } from '../../shared/Tile'
 import {
-  extrasLabel,
   librariesMessage,
+  libraryStatus,
   nextLibrariesAsk,
   rescanPending,
+  rescanSeen,
+  type LibraryAction,
 } from './libraryList'
 
 // A managed Jellyfin's libraries (admin, paired browser), read live from
@@ -21,18 +23,22 @@ import {
 // library scans.
 export function Libraries({ g }: { g: Gateway }) {
   const [open, setOpen] = useState(false)
-  const [rescanAt, setRescanAt] = useState(0)
+  const [rescan, setRescan] = useState({ id: '', at: 0 })
   const [msg, setMsg] = useState<string | null>(null) // an action's error
-  const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<Record<string, LibraryAction>>({})
   const q = useQuery({
     queryKey: ['libraries', g.id],
-    queryFn: () => listLibraries(g.id),
+    queryFn: async () => {
+      const list = await listLibraries(g.id)
+      setRescan((r) => rescanSeen(r, list))
+      return list
+    },
     enabled: open,
     refetchInterval: (x) =>
       nextLibrariesAsk(
         x.state.data,
         x.state.status === 'error',
-        rescanAt,
+        rescan.at,
         Date.now(),
       ),
     gcTime: 0,
@@ -41,17 +47,25 @@ export function Libraries({ g }: { g: Gateway }) {
     retry: false,
   })
 
-  async function act(run: () => Promise<unknown>, rescan = false) {
-    setBusy(true)
+  async function act(
+    id: string,
+    what: LibraryAction,
+    run: () => Promise<unknown>,
+  ) {
+    setPending((p) => ({ ...p, [id]: what }))
     setMsg(null)
     try {
       await run()
-      if (rescan) setRescanAt(Date.now())
+      if (what === 'rescan') setRescan({ id, at: Date.now() })
     } catch (x) {
       setMsg(librariesMessage(toAppError(x)))
     }
     await q.refetch()
-    setBusy(false)
+    setPending((p) => {
+      const next = { ...p }
+      delete next[id]
+      return next
+    })
   }
 
   const note = q.error
@@ -62,69 +76,92 @@ export function Libraries({ g }: { g: Gateway }) {
   return (
     <Tile title="Libraries" onOpen={setOpen}>
       {note && <p role="status">{note}</p>}
-      {msg && <p role="status">{msg}</p>}
+      {msg && <p role="alert">{msg}</p>}
       {q.data?.length === 0 && (
         <p>No libraries yet. Add one in Jellyfin: Dashboard → Libraries.</p>
       )}
       {!!q.data?.length && (
         <>
-          <p>
-            <b>Offline</b>: Jellyfin looks nothing up online for the library.{' '}
-            <b>Extras</b>: seek thumbnails, chapter images and audio
-            normalization; StreamIQ doesn&apos;t show them, and they cost CPU
-            and disk.
+          <p className="hint muted">
+            Online lookups fetch titles, posters and descriptions from the
+            internet; off, Jellyfin uses only what&apos;s in your folders. Seek
+            previews, chapter images and the loudness scan cost CPU and disk,
+            and StreamIQ doesn&apos;t show them.
           </p>
           <ul className="libraries">
-            {q.data.map((l) => (
-              <li key={l.id}>
-                <b>{l.name}</b>
-                {l.scanning && (
-                  <label>
-                    Scanning{' '}
-                    <progress max={100} value={l.progress}>
-                      {l.progress}%
-                    </progress>
-                  </label>
-                )}
-                <span>
-                  {l.offline ? 'Offline' : 'Online (set in Jellyfin)'}{' '}
-                  {!l.offline && (
-                    <button
-                      type="button"
-                      className="link"
-                      disabled={busy}
-                      onClick={() => act(() => makeLibraryOffline(g.id, l.id))}
-                    >
-                      Make offline
-                    </button>
+            {q.data.map((l) => {
+              const action = pending[l.id]
+              // the last read's time, not Date.now(): render stays pure, and polls continue through the grace
+              const queued =
+                rescan.id === l.id && rescanPending(rescan.at, q.dataUpdatedAt)
+              const status = libraryStatus(l, action, queued)
+              return (
+                <li key={l.id} aria-busy={!!action}>
+                  <div className="lib-head">
+                    <b>{l.name}</b>
+                    {status ? (
+                      <span className="muted">{status}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="link"
+                        disabled={!!action}
+                        onClick={() =>
+                          act(l.id, 'rescan', () => rescanLibrary(g.id, l.id))
+                        }
+                      >
+                        Rescan
+                      </button>
+                    )}
+                  </div>
+                  {l.scanning && (
+                    <progress
+                      max={100}
+                      value={l.progress}
+                      aria-label={`${l.name}: scan progress`}
+                    />
                   )}
-                </span>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={l.extras === 'on'}
-                    disabled={busy}
-                    onChange={(e) => {
-                      const on = e.currentTarget.checked
-                      void act(() => setLibraryExtras(g.id, l.id, on))
-                    }}
-                  />{' '}
-                  {extrasLabel(l.extras)}
-                </label>
-                <button
-                  type="button"
-                  // the last read's time, not Date.now(): render stays pure, and polls continue through the grace
-                  disabled={
-                    busy ||
-                    l.scanning ||
-                    rescanPending(rescanAt, q.dataUpdatedAt)
-                  }
-                  onClick={() => act(() => rescanLibrary(g.id, l.id), true)}
-                >
-                  Rescan
-                </button>
-              </li>
-            ))}
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!l.offline}
+                      disabled={!!action}
+                      onChange={(e) => {
+                        const on = e.currentTarget.checked
+                        void act(l.id, 'online', () =>
+                          setLibraryOnline(g.id, l.id, on),
+                        )
+                      }}
+                    />{' '}
+                    Online lookups
+                    {action === 'online' && (
+                      <span className="muted"> · saving…</span>
+                    )}
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={l.extras === 'on'}
+                      disabled={!!action}
+                      onChange={(e) => {
+                        const on = e.currentTarget.checked
+                        void act(l.id, 'extras', () =>
+                          setLibraryExtras(g.id, l.id, on),
+                        )
+                      }}
+                    />{' '}
+                    Seek previews, chapter images, loudness scan
+                    {action === 'extras' ? (
+                      <span className="muted"> · saving…</span>
+                    ) : (
+                      l.extras === 'custom' && (
+                        <span className="muted"> · a mix, set in Jellyfin</span>
+                      )
+                    )}
+                  </label>
+                </li>
+              )
+            })}
           </ul>
         </>
       )}

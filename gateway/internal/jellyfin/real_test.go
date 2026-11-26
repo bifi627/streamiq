@@ -328,7 +328,11 @@ func scan(ctx context.Context, t *testing.T, s *Setup, media string) {
 func editLibraries(ctx context.Context, t *testing.T, s *Setup, media string) {
 	t.Helper()
 	fs, err := s.MediaFolders(ctx)
-	want := []MediaFolder{{"/media/extra", []string{}}, {"/media/media", []string{"Films"}}, {"/media/more", []string{}}}
+	want := []MediaFolder{
+		{"/media/extra", []string{}},
+		{"/media/media", []string{"Films"}},
+		{"/media/more", []string{}},
+	}
 	if err != nil || !reflect.DeepEqual(fs, want) {
 		t.Fatalf("folders: %+v, %v", fs, err)
 	}

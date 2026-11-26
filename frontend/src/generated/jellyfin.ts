@@ -27,7 +27,10 @@ export interface Library {
  */
 export interface MediaFolder {
   path: string; // /media/<name>
-  libraries: string[]; // names of the libraries using it
+  /**
+   * libraries holding it or a folder above it: in use, not offered again
+   */
+  libraries: string[];
 }
 /**
  * NewLibrary is the body of POST /streamiq/libraries/create.

@@ -58,6 +58,10 @@ export const libraryStatus = (
 export const addableFolders = (all: MediaFolder[], l: Library) =>
   all.filter((f) => !l.folders.includes(f.path))
 
+// A folder a library holds (or one above it) is in use: Jellyfin would skip
+// it in a second library, so the picker shows it disabled.
+export const folderInUse = (f: MediaFolder) => f.libraries.length > 0
+
 // A folder in the picker: its path, and which libraries already use it.
 export const folderLabel = (f: MediaFolder) =>
   f.libraries.length ? `${f.path} (in ${f.libraries.join(', ')})` : f.path

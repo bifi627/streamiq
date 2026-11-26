@@ -50,17 +50,35 @@ func (s *Setup) MediaFolders(ctx context.Context) ([]MediaFolder, error) {
 			if p, err := mediaFolder(d.Path); err != nil || p != d.Path {
 				continue
 			}
-			m := MediaFolder{Path: d.Path, Libraries: []string{}}
-			for _, f := range fs {
-				if slices.Contains(f.Locations, d.Path) {
-					m.Libraries = append(m.Libraries, f.Name)
-				}
-			}
-			out = append(out, m)
+			out = append(out, MediaFolder{Path: d.Path, Libraries: usedBy(fs, d.Path)})
 		}
 		return nil
 	})
 	return out, err
+}
+
+// usedBy names the libraries holding folder p, or a folder above it (a
+// library on /media holds every /media/<name>). Jellyfin scans a path in
+// one library only ("Found duplicate path"), so a second one stays empty.
+func usedBy(fs []folder, p string) []string {
+	names := []string{}
+	for _, f := range fs {
+		if slices.ContainsFunc(f.Locations, func(l string) bool {
+			return l == p || strings.HasPrefix(p, strings.TrimSuffix(l, "/")+"/")
+		}) {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}
+
+// taken refuses folder p if a library already holds it.
+func taken(fs []folder, p string) error {
+	if names := usedBy(fs, p); len(names) > 0 {
+		return badRequest(fmt.Sprintf("%s is already in %s: Jellyfin keeps a folder in one library.",
+			p, strings.Join(names, ", ")))
+	}
+	return nil
 }
 
 // CreateLibrary creates a library of in.Type over in.Folders with every
@@ -79,6 +97,11 @@ func (s *Setup) CreateLibrary(ctx context.Context, in NewLibrary) error {
 		}
 		if slices.ContainsFunc(fs, func(f folder) bool { return strings.EqualFold(f.Name, name) }) {
 			return badRequest(fmt.Sprintf("There is already a library named %q.", name))
+		}
+		for _, p := range paths {
+			if err := taken(fs, p["Path"]); err != nil {
+				return err
+			}
 		}
 		av, err := s.available(ctx, admin, in.Type, true)
 		if err != nil {
@@ -122,13 +145,18 @@ func (s *Setup) AddFolder(ctx context.Context, id, p string) error {
 		return err
 	}
 	return s.asAdmin(ctx, func(admin string) error {
-		f, err := s.library(ctx, admin, id)
+		fs, err := s.folders(ctx, admin)
 		if err != nil {
 			return err
 		}
-		if slices.Contains(f.Locations, c) {
-			return badRequest(fmt.Sprintf("%s is already in %s.", c, f.Name))
+		i := slices.IndexFunc(fs, func(f folder) bool { return f.ItemId == id })
+		if i < 0 {
+			return errNoLibrary
 		}
+		if err := taken(fs, c); err != nil {
+			return err
+		}
+		f := fs[i]
 		b, _ := json.Marshal(map[string]any{"Name": f.Name, "PathInfo": map[string]string{"Path": c}})
 		return s.call(ctx, "POST", "/Library/VirtualFolders/Paths?refreshLibrary=true", admin, string(b), nil)
 	})

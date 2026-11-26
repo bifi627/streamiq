@@ -20,7 +20,8 @@ type Library struct {
 // MediaFolder is one folder of GET /streamiq/libraries/folders.
 type MediaFolder struct {
 	Path      string   `json:"path"`      // /media/<name>
-	Libraries []string `json:"libraries"` // names of the libraries using it
+	// libraries holding it or a folder above it: in use, not offered again
+	Libraries []string `json:"libraries"`
 }
 
 // NewLibrary is the body of POST /streamiq/libraries/create.

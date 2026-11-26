@@ -8,6 +8,7 @@ import {
   hasFolders,
   draftReady,
   emptyDraft,
+  folderInUse,
   folderLabel,
   toggleFolder,
   LIBRARIES_POLL,
@@ -98,6 +99,8 @@ test('Add folder offers only the folders a library lacks, labelled with their us
   assert.deepEqual(addableFolders(all, lib(false)), [all[1]])
   assert.equal(folderLabel(all[0]), '/media/films (in Films)')
   assert.equal(folderLabel(all[1]), '/media/more')
+  assert.equal(folderInUse(all[0]), true)
+  assert.equal(folderInUse(all[1]), false)
 })
 
 test('a library keeps its last folder; only /media/<name> comes out', () => {

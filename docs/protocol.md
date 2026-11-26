@@ -549,7 +549,9 @@ Jellyfin failure (unreachable, an error, an unknown id, the stored admin passwor
 **`GET /streamiq/libraries/folders`** (#430, admin-only) → `200`
 `[{ "path": "/media/films", "libraries": ["Films"] }]`: the folders the managed Jellyfin
 sees right under `/media` (`GET /Environment/DirectoryContents`), each with the names of
-the libraries using it. Mounting a folder there happens only on the gateway's host.
+the libraries holding it or a folder above it (a library on `/media` holds them all): such a
+folder is in use, the web app shows it disabled, since Jellyfin scans a path in one library
+only and skips it in another. Mounting a folder there happens only on the gateway's host.
 **`POST /streamiq/libraries/create`** `{ "name": "Shows", "type": "<movies | tvshows>", "folders": ["/media/shows"] }`
 (`type` `movies` or `tvshows`, one or more folders) creates the library with every metadata
 and image fetcher off for every type it can hold and the extras off (it lists `offline: true`,
@@ -560,8 +562,8 @@ add a folder to a library or take one out (never its last: remove the library in
 No file is ever deleted. All → `200 {}` (#430, admin-only); Jellyfin addresses a library by
 name, the gateway resolves it from the id. A folder is checked on the cleaned path
 (`path.Clean`): anything but `/media/<name>` (`..` included), a duplicate library name
-(any case), an unknown `type`, no folders, a folder already in or not in the library, or a
-library's last folder → `400 { "error": "<why>" }`, which the web app shows as is. A
+(any case), an unknown `type`, no folders, a folder in use (create and add), one not in the
+library (remove), or a library's last folder → `400 { "error": "<why>" }`, which the web app shows as is. A
 missing id or an unreadable body `400` without one; `409` and `502` as above.
 **`POST /streamiq/clients/profile`** (#792) `{ "probe": { "h264": {…} | null, "hevc": {…} | null,
 "av1": {…} | null, "audio": ["aac", …], "surround": true }, "compatible": false }` → `200 {}`:

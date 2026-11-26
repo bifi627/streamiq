@@ -233,9 +233,9 @@ func roundTrip(t *testing.T, compose []byte) {
 	}
 
 	// last: its scans would fail the backup above
-	// a second folder under /media (#430), inside the container: ./media is the only mount
-	if out, err := docker(ctx, "exec", "-T", service, "mkdir", "-p", "/media/more"); err != nil {
-		t.Fatalf("mkdir /media/more: %v: %s", err, out)
+	// more folders under /media (#430), inside the container: ./media is the only mount
+	if out, err := docker(ctx, "exec", "-T", service, "mkdir", "-p", "/media/more", "/media/extra"); err != nil {
+		t.Fatalf("mkdir /media/more, /media/extra: %v: %s", err, out)
 	}
 	editLibraries(ctx, t, r, filepath.Join(dir, "media"))
 }
@@ -323,12 +323,12 @@ func scan(ctx context.Context, t *testing.T, s *Setup, media string) {
 }
 
 // editLibraries (#430): a Shows library made from /media/more lists offline
-// with extras off; /media/media added and /media/more removed; the last folder
-// stays; removing the library leaves the files.
+// with extras off; Films' /media/media is refused, /media/extra added and
+// /media/more removed; the last folder stays; removing the library leaves the files.
 func editLibraries(ctx context.Context, t *testing.T, s *Setup, media string) {
 	t.Helper()
 	fs, err := s.MediaFolders(ctx)
-	want := []MediaFolder{{"/media/media", []string{"Films"}}, {"/media/more", []string{}}}
+	want := []MediaFolder{{"/media/extra", []string{}}, {"/media/media", []string{"Films"}}, {"/media/more", []string{}}}
 	if err != nil || !reflect.DeepEqual(fs, want) {
 		t.Fatalf("folders: %+v, %v", fs, err)
 	}
@@ -352,16 +352,19 @@ func editLibraries(ctx context.Context, t *testing.T, s *Setup, media string) {
 		return libs[i].ID
 	}
 	id := shows("/media/more")
-	if err := s.AddFolder(ctx, id, "/media/media"); err != nil {
+	var bad badRequest
+	if err := s.AddFolder(ctx, id, "/media/media"); !errors.As(err, &bad) { // Films holds it
+		t.Fatalf("adding a folder of another library: %v", err)
+	}
+	if err := s.AddFolder(ctx, id, "/media/extra"); err != nil {
 		t.Fatal(err)
 	}
-	shows("/media/media", "/media/more")
+	shows("/media/extra", "/media/more")
 	if err := s.RemoveFolder(ctx, id, "/media/more"); err != nil {
 		t.Fatal(err)
 	}
-	shows("/media/media")
-	var bad badRequest
-	if err := s.RemoveFolder(ctx, id, "/media/media"); !errors.As(err, &bad) {
+	shows("/media/extra")
+	if err := s.RemoveFolder(ctx, id, "/media/extra"); !errors.As(err, &bad) {
 		t.Fatalf("removing the last folder: %v", err)
 	}
 	if err := s.RemoveLibrary(ctx, id); err != nil {

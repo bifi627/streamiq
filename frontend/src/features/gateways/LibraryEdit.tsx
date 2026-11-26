@@ -14,6 +14,7 @@ import {
   foldersNote,
   draftReady,
   emptyDraft,
+  folderInUse,
   folderLabel,
   removeLibraryQuestion,
   toggleFolder,
@@ -102,6 +103,7 @@ export function AddLibrary(p: {
             <input
               type="checkbox"
               checked={d.folders.includes(f.path)}
+              disabled={folderInUse(f)}
               onChange={() => setD(toggleFolder(d, f.path))}
             />{' '}
             {folderLabel(f)}
@@ -172,7 +174,7 @@ export function LibraryFolders(p: {
           >
             <option value="">Pick a folder…</option>
             {addable.map((f) => (
-              <option key={f.path} value={f.path}>
+              <option key={f.path} value={f.path} disabled={folderInUse(f)}>
                 {folderLabel(f)}
               </option>
             ))}

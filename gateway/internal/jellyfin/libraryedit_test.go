@@ -3,6 +3,7 @@ package jellyfin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -135,6 +136,7 @@ func TestLibraryEditAPI(t *testing.T) {
 		{LibrariesFolderAddPath, `{"id":"` + id + `","folder":"/media/more/sub"}`, "not a folder in /media"},
 		{LibrariesFolderAddPath, `{"id":"` + id + `","folder":"/media"}`, "not a folder in /media"},
 		{LibrariesCreatePath, `{"name":"shows","type":"movies","folders":["/media/more"]}`, "already a library"},
+		{LibrariesCreatePath, `{"name":"other","type":"movies","folders":["/media/more"]}`, "already in Shows: Jellyfin keeps"},
 		{LibrariesCreatePath, `{"name":"x","type":"music","folders":["/media/more"]}`, "Unknown library type"},
 		{LibrariesCreatePath, `{"name":"x","type":"movies","folders":[]}`, "at least one folder"},
 		{LibrariesCreatePath, `{"name":" ","type":"movies","folders":["/media/more"]}`, "a name"},
@@ -180,5 +182,34 @@ func TestCreateOffline(t *testing.T) {
 	const want = `"TypeOptions":[{"ImageFetchers":[],"MetadataFetchers":[],"Type":"Movie"}]`
 	if !strings.Contains(string(b), want) || strings.Contains(string(b), "true") {
 		t.Fatalf("options %s", b)
+	}
+}
+
+// A library on /media holds every /media/<name>: Jellyfin would skip the
+// folder as a duplicate, so it lists as in use and is refused.
+func TestFolderInUse(t *testing.T) {
+	f, srv := newFake(t, false)
+	var got [2]string
+	s := newSetup(t, srv.URL, &got)
+	s.poll(context.Background())
+	f.mu.Lock()
+	f.dirs = []string{"/media/a"}
+	f.libs = []map[string]any{lib("root", "movies", []any{}), lib("x", "movies", []any{})}
+	f.libs[0]["Locations"] = []any{"/media/"} // Jellyfin may keep a trailing slash
+	f.mu.Unlock()
+	fs, err := s.MediaFolders(context.Background())
+	if err != nil || len(fs) != 1 || !slices.Equal(fs[0].Libraries, []string{"lib root"}) {
+		t.Fatalf("folders: %+v, %v", fs, err)
+	}
+	var bad badRequest
+	if err := s.AddFolder(context.Background(), "x", "/media/a"); !errors.As(err, &bad) {
+		t.Fatalf("add: %v", err)
+	}
+	err = s.CreateLibrary(context.Background(), NewLibrary{Name: "n", Type: "movies", Folders: []string{"/media/a"}})
+	if !errors.As(err, &bad) || !strings.Contains(err.Error(), "already in lib root") {
+		t.Fatalf("create: %v", err)
+	}
+	if n := usedBy([]folder{{Name: "m", Locations: []string{"/media/ab"}}}, "/media/a"); len(n) != 0 {
+		t.Fatal("/media/ab holds /media/a")
 	}
 }

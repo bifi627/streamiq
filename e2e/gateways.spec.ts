@@ -683,7 +683,7 @@ test('a refused broker socket shows an error, not "loading…" (#403) @gateways'
   })
   await page.reload() // drops the fixture's shared session
   await openGateway(page)
-  const refused = /Couldn't reach StreamIQ: too many attempts or offline/
+  const refused = /Couldn't reach StreamIQ\. Wait a minute and try again\./
 
   const clients = await tile(page, 'Paired clients')
   await expect(clients.getByRole('status')).toHaveText(refused)

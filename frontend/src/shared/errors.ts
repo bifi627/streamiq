@@ -153,8 +153,7 @@ export function describe(e: AppError): {
   switch (e.kind) {
     case 'broker-unreachable':
       return {
-        message:
-          "Couldn't reach StreamIQ: too many attempts or offline. Try again in a minute.",
+        message: "Couldn't reach StreamIQ. Wait a minute and try again.",
         actions: ['retry'],
       }
     case 'broker-lost':
@@ -165,13 +164,14 @@ export function describe(e: AppError): {
     case 'no-household':
       // A reload shows the no-household screen (create or join one).
       return {
-        message: "You're not in a household (anymore).",
+        message:
+          "You're no longer in a household. Reload to create or join one.",
         actions: ['reload'],
       }
     case 'rate-limited':
       // The budget is per socket: a reload opens a fresh one.
       return {
-        message: 'Too many requests on this connection.',
+        message: 'Too many requests. Reload the page to continue.',
         actions: ['reload'],
       }
     case 'gateway-offline':
@@ -252,15 +252,15 @@ export function describe(e: AppError): {
     case 'unauthorized':
       return { message: 'Your session expired.', actions: ['sign-in'] }
     case 'http':
-      return { message: 'Request failed.', actions: ['retry'] }
+      return { message: 'The request failed. Try again.', actions: ['retry'] }
     case 'network':
       return {
-        message: "Couldn't reach StreamIQ: offline?",
+        message: "Couldn't reach StreamIQ. Are you offline?",
         actions: ['retry'],
       }
     case 'playback':
       return { message: e.message, actions: [] }
     case 'unknown':
-      return { message: 'Something went wrong.', actions: ['retry'] }
+      return { message: 'Something went wrong. Try again.', actions: ['retry'] }
   }
 }

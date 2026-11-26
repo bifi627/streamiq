@@ -100,7 +100,10 @@ It writes no code itself.
      `gh pr checks <pr>`), then give the owner the PR link, its review verdict and its
      CI status here; CI red → send the worker back to fix it first (`t3_thread_send`)
      and end your turn until it reports again.
-     A draft (device test pending) has CI skipped: it runs when the owner marks it ready.
+     A draft (device test pending) has CI skipped and its `e2e` gate red by design: it runs
+     when the owner marks it ready. That red `e2e` is not a reason to send the worker back, nor is
+     one right after ready while that sha's ready run is still going (`gh run list -c <sha>`):
+     it is the draft run's until that run completes.
      LOW findings are the worker's call alone (`build-issue` section 3): don't triage
      them, don't recommend fixing any, and never send the worker back for one. If its
      report names a commit pushed after the review, pass that on as it is (sha + its

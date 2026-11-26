@@ -1,7 +1,8 @@
 # Same checks as scripts/check.sh — if they disagree, that's a harness bug. CI is authoritative.
 # Job names api / frontend / image / gateway-linux / gateway-windows / gateway-jellyfin / e2e are required checks in
 # the "main: merge gate" ruleset: renaming, removing or matrix-splitting one (or a workflow-level `paths:` filter)
-# leaves PRs waiting forever. Update the ruleset in the same PR. Skip with job `if:` only.
+# leaves PRs waiting forever. Update the ruleset in the same PR. Skip with job `if:` only (`e2e` is a gate
+# over the `e2e-shard` jobs that never skips: red on a draft or a cancelled run).
 name: ci
 on:
   push:
@@ -29,7 +30,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Drafts skip CI; ready_for_review runs it. The PR's live draft state, not the event's:
+  # Drafts skip CI (the `e2e` gate goes red instead); ready_for_review runs it. The PR's live draft state, not the event's:
   # a push right before "ready for review" carries draft=true, and its skipped checks, newer
   # than the ready run's, satisfied the required checks while e2e still ran (#631 merged so).
   # An API failure counts as "not a draft": run CI rather than skip it (a skipped job passes the gate).
@@ -170,14 +171,20 @@ jobs:
         env:
           STREAMIQ_TEST_OLD_JELLYFIN_COMPOSE: ${{ runner.temp }}/jellyfin-compose.yml
 
-  # The e2e specs (smoke, multi-user, households, compat: the last gateway release), 3 workers on one stack (no sharding:
-  # e2e/playwright.config.ts). Containers via testcontainers-node, API/Vite/gateway as
-  # real processes — see e2e/global-setup.ts.
-  e2e:
+  # The e2e specs (smoke, multi-user, households, compat: the last gateway release) in 3 shards,
+  # each its own stack with 3 workers (e2e/playwright.config.ts). Playwright splits per
+  # test (fullyParallel), so every test runs in exactly one shard. More shards: extend the list.
+  # Containers via testcontainers-node, API/Vite/gateway as real processes — see
+  # e2e/global-setup.ts.
+  e2e-shard:
     needs: draft
     if: ${{ !cancelled() && needs.draft.outputs.draft != 'true' }} # a failed draft job runs CI: skipped would pass the merge gate
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false # a red shard shouldn't hide the others' failures
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       # The Jellyfins are global setup's critical path once the emulator comes from the cache (#504):
@@ -219,7 +226,7 @@ jobs:
           until grep -q '^pulled all' "$RUNNER_TEMP/pull.log" || ! kill -0 "$(cat "$RUNNER_TEMP/pull.pid")" 2> /dev/null; do sleep 1; done
           cat "$RUNNER_TEMP/pull.log"
           grep -q '^pulled all' "$RUNNER_TEMP/pull.log"
-      - run: npx playwright test
+      - run: npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         working-directory: e2e
         env:
           GH_TOKEN: ${{ github.token }} # compat.spec.ts downloads the last gateway release (#459)
@@ -229,11 +236,24 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-logs
+          name: e2e-logs-${{ matrix.shard }}
           path: |
             e2e/logs/
             e2e/test-results/
             e2e/playwright-report/
+
+  # The required check `e2e` (ruleset, release-gateway's needs): passes only when every shard
+  # succeeded; a failed, cancelled or skipped shard fails it. Red on a draft, not skipped: its
+  # check run appears only once the shards end, and until then a skipped `e2e` from a draft run
+  # on the same sha would satisfy the merge gate.
+  e2e:
+    needs: [draft, e2e-shard]
+    if: ${{ always() }} # a skipped gate (cancelled run) would pass the merge gate too
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "$RESULT" = success || { echo "e2e shards $RESULT (skipped = draft PR or cancelled run)"; exit 1; }
+        env:
+          RESULT: ${{ needs.e2e-shard.result }}
 
   # Push to main only: is there a gateway release to make (scripts/next-gateway-version.sh)?
   changes:

@@ -25,7 +25,12 @@
 //
 // GPU: with an NVIDIA GPU (nvidia-smi works), Jellyfin gets it and the gateway
 // turns NVENC on (STREAMIQ_JELLYFIN_HWACCEL=nvenc), as on an install. Else CPU.
-import { execFileSync, spawn, spawnSync } from 'node:child_process'
+import {
+  execFileSync,
+  spawn,
+  spawnSync,
+  type ChildProcess,
+} from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
@@ -344,7 +349,7 @@ async function ensureCloudflared() {
 
 /** The admin password the gateway's wizard bootstrap stores (state/jellyfin.json),
  * once it ran: Jellyfin answers its first poll only after its boot. */
-async function gatewayAdmin(stateDir: string) {
+async function gatewayAdmin(stateDir: string, gateway: ChildProcess) {
   const file = path.join(stateDir, 'jellyfin.json')
   for (const end = Date.now() + 5 * 60_000; ;) {
     try {
@@ -353,8 +358,8 @@ async function gatewayAdmin(stateDir: string) {
     } catch {
       // not written yet
     }
-    if (Date.now() > end)
-      throw new Error(`${file}: no admin after 5 min (logs/gateway-*.log)`)
+    if (Date.now() > end || gateway.exitCode !== null)
+      throw new Error(`${file}: no admin (logs/gateway-*.log)`)
     await new Promise((r) => setTimeout(r, 1000))
   }
 }
@@ -403,7 +408,7 @@ async function serve() {
       if (i > 60) throw new Error('gateway not online after 60 s')
       await new Promise((r) => setTimeout(r, 1000))
     }
-    const jellyfinPassword = await gatewayAdmin(stateDir)
+    const jellyfinPassword = await gatewayAdmin(stateDir, gateway.proc)
     await addLibraries(envVar('E2E_JELLYFIN_URL'), {
       user: 'streamiq',
       pw: jellyfinPassword,

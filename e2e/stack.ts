@@ -115,8 +115,8 @@ export async function startGateway(
     STREAMIQ_STATE_DIR: stateDir,
     STREAMIQ_PAGE_PORT: String(port),
     STREAMIQ_LAN_URL: pageUrl,
-    STREAMIQ_ORIGIN: envVar('E2E_JELLYFIN_URL'),
     ...env,
+    STREAMIQ_ORIGIN: env.STREAMIQ_ORIGIN ?? envVar('E2E_JELLYFIN_URL'),
   }
   const p = process.env.E2E_GATEWAY_IMAGE
     ? await dockerGateway(process.env.E2E_GATEWAY_IMAGE, port, gwEnv)
@@ -159,6 +159,25 @@ export async function startGateway(
     }
   }
   return { ...p, pageUrl, pageCookie, stateDir }
+}
+
+/** The admin the gateway's wizard bootstrap created on its managed Jellyfin
+ * (state/jellyfin.json), once it ran: Jellyfin answers its first poll only
+ * after its boot. */
+export async function gatewayAdmin(gateway: { stateDir: string } & Proc) {
+  const file = path.join(gateway.stateDir, 'jellyfin.json')
+  for (const end = Date.now() + 5 * 60_000; ;) {
+    try {
+      const c = JSON.parse(fs.readFileSync(file, 'utf8'))
+      if (c.password)
+        return { user: c.user as string, pw: c.password as string }
+    } catch {
+      // not written yet
+    }
+    if (Date.now() > end || gateway.proc.exitCode !== null)
+      throw new Error(`${file}: no admin (see e2e/logs)`)
+    await new Promise((r) => setTimeout(r, 1000))
+  }
 }
 
 /**
@@ -416,7 +435,8 @@ async function emulatorImage() {
 /**
  * Jellyfin with the fixture media and its libraries (setupJellyfin): the slow part
  * of the stack: in CI global setup starts one per worker, locally a worker starts
- * its own when a spec asks (fixtures.ts).
+ * its own when a spec asks (fixtures.ts). Managed: wizard not done, for one
+ * gateway to set up; its caller adds the libraries (addLibraries).
  */
 export async function startJellyfin(
   o: Partial<StackOptions> = {},
@@ -503,7 +523,7 @@ export async function startJellyfin(
   }
   if (!o.managed) await setupJellyfin(url, step)
 
-  process.env.E2E_JELLYFIN_URL = url
+  if (!o.managed) process.env.E2E_JELLYFIN_URL = url // a managed one belongs to one gateway: its caller passes STREAMIQ_ORIGIN
   return {
     url,
     async stop() {

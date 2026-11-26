@@ -1,7 +1,7 @@
 // The gateways overview and a gateway's page, on a paired browser with its own
 // gateway (fixtures.ts `paired`): the overview's cards (status dot, Add, Pair,
 // Test, Switch), the page (menu, banner, Pair, tiles, not found, Libraries on
-// e2e's BYO Jellyfin), rename, the
+// e2e's BYO Jellyfin and on one the gateway set up), rename, the
 // relay switch, Status paired and unpaired, the shell's
 // connection badge (checked, live, offline, names only when there's more than one), paired clients, the member view, the health history, Activity
 // read from the gateway (an admin's household, a member's own), Reject on the
@@ -12,13 +12,17 @@
 // tests and multi-user.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
+import { addLibraries } from './jellyfin.ts'
+import { gatewayAdmin, startJellyfin } from './stack.ts'
 import {
   appUrl,
   editGateways,
   gatewayTab,
   historyTunnels,
   join,
+  newContext,
   openGateway,
+  onboardGateway,
   openLibrary,
   pair,
   seedHealth,
@@ -192,6 +196,53 @@ test('relay switch: off over the tunnel, mirrored by the API; direct only after 
   await relay.click()
   await expect(relay).toBeChecked()
   await expect.poll(async () => (await row()).relayOff).toBe(false)
+})
+
+// Its own Jellyfin: a managed one belongs to the one gateway that set it up.
+test('managed Jellyfin: the gateway sets it up; Libraries lists, Online lookups off survives a reload, Rescan; Status says CPU (#969) @gateways', async ({
+  browser,
+}) => {
+  const jf = await startJellyfin(
+    { managed: true },
+    undefined,
+    'jellyfin managed',
+  )
+  const user = await signUp(uniqueEmail('managed'))
+  const gateway = await onboardGateway(user, jf.url)
+  const gatewayCtx = await newContext(browser)
+  try {
+    await addLibraries(jf.url, await gatewayAdmin(gateway))
+    const page = await signedInPage(browser, user, '/gateways')
+    await pair(page, gatewayCtx, gateway.pageUrl)
+    await openGateway(page)
+    const status = await tile(page, 'Status')
+    await expect(status.getByText('Transcoding: CPU')).toBeVisible({
+      timeout: 15_000,
+    })
+    const libraries = await tile(page, 'Libraries')
+    await expect
+      .poll(async () =>
+        (await libraries.locator('.lib-head b').allInnerTexts()).sort(),
+      )
+      .toEqual(['Movies', 'Shows'])
+    const movies = libraries.locator('li', { hasText: 'Movies' })
+    const online = movies.getByRole('checkbox', { name: 'Online lookups' })
+    await expect(online).toBeChecked()
+    await online.click() // the box follows Jellyfin's answer
+    await expect(online).not.toBeChecked()
+    await page.reload() // read from Jellyfin again
+    await tile(page, 'Libraries')
+    await expect(online).not.toBeChecked()
+    await movies.getByRole('button', { name: 'Rescan' }).click()
+    await expect(movies.getByText(/^(Rescan queued…|Scanning)$/)).toBeVisible()
+    await expect(movies.getByRole('button', { name: 'Rescan' })).toBeVisible({
+      timeout: 60_000,
+    })
+  } finally {
+    await gatewayCtx.close()
+    await gateway.stop()
+    await jf.stop()
+  }
 })
 
 test('status, paired: details from the gateway API (#140) @gateways', async ({

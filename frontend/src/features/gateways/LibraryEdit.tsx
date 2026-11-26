@@ -11,6 +11,7 @@ import {
 import {
   addableFolders,
   canRemoveFolder,
+  foldersNote,
   draftReady,
   emptyDraft,
   folderLabel,
@@ -44,9 +45,11 @@ export function AddLibrary(p: {
   g: Gateway
   ready: boolean // the list has loaded
   folders: MediaFolder[] | undefined
+  foldersError: unknown
   act: Act
 }) {
   const [open, setOpen] = useState(false)
+  const note = foldersNote(p.foldersError, !!p.folders)
   const [d, setD] = useState(emptyDraft)
   const [busy, setBusy] = useState(false)
   if (!p.ready) return null
@@ -92,7 +95,7 @@ export function AddLibrary(p: {
       </label>
       <fieldset>
         <legend>Folders</legend>
-        {!p.folders && <p role="status">loading…</p>}
+        {note && <p role="status">{note}</p>}
         {p.folders?.length === 0 && <p>No folders under /media yet.</p>}
         {p.folders?.map((f) => (
           <label key={f.path}>
@@ -144,7 +147,7 @@ export function LibraryFolders(p: {
         {l.folders.map((f) => (
           <li key={f}>
             <code>{f}</code>
-            {canRemoveFolder(l) && (
+            {canRemoveFolder(l, f) && (
               <button
                 type="button"
                 className="link"

@@ -4,6 +4,8 @@ import { AppError, httpError } from '../../shared/errors.ts'
 import {
   addableFolders,
   canRemoveFolder,
+  foldersNote,
+  hasFolders,
   draftReady,
   emptyDraft,
   folderLabel,
@@ -98,11 +100,25 @@ test('Add folder offers only the folders a library lacks, labelled with their us
   assert.equal(folderLabel(all[1]), '/media/more')
 })
 
-test('a library keeps its last folder', () => {
-  assert.equal(canRemoveFolder(lib(false)), false)
+test('a library keeps its last folder; only /media/<name> comes out', () => {
+  assert.equal(canRemoveFolder(lib(false), '/media/films'), false)
+  const two = { ...lib(false), folders: ['/media/a', '/data/b'] }
+  assert.equal(canRemoveFolder(two, '/media/a'), true)
+  assert.equal(canRemoveFolder(two, '/data/b'), false)
+})
+
+test("an older gateway's library has no folders: no folder controls", () => {
+  assert.equal(hasFolders(lib(false)), true)
+  const { folders: _, ...old } = lib(false)
+  assert.equal(hasFolders(old as Library), false)
+})
+
+test('the folder picker says why its list is missing', () => {
+  assert.equal(foldersNote(null, false), 'loading…')
+  assert.equal(foldersNote(null, true), null)
   assert.equal(
-    canRemoveFolder({ ...lib(false), folders: ['/media/a', '/media/b'] }),
-    true,
+    foldersNote(httpError('tunnel', 404, '/streamiq/libraries/folders'), false),
+    'Update the gateway to manage libraries here.',
   )
 })
 

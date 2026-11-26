@@ -1,4 +1,4 @@
-import { describe, type AppError } from '../../shared/errors.ts'
+import { describe, toAppError, type AppError } from '../../shared/errors.ts'
 import type { Library, MediaFolder } from '../../generated/jellyfin.ts'
 
 // Each list read signs Jellyfin's admin in and out on the gateway: not faster.
@@ -62,8 +62,17 @@ export const addableFolders = (all: MediaFolder[], l: Library) =>
 export const folderLabel = (f: MediaFolder) =>
   f.libraries.length ? `${f.path} (in ${f.libraries.join(', ')})` : f.path
 
-// Jellyfin keeps a library's last folder: the library is removed instead.
-export const canRemoveFolder = (l: Library) => l.folders.length > 1
+// An older gateway's list has no folders: no folder controls then.
+export const hasFolders = (l: Library) => Array.isArray(l.folders)
+
+// Jellyfin keeps a library's last folder (the library is removed instead);
+// the gateway takes out only folders right under /media.
+export const canRemoveFolder = (l: Library, folder: string) =>
+  l.folders.length > 1 && /^\/media\/[^/]+$/.test(folder)
+
+// The folder picker's note: the list's error, or that it's still loading.
+export const foldersNote = (error: unknown, loaded: boolean) =>
+  error ? librariesMessage(toAppError(error)) : loaded ? null : 'loading…'
 
 export const removeLibraryQuestion = (l: Library) =>
   `Remove the library "${l.name}" from Jellyfin? Its files stay on disk.`

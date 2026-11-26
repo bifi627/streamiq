@@ -14,6 +14,7 @@ import {
 import { toAppError } from '../../shared/errors'
 import { Tile } from '../../shared/Tile'
 import {
+  hasFolders,
   librariesMessage,
   libraryStatus,
   nextLibrariesAsk,
@@ -123,7 +124,13 @@ export function Libraries({ g }: { g: Gateway }) {
           </ul>
         </>
       )}
-      <AddLibrary g={g} ready={!!q.data} folders={folders.data} act={act} />
+      <AddLibrary
+        g={g}
+        ready={!!q.data}
+        folders={folders.data}
+        foldersError={folders.error}
+        act={act}
+      />
     </Tile>
   )
 }
@@ -206,13 +213,15 @@ function LibraryRow(p: {
           )
         )}
       </label>
-      <LibraryFolders
-        g={g}
-        l={l}
-        folders={p.folders}
-        busy={!!action}
-        act={act}
-      />
+      {hasFolders(l) && (
+        <LibraryFolders
+          g={g}
+          l={l}
+          folders={p.folders}
+          busy={!!action}
+          act={act}
+        />
+      )}
     </li>
   )
 }

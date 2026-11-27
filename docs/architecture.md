@@ -272,7 +272,7 @@ peaks per local day.
   drops the old household's state): Switch and the TV picker stay on a household-free page
   (`/settings*`, `/gateways`; `switchTarget.ts`), anything else reloads `/`. On `X-StreamIQ-Not-Member`, `authed()` (`shared/api.ts`)
   drops the choice and reloads `/` with a notice.
-- Design tokens and base styles (dark, pill buttons, one 3 px `:focus-visible` ring, subtle outside TV mode) in
+- Design tokens and base styles (dark, pill buttons, one `:focus-visible` ring: subtle 2 px, 3 px accent in TV mode) in
   `frontend/src/index.css`, CSS that Chrome 87 / webOS reads. Shell nav, gateway chip.
 - App shell (`App.tsx` `Shell`, tabs in `shell.ts`, `Nav.tsx`): a top bar (logo, nav,
   gateway chip), a title row (back · title · actions) the page fills with `<PageBar>`

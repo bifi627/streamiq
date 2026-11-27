@@ -274,7 +274,10 @@ html.tv .player .bar .play:focus {
 }
 html.tv .player .bar .popover button:focus {
   background: var(--surface-2);
-  outline-offset: -3px;
+}
+.player .bar .popover button:focus-visible,
+html.tv .player .bar .popover button:focus {
+  outline-offset: -3px; /* a full-width option: inside, not over its neighbors */
 }
 .player .popover .check {
   width: 1.5rem;

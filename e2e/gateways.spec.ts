@@ -508,7 +508,10 @@ test('member view: the same card, no Add gateway, no menu on the page, no transc
   const sockets: string[] = []
   m.on('websocket', (ws) => sockets.push(ws.url()))
   await m.goto(appUrl(`/gateways/${g.id}/transcodes`))
-  await expect(m.getByRole('status')).toHaveText('Only admins can see this.')
+  // The connection badge is a status too (Checking…).
+  await expect(
+    m.getByRole('status').filter({ hasText: 'Only admins can see this.' }),
+  ).toBeVisible()
   expect(sockets.filter((u) => u.includes('/broker/ws'))).toEqual([])
 })
 

@@ -70,3 +70,21 @@ export interface Summary {
    */
   relayedBytes: number /* uint64 */;
 }
+/**
+ * ViewsPath is the watch history: POST records a view, GET answers the session user's own.
+ */
+export const ViewsPath = "/streamiq/views";
+/**
+ * View is one playback that really played (the browser decides), a line of the watch
+ * history and a row of GET /streamiq/views.
+ */
+export interface View {
+  itemId: string; // the Jellyfin item
+  at: string; // when the gateway recorded it
+}
+/**
+ * AddView is the body of POST /streamiq/views.
+ */
+export interface AddView {
+  itemId: string;
+}

@@ -54,3 +54,20 @@ type Summary struct {
 	// RelayedBytes: both directions of every relayed tunnel, whatever its use: what the relay costs.
 	RelayedBytes uint64 `json:"relayedBytes"`
 }
+
+// ViewsPath is the watch history: POST records a view, GET answers the session user's own.
+const ViewsPath = "/streamiq/views"
+
+// View is one playback that really played (the browser decides), a line of the watch
+// history and a row of GET /streamiq/views.
+type View struct {
+	ItemID string    `json:"itemId"` // the Jellyfin item
+	At     time.Time `json:"at"`     // when the gateway recorded it
+	// UserID: stored on every line, never answered.
+	UserID string `json:"userId,omitempty" tstype:"-"`
+}
+
+// AddView is the body of POST /streamiq/views.
+type AddView struct {
+	ItemID string `json:"itemId"`
+}

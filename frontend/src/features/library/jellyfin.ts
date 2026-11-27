@@ -36,6 +36,8 @@ export const allVideos = (start: number, limit: number) =>
 export const search = (term: string) =>
   `/Items?searchTerm=${encodeURIComponent(term)}&recursive=true&includeItemTypes=Movie,Series,Episode&isMissing=false&limit=${PAGE}`
 
+export const byIds = (ids: string[]) => `/Items?ids=${ids.join(',')}`
+
 /** GET /UserItems/Resume: Continue watching. */
 export const resume = '/UserItems/Resume?mediaTypes=Video&limit=4'
 

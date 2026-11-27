@@ -7,13 +7,14 @@ import { Chevron } from '../../shared/Chevron'
 import { ErrorView, State } from '../../shared/ErrorView'
 import { toAppError } from '../../shared/errors'
 import { PosterTile, Shelves } from './Home'
-import { usePick, useTunnelQuery } from './art'
+import { usePick, useTunnel, useTunnelQuery } from './art'
 import type { Item } from './items'
 import * as jf from './jellyfin'
 import { fieldText, qSearch, resultLine, searchTerm, sections } from './search'
 
 export function LibraryHome({ q }: { q?: string }) {
   const navigate = useNavigate()
+  const { gatewayId } = useTunnel()
   const term = searchTerm(q)
   const [open, setOpen] = useState(!!q)
   const [seen, setSeen] = useState(q)
@@ -30,19 +31,35 @@ export function LibraryHome({ q }: { q?: string }) {
       <PageBar
         title="Library"
         actions={
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Search"
-            title="Search"
-            aria-expanded={open}
-            onClick={toggle}
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-4-4" />
-            </svg>
-          </button>
+          <>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Watch history"
+              title="Watch history"
+              onClick={() =>
+                navigate({ to: '/g/$gatewayId/history', params: { gatewayId } })
+              }
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8" />
+                <path d="M12 8v4l3 2" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Search"
+              title="Search"
+              aria-expanded={open}
+              onClick={toggle}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-4-4" />
+              </svg>
+            </button>
+          </>
         }
       />
       {/* Opened by the button: it takes focus. With a ?q=, the results' first

@@ -297,7 +297,7 @@ func instance(file string) error {
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
 // route are tunnel's own. status is GET /streamiq/status.
 func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler,
-	health http.Handler, tunnels *history.Tunnels, setup *jellyfin.Setup,
+	health http.Handler, tunnels *history.Tunnels, views *history.Views, setup *jellyfin.Setup,
 ) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	screen.Register(rt)
@@ -305,6 +305,8 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	rt.Handle("GET "+history.HealthPath, health)
 	rt.Handle("GET "+history.TunnelsPath, http.HandlerFunc(tunnels.ServeList))
 	rt.Handle("GET "+history.SummaryPath, http.HandlerFunc(tunnels.ServeSummary), tunnel.AdminOnly)
+	rt.Handle("GET "+history.ViewsPath, http.HandlerFunc(views.ServeList))
+	rt.Handle("POST "+history.ViewsPath, http.HandlerFunc(views.ServeAdd))
 	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
 	rt.Handle("POST "+onboarding.RelayPath, http.HandlerFunc(st.ServeRelay), tunnel.AdminOnly)
 	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
@@ -322,10 +324,14 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 }
 
 // histories are the gateway's own records in its state dir.
-func histories(stateDir, gatewayID string) (*history.Health, *history.Tunnels) {
+func histories(stateDir, gatewayID string) (*history.Health, *history.Tunnels, *history.Views) {
 	dir := filepath.Join(stateDir, history.Dir)
 	return &history.Health{Store: &history.Store{Dir: dir, Kind: "health", Days: history.HealthDays}, Version: version},
-		&history.Tunnels{Store: &history.Store{Dir: dir, Kind: "tunnels", Days: history.TunnelDays}, Gateway: gatewayID}
+		&history.Tunnels{
+			Store:   &history.Store{Dir: dir, Kind: "tunnels", Days: history.TunnelDays},
+			Gateway: gatewayID,
+		},
+		&history.Views{Store: &history.Store{Dir: dir, Kind: "views"}}
 }
 
 // run is the gateway daemon; compose is jellyfin-compose.yml next to the binary.
@@ -409,7 +415,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, key *ecd
 			defer cancel()
 			setup.EnsureViewer(viewerCtx, user)
 		}}
-	health, tunnels := histories(stateDir, st.GatewayID)
+	health, tunnels, views := histories(stateDir, st.GatewayID)
 	sess.Ended = tunnels.Ended
 	store.OnRemove = sess.Drop // removing a browser ends its open sessions
 	var lastBeat atomic.Int64
@@ -423,7 +429,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, key *ecd
 	go load.Run(ctx)
 	b := &box{setup: setup, compose: compose, sess: sess, load: load}
 	go b.record(ctx, health)
-	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), health, tunnels, setup)
+	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), health, tunnels, views, setup)
 	token, err := localpage.Token(stateDir, lan)
 	if err != nil {
 		log.Fatalf("gateway: page token: %v", err)

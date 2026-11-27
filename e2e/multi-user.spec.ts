@@ -87,6 +87,8 @@ test(
           .click()
       await heart(a).click()
       await expect(heart(a)).toHaveAttribute('aria-pressed', 'true')
+      await a.reload() // saved before B looks
+      await expect(heart(a)).toHaveAttribute('aria-pressed', 'true')
       await b.reload()
       await expect(heart(b)).toHaveAttribute('aria-pressed', 'false')
       await a.goBack()

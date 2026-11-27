@@ -54,7 +54,6 @@ import {
 import { folderView } from './paging'
 import { Artwork, Watched, YearLine } from './Home'
 import { Favorite } from './Favorite'
-import { favorable } from './heart'
 import { tvOn } from '../../shared/settings'
 export { Home as LibraryHome } from './Home'
 
@@ -183,7 +182,7 @@ function TitleInfo({
   const hasMore = !!item.Overview || genres.length > 1
   return (
     <div className="title-info">
-      {favorable(item) && <Favorite key={item.Id} item={item} />}
+      <Favorite item={item} />
       {info && <p className="muted">{info}</p>}
       {hasMore && (
         <button

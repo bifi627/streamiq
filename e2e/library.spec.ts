@@ -541,6 +541,7 @@ test('favorites: the heart on a movie and a series page, the Favorites shelf bef
   await expect(page.locator('section.shelf h2').first()).toHaveText('Favorites')
   // Saved in Jellyfin: still pressed after a reload; un-favoriting takes it off the shelf.
   await shelf.getByRole('button', { name: 'streamiq e2e clip' }).click()
+  await expect(heart).toHaveAttribute('aria-pressed', 'true')
   await page.reload()
   await expect(heart).toHaveAttribute('aria-pressed', 'true')
   await heart.click()

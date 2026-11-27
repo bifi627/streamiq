@@ -19,6 +19,10 @@ export const userViews = '/UserViews'
 export const recentlyAdded =
   '/Items?sortBy=DateCreated&sortOrder=Descending&recursive=true&includeItemTypes=Movie,Series&limit=16'
 
+/** GET /Items: the viewer's favorite movies and series. */
+export const favorites =
+  '/Items?isFavorite=true&recursive=true&includeItemTypes=Movie,Series&sortBy=SortName&limit=50' // ponytail: first 50; a Favorites page if a shelf gets longer
+
 /** GET /Items: one page of a folder's children. */
 export const children = (parentId: string, startIndex: number) =>
   `/Items?parentId=${parentId}&sortBy=SortName&startIndex=${startIndex}&limit=${PAGE}`
@@ -58,7 +62,7 @@ export type PlaybackInfo = {
   }[]
 }
 
-/** POST /UserItems/{id}/UserData: resume position / played. */
+/** POST /UserItems/{id}/UserData: resume position / played / favorite. */
 export const userData = (id: string) => `/UserItems/${id}/UserData`
 
 export const subtitle = (id: string, source: string, index: number) =>

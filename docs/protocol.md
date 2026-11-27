@@ -689,7 +689,7 @@ stays a *viewer*:
   | GET | `/Items/{id}/Images/{type}[/{index}]` |
   | GET | `/Videos/{id}/…` (HLS playlists, segments, subtitles) |
   | POST | `/Items/{id}/PlaybackInfo` |
-  | POST | `/UserItems/{id}/UserData` (resume position, played) |
+  | POST | `/UserItems/{id}/UserData` (resume position, played, favorite) |
 
   The path must already be clean: no `..`, no `//`, no percent-encoding, not
   absolute. `{id}` is 32–36 hex digits or dashes. `/Videos/` matches in any

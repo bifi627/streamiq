@@ -231,17 +231,18 @@
   background: white;
 }
 
-/* Couch-distance focus: the one 3 px accent ring + a lighter fill (D-pad
-   never clicks, and clicks don't focus here, so :focus). */
-.player .bar button:focus,
-.player .bar input:focus {
+/* Couch-distance focus, TV mode only (desktop: index.css's subtle ring):
+   the 3 px accent ring + a lighter fill (D-pad never clicks, and clicks don't
+   focus here, so :focus). */
+html.tv .player .bar button:focus,
+html.tv .player .bar input:focus {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
-.player .bar button:focus {
+html.tv .player .bar button:focus {
   background: rgba(255, 255, 255, 0.3);
 }
-.player .bar .play:focus {
+html.tv .player .bar .play:focus {
   background: var(--text);
 }
 
@@ -271,9 +272,12 @@
   text-align: left;
   font-weight: 500;
 }
-.player .bar .popover button:focus {
+html.tv .player .bar .popover button:focus {
   background: var(--surface-2);
-  outline-offset: -3px;
+}
+.player .bar .popover button:focus-visible,
+html.tv .player .bar .popover button:focus {
+  outline-offset: -3px; /* a full-width option: inside, not over its neighbors */
 }
 .player .popover .check {
   width: 1.5rem;

@@ -132,13 +132,19 @@ input[type='radio'] {
   vertical-align: middle;
 }
 
-/* The one focus style: 3 px ring, never a scale (no relayout on weak TVs).
-   On accent-filled buttons the ring is the text color. */
+/* The one focus style: a ring, never a scale (no relayout on weak TVs).
+   Subtle on desktop (the D-pad's autoFocus rings an element on load), 3 px
+   accent at couch distance. On accent-filled buttons the TV ring is the text
+   color. TV mode sets width and color only, so offset opt-outs still apply. */
 :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 2px solid var(--text-muted);
   outline-offset: 3px;
 }
-.primary:focus-visible {
+html.tv :focus-visible {
+  outline-width: 3px;
+  outline-color: var(--accent);
+}
+html.tv .primary:focus-visible {
   outline-color: var(--text);
 }
 
@@ -1935,7 +1941,7 @@ progress::-moz-progress-bar {
   text-align: left;
 }
 .episode:hover,
-.episode:focus-visible {
+html.tv .episode:focus-visible {
   background: var(--surface);
 }
 .still {

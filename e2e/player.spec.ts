@@ -100,6 +100,11 @@ test('privacy badge (#205, #428, #896): On your network, never leaves the house;
   // The player page: both, always.
   await page.goto(page.url().replace(/\/i\/[^?]+\?play=/, '/play/'))
   await expect(name).toBeVisible()
+  const explain = player.getByText(/never leaves the house/)
+  await badge.focus() // focus alone shows the line, outside TV mode too
+  await expect(explain).toBeVisible()
+  await badge.blur()
+  await expect(explain).toBeHidden()
   await badge.click()
   await expect(
     player.getByText(/end-to-end encrypted · never leaves the house/),

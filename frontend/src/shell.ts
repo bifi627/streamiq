@@ -1,17 +1,19 @@
-export type Tab = 'gateways' | 'library' | 'household' | 'settings'
+export type Tab = 'gateways' | 'library' | 'photos' | 'household' | 'settings'
 
-/** Where a tab leads (Library: the active gateway, App.tsx). */
+/** Where a tab leads (Library, Photos: the active gateway's, Nav.tsx). */
 export const TAB_TO = {
   gateways: '/gateways',
   household: '/settings/households',
   settings: '/settings',
 } as const
 
-/** The nav's tabs, Library in the middle. TV: Library and Settings; in no
- * household, Household is the way back to the no-household screen. */
-export function tabs(tv: boolean, homeless: boolean): Tab[] {
+/** The nav's tabs, Library in the middle, Photos after it while the active
+ * gateway has a photo library. TV: no Gateways; in no household, Household
+ * is the way back to the no-household screen. */
+export function tabs(tv: boolean, homeless: boolean, photos = false): Tab[] {
   if (homeless) return tv ? ['settings'] : ['household', 'settings']
-  return tv ? ['library', 'settings'] : ['gateways', 'library', 'settings']
+  const media: Tab[] = photos ? ['library', 'photos'] : ['library']
+  return tv ? [...media, 'settings'] : ['gateways', ...media, 'settings']
 }
 
 /** The active gateway (the Library tab's, the badge's, Use as screen's): the

@@ -51,8 +51,22 @@ export const episodes = (seriesId: string) => `/Shows/${seriesId}/Episodes`
 export const nextEpisodes = (seriesId: string, itemId: string) =>
   `/Shows/${seriesId}/Episodes?startItemId=${itemId}&limit=2&isMissing=false`
 
-export const image = (id: string, type: string, width: number, tag: string) =>
-  `/Items/${id}/Images/${type}?maxWidth=${width}&tag=${tag}`
+// Sub-folders first (IsFolder ascending, in the pinned Jellyfin), then photos; no
+// videos. recursive=false: else a library root with includeItemTypes lists every level.
+export const photoChildren = (parentId: string, startIndex: number) =>
+  `/Items?parentId=${parentId}&recursive=false&includeItemTypes=Photo,PhotoAlbum,Folder&fields=PrimaryImageAspectRatio&sortBy=IsFolder,SortName&sortOrder=Ascending&startIndex=${startIndex}&limit=${PAGE}`
+
+export const firstPhoto = (parentId: string) =>
+  `/Items?parentId=${parentId}&recursive=true&includeItemTypes=Photo&sortBy=SortName&limit=1`
+
+export const image = (
+  id: string,
+  type: string,
+  width: number,
+  tag: string,
+  height?: number,
+) =>
+  `/Items/${id}/Images/${type}?maxWidth=${width}${height ? `&maxHeight=${height}` : ''}&tag=${tag}`
 
 /** POST /Items/{id}/PlaybackInfo: the stream to play, for a DeviceProfile. */
 export const playbackInfo = (id: string) => `/Items/${id}/PlaybackInfo`

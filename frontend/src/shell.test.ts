@@ -15,6 +15,17 @@ test('tabs: three with Library in the middle, TV keeps Library + Settings, no ho
   assert.deepEqual(tabs(true, true), ['settings'])
 })
 
+test('tabs: Photos after Library while the gateway has a photo library (#1018)', () => {
+  assert.deepEqual(tabs(false, false, true), [
+    'gateways',
+    'library',
+    'photos',
+    'settings',
+  ])
+  assert.deepEqual(tabs(true, false, true), ['library', 'photos', 'settings'])
+  assert.deepEqual(tabs(false, true, true), ['household', 'settings'])
+})
+
 test('no household: the Household tab opens a households page (the no-household screen)', () => {
   assert.equal(TAB_TO.household, '/settings/households')
 })

@@ -25,6 +25,8 @@ import {
   PlayerPage,
 } from './features/library/Library'
 import { RemotePage, ScreenPage } from './features/screen/Screen'
+import { PhotoFolder, PhotosHome } from './features/photos/Photos'
+import { useHasPhotos } from './features/photos/tab'
 import { Diagnostics } from './features/diagnostics/Diagnostics'
 import {
   askTv,
@@ -123,6 +125,7 @@ function Shell() {
     () => ({ back, title, actions }),
     [back, title, actions],
   )
+  const photos = useHasPhotos(library)
   const bare = chromeless(pathname)
   const screen = !homeless && screenTarget(tv, library, pathname)
 
@@ -142,7 +145,7 @@ function Shell() {
           <Link to="/" className="wordmark" aria-label="StreamIQ home">
             Stream<span>IQ</span>
           </Link>
-          <Nav tabs={tabs(tv, homeless)} library={library} />
+          <Nav tabs={tabs(tv, homeless, photos)} library={library} />
           <span className="grow" />
           {screen && (
             <>
@@ -250,6 +253,18 @@ const playRoute = createRoute({
     return <PlayerPage key={itemId} itemId={itemId} />
   },
 })
+const photoFolderRoute = createRoute({
+  getParentRoute: () => gatewayRoute,
+  path: 'photos/$folderId',
+  // ?view=<photo id>: the full-screen viewer over the grid (Photos.tsx).
+  validateSearch: (s: Record<string, unknown>): { view?: string } =>
+    typeof s.view === 'string' && s.view ? { view: s.view } : {},
+  component: function Folder() {
+    const { folderId } = photoFolderRoute.useParams()
+    const { view } = photoFolderRoute.useSearch()
+    return <PhotoFolder key={folderId} folderId={folderId} view={view} />
+  },
+})
 const remoteRoute = createRoute({
   getParentRoute: () => gatewayRoute,
   path: 'remote/$screenId',
@@ -339,6 +354,12 @@ const routeTree = rootRoute.addChildren([
     libraryRoute,
     itemRoute,
     playRoute,
+    createRoute({
+      getParentRoute: () => gatewayRoute,
+      path: 'photos',
+      component: PhotosHome,
+    }),
+    photoFolderRoute,
     createRoute({
       getParentRoute: () => gatewayRoute,
       path: 'screen',

@@ -317,6 +317,22 @@ function run(cmd: string, args: string[], cwd: string) {
 // sorts after the main clip, the first movie other steps take. HEVC + AC3:
 // compatible mode transcodes it. The series: gen-test-media.sh's own script.
 const FFMPEG = '/usr/lib/jellyfin-ffmpeg/ffmpeg'
+// Photos (a Photos library): an album with a wide, a tall and a square photo,
+// a sub-folder and a clip (videos are hidden), and a folder with only a clip
+// (a folder tile without a cover).
+const PHOTOS = [
+  ['Album/Wide.jpg', '1600x800'],
+  ['Album/Tall.jpg', '600x900'],
+  ['Album/Square.png', '400x400'],
+  ['Album/Inner/Deep.jpg', '800x600'],
+]
+// bitexact: no "Lavc…" JPEG comment, which Jellyfin shows as the overview.
+const still = (file: string, size: string) =>
+  `mkdir -p "$(dirname '/out/photos/${file}')" && ${FFMPEG} -loglevel error -y ` +
+  `-f lavfi -i testsrc=size=${size}:rate=1 -frames:v 1 -flags:v +bitexact '/out/photos/${file}'`
+const clip = (file: string) =>
+  `mkdir -p "$(dirname '/out/photos/${file}')" && ${FFMPEG} -loglevel error -y ` +
+  `-f lavfi -i testsrc=duration=2:size=320x180:rate=10 -c:v libx264 -pix_fmt yuv420p '/out/photos/${file}'`
 const ENCODE =
   'D="/out/media/streamiq e2e clip" && mkdir -p "$D" && ' +
   `${FFMPEG} -loglevel error -y ` +
@@ -336,7 +352,12 @@ const ENCODE =
   '-f lavfi -i testsrc=duration=5:size=320x180:rate=30 -f lavfi -i sine=frequency=440:duration=5 ' +
   '-c:v libx265 -pix_fmt yuv420p -c:a ac3 -shortest ' +
   '-metadata title="streamiq e2e hevc ac3" "$D/streamiq e2e hevc ac3.mkv" && ' +
-  `FFMPEG=${FFMPEG} sh /scripts/gen-test-series.sh /out/shows`
+  `FFMPEG=${FFMPEG} sh /scripts/gen-test-series.sh /out/shows && ` +
+  [
+    ...PHOTOS.map(([f, size]) => still(f, size)),
+    clip('Album/clip.mp4'),
+    clip('Clips/clip.mp4'),
+  ].join(' && ')
 
 let media: Promise<string> | undefined
 /** The fixture media (ENCODE), once per checkout in e2e/.bin (encodeOnce). */
@@ -470,6 +491,7 @@ export async function startJellyfin(
       .withCopyDirectoriesToContainer([
         { source: path.join(cache, 'media'), target: '/media' },
         { source: path.join(cache, 'shows'), target: '/shows' },
+        { source: path.join(cache, 'photos'), target: '/e2e-photos' },
       ]),
   )
   // Not in the preview: a long 4K stream keeps GBs of segments in /cache.

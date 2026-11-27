@@ -70,15 +70,15 @@ export function useTunnelQuery<T>(url: string | null) {
   })
 }
 
-/** A folder's children page by page, under useTunnelQuery's cache rules:
- * pages already loaded are still there on Back. */
-export function useFolderPages(parentId: string) {
+/** A folder's children page by page (`list`: the page URL), under
+ * useTunnelQuery's cache rules: pages already loaded are still there on Back. */
+export function useFolderPages(parentId: string, list = children) {
   const { gatewayId, pc } = useTunnel()
   return useInfiniteQuery({
-    queryKey: ['tunnel', gatewayId, 'children', parentId],
+    queryKey: ['tunnel', gatewayId, 'pages', list(parentId, 0)],
     queryFn: async ({ pageParam }) => {
       await playback.get(gatewayId)?.saved
-      return tunnelJson<Page>(pc, children(parentId, pageParam))
+      return tunnelJson<Page>(pc, list(parentId, pageParam))
     },
     initialPageParam: 0,
     getNextPageParam: (_last, pages) => nextStart(pages),
@@ -110,16 +110,17 @@ export async function load(
   gatewayId: string,
   a: Art,
   width: number,
+  height?: number,
 ) {
   // Keyed by item + image type + size + Jellyfin's image tag (a new image = a new tag).
-  const key = `/art/${a.id}/${a.type}/${width}/${a.tag}`
+  const key = `/art/${a.id}/${a.type}/${width}${height ? `x${height}` : ''}/${a.tag}`
   const cache = await store()
     ?.open(ART_PREFIX + gatewayId)
     .catch(() => undefined)
   const hit = await cache?.match(key).catch(() => undefined)
   if (hit) return hit.blob()
   const r = await limited(() =>
-    tunnelFetch(pc, image(a.id, a.type, width, a.tag)),
+    tunnelFetch(pc, image(a.id, a.type, width, a.tag, height)),
   )
   if (r.status !== 200) return null
   const blob = new Blob([r.body], { type: r.headers['Content-Type'] })
@@ -144,14 +145,19 @@ export async function load(
 
 /** An image's object URL (null: none), loaded once enabled. Immutable per
  * tag, so never refetched; dropped with its last view (the Cache API keeps it). */
-export function useArt(a: Art | null, width: number, enabled: boolean) {
+export function useArt(
+  a: Art | null,
+  width: number,
+  enabled: boolean,
+  height?: number,
+) {
   const { gatewayId, pc } = useTunnel()
   return useQuery({
-    queryKey: ['art', gatewayId, a?.id, a?.type, a?.tag, width],
+    queryKey: ['art', gatewayId, a?.id, a?.type, a?.tag, width, height],
     queryFn: !a
       ? skipToken
       : async () => {
-          const b = await load(pc, gatewayId, a, width)
+          const b = await load(pc, gatewayId, a, width, height)
           return b && URL.createObjectURL(b)
         },
     enabled,

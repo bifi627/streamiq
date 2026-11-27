@@ -8,7 +8,8 @@
 // and watched marks (the end stops inline playback), inline playback (an episode from Continue
 // watching on its series' page, Back leaves and exit stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
-// are elsewhere (shell spec, FE / Go tests).
+// are elsewhere (shell spec, FE / Go tests). Favorites: the heart (also in TV mode) and its shelf;
+// per user: multi-user.spec.
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -17,6 +18,7 @@ import {
   countBursts,
   exitInline,
   keepPcs,
+  openCategory,
   openLibrary as open,
   videoTime,
   viaTunnel,
@@ -509,4 +511,57 @@ test('browsing sends no speed test burst @library', async ({ paired }) => {
     page.getByRole('button', { name: /^(Play|Resume)$/ }),
   ).toBeVisible()
   expect(await bursts(page)).toBe(0)
+})
+
+test('favorites: the heart on a movie and a series page, the Favorites shelf before Recently added (#1001) @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  const heart = page.getByRole('button', { name: 'Favorite' })
+  const shelf = page.locator('section.shelf', {
+    has: page.getByRole('heading', { name: 'Favorites' }),
+  })
+  const home = async () => {
+    await page.goBack()
+    await expect(recent(page)).toBeVisible()
+  }
+  await open(page)
+  await expect(shelf).toHaveCount(0) // none yet: hidden
+  for (const name of ['streamiq e2e clip', 'StreamIQ Test Series']) {
+    await recent(page).getByRole('button', { name }).click()
+    await expect(heart).toHaveAttribute('aria-pressed', 'false')
+    await heart.click()
+    await expect(heart).toHaveAttribute('aria-pressed', 'true')
+    await home()
+  }
+  await expect(shelf.getByRole('button')).toHaveText([
+    /streamiq e2e clip/,
+    /StreamIQ Test Series/,
+  ])
+  await expect(page.locator('section.shelf h2').first()).toHaveText('Favorites')
+  // Saved in Jellyfin: still pressed after a reload; un-favoriting takes it off the shelf.
+  await shelf.getByRole('button', { name: 'streamiq e2e clip' }).click()
+  await page.reload()
+  await expect(heart).toHaveAttribute('aria-pressed', 'true')
+  await heart.click()
+  await expect(heart).toHaveAttribute('aria-pressed', 'false')
+  await home()
+  await expect(shelf.getByRole('button')).toHaveText([/StreamIQ Test Series/])
+})
+
+test('favorites: TV mode reaches the heart with the D-pad; first focus stays on the hero (#1001) @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await page.goto(appUrl('/settings'))
+  await openCategory(page, 'Display')
+  await page.getByLabel('TV mode').check()
+  await open(page)
+  await recent(page).getByRole('button', { name: 'streamiq e2e clip' }).click()
+  await expect(page.locator('button.hero')).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  const heart = page.getByRole('button', { name: 'Favorite' })
+  await expect(heart).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(heart).toHaveAttribute('aria-pressed', 'true')
 })

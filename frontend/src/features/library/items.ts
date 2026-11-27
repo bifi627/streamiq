@@ -21,7 +21,11 @@ export type Item = {
   BackdropImageTags?: string[]
   ParentBackdropItemId?: string
   ParentBackdropImageTags?: string[]
-  UserData?: { PlaybackPositionTicks?: number; Played?: boolean }
+  UserData?: {
+    PlaybackPositionTicks?: number
+    Played?: boolean
+    IsFavorite?: boolean
+  }
   MediaSources?: {
     Id?: string
     Bitrate?: number

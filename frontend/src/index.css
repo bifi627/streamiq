@@ -132,15 +132,17 @@ input[type='radio'] {
   vertical-align: middle;
 }
 
-/* The one focus style, TV mode only: elsewhere the D-pad's autoFocus
-   would ring an element on load. 3 px ring, never a scale (no relayout on weak
-   TVs). On accent-filled buttons the ring is the text color. */
+/* The one focus style: a ring, never a scale (no relayout on weak TVs).
+   Subtle on desktop (the D-pad's autoFocus rings an element on load), 3 px
+   accent at couch distance. On accent-filled buttons the TV ring is the text
+   color. TV mode sets width and color only, so offset opt-outs still apply. */
 :focus-visible {
-  outline: none;
+  outline: 2px solid var(--text-muted);
+  outline-offset: 3px;
 }
 html.tv :focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  outline-width: 3px;
+  outline-color: var(--accent);
 }
 html.tv .primary:focus-visible {
   outline-color: var(--text);
@@ -516,7 +518,7 @@ html.tv .primary:focus-visible {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-html.tv .password button:focus-visible {
+.password button:focus-visible {
   outline-offset: -3px;
 }
 .signin .error {
@@ -2211,7 +2213,7 @@ html.tv .episode:focus-visible {
   white-space: nowrap;
   overflow: hidden;
 }
-html.tv .dock-bar:focus-visible {
+.dock-bar:focus-visible {
   outline-offset: -3px; /* the screen's edge would cut it */
 }
 .dock-bar > span {

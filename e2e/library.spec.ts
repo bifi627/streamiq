@@ -424,7 +424,7 @@ test('continue watching: its error shows on a phone and a desktop @library', asy
   await expect(row).toBeVisible()
 })
 
-test('seasons: tabs, Season 1 first with its episodes, D-pad hero → tabs → episodes (ring only in TV mode), Season 2 on a click @library', async ({
+test('seasons: tabs, Season 1 first with its episodes, D-pad hero → tabs → episodes (subtle ring outside TV mode), Season 2 on a click @library', async ({
   paired,
 }) => {
   const { page } = paired
@@ -442,11 +442,11 @@ test('seasons: tabs, Season 1 first with its episodes, D-pad hero → tabs → e
   await page.keyboard.press('ArrowDown')
   const tab = tabs.getByRole('tab', { selected: true })
   await expect(tab).toBeFocused()
-  // A keyboard focus (:focus-visible) rings only in TV mode.
-  const ring = () => tab.evaluate((el) => getComputedStyle(el).outlineStyle)
-  expect(await ring()).toBe('none')
+  // A keyboard focus (:focus-visible): a subtle ring, 3 px in TV mode.
+  const ring = () => tab.evaluate((el) => getComputedStyle(el).outlineWidth)
+  expect(await ring()).toBe('2px')
   await page.evaluate(() => document.documentElement.classList.add('tv'))
-  expect(await ring()).toBe('solid')
+  expect(await ring()).toBe('3px')
   await page.evaluate(() => document.documentElement.classList.remove('tv'))
   await page.keyboard.press('ArrowDown')
   await expect(episodes.first().getByRole('button').first()).toBeFocused()

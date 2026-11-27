@@ -1,8 +1,7 @@
 /* Player control bar. Plain CSS that Chrome 87
    (webOS TV) understands: no nesting, :is/:where/:has, container queries,
    accent-color or inset. Sizes in rem: TV mode scales them. */
-.player,
-html.tv .player /* above html.tv :focus-visible: ui.hide() focuses the root */ {
+.player {
   position: relative;
   background: black;
   outline: none;
@@ -232,8 +231,9 @@ html.tv .player /* above html.tv :focus-visible: ui.hide() focuses the root */ {
   background: white;
 }
 
-/* Couch-distance focus, TV mode only: the one 3 px accent ring + a lighter
-   fill (D-pad never clicks, and clicks don't focus here, so :focus). */
+/* Couch-distance focus, TV mode only (desktop: index.css's subtle ring):
+   the 3 px accent ring + a lighter fill (D-pad never clicks, and clicks don't
+   focus here, so :focus). */
 html.tv .player .bar button:focus,
 html.tv .player .bar input:focus {
   outline: 3px solid var(--accent);

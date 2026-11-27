@@ -258,7 +258,8 @@ export function Watched({ item }: { item: Item }) {
 }
 
 /** An image box (size from `className`); loads the image when it scrolls into view.
- *  With `card`, a box with no image to show (none, or it failed) is a title card. */
+ *  With `card`, a box with no image to show (none, or it failed) is a tint
+ *  per title, without text: the card names the title. */
 export function Artwork({
   art,
   card,
@@ -295,12 +296,7 @@ export function Artwork({
       <div
         ref={box}
         className={`art ${className} title-card tint-${tint(card.Name)}`}
-      >
-        <span aria-hidden="true">
-          {card.Name}
-          {card.ProductionYear && ` (${card.ProductionYear})`}
-        </span>
-      </div>
+      />
     )
   return (
     <div ref={box} className={`art ${className}`}>

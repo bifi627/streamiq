@@ -78,8 +78,8 @@ export async function setupJellyfin(
   ])
 }
 
-/** Adds the Movies + Shows libraries, then `extra` ([name, collectionType,
- * path]; a photo one), as `admin` and waits for their scan. */
+/** Adds the Movies + Shows libraries (+ `extra`: [name, collectionType, path],
+ * a photo library) as `admin` and waits for their scan. */
 export async function addLibraries(
   base: string,
   admin: { user: string; pw: string },
@@ -92,45 +92,37 @@ export async function addLibraries(
     Pw: admin.pw,
   })
   const token: string = login.AccessToken
-  const add = async (libs: string[][]) => {
-    for (const [name, type, dir] of libs)
-      await post(
-        `/Library/VirtualFolders?name=${name}&collectionType=${type}&paths=${encodeURIComponent(dir)}&refreshLibrary=true`,
-        { LibraryOptions: { EnableInternetProviders: false } },
-        token,
-      )
-  }
-  const count = (type: string) =>
-    call(
-      `/Items?userId=${login.User.Id}&recursive=true&includeItemTypes=${type}`,
-      {},
+  for (const [name, type, dir] of [
+    ['Movies', 'movies', '/media'],
+    ['Shows', 'tvshows', '/shows'],
+    ...extra,
+  ])
+    await post(
+      `/Library/VirtualFolders?name=${name}&collectionType=${type}&paths=${encodeURIComponent(dir)}&refreshLibrary=true`,
+      { LibraryOptions: { EnableInternetProviders: false } },
       token,
-    ).then((r) => r.TotalRecordCount)
+    )
+
   // The scan is async, and the one refreshLibrary=true starts can race the new
   // library's options (it then indexes /media as a plain folder): re-kick a
   // full refresh every 10 s until the fixture shows up.
-  const scanned = async (done: () => Promise<boolean>) => {
-    for (let i = 0; i < 120; i++) {
-      if (i % 10 === 0)
-        await call('/Library/Refresh', { method: 'POST' }, token)
-      if (await done()) return step('scan')
-      await new Promise((r) => setTimeout(r, 1000))
-    }
-    throw new Error('jellyfin: library scan found no media after 120s')
+  for (let i = 0; i < 120; i++) {
+    if (i % 10 === 0) await call('/Library/Refresh', { method: 'POST' }, token)
+    const count = (type: string) =>
+      call(
+        `/Items?userId=${login.User.Id}&recursive=true&includeItemTypes=${type}`,
+        {},
+        token,
+      ).then((r) => r.TotalRecordCount)
+    // All 3 movies and 4 episodes (stack.ts): a half-scanned series has no
+    // next one yet. A photo library: at least the e2e's 4 photos.
+    if (
+      (await count('Movie')) >= 3 &&
+      (await count('Episode')) >= 4 &&
+      (!extra.length || (await count('Photo')) >= 4)
+    )
+      return step('scan')
+    await new Promise((r) => setTimeout(r, 1000))
   }
-  await add([
-    ['Movies', 'movies', '/media'],
-    ['Shows', 'tvshows', '/shows'],
-  ])
-  // All 3 movies and 4 episodes (stack.ts; the preview has more): a
-  // half-scanned series has no next one yet.
-  const media = async () =>
-    (await count('Movie')) >= 3 && (await count('Episode')) >= 4
-  await scanned(media)
-  if (!extra.length) return
-  // Not with the others: three libraries in one scan can hang it for minutes.
-  // At least the e2e's 4 photos (stack.ts; the preview has more).
-  await add(extra)
-  // The refresh it kicks rescans the others too.
-  await scanned(async () => (await count('Photo')) >= 4 && (await media()))
+  throw new Error('jellyfin: library scan found no media after 120s')
 }

@@ -1,6 +1,6 @@
 // The Photos tab on a paired browser (fixtures.ts `paired`), against
 // the fixture's Photos library (stack.ts: Album with Wide / Tall / Square, a
-// sub-folder Inner and a clip; Clips with only a clip): the nav tab, the
+// sub-folder Inner and a clip; an Empty folder): the nav tab, the
 // library off the Library home, folders before photos, covers, square tiles,
 // the viewer (screen-sized, ←/→, swipe, Back / Escape back to the
 // photo) and TV mode's D-pad.
@@ -53,13 +53,13 @@ test('photos: own tab, off the Library home; folders first with covers, square t
     nav(page).getByRole('link', { name: 'Library' }),
   ).not.toHaveAttribute('data-status', 'active')
   await tile(page, 'Photos').click()
-  // Album's cover is its first photo; Clips has none: a folder icon.
+  // Album's cover is its first photo; Empty has none: a folder icon.
   await expect(page.locator('.photo-grid button')).toHaveText([
     'Album',
-    'Clips',
+    'Empty',
   ])
   await expect(tile(page, 'Album').locator('img')).toBeVisible()
-  await expect(tile(page, 'Clips').getByTestId('folder-icon')).toBeVisible()
+  await expect(tile(page, 'Empty').getByTestId('folder-icon')).toBeVisible()
 
   await tile(page, 'Album').click()
   await expect(page.locator('.photo-grid button')).toHaveCount(4) // no clip

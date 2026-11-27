@@ -318,8 +318,9 @@ function run(cmd: string, args: string[], cwd: string) {
 // compatible mode transcodes it. The series: gen-test-media.sh's own script.
 const FFMPEG = '/usr/lib/jellyfin-ffmpeg/ffmpeg'
 // Photos (a Photos library): an album with a wide, a tall and a square photo,
-// a sub-folder and a clip (videos are hidden), and a folder with only a clip
-// (a folder tile without a cover).
+// a sub-folder and a clip (videos are hidden), and an empty folder (a folder
+// tile without a cover). Not a folder with only a clip: next to the album,
+// Jellyfin 12.4's scan then never ends, at full CPU.
 const PHOTOS = [
   ['Album/Wide.jpg', '1600x800'],
   ['Album/Tall.jpg', '600x900'],
@@ -356,7 +357,7 @@ const ENCODE =
   [
     ...PHOTOS.map(([f, size]) => still(f, size)),
     clip('Album/clip.mp4'),
-    clip('Clips/clip.mp4'),
+    `mkdir -p '/out/photos/Empty/Nothing'`,
   ].join(' && ')
 
 let media: Promise<string> | undefined

@@ -32,6 +32,7 @@ import {
   progress,
   runtime,
   titleInfo,
+  years,
   upNext,
   type Item,
 } from './items'
@@ -52,9 +53,9 @@ import {
   useTunnelQuery,
 } from './art'
 import { folderView } from './paging'
-import { Artwork, Watched, YearLine } from './Home'
+import { Artwork, PosterTile, Watched } from './Home'
 import { tvOn } from '../../shared/settings'
-export { Home as LibraryHome } from './Home'
+export { LibraryHome } from './LibraryHome'
 
 // Layout route: the gateway's shared tunnel, held while navigating inside
 // it; leaving releases it (closed 30 s later unless reused).
@@ -473,30 +474,7 @@ function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
     <>
       <ul className="poster-grid">
         {items.map((i) => (
-          <li key={i.Id}>
-            <button
-              type="button"
-              onClick={() => onOpen(i)}
-              className="poster-tile"
-            >
-              <span className="poster-box">
-                <Artwork
-                  art={primary(i)}
-                  card={i}
-                  width={280}
-                  className="poster"
-                />
-                {(inProgress(i) || i.UserData?.Played) && <Watched item={i} />}
-              </span>
-              <span className="card-line">
-                {i.IndexNumber != null &&
-                  i.Type === 'Episode' &&
-                  `${i.IndexNumber}. `}
-                {i.Name}
-              </span>
-              <YearLine item={i} />
-            </button>
-          </li>
+          <PosterTile key={i.Id} item={i} line={years(i)} onOpen={onOpen} />
         ))}
       </ul>
       {tail === 'retry' && <ErrorView error={q.error} onRetry={more} />}

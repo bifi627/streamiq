@@ -1,7 +1,7 @@
 // The library, on a paired browser with its own gateway (fixtures.ts
 // `paired`): `/` → the active gateway's library (one gateway; with two, the
 // online one, then the last opened), the nav's Library link, the
-// shared session, cards (one height, title + year line, the folder grid's
+// shared session, search, cards (one height, title + year line, the folder grid's
 // watched bar), folder deep links (title row + Back) + cache, Recently added,
 // Continue watching's order (the spot, also on a phone) and click-through guard, season tabs
 // (with the title page's D-pad order)
@@ -250,6 +250,41 @@ test('recently added: the fixture items; a movie opens its page (#204) @library'
   await expect(
     page.getByRole('button', { name: 'Play', exact: true }),
   ).toBeVisible()
+})
+
+test('search: results replace the shelves, ?q= survives Back, an episode names its series, no match says so (#993) @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await open(page)
+  const field = page.getByRole('searchbox', { name: 'Search' })
+  const results = page.getByRole('list', { name: 'Search results' })
+  await field.fill('Test Series')
+  await expect(page).toHaveURL(/\?q=Test(\+|%20)Series$/)
+  await expect(recent(page)).toBeHidden()
+  await expect(
+    results.getByRole('button', {
+      name: /S01E01.*StreamIQ Test Series · S1 · E1$/,
+    }),
+  ).toBeVisible()
+  await results
+    .getByRole('button', { name: /^StreamIQ Test Series(?!.*S0)/ })
+    .click()
+  await expect(page.getByRole('tablist', { name: 'Seasons' })).toBeVisible()
+  await page.goBack()
+  await expect(field).toHaveValue('Test Series')
+  await expect(results).toBeVisible()
+  // An episode plays on its series' page, as from Recently added.
+  await results.getByRole('button', { name: /S02E01/ }).click()
+  await expect(page).toHaveURL(/\/i\/[^/?]+\?play=/)
+  await page.goBack()
+  await field.fill('zzzz-nothing')
+  await expect(
+    page.getByText('Nothing found for “zzzz-nothing”.'),
+  ).toBeVisible()
+  await field.fill('')
+  await expect(recent(page)).toBeVisible()
+  await expect(page).not.toHaveURL(/\?q=/)
 })
 
 test('continue watching: newest first; the click-through guard keeps the order (#330) @library', async ({

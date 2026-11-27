@@ -1574,6 +1574,11 @@ button.secondary:hover {
 .still-art.title-card {
   min-height: 0;
 }
+.search {
+  width: 100%;
+  max-width: 32rem;
+  margin-bottom: var(--sp-5);
+}
 .home {
   display: flex;
   flex-direction: column;

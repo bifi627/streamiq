@@ -2,6 +2,7 @@
 // (gateway/internal/tunnel/jellyfin.go): a path missing there is a 403.
 // HLS playlists come from PlaybackInfo's TranscodingUrl, not from here.
 import type { Item } from './items'
+import { PAGE } from './paging.ts'
 
 /** GET /System/Info/Public: the pairing page's test request. */
 export const systemInfo = '/System/Info/Public'
@@ -18,9 +19,9 @@ export const userViews = '/UserViews'
 export const recentlyAdded =
   '/Items?sortBy=DateCreated&sortOrder=Descending&recursive=true&includeItemTypes=Movie,Series&limit=16'
 
-/** GET /Items: a folder's children. */
-export const children = (parentId: string) =>
-  `/Items?parentId=${parentId}&sortBy=SortName`
+/** GET /Items: one page of a folder's children. */
+export const children = (parentId: string, startIndex: number) =>
+  `/Items?parentId=${parentId}&sortBy=SortName&startIndex=${startIndex}&limit=${PAGE}`
 
 /** GET /Items: a page of all movies and episodes with their streams (the
  * transcode report); MediaSources carries them, so not MediaStreams too. */

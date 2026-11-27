@@ -40,7 +40,8 @@ func (v *Views) ServeAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now().UTC()
 	seen := func(l View) bool {
-		return l.UserID == user && l.ItemID == b.ItemID && now.Sub(l.At) < ViewWindow
+		ago := now.Sub(l.At) // a view stamped ahead of a clock set back is not one
+		return l.UserID == user && l.ItemID == b.ItemID && ago >= 0 && ago < ViewWindow
 	}
 	if err := AppendUnless(v.Store, now, View{ItemID: b.ItemID, At: now, UserID: user}, seen); err != nil {
 		tunnel.Fail(w, http.StatusInternalServerError, err)

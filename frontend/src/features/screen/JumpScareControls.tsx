@@ -3,8 +3,7 @@
 import { useRef, useState } from 'react'
 import {
   jumpScareHint,
-  parseJumpScares,
-  saveJumpScares,
+  importJumpScares,
   type JumpScare,
 } from './jumpscares.ts'
 
@@ -20,9 +19,9 @@ export function JumpScareMarks({
   // ponytail: % of the track's full width; the thumb's inset puts a tick a few px off at the ends.
   return (
     <div className="jumpscare-marks" aria-hidden="true">
-      {list.map((s) => (
+      {list.map((s, i) => (
         <i
-          key={s.at}
+          key={i}
           className={s.major ? 'major' : undefined}
           style={{ left: `${(Math.min(s.at, dur) / dur) * 100}%` }}
         />
@@ -47,10 +46,9 @@ export function JumpScares({
   const [msg, setMsg] = useState('')
   const load = async (f: File | undefined) => {
     if (!f) return
-    const found = parseJumpScares(await f.text())
-    if (!found.length) return setMsg('No jump scares found in this file')
-    setMsg(saveJumpScares(itemId, found) ? '' : "Couldn't save on this device")
-    setList(found)
+    const r = importJumpScares(itemId, await f.text())
+    setMsg(r.msg)
+    if (r.list) setList(r.list)
   }
   return (
     <div className="jumpscares">

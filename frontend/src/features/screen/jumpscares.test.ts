@@ -2,6 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  importJumpScares,
   jumpScareHint,
   loadJumpScares,
   parseJumpScares,
@@ -97,4 +98,27 @@ test('load: a corrupt entry is no list', () => {
   const s = memory()
   s().setItem('streamiq:jumpscares:a', '{nope')
   assert.deepEqual(loadJumpScares('a', s), [])
+})
+
+test('importJumpScares: no match stores nothing, the old list stays', () => {
+  const s = memory()
+  saveJumpScares('a', [{ at: 1, major: true }], s)
+  assert.deepEqual(importJumpScares('a', 'hello', s), {
+    msg: 'No jump scares found in this file',
+  })
+  assert.deepEqual(loadJumpScares('a', s), [{ at: 1, major: true }])
+})
+
+test('importJumpScares: a match is stored and shown, no message', () => {
+  const s = memory()
+  const r = importJumpScares('a', SHINING, s)
+  assert.equal(r.msg, '')
+  assert.equal(r.list?.length, 2)
+  assert.deepEqual(loadJumpScares('a', s), r.list)
+})
+
+test('importJumpScares: storage fails: shown anyway, the user is told', () => {
+  const r = importJumpScares('a', SHINING, () => undefined)
+  assert.equal(r.list?.length, 2)
+  assert.equal(r.msg, "Couldn't save on this device")
 })

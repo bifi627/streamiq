@@ -63,3 +63,17 @@ export function saveJumpScares(
     return false
   }
 }
+
+/** An .srt picked on the remote: the list to show (undefined = keep the
+ * current one) and the message for the user ('' = none). No match stores
+ * nothing, so a wrong file never wipes a good list. */
+export function importJumpScares(
+  itemId: string,
+  srt: string,
+  store = browser,
+): { list?: JumpScare[]; msg: string } {
+  const list = parseJumpScares(srt)
+  if (!list.length) return { msg: 'No jump scares found in this file' }
+  const saved = saveJumpScares(itemId, list, store)
+  return { list, msg: saved ? '' : "Couldn't save on this device" }
+}

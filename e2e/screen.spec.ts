@@ -267,14 +267,21 @@ test('jump scares: a whenjumpscare .srt on the remote marks the seek bar, the TV
     mimeType: 'application/octet-stream',
     buffer: Buffer.from(text),
   })
-  const file = phone.getByLabel('Jump scare file')
+  // The button opens the device's file picker (the hidden input's chooser).
+  const pick = async (f: ReturnType<typeof srt>) => {
+    const chooser = phone.waitForEvent('filechooser')
+    await phone
+      .getByRole('button', { name: 'Jump scares', exact: true })
+      .click()
+    await (await chooser).setFiles(f)
+  }
   const marks = phone.locator('.jumpscare-marks i')
-  await file.setInputFiles(srt('1\n00:00:01,000 --> 00:00:02,000\nhello\n'))
+  await pick(srt('1\n00:00:01,000 --> 00:00:02,000\nhello\n'))
   await expect(
     phone.getByText('No jump scares found in this file'),
   ).toBeVisible()
   await expect(marks).toHaveCount(0)
-  await file.setInputFiles(
+  await pick(
     srt(
       [
         '1',

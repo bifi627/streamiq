@@ -81,6 +81,7 @@ export function PhotoFolder({
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()
   const it = useTunnelQuery<Item>(jf.item(folderId))
+  useTunnelQuery<Views>(jf.userViews) // a deep link here: the nav's Photos tab (tab.ts)
   const q = useFolderPages(folderId, jf.photoChildren)
   const listed = folderView({
     pages: q.data?.pages,

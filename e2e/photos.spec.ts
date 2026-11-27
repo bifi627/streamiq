@@ -78,6 +78,8 @@ test('photos: the viewer is screen-sized, steps with ←/→ and swipes, Back an
   const { page } = paired
   await page.setViewportSize({ width: 1000, height: 600 })
   await openAlbum(page)
+  await page.reload() // a deep link: the tab comes back with the folder
+  await expect(nav(page).getByRole('link', { name: 'Photos' })).toBeVisible()
   await tile(page, 'Wide').click()
   await expect(viewer(page)).toHaveAccessibleName('Wide')
   await expect(viewer(page)).toContainText('Wide')

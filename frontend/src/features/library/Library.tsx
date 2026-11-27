@@ -23,7 +23,6 @@ import { useHousehold } from '../households/household'
 import { guestNotice } from './guest'
 import { Player } from '../player/Player'
 import {
-  clock,
   folderUp,
   inProgress,
   pageItem,
@@ -32,7 +31,6 @@ import {
   playsAtOnce,
   progress,
   runtime,
-  TICKS_PER_SECOND,
   titleInfo,
   upNext,
   type Item,
@@ -54,7 +52,7 @@ import {
   useTunnelQuery,
 } from './art'
 import { folderView } from './paging'
-import { Artwork, Watched } from './Home'
+import { Artwork, Watched, YearLine } from './Home'
 import { tvOn } from '../../shared/settings'
 export { Home as LibraryHome } from './Home'
 
@@ -481,20 +479,22 @@ function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
               onClick={() => onOpen(i)}
               className="poster-tile"
             >
-              <Artwork
-                art={primary(i)}
-                card={i}
-                width={280}
-                className="poster"
-              />
-              <div>
+              <span className="poster-box">
+                <Artwork
+                  art={primary(i)}
+                  card={i}
+                  width={280}
+                  className="poster"
+                />
+                {(inProgress(i) || i.UserData?.Played) && <Watched item={i} />}
+              </span>
+              <span className="card-line">
                 {i.IndexNumber != null &&
                   i.Type === 'Episode' &&
                   `${i.IndexNumber}. `}
                 {i.Name}
-                {i.ProductionYear && ` (${i.ProductionYear})`}
-              </div>
-              <small>{label(i)}</small>
+              </span>
+              <YearLine item={i} />
             </button>
           </li>
         ))}
@@ -533,11 +533,4 @@ function Guest() {
   const s = useGuestStatus(gatewayId, pc)
   const notice = guestNotice(s, admin)
   return notice && <p role="status">{notice}</p>
-}
-
-function label(i: Item) {
-  if (!playable(i)) return i.Type
-  const pos = i.UserData?.PlaybackPositionTicks ?? 0
-  if (i.UserData?.Played) return 'Watched'
-  return pos > 0 ? `Resume ${clock(pos / TICKS_PER_SECOND)}` : 'Play'
 }

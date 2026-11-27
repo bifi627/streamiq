@@ -1491,8 +1491,21 @@ button.secondary:hover {
   list-style: none;
 }
 .poster-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
   width: 100%;
+  min-width: 0;
   text-align: left;
+}
+.poster-box {
+  position: relative;
+}
+.poster-box > progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
 }
 .poster {
   aspect-ratio: 2 / 3; /* Chrome 88+: Chrome 87 shows no box until the image loads */
@@ -1715,7 +1728,8 @@ progress::-moz-progress-bar {
   flex: 1;
 }
 .side b,
-.pick > span {
+.card-line {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -26,6 +26,7 @@ import {
   playsAtOnce,
   TICKS_PER_SECOND,
   timeLeft,
+  years,
   type Item,
 } from './items'
 import * as jf from './jellyfin'
@@ -230,15 +231,24 @@ function Pick({
           width={wide ? 416 : 248}
           className={wide ? 'frame' : 'cover'}
         />
-        <span>{title(item)}</span>
+        <span className="card-line">{title(item)}</span>
+        <YearLine item={item} />
       </button>
     </li>
   )
 }
 
+/** A card's year line; with none, an empty line of the same height. */
+export function YearLine({ item }: { item: Item }) {
+  return <small className="card-line muted">{years(item) || ' '}</small>
+}
+
+/** The watched bar; a watched item's is full. */
 export function Watched({ item }: { item: Item }) {
-  const pos = (item.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND
   const dur = (item.RunTimeTicks ?? 0) / TICKS_PER_SECOND
+  const pos = item.UserData?.Played
+    ? dur
+    : (item.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND
   return (
     <progress
       max={Math.max(dur, 1)}

@@ -715,7 +715,7 @@ test('watch history: 10 s really played is one entry per playback, under 10 s no
   await expect(a.getByText(/^Watched (once|\d+ times)$/)).toHaveCount(0)
   await play(a, 12)
   await expect(a.getByText('Watched once')).toBeVisible()
-  // Left and played again within 3 h: the same watch (#1023).
+  // Left and played again within 3 h: the same watch.
   await play(a, 12)
   await a.reload()
   await expect(a.getByText('Watched once')).toBeVisible()

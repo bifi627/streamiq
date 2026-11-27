@@ -39,6 +39,7 @@ import {
   type Item,
 } from './items'
 import * as jf from './jellyfin'
+import { videoLibraries } from '../photos/gallery'
 const title = (i: Item) => i.SeriesName ?? i.Name
 function meta(i: Item) {
   const left = timeLeft(i)
@@ -64,7 +65,8 @@ export function Shelves() {
   }, [pc, gatewayId])
   const favorites = shelf(useTunnelQuery(jf.favorites))
   const added = shelf(useTunnelQuery(jf.recentlyAdded))
-  const views = shelf(useTunnelQuery(jf.userViews))
+  const all = shelf(useTunnelQuery<{ Items: Item[] }>(jf.userViews))
+  const views = Array.isArray(all) ? videoLibraries(all) : all // photos: their own tab
   // First visit: all settled before the home shows, so first focus lands
   // once, in its place. A revisit with its rows cached shows at once; the Resume spot
   // and Next up join when they answer.
@@ -294,15 +296,17 @@ export function Artwork({
   art,
   card,
   width,
+  height,
   className,
 }: {
   art: Art | null
   card?: Item
   width: number
+  height?: number
   className: string
 }) {
   const box = useRef<HTMLDivElement>(null)
-  const key = art && `${art.id}/${art.type}/${art.tag}/${width}`
+  const key = art && `${art.id}/${art.type}/${art.tag}/${width}x${height}`
   const [seen, setSeen] = useState<string | null>(null) // the key whose box came on screen
   useEffect(() => {
     const el = box.current
@@ -318,7 +322,7 @@ export function Artwork({
     io.observe(el)
     return () => io.disconnect()
   }, [key])
-  const q = useArt(art, width, seen !== null && seen === key)
+  const q = useArt(art, width, seen !== null && seen === key, height)
   const url = q.data
   const failed = q.isError || q.data === null
   if (card && (!art || failed))

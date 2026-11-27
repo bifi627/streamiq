@@ -47,7 +47,8 @@ keeps an admin. **onboarding** = a gateway joining a household (enrollment token
 credential); **pairing** = a client becoming trusted by one gateway (client key, comparison code
 approved on the local gateway page). **screen** = a TV in screen mode, remote-controlled by a
 phone ("Play on…") through the same gateway; **TV mode** = the web app's layout for TV browsers,
-not the same thing.
+not the same thing. **photo** = a still image in a Jellyfin photo library ("Home videos &
+photos", `homevideos`), shown on the Photos tab; "image" stays artwork/posters.
 **jump scares** = one item's scare times (major/minor), read on the phone remote from a
 whenjumpscare.com `.srt` and kept in that browser only (localStorage per item id; #1026).
 Player qualities (`profile.ts`): **Auto** = the default, capped from the measured gateway →
@@ -69,7 +70,7 @@ name.
 | `frontend/` | Browser client | React + Vite + TypeScript |
 | `gateway/` | Home gateway: tunnels local Jellyfin over WebRTC | Go + Pion |
 | `protocol/` | The broker's messages on both sockets, types only: used by the gateway (and the Go API); `scripts/gen-types.sh` (tygo) generates `frontend/src/generated/` from it and the API and gateway slices in `scripts/tygo.yaml` | Go |
-| `e2e/` | E2E specs on one stack, in parallel, each `<name>.spec.ts` by area tag: `smoke` (@smoke), `lifecycle` + `gateways` (@gateways), `multi-user` (@gateways @player), `households` (@households), `library` (@library), `player` + `screen` (@player), `diagnostics` (@diagnostics), `shell` + `chrome87` (@shell), `compat` (@compat); what a spec covers is its header comment. `test` comes from `fixtures.ts` (Jellyfin per worker; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`; the area tags are `allowedTags` in `e2e/.oxlintrc.json` | Playwright + testcontainers-node |
+| `e2e/` | E2E specs on one stack, in parallel, each `<name>.spec.ts` by area tag: `smoke` (@smoke), `lifecycle` + `gateways` (@gateways), `multi-user` (@gateways @player), `households` (@households), `library` + `photos` (@library), `player` + `screen` (@player), `diagnostics` (@diagnostics), `shell` + `chrome87` (@shell), `compat` (@compat); what a spec covers is its header comment. `test` comes from `fixtures.ts` (Jellyfin per worker; `paired` = signed-in browser + its own paired gateway); arrange state over the API with `helpers.ts`; the area tags are `allowedTags` in `e2e/.oxlintrc.json` | Playwright + testcontainers-node |
 | `scripts/` | Dev + CI scripts (`check.sh`, `dev.ps1`, `gen-test-media.sh`, …) | bash / PowerShell |
 | `dev/firebase/` | Auth emulator config for compose | — |
 

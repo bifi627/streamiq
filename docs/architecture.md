@@ -325,9 +325,18 @@ view count (#1013) reads `GET /streamiq/views?itemId=` and counts them (`viewCou
   `/Items?searchTerm=`, in a section per type; its results replace the rows), then Continue watching (the Resume spot + up to 3 more; stacked on a phone), Next up
   (`/Shows/NextUp` without in-progress episodes; hidden when empty), Favorites
   (hidden when empty; the heart on a movie/series page sets `IsFavorite` via UserData), Recently
-  added, Library, each a row that scrolls sideways.
+  added, Library (photo libraries left out), each a row that scrolls sideways.
   Artwork through `art.ts`: loads only on screen, cached per gateway in the Cache API,
   deleted on sign-out and household switch.
+- Photos (#1018, `features/photos/`): the nav's Photos tab, shown while the active gateway's
+  cached `/UserViews` (`photos/tab.ts`) has a photo library (`CollectionType` `homevideos`,
+  Jellyfin's "Home videos & photos"), opens `/g/<id>/photos` (its photo libraries), then
+  `/photos/<folder id>`: a paged grid of sub-folders, then `Photo` items (videos hidden), square
+  tiles with each photo centre-cropped; a folder's cover is its first photo (Jellyfin makes none).
+  `?view=<photo id>` is the full-screen viewer over the grid: the photo fitted to the screen in
+  device pixels via `/Items/{id}/Images/Primary?maxWidth=&maxHeight=` (never the original),
+  ←/→ / swipe step (replacing the entry), Back / Escape close onto that photo. The caption is
+  the name, never `Overview` (JPEG comments). Decisions in `photos/gallery.ts`.
 - Settings (`features/settings/`): `/settings` is a list of categories; one with more than
   2 settings is its own page (`/settings/playback`, row ends in ›), a smaller one expands in
   place (`<details>`, ⌄, closed on load).

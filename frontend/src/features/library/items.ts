@@ -5,6 +5,7 @@ export type Item = {
   Name: string
   Type: string
   IsFolder?: boolean
+  CollectionType?: string // a library's kind: 'movies', 'tvshows', 'homevideos' (photos), …
   SeriesId?: string
   SeriesName?: string
   SeasonId?: string

@@ -6,6 +6,7 @@ import type { Item } from './items.ts'
 export type Shelf = Item[] | AppError
 export type Lists = {
   resume: Shelf
+  next: Shelf
   favorites: Shelf
   recent: Shelf
   views: Shelf
@@ -18,31 +19,33 @@ export const shelf = (q: {
 }): Shelf | undefined =>
   q.data ? q.data.Items : q.error ? toAppError(q.error) : undefined
 
-/** All rows once settled; a warm revisit shows before Resume answers. */
+/** All rows once settled; a warm revisit shows before Resume and Next up answer. */
 export function homeLists(
   rows: { favorites?: Shelf; recent?: Shelf; views?: Shelf },
-  resume: Shelf | null,
+  live: { resume: Shelf | null; next: Shelf | null },
   warm: boolean,
 ): Lists | null {
   const { favorites, recent, views } = rows
-  if (!favorites || !recent || !views || !(resume || warm)) return null
-  return { resume: resume ?? [], favorites, recent, views }
+  const { resume, next } = live
+  if (!favorites || !recent || !views || !((resume && next) || warm))
+    return null
+  return { resume: resume ?? [], next: next ?? [], favorites, recent, views }
 }
 
 export const ok = (r: Shelf) => (r instanceof AppError ? [] : r)
 
-/** The Resume spot, up to the rest in progress, Favorites, Recently added, and whether
- * the home has nothing at all to show (no items and no error). */
+/** The Resume spot, up to the rest in progress, Next up, Favorites, Recently added,
+ * and whether the home has nothing at all to show (no items and no error). */
 export function homeView(l: Lists) {
   const [spot, ...more] = ok(l.resume)
-  const favorites = ok(l.favorites)
-  const recent = ok(l.recent)
-  const failed = Object.values(l).some((r) => r instanceof AppError)
-  const empty =
-    !spot &&
-    !favorites.length &&
-    !recent.length &&
-    !ok(l.views).length &&
-    !failed
-  return { spot, more, favorites, recent, empty }
+  const rows = Object.values(l)
+  const empty = rows.every((r) => !(r instanceof AppError) && !r.length)
+  return {
+    spot,
+    more,
+    next: ok(l.next),
+    favorites: ok(l.favorites),
+    recent: ok(l.recent),
+    empty,
+  }
 }

@@ -88,6 +88,8 @@ func TestAllowlist(t *testing.T) {
 		{"GET", "/Items/" + vid, true},
 		{"GET", "/UserItems/Resume", true},
 		{"GET", "/Shows/" + vid + "/Episodes?seasonId=" + vid, true},
+		{"GET", "/Shows/NextUp?enableResumable=false", true},
+		{"GET", "/Shows/Upcoming", false},
 		{"GET", "/Items/" + vid + "/Images/Primary?maxWidth=300", true},
 		{"POST", "/Items/" + vid + "/PlaybackInfo", true},
 		{"POST", "/UserItems/" + vid + "/UserData", true},

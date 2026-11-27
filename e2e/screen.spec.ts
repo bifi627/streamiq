@@ -1,6 +1,6 @@
 // Screen mode, on a paired browser with its own gateway
 // (fixtures.ts `paired`): the entry, Play on…, the phone remote's commands, two
-// phones, closing. TV = the fixture's page; phones = more tabs of the same
+// phones, closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
 // paired browser (each its own tunnel session). Refusals, another user's screen
 // and the relay between sessions are Go tests (screen/screen_test.go,
 // sessions_test.go); the TV mode toggle is shell.spec's, the player's own
@@ -8,6 +8,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
+  appUrl,
   keepPcs,
   openGateway,
   openLibrary,
@@ -284,4 +285,32 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… is
   await expect(
     phone.getByRole('button', { name: /^(Play|Resume)$/ }),
   ).toBeVisible()
+})
+
+// Leave unmounts the focused button: focus falls to <body>, outside every
+// D-pad container; the next arrow recovers it (focus.ts recoverFocus). The
+// screen opens in-app from Gateways (TV mode's top bar), a page without
+// autofocus to come back to.
+test('Leave: the D-pad still works on the page it returns to @player', async ({
+  paired,
+}) => {
+  const { page: tv } = paired
+  await tv.addInitScript(() =>
+    localStorage.setItem('streamiq.settings.tv', '1'),
+  )
+  await tv.reload()
+  await openLibrary(tv) // the active gateway: the top bar's link
+  await tv.goto(appUrl('/gateways'))
+  await tv
+    .getByRole('banner')
+    .getByRole('link', { name: 'Use as screen' })
+    .click()
+  await expect(tv.getByRole('button', { name: 'Leave' })).toBeFocused()
+  await tv.keyboard.press('Enter')
+  await expect(tv.getByRole('heading', { level: 1 })).toHaveText('Gateways')
+  const onBody = () =>
+    tv.evaluate(() => document.activeElement === document.body)
+  expect(await onBody()).toBe(true)
+  await tv.keyboard.press('ArrowDown')
+  await expect.poll(onBody).toBe(false)
 })

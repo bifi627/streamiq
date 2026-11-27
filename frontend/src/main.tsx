@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { applyTv } from './shared/settings'
+import { recoverFocus } from './shared/focus'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './shared/query'
 
 applyTv()
+recoverFocus()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('index.html has no #root element')

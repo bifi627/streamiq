@@ -6,6 +6,10 @@
 // fields and sliders: up/down leave them, left/right only past a text caret's end
 // (a slider has no caret, so it keeps left/right: the remote's seek).
 // Checkboxes use no arrows: every arrow leaves them.
+// Lost focus (the focused element unmounted: Leave, a closed dialog, a deleted
+// row, a route change) falls to <body>, outside every container:
+// recoverFocus() catches the next arrow or Enter there app-wide. A local
+// refocus is only for keeping your place more precisely.
 import type { KeyboardEvent } from 'react'
 
 type Box = { left: number; top: number; right: number; bottom: number }
@@ -51,6 +55,12 @@ function caretAtEdge(el: HTMLInputElement, key: string) {
   return key === 'ArrowLeft' ? a === 0 : a === el.value.length
 }
 
+// A closed <details>' content keeps its boxes in current Chrome
+// (content-visibility: hidden); Chrome 87 has neither those boxes nor
+// checkVisibility.
+const usable = (el: HTMLElement) =>
+  el.getClientRects().length > 0 && (el.checkVisibility?.() ?? true)
+
 export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
   const from = e.target as HTMLElement
   if (
@@ -68,15 +78,7 @@ export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
     return
   const els = [
     ...e.currentTarget.querySelectorAll<HTMLElement>(focusable),
-  ].filter(
-    (el) =>
-      el !== from &&
-      el.getClientRects().length > 0 &&
-      // A closed <details>' content keeps its boxes in current Chrome
-      // (content-visibility: hidden); Chrome 87 has neither those boxes nor
-      // checkVisibility.
-      (el.checkVisibility?.() ?? true),
-  )
+  ].filter((el) => el !== from && usable(el))
   const i = nearest(
     from.getBoundingClientRect(),
     els.map((el) => el.getBoundingClientRect()),
@@ -85,4 +87,33 @@ export function arrowFocus(e: KeyboardEvent<HTMLElement>) {
   if (i < 0) return
   e.preventDefault() // no page scroll
   els[i].focus()
+}
+
+/** Once, at startup: an arrow or Enter with focus on <body> (or nowhere)
+ * focuses the first focusable element in <main>, else in the nav. */
+export function recoverFocus() {
+  window.addEventListener('keydown', (e) => {
+    const lost =
+      !document.activeElement || document.activeElement === document.body
+    if (
+      !lost ||
+      !(dirs.includes(e.key) || e.key === 'Enter') ||
+      e.altKey ||
+      e.ctrlKey ||
+      e.metaKey ||
+      e.shiftKey ||
+      document.querySelector('.player') // keys of its own (Controls.tsx)
+    )
+      return
+    const first = (sel: string) =>
+      [
+        ...(document
+          .querySelector(sel)
+          ?.querySelectorAll<HTMLElement>(focusable) ?? []),
+      ].find(usable)
+    const el = first('main') ?? first('nav')
+    if (!el) return
+    e.preventDefault() // no page scroll, no Enter on what just got focus
+    el.focus()
+  })
 }

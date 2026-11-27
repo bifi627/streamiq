@@ -5,7 +5,7 @@
 // per-device setting persisted, and the D-pad on Playback. TV mode: the first visit
 // on a TV (webOS turns it on, Android TV asks), the handoff page (the household pages: QR
 // code, Back), the Settings + nav TV subsets, the D-pad up to the title row and
-// along the nav, the TV's Household & gateway pickers (gateway list rows faked). What the settings do to playback is the player's spec.
+// along the nav, focus lost to <body> recovered, the TV's Household & gateway pickers (gateway list rows faked). What the settings do to playback is the player's spec.
 import type { Browser, Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -193,6 +193,27 @@ test('TV mode: the household pages hand off, the nav keeps Library + Settings, D
     'Library',
     'Settings',
   ])
+})
+
+// The focused element gone (any page, any reason): an arrow on <body>
+// focuses the page's first control (focus.ts recoverFocus).
+test('TV mode: an arrow recovers focus lost to <body> @shell', async ({
+  browser,
+}) => {
+  const p = await signedIn(browser, '/settings')
+  await p.evaluate(() => localStorage.setItem('streamiq.settings.tv', '1'))
+  await p.reload()
+  await expect(p.locator('html')).toHaveClass(/\btv\b/)
+  const onBody = () =>
+    p.evaluate(() => {
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      return document.activeElement === document.body
+    })
+  expect(await onBody()).toBe(true)
+  await p.keyboard.press('ArrowDown')
+  await expect
+    .poll(() => p.evaluate(() => document.activeElement?.tagName))
+    .not.toBe('BODY')
 })
 
 test('TV Settings: Household & gateway pickers with 2+ of each, by D-pad; absent with one of each and outside TV mode (#871) @shell', async ({

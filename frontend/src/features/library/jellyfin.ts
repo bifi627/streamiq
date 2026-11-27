@@ -41,8 +41,7 @@ export const byIds = (ids: string[]) => `/Items?ids=${ids.join(',')}`
 /** GET /UserItems/Resume: Continue watching. */
 export const resume = '/UserItems/Resume?mediaTypes=Video&limit=4'
 
-/** GET /Shows/NextUp: the next episode of each series being watched; an
- * in-progress one is Continue watching's, not this row's. */
+/** GET /Shows/NextUp: Next up; in-progress episodes are Continue watching's. */
 export const nextUp = '/Shows/NextUp?enableResumable=false&limit=16'
 
 export const item = (id: string) => `/Items/${id}`

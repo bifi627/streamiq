@@ -327,7 +327,10 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 func histories(stateDir, gatewayID string) (*history.Health, *history.Tunnels, *history.Views) {
 	dir := filepath.Join(stateDir, history.Dir)
 	return &history.Health{Store: &history.Store{Dir: dir, Kind: "health", Days: history.HealthDays}, Version: version},
-		&history.Tunnels{Store: &history.Store{Dir: dir, Kind: "tunnels", Days: history.TunnelDays}, Gateway: gatewayID},
+		&history.Tunnels{
+			Store:   &history.Store{Dir: dir, Kind: "tunnels", Days: history.TunnelDays},
+			Gateway: gatewayID,
+		},
 		&history.Views{Store: &history.Store{Dir: dir, Kind: "views", Days: history.ViewDays}}
 }
 

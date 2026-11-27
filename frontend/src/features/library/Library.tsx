@@ -54,6 +54,7 @@ import {
 import { folderView } from './paging'
 import { Artwork, PosterTile, Watched } from './Home'
 import { Favorite } from './Favorite'
+import { itemViews, viewCount, type View } from './views'
 import { tvOn } from '../../shared/settings'
 export { LibraryHome } from './LibraryHome'
 
@@ -178,12 +179,18 @@ function TitleInfo({
 }) {
   const [more, setMore] = useState(false)
   const info = titleInfo(item, seasons)
+  // A series has no views of its own; any error (an old gateway's 404) shows nothing.
+  const views = useTunnelQuery<View[]>(
+    item.Type === 'Series' ? null : itemViews(item.Id),
+  )
+  const count = viewCount(views.data, item.Id)
   const genres = item.Genres ?? []
   const hasMore = !!item.Overview || genres.length > 1
   return (
     <div className="title-info">
       <Favorite item={item} />
       {info && <p className="muted">{info}</p>}
+      {count && <p className="muted">{count}</p>}
       {hasMore && (
         <button
           type="button"

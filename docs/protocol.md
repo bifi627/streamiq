@@ -475,11 +475,14 @@ default), `relayedBytes` = both directions of every relayed line.
 
 **`POST /streamiq/views`** (#1012) `{ "itemId" }` → `204`: one view of that Jellyfin item
 by the session's user, stamped with the gateway's time, appended to `state/history/` (a file
-per UTC day, 365 days kept). The web app sends it once per playback, after 10 s really
+per UTC day, kept forever). The web app sends it once per playback, after 10 s really
 played. No user on the session → `403`; not JSON or not a Jellyfin id → `400`.
 **`GET /streamiq/views`** (#1012) → `200` `[{ "itemId", "at" }]`: the session's user's own
 views, newest first, at most 500 (the watch history); the user is the session's, never the
-request's. A gateway older than these answers `404`.
+request's. With `?itemId=<id>` (#1013): all of that user's views of that item, uncapped (the
+item page's view count); not a Jellyfin id, or the parameter twice → `400`. A gateway older
+than `?itemId=` ignores it (the client counts only that item's rows); one older than these
+answers `404`.
 
 **`POST /streamiq/tunnels/throughput`** (#782) `{ "throughputKbps": 4200 }` → `204`: the
 gateway → client throughput the browser measured (the tunnel's last burst measurement,

@@ -331,7 +331,7 @@ func histories(stateDir, gatewayID string) (*history.Health, *history.Tunnels, *
 			Store:   &history.Store{Dir: dir, Kind: "tunnels", Days: history.TunnelDays},
 			Gateway: gatewayID,
 		},
-		&history.Views{Store: &history.Store{Dir: dir, Kind: "views", Days: history.ViewDays}}
+		&history.Views{Store: &history.Store{Dir: dir, Kind: "views"}}
 }
 
 // run is the gateway daemon; compose is jellyfin-compose.yml next to the binary.

@@ -40,6 +40,18 @@ export function viewLine(i: Item, at: string) {
   return [i.SeriesName, se, when].filter(Boolean).join(' · ')
 }
 
+/** GET of one item's views: the gateway answers all of them. */
+export const itemViews = (itemId: string) =>
+  `${VIEWS}?itemId=${encodeURIComponent(itemId)}`
+
+/** The item page's view count; '' when not watched. Filters itself: a gateway
+ * older than ?itemId= answers the newest views of every item. */
+export function viewCount(views: View[] | undefined, itemId: string) {
+  const n = views?.filter((v) => v.itemId === itemId).length ?? 0
+  if (n === 0) return ''
+  return n === 1 ? 'Watched once' : `Watched ${n.toLocaleString()} times`
+}
+
 // A gateway older than GET /streamiq/views answers 404.
 export const viewsMessage = (e: AppError) =>
   e.context.status === 404

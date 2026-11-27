@@ -1254,7 +1254,6 @@ html.tv .rows li.no-tv:first-child + li {
   height: 5.5rem;
 }
 .ph.poster {
-  min-height: 13rem; /* Chrome 87: no aspect-ratio */
   background: var(--surface-2);
 }
 .dot.failed {
@@ -1507,8 +1506,9 @@ button.secondary:hover {
   bottom: 0;
   left: 0;
 }
+/* A fixed rem height, not aspect-ratio (Chrome 87): every card one height. */
 .poster {
-  aspect-ratio: 2 / 3; /* Chrome 88+: Chrome 87 shows no box until the image loads */
+  height: 14rem;
   background: #ddd;
 }
 .poster img {

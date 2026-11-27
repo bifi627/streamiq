@@ -26,6 +26,7 @@ import {
   playsAtOnce,
   TICKS_PER_SECOND,
   timeLeft,
+  watchedBar,
   years,
   type Item,
 } from './items'
@@ -240,21 +241,18 @@ function Pick({
 
 /** A card's year line; with none, an empty line of the same height. */
 export function YearLine({ item }: { item: Item }) {
-  return <small className="card-line muted">{years(item) || ' '}</small>
+  return <small className="card-line muted">{years(item) || '\u00a0'}</small>
 }
 
-/** The watched bar; a watched item's is full. */
 export function Watched({ item }: { item: Item }) {
+  const { value, max } = watchedBar(item)
   const dur = (item.RunTimeTicks ?? 0) / TICKS_PER_SECOND
-  const pos = item.UserData?.Played
-    ? dur
-    : (item.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND
   return (
     <progress
-      max={Math.max(dur, 1)}
-      value={pos}
+      max={max}
+      value={value}
       aria-label={`${[item.SeriesName, item.Name].filter(Boolean).join(', ')} watched`}
-      aria-valuetext={`${clock(pos)} of ${clock(dur)}`}
+      aria-valuetext={`${clock(value)} of ${clock(dur)}`}
     />
   )
 }

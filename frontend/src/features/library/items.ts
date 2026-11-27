@@ -239,3 +239,13 @@ export function years(i: Item) {
   const until = i.EndDate && new Date(i.EndDate).getUTCFullYear()
   return until && until !== from ? `${from} – ${until}` : `${from}`
 }
+
+/** The watched bar, in seconds: a watched item's is full, also without a
+ * runtime. */
+export function watchedBar(i: Item) {
+  const max = Math.max((i.RunTimeTicks ?? 0) / TICKS_PER_SECOND, 1)
+  return {
+    value: i.UserData?.Played ? max : position(i) / TICKS_PER_SECOND,
+    max,
+  }
+}

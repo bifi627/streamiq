@@ -158,6 +158,8 @@ test('cards: one height, a one-line title and a year line; the folder grid shows
     'position',
     1,
   )
+  // The other, unstarted movies: no bar.
+  await expect(a.locator('.poster-grid progress')).toHaveCount(2)
   await expect(a.locator('.poster-grid')).not.toContainText(
     /\b(Play|Resume|Watched)\b/,
   )

@@ -7,6 +7,19 @@ export function searchTerm(text: string | undefined) {
   return t.length >= 2 ? t : null
 }
 
+const KINDS = [
+  ['Movie', 'Movies'],
+  ['Series', 'Shows'],
+  ['Episode', 'Episodes'],
+] as const
+
+/** The results by type, in that order; a type without matches is left out. */
+export const sections = (items: Item[]) =>
+  KINDS.map(([type, title]) => ({
+    title,
+    items: items.filter((i) => i.Type === type),
+  })).filter((s) => s.items.length)
+
 export const qSearch = (text: string) => (text ? { q: text } : {})
 
 /** The field's text once ?q= changed: the field's own push keeps what was

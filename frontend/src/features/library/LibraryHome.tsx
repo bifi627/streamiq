@@ -9,7 +9,7 @@ import { PosterTile, Shelves } from './Home'
 import { usePick, useTunnelQuery } from './art'
 import type { Item } from './items'
 import * as jf from './jellyfin'
-import { fieldText, qSearch, resultLine, searchTerm } from './search'
+import { fieldText, qSearch, resultLine, searchTerm, sections } from './search'
 
 export function LibraryHome({ q }: { q?: string }) {
   const term = searchTerm(q)
@@ -76,10 +76,22 @@ function Results({ term }: { term: string }) {
   if (!q.data.Items.length)
     return <State icon="empty" title={`Nothing found for “${term}”.`} />
   return (
-    <ul className="poster-grid" aria-label="Search results">
-      {q.data.Items.map((i) => (
-        <PosterTile key={i.Id} item={i} line={resultLine(i)} onOpen={open} />
+    <section className="home" aria-label="Search results">
+      {sections(q.data.Items).map((s) => (
+        <section key={s.title}>
+          <h2>{s.title}</h2>
+          <ul className="poster-grid" aria-label={s.title}>
+            {s.items.map((i) => (
+              <PosterTile
+                key={i.Id}
+                item={i}
+                line={resultLine(i)}
+                onOpen={open}
+              />
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </section>
   )
 }

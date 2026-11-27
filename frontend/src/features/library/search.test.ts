@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fieldText, qSearch, resultLine, searchTerm } from './search.ts'
+import {
+  fieldText,
+  qSearch,
+  resultLine,
+  searchTerm,
+  sections,
+} from './search.ts'
 import type { Item } from './items.ts'
 
 test('searchTerm: trimmed, null under 2 characters', () => {
@@ -38,4 +44,20 @@ test('fieldText: its own push keeps a letter typed meanwhile, an outside change 
 test('qSearch: empty text drops q', () => {
   assert.deepEqual(qSearch(''), {})
   assert.deepEqual(qSearch('ab'), { q: 'ab' })
+})
+
+test('sections: movies, shows, episodes in that order, empty ones left out', () => {
+  const it = (Id: string, Type: string) => ({ Id, Name: Id, Type }) as Item
+  const got = sections([
+    it('e', 'Episode'),
+    it('m', 'Movie'),
+    it('e2', 'Episode'),
+  ])
+  assert.deepEqual(
+    got.map((s) => [s.title, s.items.map((i) => i.Id)]),
+    [
+      ['Movies', ['m']],
+      ['Episodes', ['e', 'e2']],
+    ],
+  )
 })

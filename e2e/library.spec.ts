@@ -260,16 +260,17 @@ test('search: results replace the shelves, ?q= survives Back, an episode names i
   const { page } = paired
   await open(page)
   const field = page.getByRole('searchbox', { name: 'Search' })
-  const results = page.getByRole('list', { name: 'Search results' })
+  const results = page.getByRole('region', { name: 'Search results' })
   await field.fill('Test Series')
   await expect(page).toHaveURL(/\?q=Test(\+|%20)Series$/)
   await expect(recent(page)).toBeHidden()
   await expect(
-    results.getByRole('button', {
+    results.getByRole('list', { name: 'Episodes' }).getByRole('button', {
       name: /S01E01.*StreamIQ Test Series · Season 1$/,
     }),
   ).toBeVisible()
   await results
+    .getByRole('list', { name: 'Shows' })
     .getByRole('button', { name: /^StreamIQ Test Series(?!.*S0)/ })
     .click()
   await expect(page.getByRole('tablist', { name: 'Seasons' })).toBeVisible()

@@ -12,11 +12,41 @@ import * as jf from './jellyfin'
 import { fieldText, qSearch, resultLine, searchTerm, sections } from './search'
 
 export function LibraryHome({ q }: { q?: string }) {
+  const navigate = useNavigate()
   const term = searchTerm(q)
+  const [open, setOpen] = useState(!!q)
+  const [seen, setSeen] = useState(q)
+  if (q !== seen) {
+    setSeen(q)
+    if (q) setOpen(true) // Back to a search; not the old q while closing
+  }
+  const toggle = () => {
+    if (open) void navigate({ to: '.', search: {}, replace: true })
+    setOpen(!open)
+  }
   return (
     <>
-      <PageBar title="Library" />
-      <SearchField q={q ?? ''} />
+      <PageBar
+        title="Library"
+        actions={
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Search"
+            title="Search"
+            aria-expanded={open}
+            onClick={toggle}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-4-4" />
+            </svg>
+          </button>
+        }
+      />
+      {/* Opened by the button: it takes focus. With a ?q=, the results' first
+          card does (Results). */}
+      {open && <SearchField q={q ?? ''} autoFocus={!q} />}
       {term && <Results term={term} />}
       {/* Stays mounted while searching: a remount would autofocus a card,
           taking focus from the field. */}
@@ -28,7 +58,7 @@ export function LibraryHome({ q }: { q?: string }) {
 }
 
 /** Typing settles into ?q= after a pause, replacing the history entry. */
-function SearchField({ q }: { q: string }) {
+function SearchField({ q, autoFocus }: { q: string; autoFocus: boolean }) {
   const navigate = useNavigate()
   const [text, setText] = useState(q)
   const [pushed, setPushed] = useState(q) // the last term this field put in the URL
@@ -52,6 +82,7 @@ function SearchField({ q }: { q: string }) {
       placeholder="Search movies and shows"
       aria-label="Search"
       enterKeyHint="search"
+      autoFocus={autoFocus}
       value={text}
       onChange={(e) => setText(e.target.value)}
     />

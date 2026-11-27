@@ -260,6 +260,7 @@ test('search: results replace the shelves, ?q= survives Back, an episode names i
   const { page } = paired
   await open(page)
   const field = page.getByRole('searchbox', { name: 'Search' })
+  await page.getByRole('button', { name: 'Search' }).click()
   const results = page.getByRole('region', { name: 'Search results' })
   await field.fill('Test Series')
   await expect(page).toHaveURL(/\?q=Test(\+|%20)Series$/)
@@ -286,6 +287,13 @@ test('search: results replace the shelves, ?q= survives Back, an episode names i
     page.getByText('Nothing found for “zzzz-nothing”.'),
   ).toBeVisible()
   await field.fill('')
+  await expect(recent(page)).toBeVisible()
+  await expect(page).not.toHaveURL(/\?q=/)
+  await field.fill('Test')
+  await expect(page).toHaveURL(/\?q=Test$/)
+  // The button closes it again and drops the term.
+  await page.getByRole('button', { name: 'Search' }).click()
+  await expect(field).toBeHidden()
   await expect(recent(page)).toBeVisible()
   await expect(page).not.toHaveURL(/\?q=/)
 })
@@ -378,6 +386,7 @@ test('search: a failed request shows the error, the field keeps focus when the t
   await page.reload() // the init script runs on a load
   await open(page)
   const field = page.getByRole('searchbox', { name: 'Search' })
+  await page.getByRole('button', { name: 'Search' }).click()
   await field.fill('nope')
   await expect(page.getByRole('alert')).toBeVisible()
   await expect(recent(page)).toBeHidden()
@@ -634,6 +643,8 @@ test('search: in TV mode Back from a result puts the D-pad on the first result @
   await openCategory(page, 'Display')
   await page.getByLabel('TV mode').check()
   await open(page)
+  await expect(page.getByRole('searchbox')).toBeHidden()
+  await page.getByRole('button', { name: 'Search' }).click()
   await page.getByRole('searchbox', { name: 'Search' }).fill('Test Series')
   const shows = page.getByRole('list', { name: 'Shows' })
   await shows.getByRole('button', { name: /^StreamIQ Test Series/ }).click()

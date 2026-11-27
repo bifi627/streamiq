@@ -310,9 +310,9 @@ peaks per local day.
   are an allowlist (`features/tv/tvRoute.ts`): any other route, unknown ones included, renders the
   handoff page (the URL to open on a phone or PC) and drops out of the nav. D-pad = arrow keys:
   `onKeyDown={arrowFocus}` (`frontend/src/shared/focus.ts`) on a container.
-- Library home (`features/library/LibraryHome.tsx` + `Home.tsx`): a search field on top (`?q=`, the
-  current gateway's movies, series and episodes via `/Items?searchTerm=`; its results replace the
-  rows), then Continue watching (the Resume spot + up to 3 more; stacked on a phone), Favorites
+- Library home (`features/library/LibraryHome.tsx` + `Home.tsx`): a search field the title row's
+  Search button opens (`?q=`, the current gateway's movies, series and episodes via
+  `/Items?searchTerm=`, in a section per type; its results replace the rows), then Continue watching (the Resume spot + up to 3 more; stacked on a phone), Favorites
   (hidden when empty; the heart on a movie/series page sets `IsFavorite` via UserData), Recently
   added, Library, each a row that scrolls sideways.
   Artwork through `art.ts`: loads only on screen, cached per gateway in the Cache API,

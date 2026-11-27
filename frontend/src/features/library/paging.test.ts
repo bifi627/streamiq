@@ -37,13 +37,19 @@ test('nextStart: without a total, a short page is the last', () => {
 
 test('folderView: loading, then every item once in order', () => {
   assert.equal(
-    folderView({ pages: undefined, hasNext: false, nextFailed: false }),
+    folderView({
+      pages: undefined,
+      hasNext: false,
+      nextFailed: false,
+      fetching: false,
+    }),
     undefined,
   )
   const v = folderView({
     pages: [page(0, PAGE, 120), page(49, PAGE, 120)], // the folder shifted by one
     hasNext: true,
     nextFailed: false,
+    fetching: false,
   })
   assert.deepEqual(
     v?.items.map((i) => i.Id),
@@ -57,12 +63,22 @@ test('folderView: a failed later page keeps the items and offers Retry', () => {
     pages: [page(0, PAGE, 120)],
     hasNext: true,
     nextFailed: true,
+    fetching: false,
   })
   assert.equal(v?.items.length, PAGE)
   assert.equal(v?.tail, 'retry')
   assert.equal(
-    folderView({ pages: [page(0, 7, 7)], hasNext: false, nextFailed: false })
-      ?.tail,
+    folderView({
+      pages: [page(0, 7, 7)],
+      hasNext: false,
+      nextFailed: false,
+      fetching: false,
+    })?.tail,
     'end',
+  )
+  const again = { pages: [page(0, PAGE, 120)], hasNext: true }
+  assert.equal(
+    folderView({ ...again, nextFailed: true, fetching: true })?.tail,
+    'loading',
   )
 })

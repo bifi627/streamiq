@@ -14,22 +14,26 @@ export function nextStart(pages: Page[]): number | undefined {
 }
 
 /** What the grid shows: every loaded item once (a folder that changed between
- * pages can repeat one), and what follows it: the next page loading, a
- * failed page's Retry, or nothing. undefined = the first page isn't there. */
+ * pages can repeat one), and what follows it: the next page loading or due,
+ * a failed page's Retry, or nothing. undefined = the first page isn't there. */
 export function folderView(q: {
   pages?: Page[]
   hasNext: boolean
   nextFailed: boolean
+  fetching: boolean
 }) {
   if (!q.pages) return undefined
   const seen = new Set<string>()
   const items = q.pages
     .flatMap((p) => p.Items)
     .filter((i) => !seen.has(i.Id) && seen.add(i.Id))
-  const tail: 'retry' | 'more' | 'end' = q.nextFailed
-    ? 'retry'
-    : q.hasNext
-      ? 'more'
-      : 'end'
+  // fetching first: a Retry's refetch keeps the error until it settles
+  const tail: 'loading' | 'retry' | 'more' | 'end' = q.fetching
+    ? 'loading'
+    : q.nextFailed
+      ? 'retry'
+      : q.hasNext
+        ? 'more'
+        : 'end'
   return { items, tail }
 }

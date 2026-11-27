@@ -453,6 +453,7 @@ function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
     pages: q.data?.pages,
     hasNext: q.hasNextPage,
     nextFailed: q.isFetchNextPageError,
+    fetching: q.isFetchingNextPage,
   })
   if (q.error && !view) return <ErrorView error={toAppError(q.error)} focus />
   if (!view)
@@ -499,9 +500,10 @@ function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
         ))}
       </ul>
       {tail === 'retry' && <ErrorView error={q.error} onRetry={more} />}
-      {tail === 'more' && !q.isFetchingNextPage && (
-        <OnScreen key={items.length} onShow={more} />
+      {tail === 'loading' && (
+        <div className="ph ph-line" role="status" aria-label="Loading" />
       )}
+      {tail === 'more' && <OnScreen key={items.length} onShow={more} />}
     </>
   )
 }

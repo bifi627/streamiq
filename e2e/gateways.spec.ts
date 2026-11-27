@@ -503,11 +503,13 @@ test('member view: the same card, no Add gateway, no menu on the page, no transc
   ).toBeVisible() // the pin check is done
   await expect(menu(m)).toHaveCount(0) // neither Rename nor Remove
   // The transcode report is the admin's: a member gets the note, and nothing
-  // is read (unpaired, a tunnel read would end in the pairing error instead).
+  // is read: no tunnel opens.
   await expect(m.getByRole('link', { name: 'Transcode report' })).toHaveCount(0)
+  const sockets: string[] = []
+  m.on('websocket', (ws) => sockets.push(ws.url()))
   await m.goto(appUrl(`/gateways/${g.id}/transcodes`))
   await expect(m.getByRole('status')).toHaveText('Only admins can see this.')
-  await expect(m.getByText('Not probed yet')).toHaveCount(0)
+  expect(sockets.filter((u) => u.includes('/broker/ws'))).toEqual([])
 })
 
 test("health history: an incident, a version change and daily peaks from the gateway's own rows (#424, #781) @gateways", async ({

@@ -15,6 +15,7 @@ import { UpdateNotice } from './UpdateNotice'
 import { StatusDetails } from './StatusDetails'
 import { HealthHistory } from './HealthHistory'
 import { PairedClients } from './PairedClients'
+import { ReportLink } from './Transcodes'
 import { PairDialog } from './PairDialog'
 import { PairingRequests } from './PairingRequests'
 import { Libraries } from './Libraries'
@@ -188,7 +189,12 @@ function GatewayPage({
           paired={pinned === true} /* removedSelf unpins */
         />
         {/* A member's list is just this browser. */}
-        <PairedClients g={g} unpaired={unpaired} onRemovedSelf={removedSelf} />
+        <PairedClients
+          g={g}
+          unpaired={unpaired}
+          onRemovedSelf={removedSelf}
+          footer={<ReportLink id={g.id} show={manage} />}
+        />
         {manage && <Libraries g={g} />}
       </div>
     </div>

@@ -1,6 +1,6 @@
 // The player, on a paired browser with its own gateway (fixtures.ts
 // `paired`): the privacy badge (+ inline fullscreen's title), the profile line, the deep link (inline + the old /play/) + Back key,
-// the bar's controls, volume, quality, a dropped tunnel, compatible mode, Auto on a slow link, the
+// the bar's controls, volume, quality, a dropped tunnel, compatible mode (+ the transcode report), Auto on a slow link, the
 // speed test's cache and Off setting, data saver, audio, auto audio, subtitles and next episode. Per-device settings
 // are arranged in localStorage before the app loads (their toggles on /settings/playback are
 // shell.spec's). Movies → clip → Play and the Resume spot are smoke.spec's;
@@ -332,7 +332,7 @@ test('a dropped tunnel (#598): a new one, playback goes on at the playhead with 
   await expect(page.getByRole('status', { name: 'Loading' })).toHaveCount(0) // no spinner left
 })
 
-test('compatible mode (#113, #792): an H.264 + AAC file still remuxes; the gateway keeps the profile @player', async ({
+test('compatible mode (#113, #792, #809): an H.264 + AAC file still remuxes; the gateway keeps the profile, the transcode report uses it @player', async ({
   paired,
 }) => {
   const { page } = paired
@@ -349,9 +349,23 @@ test('compatible mode (#113, #792): an H.264 + AAC file still remuxes; the gatew
   await page.goto(appUrl('/gateways'))
   await openGateway(page)
   await page.locator('summary', { hasText: 'Paired clients' }).click()
-  await expect(
-    page.locator('.clients li').filter({ hasText: '(this browser)' }),
-  ).toContainText(/h264 .* · audio .* · Compatible mode · probed /)
+  const self = page.locator('.clients li').filter({ hasText: '(this browser)' })
+  await expect(self).toContainText(
+    /h264 .* · audio .* · Compatible mode · probed /,
+  )
+  // The transcode report checks the library against that profile: compatible
+  // mode is H.264 + stereo AAC, so the HEVC + AC3 fixture transcodes both.
+  const name = (await self.locator('span').first().textContent())?.split(
+    ' (this browser)',
+  )[0]
+  await page.getByRole('link', { name: 'Transcode report' }).click()
+  const row = page
+    .locator('.transcodes li')
+    .filter({ hasText: 'streamiq e2e hevc ac3' })
+  await expect(row).toContainText(`video: HEVC · ${name}`)
+  await expect(row.locator('small', { hasText: 'audio: AC3 ' })).toContainText(
+    `· ${name}`,
+  )
 })
 
 test('a final playback error (#552): the load stops once, the stuck check stays quiet @player', async ({

@@ -17,6 +17,7 @@ import { AppError, toAppError } from './shared/errors'
 import { ErrorView, UncaughtErrors } from './shared/ErrorView'
 import { Gateways, Home } from './features/gateways/Gateways'
 import { GatewayDetail } from './features/gateways/GatewayDetail'
+import { Transcodes } from './features/gateways/Transcodes'
 import {
   GatewayLibrary,
   ItemPage,
@@ -261,6 +262,14 @@ const routeTree = rootRoute.addChildren([
     component: function Detail() {
       const { id } = useParams({ from: '/gateways/$id' })
       return <GatewayDetail key={id} id={id} />
+    },
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: 'gateways/$id/transcodes',
+    component: function TranscodeReport() {
+      const { id } = useParams({ from: '/gateways/$id/transcodes' })
+      return <Transcodes key={id} id={id} />
     },
   }),
   createRoute({

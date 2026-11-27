@@ -86,7 +86,7 @@ export const seed = {
     ['Harbor Lights', 2026, [4, 2], 1, 'cellauto', 120],
   ] as [string, number, number[], number, string, number][],
   // Photo albums (folders, `/` = a sub-folder): file, size, source, hue. One
-  // large (4096 wide) and one PNG, for #1018's resizing and formats.
+  // large (4096 wide) and one PNG, for the Photos page's resizing and formats.
   photos: {
     'Summer Coast': [
       ['Beach.jpg', '1920x1280', 'gradients', 20],

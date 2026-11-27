@@ -412,7 +412,7 @@ async function serve() {
       await new Promise((r) => setTimeout(r, 1000))
     }
     const admin = await gatewayAdmin(gateway)
-    // The photo library: preview only (#1014), the e2e stacks keep two.
+    // The photo library: preview only, the e2e stacks keep two.
     await addLibraries(jellyfin, admin, undefined, [
       ['Photos', 'homevideos', '/photos'],
     ])

@@ -1,7 +1,7 @@
 // The library, on a paired browser with its own gateway (fixtures.ts
 // `paired`): `/` → the active gateway's library (one gateway; with two, the
 // online one, then the last opened), the nav's Library link, the
-// shared session, cards (one height, title + year line, the folder grid's
+// shared session, search, cards (one height, title + year line, the folder grid's
 // watched bar), folder deep links (title row + Back) + cache, Recently added,
 // Continue watching's order (the spot, also on a phone) and click-through guard, season tabs
 // (with the title page's D-pad order)
@@ -254,6 +254,56 @@ test('recently added: the fixture items; a movie opens its page (#204) @library'
   ).toBeVisible()
 })
 
+test('search: results replace the shelves, ?q= survives Back, an episode names its series, no match says so (#993) @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await open(page)
+  const field = page.getByRole('searchbox', { name: 'Search' })
+  await page.getByRole('button', { name: 'Search' }).click()
+  const results = page.getByRole('region', { name: 'Search results' })
+  await field.fill('Test Series')
+  await expect(page).toHaveURL(/\?q=Test(\+|%20)Series$/)
+  await expect(recent(page)).toBeHidden()
+  await expect(
+    results.getByRole('list', { name: 'Episodes' }).getByRole('button', {
+      name: /S01E01.*StreamIQ Test Series · Season 1$/,
+    }),
+  ).toBeVisible()
+  await results
+    .getByRole('list', { name: 'Shows' })
+    .getByRole('button', { name: /^StreamIQ Test Series(?!.*S0)/ })
+    .click()
+  await expect(page.getByRole('tablist', { name: 'Seasons' })).toBeVisible()
+  await page.goBack()
+  await expect(field).toHaveValue('Test Series')
+  await expect(results).toBeVisible()
+  // A section's heading folds it.
+  const episodes = results.getByRole('list', { name: 'Episodes' })
+  await results.locator('summary', { hasText: 'Episodes' }).click()
+  await expect(episodes).toBeHidden()
+  await results.locator('summary', { hasText: 'Episodes' }).click()
+  await expect(episodes).toBeVisible()
+  // An episode plays on its series' page, as from Recently added.
+  await results.getByRole('button', { name: /S02E01/ }).click()
+  await expect(page).toHaveURL(/\/i\/[^/?]+\?play=/)
+  await page.goBack()
+  await field.fill('zzzz-nothing')
+  await expect(
+    page.getByText('Nothing found for “zzzz-nothing”.'),
+  ).toBeVisible()
+  await field.fill('')
+  await expect(recent(page)).toBeVisible()
+  await expect(page).not.toHaveURL(/\?q=/)
+  await field.fill('Test')
+  await expect(page).toHaveURL(/\?q=Test$/)
+  // The button closes it again and drops the term.
+  await page.getByRole('button', { name: 'Search' }).click()
+  await expect(field).toBeHidden()
+  await expect(recent(page)).toBeVisible()
+  await expect(page).not.toHaveURL(/\?q=/)
+})
+
 test('continue watching: newest first; the click-through guard keeps the order (#330) @library', async ({
   paired,
 }) => {
@@ -325,6 +375,30 @@ test('continue watching: newest first; the click-through guard keeps the order (
   await expect(a.locator('.spot > progress')).toBeVisible()
   await expect(a.locator('.more b')).toHaveText(['streamiq e2e clip'])
   await expect(a.locator('.more progress')).toBeVisible()
+})
+
+test('search: a failed request shows the error, the field keeps focus when the term clears @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await page.addInitScript(() => {
+    const make = RTCPeerConnection.prototype.createDataChannel
+    RTCPeerConnection.prototype.createDataChannel = function (l, o) {
+      if (l.startsWith('req:/Items?searchTerm=nope'))
+        throw new Error('e2e: no search')
+      return make.call(this, l, o)
+    }
+  })
+  await page.reload() // the init script runs on a load
+  await open(page)
+  const field = page.getByRole('searchbox', { name: 'Search' })
+  await page.getByRole('button', { name: 'Search' }).click()
+  await field.fill('nope')
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(recent(page)).toBeHidden()
+  await field.fill('')
+  await expect(recent(page)).toBeVisible()
+  await expect(field).toBeFocused()
 })
 
 test('continue watching: its error shows on a phone and a desktop @library', async ({
@@ -565,4 +639,27 @@ test('favorites: TV mode reaches the heart with the D-pad; first focus stays on 
   await expect(heart).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(heart).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('search: in TV mode Back from a result puts the D-pad on the first result @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await page.goto(appUrl('/settings'))
+  await openCategory(page, 'Display')
+  await page.getByLabel('TV mode').check()
+  await open(page)
+  await expect(page.getByRole('searchbox')).toBeHidden()
+  await page.getByRole('button', { name: 'Search' }).click()
+  await page.getByRole('searchbox', { name: 'Search' }).fill('Test Series')
+  const shows = page.getByRole('list', { name: 'Shows' })
+  await shows.getByRole('button', { name: /^StreamIQ Test Series/ }).click()
+  await expect(page.getByRole('tablist', { name: 'Seasons' })).toBeVisible()
+  await page.goBack()
+  const first = shows.getByRole('button').first()
+  await expect(first).toBeFocused()
+  await page.keyboard.press('ArrowUp') // the section's heading, then the field
+  await expect(page.locator('summary', { hasText: 'Shows' })).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await expect(page.getByRole('searchbox', { name: 'Search' })).toBeFocused()
 })

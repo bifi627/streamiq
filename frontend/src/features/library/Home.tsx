@@ -4,7 +4,6 @@
 // button takes first focus, so one OK press resumes) + up to 3 more, stacked
 // on a phone.
 // Arrow keys: GatewayLibrary's D-pad container (Library.tsx).
-import { PageBar } from '../../shared/PageBar'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../shared/errors'
@@ -14,6 +13,7 @@ import {
   backdrop,
   items,
   primary,
+  usePick,
   usePlay,
   useTunnel,
   useArt,
@@ -22,8 +22,8 @@ import {
 } from './art'
 import {
   clock,
+  inProgress,
   playable,
-  playsAtOnce,
   TICKS_PER_SECOND,
   timeLeft,
   watchedBar,
@@ -41,16 +41,7 @@ function meta(i: Item) {
   return [what, left].filter(Boolean).join(' · ')
 }
 
-export function Home() {
-  return (
-    <>
-      <PageBar title="Library" />
-      <Shelves />
-    </>
-  )
-}
-
-function Shelves() {
+export function Shelves() {
   const { gatewayId, pc } = useTunnel()
   const navigate = useNavigate()
   // Resume is never cached (progress changes); the other rows are cached
@@ -67,6 +58,8 @@ function Shelves() {
   // joins when it answers.
   const [warm] = useState(() => !!favorites && !!added && !!views)
   const lists = homeLists({ favorites, recent: added, views }, resume, warm)
+  // Rows that answer while the user types in the search field: no focus grab.
+  const free = !(document.activeElement instanceof HTMLInputElement)
 
   const play = usePlay()
   const page = (i: Item) =>
@@ -75,8 +68,7 @@ function Shelves() {
       params: { gatewayId, itemId: i.Id },
     })
   const open = (i: Item) => (playable(i) ? play(i) : page(i))
-  // Favorites, Recently added + Library: a movie opens its page.
-  const pick = (i: Item) => (playsAtOnce(i) ? play(i) : page(i))
+  const pick = usePick() // Favorites, Recently added + Library: a movie opens its page
   const episodes = (i: Item) =>
     navigate({
       to: '/g/$gatewayId/i/$itemId',
@@ -103,7 +95,7 @@ function Shelves() {
                 <button
                   type="button"
                   className="primary"
-                  autoFocus={!warm} // a revisit: focus stays where it landed
+                  autoFocus={!warm && free} // a revisit: focus stays where it landed
                   onClick={() => open(spot)}
                 >
                   <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -148,7 +140,7 @@ function Shelves() {
             key={i.Id}
             item={i}
             art={primary(i)}
-            first={!spot && n === 0}
+            first={free && !spot && n === 0}
             onOpen={pick}
           />
         ))}
@@ -159,7 +151,7 @@ function Shelves() {
             key={i.Id}
             item={i}
             art={primary(i)}
-            first={!spot && !favs.length && n === 0}
+            first={free && !spot && !favs.length && n === 0}
             onOpen={pick}
           />
         ))}
@@ -171,7 +163,7 @@ function Shelves() {
             item={i}
             art={primary(i)}
             wide
-            first={!spot && !favs.length && !recent.length && n === 0}
+            first={free && !spot && !favs.length && !recent.length && n === 0}
             onOpen={pick}
           />
         ))}
@@ -246,6 +238,36 @@ function Pick({
         />
         <span className="card-line">{title(item)}</span>
         <YearLine item={item} />
+      </button>
+    </li>
+  )
+}
+
+/** A grid card (folder listing, search results); `line` under the title, an
+ * empty line of the same height without one. */
+export function PosterTile({
+  item: i,
+  line,
+  onOpen,
+}: {
+  item: Item
+  line: string
+  onOpen: (i: Item) => void
+}) {
+  return (
+    <li>
+      <button type="button" onClick={() => onOpen(i)} className="poster-tile">
+        <span className="poster-box">
+          <Artwork art={primary(i)} card={i} width={280} className="poster" />
+          {(inProgress(i) || i.UserData?.Played) && <Watched item={i} />}
+        </span>
+        <span className="card-line">
+          {i.IndexNumber != null &&
+            i.Type === 'Episode' &&
+            `${i.IndexNumber}. `}
+          {i.Name}
+        </span>
+        <small className="card-line muted">{line || ' '}</small>
       </button>
     </li>
   )

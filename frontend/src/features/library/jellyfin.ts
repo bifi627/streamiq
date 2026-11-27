@@ -32,6 +32,10 @@ export const children = (parentId: string, startIndex: number) =>
 export const allVideos = (start: number, limit: number) =>
   `/Items?recursive=true&includeItemTypes=Movie,Episode&isMissing=false&fields=MediaSources&enableImages=false&enableUserData=false&sortBy=SortName&startIndex=${start}&limit=${limit}`
 
+/** GET /Items: one page of movies, series and episodes matching a search term. */
+export const search = (term: string) =>
+  `/Items?searchTerm=${encodeURIComponent(term)}&recursive=true&includeItemTypes=Movie,Series,Episode&isMissing=false&limit=${PAGE}`
+
 /** GET /UserItems/Resume: Continue watching. */
 export const resume = '/UserItems/Resume?mediaTypes=Video&limit=4'
 

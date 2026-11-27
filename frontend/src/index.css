@@ -1254,7 +1254,6 @@ html.tv .rows li.no-tv:first-child + li {
   height: 5.5rem;
 }
 .ph.poster {
-  min-height: 13rem; /* Chrome 87: no aspect-ratio */
   background: var(--surface-2);
 }
 .dot.failed {
@@ -1491,11 +1490,25 @@ button.secondary:hover {
   list-style: none;
 }
 .poster-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
   width: 100%;
+  min-width: 0;
   text-align: left;
 }
+.poster-box {
+  position: relative;
+}
+.poster-box > progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+/* A fixed rem height, not aspect-ratio (Chrome 87): every card one height. */
 .poster {
-  aspect-ratio: 2 / 3; /* Chrome 88+: Chrome 87 shows no box until the image loads */
+  height: 14rem;
   background: #ddd;
 }
 .poster img {
@@ -1516,20 +1529,11 @@ button.secondary:hover {
   height: 100%;
   object-fit: cover;
 }
-/* No image to show: the title on a tint (.tint-N, Home.tsx tint()).
-   min-height: Chrome 87 ignores .poster's aspect-ratio. */
+/* No image to show: a tint per title (.tint-N, Home.tsx tint()); the title
+   is the card's own text. min-height: a box without a fixed height. */
 .title-card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   min-height: 6rem;
-  padding: 0.5rem;
-  color: var(--text);
-  text-align: center;
-  font-weight: 600;
-  overflow-wrap: anywhere;
 }
-/* lightness 22% keeps --text above 4.5:1 on every hue */
 .tint-0 {
   background: hsl(0, 35%, 22%);
 }
@@ -1566,18 +1570,9 @@ button.secondary:hover {
 .tint-11 {
   background: hsl(330, 35%, 22%);
 }
-.title-card span {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
-}
-/* Episode stills are short (4.5rem on a phone): two lines, no min-height. */
+/* Episode stills are short (4.5rem on a phone): no min-height. */
 .still-art.title-card {
   min-height: 0;
-}
-.still-art.title-card span {
-  -webkit-line-clamp: 2;
 }
 .home {
   display: flex;
@@ -1715,7 +1710,8 @@ progress::-moz-progress-bar {
   flex: 1;
 }
 .side b,
-.pick > span {
+.card-line {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1758,7 +1754,8 @@ progress::-moz-progress-bar {
 }
 @media (max-width: 600px) {
   .poster-grid {
-    grid-template-columns: repeat(2, 1fr);
+    /* minmax(0): a long title can't widen its column */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 40rem) {

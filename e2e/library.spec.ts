@@ -1,7 +1,8 @@
 // The library, on a paired browser with its own gateway (fixtures.ts
 // `paired`): `/` → the active gateway's library (one gateway; with two, the
 // online one, then the last opened), the nav's Library link, the
-// shared session, folder deep links (title row + Back) + cache, Recently added,
+// shared session, cards (one height, title + year line, the folder grid's
+// watched bar), folder deep links (title row + Back) + cache, Recently added,
 // Continue watching's order (the spot, also on a phone) and click-through guard, season tabs
 // (with the title page's D-pad order)
 // and watched marks (the end stops inline playback), inline playback (an episode from Continue
@@ -112,6 +113,77 @@ test('library → back → library within 30 s: one shared session (#152) @libra
   await open(a)
   a.off('websocket', count)
   expect(rows).toBe(1)
+})
+
+test('cards: one height, a one-line title and a year line; the folder grid shows the watched bar, no Play line (#994) @library', async ({
+  paired,
+}) => {
+  const { page: a } = paired
+  await keepPcs(a) // viaTunnel
+  await a.reload()
+  await open(a)
+  const { Items } = JSON.parse(
+    (
+      await viaTunnel(
+        a,
+        '/Items?searchTerm=streamiq%20e2e&recursive=true&includeItemTypes=Movie',
+      )
+    ).body,
+  ) as { Items: { Id: string; Name: string; ProductionYear?: number }[] }
+  const by = (name: string) =>
+    must(
+      Items.find((i) => i.Name === name),
+      name,
+    )
+  // No year in the fixtures' metadata: an empty line that keeps its height.
+  const year = (name: string) => String(by(name).ProductionYear ?? ' ')
+  const clip = 'streamiq e2e clip'
+  const mp2 = 'streamiq e2e mp2 default'
+  await expect(
+    recent(a).getByRole('button', { name: clip }).locator('small.card-line'),
+  ).toHaveText(year(clip))
+  // Unstarted: no bar.
+  await movies(a).click()
+  const tile = (name: string) => a.locator('.poster-tile', { hasText: name })
+  await expect(tile(mp2)).toBeVisible()
+  await expect(a.locator('.poster-grid progress')).toHaveCount(0)
+  // Arrange: the clip part-played, the mp2 one watched; the reload skips the
+  // folder's cached listing.
+  for (const [name, data] of [
+    [clip, { PlaybackPositionTicks: 20_000_000 }],
+    [mp2, { Played: true }],
+  ] as const)
+    expect(
+      (await viaTunnel(a, `/UserItems/${by(name).Id}/UserData`, data)).status,
+    ).toBe(200)
+  await a.reload()
+  await expect(tile(clip).locator('small.card-line')).toHaveText(year(clip))
+  await expect(tile(clip).getByRole('progressbar')).toBeVisible()
+  await expect(tile(mp2).getByRole('progressbar')).toHaveJSProperty(
+    'position',
+    1,
+  )
+  await expect(a.locator('.poster-grid')).not.toContainText(
+    /\b(Play|Resume|Watched)\b/,
+  )
+  // A title too long for the card is cut off, and every card is one height.
+  await tile(clip)
+    .locator('span.card-line')
+    .evaluate((e) => (e.textContent = 'An overly long title '.repeat(8)))
+  const heights = await a
+    .locator('.poster-tile')
+    .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().height))
+  // Whole px: fluid columns differ by a fraction of a pixel.
+  expect(new Set(heights.map(Math.round)).size).toBe(1)
+  const line = tile('An overly long title').locator('span.card-line')
+  expect(await line.evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
+  await expect(line).toHaveCSS('text-overflow', 'ellipsis')
+  // A phone's two columns stay one width with that title in one of them.
+  await a.setViewportSize({ width: 390, height: 844 })
+  const widths = await a
+    .locator('.poster-tile')
+    .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().width))
+  expect(new Set(widths.map(Math.round)).size).toBe(1)
 })
 
 test('folders: a deep link that survives a reload, back from the cache (#360) @library', async ({

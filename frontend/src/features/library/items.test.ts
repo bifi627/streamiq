@@ -18,6 +18,8 @@ import {
   subtitleTracks,
   TICKS_PER_SECOND,
   titleInfo,
+  watchedBar,
+  years,
   upNext,
   type Item,
 } from './items.ts'
@@ -225,4 +227,40 @@ test('playTarget: TV mode → player page; else the detail page playing it', () 
     to: 'player',
     itemId: 'e',
   })
+})
+
+test('years: a year, a series its run, empty without one', () => {
+  const movie: Item = { Id: 'm', Name: 'M', Type: 'Movie' }
+  const series: Item = { Id: 's', Name: 'S', Type: 'Series' }
+  assert.equal(years(movie), '')
+  assert.equal(years({ ...movie, ProductionYear: 2008 }), '2008')
+  const ran = { ...series, ProductionYear: 2008 }
+  assert.equal(years({ ...series, Status: 'Continuing' }), '')
+  assert.equal(years({ ...ran, Status: 'Continuing' }), '2008 – Present')
+  assert.equal(
+    years({ ...ran, Status: 'Ended', EndDate: '2013-05-20T00:00:00.0000000Z' }),
+    '2008 – 2013',
+  )
+  assert.equal(
+    years({ ...ran, Status: 'Ended', EndDate: '2008-12-01T00:00:00Z' }),
+    '2008',
+  )
+  assert.equal(years({ ...ran, Status: 'Ended' }), '2008')
+})
+
+test('watchedBar: position of runtime; a watched item full, also without a runtime', () => {
+  const i: Item = { Id: 'v', Name: 'V', Type: 'Movie', RunTimeTicks: 600e7 }
+  assert.deepEqual(watchedBar(i), { value: 0, max: 600 })
+  const started = { PlaybackPositionTicks: 120e7 }
+  assert.deepEqual(watchedBar({ ...i, UserData: started }), {
+    value: 120,
+    max: 600,
+  })
+  const played = { Played: true }
+  assert.deepEqual(watchedBar({ ...i, UserData: played }), {
+    value: 600,
+    max: 600,
+  })
+  const noRuntime = { ...i, RunTimeTicks: undefined, UserData: played }
+  assert.deepEqual(watchedBar(noRuntime), { value: 1, max: 1 })
 })

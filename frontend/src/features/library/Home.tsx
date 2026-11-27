@@ -26,6 +26,8 @@ import {
   playsAtOnce,
   TICKS_PER_SECOND,
   timeLeft,
+  watchedBar,
+  years,
   type Item,
 } from './items'
 import * as jf from './jellyfin'
@@ -230,27 +232,34 @@ function Pick({
           width={wide ? 416 : 248}
           className={wide ? 'frame' : 'cover'}
         />
-        <span>{title(item)}</span>
+        <span className="card-line">{title(item)}</span>
+        <YearLine item={item} />
       </button>
     </li>
   )
 }
 
+/** A card's year line; with none, an empty line of the same height. */
+export function YearLine({ item }: { item: Item }) {
+  return <small className="card-line muted">{years(item) || '\u00a0'}</small>
+}
+
 export function Watched({ item }: { item: Item }) {
-  const pos = (item.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND
+  const { value, max } = watchedBar(item)
   const dur = (item.RunTimeTicks ?? 0) / TICKS_PER_SECOND
   return (
     <progress
-      max={Math.max(dur, 1)}
-      value={pos}
+      max={max}
+      value={value}
       aria-label={`${[item.SeriesName, item.Name].filter(Boolean).join(', ')} watched`}
-      aria-valuetext={`${clock(pos)} of ${clock(dur)}`}
+      aria-valuetext={`${clock(value)} of ${clock(dur)}`}
     />
   )
 }
 
 /** An image box (size from `className`); loads the image when it scrolls into view.
- *  With `card`, a box with no image to show (none, or it failed) is a title card. */
+ *  With `card`, a box with no image to show (none, or it failed) is a tint
+ *  per title, without text: the card names the title. */
 export function Artwork({
   art,
   card,
@@ -287,12 +296,7 @@ export function Artwork({
       <div
         ref={box}
         className={`art ${className} title-card tint-${tint(card.Name)}`}
-      >
-        <span aria-hidden="true">
-          {card.Name}
-          {card.ProductionYear && ` (${card.ProductionYear})`}
-        </span>
-      </div>
+      />
     )
   return (
     <div ref={box} className={`art ${className}`}>

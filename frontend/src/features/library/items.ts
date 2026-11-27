@@ -11,6 +11,8 @@ export type Item = {
   ParentId?: string
   RunTimeTicks?: number
   ProductionYear?: number
+  EndDate?: string // ISO date; a series' last air date
+  Status?: string // a series: 'Continuing' | 'Ended'
   Overview?: string
   Genres?: string[]
   IndexNumber?: number
@@ -225,4 +227,25 @@ export function playLabel(next: Item) {
   return next.Type === 'Episode'
     ? `${verb} · S${next.ParentIndexNumber ?? '?'} · E${next.IndexNumber ?? '?'}`
     : verb
+}
+
+/** A card's year line: the year, a series its run ("2008 – 2013",
+ * "2008 – Present"); '' without a year. */
+export function years(i: Item) {
+  const from = i.ProductionYear
+  if (!from) return ''
+  if (i.Type !== 'Series') return `${from}`
+  if (i.Status === 'Continuing') return `${from} – Present`
+  const until = i.EndDate && new Date(i.EndDate).getUTCFullYear()
+  return until && until !== from ? `${from} – ${until}` : `${from}`
+}
+
+/** The watched bar, in seconds: a watched item's is full, also without a
+ * runtime. */
+export function watchedBar(i: Item) {
+  const max = Math.max((i.RunTimeTicks ?? 0) / TICKS_PER_SECOND, 1)
+  return {
+    value: i.UserData?.Played ? max : position(i) / TICKS_PER_SECOND,
+    max,
+  }
 }

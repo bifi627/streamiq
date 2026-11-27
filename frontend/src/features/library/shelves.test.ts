@@ -14,14 +14,19 @@ test('shelf: items, error, or loading', () => {
   assert.equal(shelf({ error: null }), undefined)
 })
 
-test('homeLists waits for every cached row, and Resume unless warm', () => {
+test('homeLists waits for every cached row, and Resume + Next up unless warm', () => {
   const all = { favorites: [], recent: [], views: [] }
-  assert.equal(homeLists({ ...all, favorites: undefined }, [], false), null)
-  assert.equal(homeLists({ ...all, recent: undefined }, [], false), null)
-  assert.equal(homeLists({ ...all, views: undefined }, [], false), null)
-  assert.equal(homeLists(all, null, false), null)
-  assert.deepEqual(homeLists({ ...all, recent: [a] }, null, true), {
+  const live = { resume: [], next: [] }
+  assert.equal(homeLists({ ...all, favorites: undefined }, live, false), null)
+  assert.equal(homeLists({ ...all, recent: undefined }, live, false), null)
+  assert.equal(homeLists({ ...all, views: undefined }, live, false), null)
+  assert.equal(homeLists(all, { ...live, resume: null }, false), null)
+  assert.equal(homeLists(all, { ...live, next: null }, false), null)
+  assert.ok(homeLists(all, live, false))
+  const none = { resume: null, next: null }
+  assert.deepEqual(homeLists({ ...all, recent: [a] }, none, true), {
     resume: [],
+    next: [],
     favorites: [],
     recent: [a],
     views: [],
@@ -29,7 +34,7 @@ test('homeLists waits for every cached row, and Resume unless warm', () => {
 })
 
 test('homeView: spot, the rest, empty only without items and errors', () => {
-  const none = { resume: [], favorites: [], recent: [], views: [] }
+  const none = { resume: [], next: [], favorites: [], recent: [], views: [] }
   const v = homeView({ ...none, resume: [a, b] })
   assert.equal(v.spot, a)
   assert.deepEqual(v.more, [b])
@@ -37,4 +42,33 @@ test('homeView: spot, the rest, empty only without items and errors', () => {
   assert.equal(homeView(none).empty, true)
   assert.equal(homeView({ ...none, favorites: [a] }).empty, false)
   assert.equal(homeView({ ...none, resume: err }).empty, false)
+  assert.equal(homeView({ ...none, next: [a] }).empty, false)
+})
+
+test('homeView: first focus goes to the top row with items', () => {
+  const none = { resume: [], next: [], favorites: [], recent: [], views: [] }
+  assert.equal(homeView(none).first, undefined)
+  assert.equal(homeView({ ...none, views: [a], recent: [b] }).first, 'recent')
+  assert.equal(homeView({ ...none, favorites: [a], next: [b] }).first, 'next')
+  assert.equal(homeView({ ...none, next: [a], resume: [b] }).first, 'resume')
+  // Warm: Resume and Next up answer late, focus stays on the cached rows.
+  const late = { ...none, resume: [a], next: [b], recent: [a] }
+  assert.equal(homeView(late, true).first, 'recent')
+  assert.equal(homeView({ ...none, next: [a] }, true).first, undefined)
+  assert.equal(homeView({ ...none, next: [a] }, true).empty, false)
+})
+
+test('homeView: a failed Next up is its own error, the other rows stay', () => {
+  const v = homeView({
+    resume: [a],
+    next: err,
+    favorites: [b],
+    recent: [],
+    views: [],
+  })
+  assert.equal(v.spot, a)
+  assert.equal(v.first, 'resume')
+  assert.equal(v.empty, false)
+  const only = { resume: [], favorites: [], recent: [], views: [] }
+  assert.equal(homeView({ ...only, next: err }).empty, false)
 })

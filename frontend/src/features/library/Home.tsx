@@ -1,4 +1,4 @@
-// Library home: Continue watching, Favorites, Recently added and the libraries (the shell
+// Library home: Continue watching, Next up, Favorites, Recently added and the libraries (the shell
 // nav has no tunnel, so they live here), each a row that scrolls sideways.
 // Continue watching is the Resume spot (the first in-progress item; its Resume
 // button takes first focus, so one OK press resumes) + up to 3 more, stacked
@@ -7,7 +7,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../shared/errors'
-import { homeLists, homeView, ok, shelf, type Shelf } from './shelves'
+import {
+  homeLists,
+  homeView,
+  ok,
+  order,
+  shelf,
+  titles,
+  type Shelf,
+} from './shelves'
 import { ErrorView, State } from '../../shared/ErrorView'
 import {
   backdrop,
@@ -44,20 +52,28 @@ function meta(i: Item) {
 export function Shelves() {
   const { gatewayId, pc } = useTunnel()
   const navigate = useNavigate()
-  // Resume is never cached (progress changes); the other rows are cached
-  // queries (the heart refreshes Favorites).
+  // Resume and Next up are never cached (progress changes); the other rows are
+  // cached queries (the heart refreshes Favorites).
   const [resume, setResume] = useState<Shelf | null>(null)
+  const [next, setNext] = useState<Shelf | null>(null)
   useEffect(() => {
-    items(pc, jf.resume).then(setResume, (e) => setResume(toAppError(e)))
-  }, [pc])
+    const read = (url: string, set: (s: Shelf) => void) =>
+      items(pc, gatewayId, url).then(set, (e) => set(toAppError(e)))
+    void read(jf.resume, setResume)
+    void read(jf.nextUp, setNext)
+  }, [pc, gatewayId])
   const favorites = shelf(useTunnelQuery(jf.favorites))
   const added = shelf(useTunnelQuery(jf.recentlyAdded))
   const views = shelf(useTunnelQuery(jf.userViews))
   // First visit: all settled before the home shows, so first focus lands
   // once, in its place. A revisit with its rows cached shows at once; the Resume spot
-  // joins when it answers.
+  // and Next up join when they answer.
   const [warm] = useState(() => !!favorites && !!added && !!views)
-  const lists = homeLists({ favorites, recent: added, views }, resume, warm)
+  const lists = homeLists(
+    { favorites, recent: added, views },
+    { resume, next },
+    warm,
+  )
   // Rows that answer while the user types in the search field: no focus grab.
   const free = !(document.activeElement instanceof HTMLInputElement)
 
@@ -68,7 +84,7 @@ export function Shelves() {
       params: { gatewayId, itemId: i.Id },
     })
   const open = (i: Item) => (playable(i) ? play(i) : page(i))
-  const pick = usePick() // Favorites, Recently added + Library: a movie opens its page
+  const pick = usePick() // Next up, Favorites, Recently added + Library: a movie opens its page
   const episodes = (i: Item) =>
     navigate({
       to: '/g/$gatewayId/i/$itemId',
@@ -76,7 +92,7 @@ export function Shelves() {
     })
 
   if (!lists) return <HomePlaceholder />
-  const { spot, more, favorites: favs, recent, empty } = homeView(lists)
+  const { spot, more, first, empty } = homeView(lists, warm)
   if (empty) return <State icon="empty" title="Nothing here." />
   return (
     <div className="home">
@@ -134,40 +150,20 @@ export function Shelves() {
           )}
         </div>
       )}
-      <Row title="Favorites" error={lists.favorites}>
-        {favs.map((i, n) => (
-          <Pick
-            key={i.Id}
-            item={i}
-            art={primary(i)}
-            first={free && !spot && n === 0}
-            onOpen={pick}
-          />
-        ))}
-      </Row>
-      <Row title="Recently added" error={lists.recent}>
-        {recent.map((i, n) => (
-          <Pick
-            key={i.Id}
-            item={i}
-            art={primary(i)}
-            first={free && !spot && !favs.length && n === 0}
-            onOpen={pick}
-          />
-        ))}
-      </Row>
-      <Row title="Library" error={lists.views}>
-        {ok(lists.views).map((i, n) => (
-          <Pick
-            key={i.Id}
-            item={i}
-            art={primary(i)}
-            wide
-            first={free && !spot && !favs.length && !recent.length && n === 0}
-            onOpen={pick}
-          />
-        ))}
-      </Row>
+      {order.slice(1).map((k) => (
+        <Row key={k} title={titles[k]} error={lists[k]}>
+          {ok(lists[k]).map((i, n) => (
+            <Pick
+              key={i.Id}
+              item={i}
+              art={primary(i)}
+              wide={k === 'views'}
+              first={free && first === k && n === 0}
+              onOpen={pick}
+            />
+          ))}
+        </Row>
+      ))}
     </div>
   )
 }

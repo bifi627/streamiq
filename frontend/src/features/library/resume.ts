@@ -3,7 +3,8 @@
 // allowlist), with LastPlayedDate (Continue watching sorts by it) and
 // Played: false (a partial rewatch is in progress again). Only once this
 // playback has really played watchMin() (60 s): clicking through saves
-// nothing. The end marks the item played. After VIEW_MIN (10 s) really played,
+// nothing. The end marks the item played, also with LastPlayedDate (NextUp
+// skips a played episode without one). After VIEW_MIN (10 s) really played,
 // the playback is one view in the gateway's watch history.
 import { event, watchMin } from '../../shared/diag'
 import { tunnelJson } from '../../shared/tunnel'
@@ -53,7 +54,12 @@ export function watchResume(
       })
     }
   }
-  const ended = () => save({ Played: true, PlaybackPositionTicks: 0 })
+  const ended = () =>
+    save({
+      Played: true,
+      PlaybackPositionTicks: 0,
+      LastPlayedDate: new Date().toISOString(),
+    })
   const on: [string, () => void][] = [
     ['timeupdate', onTime],
     ['pause', report],

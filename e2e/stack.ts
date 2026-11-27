@@ -264,8 +264,8 @@ export type StackOptions = {
   lan?: { port: number; cert: string; key: string }
   /** Also mount the repo's dev-media/ into Jellyfin's library (must exist). */
   media?: boolean
-  /** Also mount this dir's movies/ and each series in its shows/ (the preview's
-   *  extra media, preview-seed.ts). */
+  /** Also mount this dir's movies/, each series in its shows/ and its photos/
+   *  at /photos (the preview's extra media, preview-seed.ts). */
   extraMedia?: string
   /** Docker label on every container (the preview's `down` removes by it). */
   label?: string
@@ -522,6 +522,11 @@ export async function startJellyfin(
         target: `/shows/${s}`,
         mode: 'ro',
       })
+    binds.push({
+      source: path.join(o.extraMedia, 'photos'),
+      target: '/photos',
+      mode: 'ro',
+    })
   }
   jellyfinContainer.withBindMounts(binds)
   const [jellyfin, forwarder] = await Promise.all([

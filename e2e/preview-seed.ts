@@ -85,6 +85,29 @@ export const seed = {
     ['The Overlook Files', 2024, [3, 3, 3], 3, 'gradients', 0],
     ['Harbor Lights', 2026, [4, 2], 1, 'cellauto', 120],
   ] as [string, number, number[], number, string, number][],
+  // Photo albums (folders, `/` = a sub-folder): file, size, source, hue. One
+  // large (4096 wide) and one PNG, for the Photos page's resizing and formats.
+  photos: {
+    'Summer Coast': [
+      ['Beach.jpg', '1920x1280', 'gradients', 20],
+      ['Lighthouse.jpg', '1080x1440', 'testsrc2', 200],
+      ['Panorama.jpg', '4096x2048', 'gradients', 180],
+      ['Sunset.jpg', '1600x1200', 'gradients', 300],
+    ],
+    'Mountain Weekend': [
+      ['Ridge.jpg', '1920x1080', 'smptehdbars', 90],
+      ['Cabin.jpg', '1200x1600', 'cellauto', 0],
+    ],
+    'Mountain Weekend/Day 2': [
+      ['Summit.jpg', '2048x1365', 'testsrc', 140],
+      ['Trail.jpg', '900x1600', 'rgbtestsrc', 60],
+    ],
+    Garden: [
+      ['Tulips.jpg', '1440x1080', 'yuvtestsrc', 320],
+      ['Fern.png', '1024x1024', 'cellauto', 120],
+      ['Bench.jpg', '1080x1350', 'pal75bars', 240],
+    ],
+  } as Record<string, [string, string, string, number][]>,
 }
 
 const FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf' // in the Jellyfin image
@@ -112,8 +135,19 @@ const video = (
   `${FFMPEG} ${picture(src, hue, '640x360', title, 28)} -f lavfi -i sine=frequency=330 ` +
   `-t ${mins * 60} -c:v libx264 -preset ultrafast -crf 40 -pix_fmt yuv420p -c:a aac -b:a 32k "${out}"`
 
+const still = (
+  src: string,
+  hue: number,
+  size: string,
+  title: string,
+  font: number,
+  out: string,
+) =>
+  // bitexact: no "Lavc…" JPEG comment, which Jellyfin shows as a photo's overview.
+  `${FFMPEG} ${picture(src, hue, size, title, font)} -frames:v 1 -flags:v +bitexact "${out}"`
+
 const poster = (src: string, hue: number, title: string, out: string) =>
-  `${FFMPEG} ${picture(src, hue, '400x600', title, 30)} -frames:v 1 "${out}"`
+  still(src, hue, '400x600', title, 30, out)
 
 // Locked local title and year: without them Jellyfin names a film after its folder,
 // year included ("Neon Harbor (2026) (2026)"). Online metadata: none, the jail.
@@ -122,7 +156,7 @@ const nfo = (kind: string, title: string, year: number, out: string) =>
   `<lockdata>true</lockdata></${kind}>' > "${out}"`
 
 // One sh script for the pinned Jellyfin image: Jellyfin's Movies (folder per film,
-// poster.jpg beside it) and Series/Season NN/SxxEyy layouts under /out.
+// poster.jpg beside it), Series/Season NN/SxxEyy and photo album layouts under /out.
 export const script = [
   ...seed.movies.map(([title, year, mins, src, hue]) => {
     const d = `/out/movies/${title} (${year})`
@@ -140,6 +174,13 @@ export const script = [
         }),
       ),
     ]
+  }),
+  ...Object.entries(seed.photos).flatMap(([album, photos]) => {
+    const d = `/out/photos/${album}`
+    return photos.map(
+      ([file, size, src, hue]) =>
+        `mkdir -p "${d}" && ${still(src, hue, size, file.replace(/\.\w+$/, ''), Math.round(Number(size.split('x')[1]) / 16), `${d}/${file}`)}`,
+    )
   }),
 ].join(' && ')
 

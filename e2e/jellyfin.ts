@@ -76,11 +76,13 @@ export async function setupJellyfin(
   await addLibraries(base, JELLYFIN_ADMIN, step)
 }
 
-/** Adds the Movies + Shows libraries as `admin` and waits for their scan. */
+/** Adds the Movies + Shows libraries (+ `extra`: [name, collectionType, path])
+ * as `admin` and waits for their scan. */
 export async function addLibraries(
   base: string,
   admin: { user: string; pw: string },
   step = (_: string) => {},
+  extra: [string, string, string][] = [],
 ): Promise<void> {
   const { post, call } = client(base)
   const login = await post('/Users/AuthenticateByName', {
@@ -88,17 +90,16 @@ export async function addLibraries(
     Pw: admin.pw,
   })
   const token: string = login.AccessToken
-  await post(
-    '/Library/VirtualFolders?name=Movies&collectionType=movies&paths=%2Fmedia&refreshLibrary=true',
-    { LibraryOptions: { EnableInternetProviders: false } },
-    token,
-  )
-
-  await post(
-    '/Library/VirtualFolders?name=Shows&collectionType=tvshows&paths=%2Fshows&refreshLibrary=true',
-    { LibraryOptions: { EnableInternetProviders: false } },
-    token,
-  )
+  for (const [name, type, dir] of [
+    ['Movies', 'movies', '/media'],
+    ['Shows', 'tvshows', '/shows'],
+    ...extra,
+  ])
+    await post(
+      `/Library/VirtualFolders?name=${name}&collectionType=${type}&paths=${encodeURIComponent(dir)}&refreshLibrary=true`,
+      { LibraryOptions: { EnableInternetProviders: false } },
+      token,
+    )
 
   // The scan is async, and the one refreshLibrary=true starts can race the new
   // library's options (it then indexes /media as a plain folder): re-kick a

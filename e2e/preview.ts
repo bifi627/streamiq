@@ -412,7 +412,10 @@ async function serve() {
       await new Promise((r) => setTimeout(r, 1000))
     }
     const admin = await gatewayAdmin(gateway)
-    await addLibraries(jellyfin, admin)
+    // The photo library: preview only, the e2e stacks keep two.
+    await addLibraries(jellyfin, admin, undefined, [
+      ['Photos', 'homevideos', '/photos'],
+    ])
 
     // ponytail: scrapes the page's /decide forms; breaks if the form markup changes.
     const page = gateway.pageCookie && {

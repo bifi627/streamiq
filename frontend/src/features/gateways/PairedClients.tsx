@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   listClients,
   removeClient,
@@ -24,10 +24,12 @@ export function PairedClients({
   g,
   unpaired,
   onRemovedSelf,
+  footer,
 }: {
   g: Gateway
   unpaired: boolean
   onRemovedSelf: () => void
+  footer?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const [list, setList] = useState<Client[] | null>(null)
@@ -127,6 +129,7 @@ export function PairedClients({
           ))}
         </ul>
       )}
+      {footer}
     </Tile>
   )
 }

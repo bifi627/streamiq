@@ -313,9 +313,9 @@ function run(cmd: string, args: string[], cwd: string) {
 // Fixture media, made by Jellyfin's own ffmpeg (no host ffmpeg in CI) into /out,
 // one folder per movie: a 30 s H.264 clip with two AAC tracks (English 440 Hz,
 // German 880 Hz: the audio menu) + an English sidecar subtitle. Auto audio: a clip
-// whose default track (440 Hz) is MP2, which the probe never lists, the second
-// (880 Hz) AAC in the same language; it sorts after the main clip, the first movie
-// other steps take. The series: gen-test-media.sh's own script.
+// whose default is MP2 (never probed), the second AAC in the same language; it
+// sorts after the main clip, the first movie other steps take. HEVC + AC3:
+// compatible mode transcodes it. The series: gen-test-media.sh's own script.
 const FFMPEG = '/usr/lib/jellyfin-ffmpeg/ffmpeg'
 const ENCODE =
   'D="/out/media/streamiq e2e clip" && mkdir -p "$D" && ' +
@@ -331,6 +331,11 @@ const ENCODE =
   '-f lavfi -i sine=frequency=880:duration=30 -map 0:v -map 1:a -map 2:a ' +
   '-c:v libx264 -pix_fmt yuv420p -c:a:0 mp2 -c:a:1 aac -shortest -metadata:s:a language=eng ' +
   '-metadata title="streamiq e2e mp2 default" "$D/streamiq e2e mp2 default.mkv" && ' +
+  'D="/out/media/streamiq e2e hevc ac3" && mkdir -p "$D" && ' +
+  `${FFMPEG} -loglevel error -y ` +
+  '-f lavfi -i testsrc=duration=5:size=320x180:rate=30 -f lavfi -i sine=frequency=440:duration=5 ' +
+  '-c:v libx265 -pix_fmt yuv420p -c:a ac3 -shortest ' +
+  '-metadata title="streamiq e2e hevc ac3" "$D/streamiq e2e hevc ac3.mkv" && ' +
   `FFMPEG=${FFMPEG} sh /scripts/gen-test-series.sh /out/shows`
 
 let media: Promise<string> | undefined

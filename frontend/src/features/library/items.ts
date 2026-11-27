@@ -33,6 +33,11 @@ export type Item = {
     Width?: number
     Height?: number
     BitRate?: number
+    // Jellyfin's names: Profile "High" / "Main 10", Level 41 (H.264) or 153 (HEVC), VideoRangeType "SDR" / "HDR10"
+    Profile?: string
+    Level?: number
+    BitDepth?: number
+    VideoRangeType?: string
     Language?: string
     Title?: string
     IsTextSubtitleStream?: boolean

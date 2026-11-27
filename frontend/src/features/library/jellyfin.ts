@@ -22,6 +22,10 @@ export const recentlyAdded =
 export const children = (parentId: string) =>
   `/Items?parentId=${parentId}&sortBy=SortName`
 
+/** GET /Items: every movie and episode with its streams (the transcode report). */
+export const allVideos =
+  '/Items?recursive=true&includeItemTypes=Movie,Episode&isMissing=false&fields=MediaStreams,MediaSources'
+
 /** GET /UserItems/Resume: Continue watching. */
 export const resume = '/UserItems/Resume?mediaTypes=Video&limit=4'
 

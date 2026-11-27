@@ -78,6 +78,23 @@ test(
       await expect(b.getByText(/guest mode/)).toHaveCount(0)
     })
 
+    await test.step("A's favorite is A's only (#1001)", async () => {
+      const heart = (p: Page) => p.getByRole('button', { name: 'Favorite' })
+      for (const p of [a, b])
+        await p
+          .locator('section.shelf', { hasText: 'Recently added' })
+          .getByRole('button', { name: 'streamiq e2e clip' })
+          .click()
+      await heart(a).click()
+      await expect(heart(a)).toHaveAttribute('aria-pressed', 'true')
+      await a.reload() // saved before B looks
+      await expect(heart(a)).toHaveAttribute('aria-pressed', 'true')
+      await b.reload()
+      await expect(heart(b)).toHaveAttribute('aria-pressed', 'false')
+      await a.goBack()
+      await b.goBack()
+    })
+
     await test.step("A signs out, B signs in on A's tab: reload, B's resume", async () => {
       // The Resume spot's progress: the saved position.
       const resume = (re: RegExp) =>

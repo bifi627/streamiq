@@ -312,8 +312,9 @@ peaks per local day.
   `onKeyDown={arrowFocus}` (`frontend/src/shared/focus.ts`) on a container.
 - Library home (`features/library/LibraryHome.tsx` + `Home.tsx`): a search field on top (`?q=`, the
   current gateway's movies, series and episodes via `/Items?searchTerm=`; its results replace the
-  rows), then Continue watching (the Resume spot + up to 3 more;
-  stacked on a phone), Recently added, Library, each a row that scrolls sideways.
+  rows), then Continue watching (the Resume spot + up to 3 more; stacked on a phone), Favorites
+  (hidden when empty; the heart on a movie/series page sets `IsFavorite` via UserData), Recently
+  added, Library, each a row that scrolls sideways.
   Artwork through `art.ts`: loads only on screen, cached per gateway in the Cache API,
   deleted on sign-out and household switch.
 - Settings (`features/settings/`): `/settings` is a list of categories; one with more than

@@ -3,7 +3,7 @@
 // in Home.tsx.
 // Routes (App.tsx): /g/$gatewayId owns the tunnel; its children (home, /i, /play,
 // /screen, /remote) render through <Outlet /> and share it.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PageBar } from '../../shared/PageBar'
 import { useBack } from '../../shared/slots'
 import {
@@ -53,6 +53,7 @@ import {
 } from './art'
 import { folderView } from './paging'
 import { Artwork, PosterTile, Watched } from './Home'
+import { Favorite } from './Favorite'
 import { tvOn } from '../../shared/settings'
 export { LibraryHome } from './LibraryHome'
 
@@ -164,6 +165,46 @@ export function ItemPage({ itemId, play }: { itemId: string; play?: string }) {
   return <Browse item={item} />
 }
 
+// The title's info column: the heart, the facts line, the overview and
+// genres (phone: behind More), then `children` (Play on…).
+function TitleInfo({
+  item,
+  seasons,
+  children,
+}: {
+  item: Item
+  seasons?: number
+  children: ReactNode
+}) {
+  const [more, setMore] = useState(false)
+  const info = titleInfo(item, seasons)
+  const genres = item.Genres ?? []
+  const hasMore = !!item.Overview || genres.length > 1
+  return (
+    <div className="title-info">
+      <Favorite item={item} />
+      {info && <p className="muted">{info}</p>}
+      {hasMore && (
+        <button
+          type="button"
+          className="phone-only more-toggle"
+          aria-expanded={more}
+          onClick={() => setMore(!more)}
+        >
+          {more ? 'Less' : 'More'}
+        </button>
+      )}
+      {hasMore && (
+        <div className={more ? 'title-more open' : 'title-more'}>
+          {item.Overview && <p className="overview">{item.Overview}</p>}
+          {genres.length > 1 && <p className="muted">{genres.join(', ')}</p>}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
 function EpisodesPlaceholder() {
   return (
     <div className="episodes" role="status" aria-label="Loading">
@@ -199,7 +240,6 @@ function Title({
   const navigate = useNavigate()
   const series = item.Type === 'Series'
   const [tab, setTab] = useState(season)
-  const [more, setMore] = useState(false)
   // ponytail: every episode in one request; per season if huge shows lag.
   const ss = useTunnelQuery<{ Items: Item[] }>(
     series ? jf.seasons(item.Id) : null,
@@ -222,9 +262,6 @@ function Title({
   const now = lists?.episodes.find((e) => e.Id === playing)
   const shown = tab ?? now?.SeasonId ?? next?.SeasonId ?? lists?.seasons[0]?.Id
   const episodes = lists?.episodes.filter((e) => e.SeasonId === shown) ?? []
-  const info = titleInfo(item, lists?.seasons.length)
-  const genres = item.Genres ?? []
-  const hasMore = !!item.Overview || genres.length > 1
   const art = (
     <Artwork
       art={backdrop(item) ?? primary(item)}
@@ -269,28 +306,9 @@ function Title({
         ) : (
           <div className="hero">{art}</div>
         )}
-        <div className="title-info">
-          {info && <p className="muted">{info}</p>}
-          {hasMore && (
-            <button
-              type="button"
-              className="phone-only more-toggle"
-              aria-expanded={more}
-              onClick={() => setMore(!more)}
-            >
-              {more ? 'Less' : 'More'}
-            </button>
-          )}
-          {hasMore && (
-            <div className={more ? 'title-more open' : 'title-more'}>
-              {item.Overview && <p className="overview">{item.Overview}</p>}
-              {genres.length > 1 && (
-                <p className="muted">{genres.join(', ')}</p>
-              )}
-            </div>
-          )}
+        <TitleInfo item={item} seasons={lists?.seasons.length}>
           {go && <PlayOn pc={pc} item={go} />}
-        </div>
+        </TitleInfo>
       </div>
       {series && (
         <div className="title-main">

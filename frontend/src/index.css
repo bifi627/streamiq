@@ -1346,6 +1346,27 @@ button.secondary:hover {
   flex: none;
 }
 
+/* The title page's heart: an outline, filled once it's a favorite. */
+.favorite button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.favorite svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.favorite [aria-pressed='true'] svg {
+  fill: var(--danger);
+  stroke: var(--danger);
+}
+.favorite p {
+  margin: var(--sp-2) 0 0;
+}
+
 /* Play on…: a native picker, full width under the title's info; an
    episode row's sits at the row's end. */
 .play-on select {

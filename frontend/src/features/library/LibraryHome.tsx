@@ -9,7 +9,7 @@ import { PosterTile, Shelves } from './Home'
 import { usePick, useTunnelQuery } from './art'
 import type { Item } from './items'
 import * as jf from './jellyfin'
-import { resultLine, searchTerm } from './search'
+import { fieldText, qSearch, resultLine, searchTerm } from './search'
 
 export function LibraryHome({ q }: { q?: string }) {
   const term = searchTerm(q)
@@ -31,23 +31,18 @@ export function LibraryHome({ q }: { q?: string }) {
 function SearchField({ q }: { q: string }) {
   const navigate = useNavigate()
   const [text, setText] = useState(q)
-  // q changed from outside (Back, the nav's Library link): the field follows.
+  const [pushed, setPushed] = useState(q) // the last term this field put in the URL
   const [seen, setSeen] = useState(q)
   if (q !== seen) {
     setSeen(q)
-    setText(q)
+    setText(fieldText(text, q, pushed))
   }
   useEffect(() => {
     if (text === q) return
-    const t = setTimeout(
-      () =>
-        void navigate({
-          to: '.',
-          search: text ? { q: text } : {},
-          replace: true,
-        }),
-      300,
-    )
+    const t = setTimeout(() => {
+      setPushed(text)
+      void navigate({ to: '.', search: qSearch(text), replace: true })
+    }, 300)
     return () => clearTimeout(t)
   }, [text, q, navigate])
   return (

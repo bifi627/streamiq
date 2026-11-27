@@ -1,4 +1,4 @@
-// Library home: Continue watching, Recently added and the libraries (the shell
+// Library home: Continue watching, Favorites, Recently added and the libraries (the shell
 // nav has no tunnel, so they live here), each a row that scrolls sideways.
 // Continue watching is the Resume spot (the first in-progress item; its Resume
 // button takes first focus, so one OK press resumes) + up to 3 more, stacked
@@ -44,19 +44,20 @@ function meta(i: Item) {
 export function Shelves() {
   const { gatewayId, pc } = useTunnel()
   const navigate = useNavigate()
-  // Resume is never cached (progress changes); Recently added and the
-  // libraries are cached queries.
+  // Resume is never cached (progress changes); the other rows are cached
+  // queries (the heart refreshes Favorites).
   const [resume, setResume] = useState<Shelf | null>(null)
   useEffect(() => {
     items(pc, jf.resume).then(setResume, (e) => setResume(toAppError(e)))
   }, [pc])
+  const favorites = shelf(useTunnelQuery(jf.favorites))
   const added = shelf(useTunnelQuery(jf.recentlyAdded))
   const views = shelf(useTunnelQuery(jf.userViews))
   // First visit: all settled before the home shows, so first focus lands
-  // once, in its place. A revisit with both rows cached shows at once; the Resume spot
+  // once, in its place. A revisit with its rows cached shows at once; the Resume spot
   // joins when it answers.
-  const [warm] = useState(() => !!added && !!views)
-  const lists = homeLists(added, views, resume, warm)
+  const [warm] = useState(() => !!favorites && !!added && !!views)
+  const lists = homeLists({ favorites, recent: added, views }, resume, warm)
   // Rows that answer while the user types in the search field: no focus grab.
   const free = !(document.activeElement instanceof HTMLInputElement)
 
@@ -67,7 +68,7 @@ export function Shelves() {
       params: { gatewayId, itemId: i.Id },
     })
   const open = (i: Item) => (playable(i) ? play(i) : page(i))
-  const pick = usePick() // Recently added + Library: a movie opens its page
+  const pick = usePick() // Favorites, Recently added + Library: a movie opens its page
   const episodes = (i: Item) =>
     navigate({
       to: '/g/$gatewayId/i/$itemId',
@@ -75,7 +76,7 @@ export function Shelves() {
     })
 
   if (!lists) return <HomePlaceholder />
-  const { spot, more, recent, empty } = homeView(lists)
+  const { spot, more, favorites: favs, recent, empty } = homeView(lists)
   if (empty) return <State icon="empty" title="Nothing here." />
   return (
     <div className="home">
@@ -133,13 +134,24 @@ export function Shelves() {
           )}
         </div>
       )}
+      <Row title="Favorites" error={lists.favorites}>
+        {favs.map((i, n) => (
+          <Pick
+            key={i.Id}
+            item={i}
+            art={primary(i)}
+            first={free && !spot && n === 0}
+            onOpen={pick}
+          />
+        ))}
+      </Row>
       <Row title="Recently added" error={lists.recent}>
         {recent.map((i, n) => (
           <Pick
             key={i.Id}
             item={i}
             art={primary(i)}
-            first={free && !spot && n === 0}
+            first={free && !spot && !favs.length && n === 0}
             onOpen={pick}
           />
         ))}
@@ -151,7 +163,7 @@ export function Shelves() {
             item={i}
             art={primary(i)}
             wide
-            first={free && !spot && !recent.length && n === 0}
+            first={free && !spot && !favs.length && !recent.length && n === 0}
             onOpen={pick}
           />
         ))}

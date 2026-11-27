@@ -1,6 +1,6 @@
 // Screen mode, on a paired browser with its own gateway
 // (fixtures.ts `paired`): the entry, Play on…, the phone remote's commands, two
-// phones, closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
+// phones, jump scares, closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
 // paired browser (each its own tunnel session). Refusals, another user's screen
 // and the relay between sessions are Go tests (screen/screen_test.go,
 // sessions_test.go); the TV mode toggle is shell.spec's, the player's own
@@ -253,6 +253,53 @@ test("two phones (#181): either one's command reaches the TV, both show it; so d
   await phone2.getByLabel('Position').fill('20')
   await expect.poll(() => videoTime(tv)).toBeGreaterThan(19.5)
   await expect(phone.getByText(/^0:2\d \/ 0:30$/)).toBeVisible()
+})
+
+test('jump scares: a whenjumpscare .srt on the remote marks the seek bar, the TV shows nothing @player', async ({
+  paired,
+}) => {
+  const { page: tv } = paired
+  const { phone } = await cast(tv)
+  await phone.getByRole('button', { name: 'Pause', exact: true }).click()
+  await expect.poll(() => paused(tv)).toBe(true) // the clip doesn't end under the test
+  const srt = (text: string) => ({
+    name: 'warnings.srt',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from(text),
+  })
+  const file = phone.getByLabel('Jump scare file')
+  const marks = phone.locator('.jumpscare-marks i')
+  await file.setInputFiles(srt('1\n00:00:01,000 --> 00:00:02,000\nhello\n'))
+  await expect(
+    phone.getByText('No jump scares found in this file'),
+  ).toBeVisible()
+  await expect(marks).toHaveCount(0)
+  await file.setInputFiles(
+    srt(
+      [
+        '1',
+        '00:00:15,000 --> 00:00:19,000',
+        '⚠️ Major jumpscare approaching at 00:00:20',
+        '',
+        '2',
+        '00:00:20,000 --> 00:00:24,000',
+        '⚠️ Minor jumpscare approaching at 00:00:25',
+      ].join('\r\n'),
+    ),
+  )
+  await expect(marks).toHaveCount(2)
+  await expect(phone.locator('.jumpscare-marks i.major')).toHaveCount(1)
+  const hint = phone.getByText(/^Next jump scare in 0:\d\d \(major\)$/)
+  await expect(hint).toBeVisible()
+  await expect(
+    phone.getByText('No jump scares found in this file'),
+  ).toBeHidden()
+  // Kept on this device: a reloaded remote still has them.
+  await phone.reload()
+  await expect(hint).toBeVisible()
+  await expect(marks).toHaveCount(2)
+  await expect(tv.locator('.jumpscare-marks')).toHaveCount(0)
+  await expect(tv.getByText(/jump scare/i)).toHaveCount(0)
 })
 
 test('closing: Back on the TV ends screen mode; the phones say so, Play on… is gone @player', async ({

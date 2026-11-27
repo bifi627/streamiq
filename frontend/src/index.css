@@ -1416,6 +1416,37 @@ button.secondary:hover {
   margin: 0;
   accent-color: var(--accent);
 }
+.seek-wrap {
+  position: relative;
+}
+.jumpscare-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.jumpscare-marks i {
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  width: 2px;
+  background: var(--text-muted);
+}
+.jumpscare-marks i.major {
+  top: 10%;
+  bottom: 10%;
+  width: 3px;
+  background: var(--danger);
+}
+.jumpscares {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  text-align: center;
+}
+.jumpscare-hint {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
 .remote-time {
   margin-top: calc(-1 * var(--sp-4));
   color: var(--text-muted);

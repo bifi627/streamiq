@@ -48,6 +48,8 @@ credential); **pairing** = a client becoming trusted by one gateway (client key,
 approved on the local gateway page). **screen** = a TV in screen mode, remote-controlled by a
 phone ("Play on…") through the same gateway; **TV mode** = the web app's layout for TV browsers,
 not the same thing.
+**jump scares** = one item's scare times (major/minor), read on the phone remote from a
+whenjumpscare.com `.srt` and kept in that browser only (localStorage per item id; #1026).
 Player qualities (`profile.ts`): **Auto** = the default, capped from the measured gateway →
 client throughput (#162); **Source** = no cap, remuxes what the capability probe says this device
 decodes, transcodes the rest; **Raw** = opt-in setting, no probe: every codec copied as-is,

@@ -253,6 +253,29 @@ test('continue watching: newest first; the click-through guard keeps the order (
   await expect(a.locator('.more progress')).toBeVisible()
 })
 
+test('continue watching: its error shows on a phone and a desktop @library', async ({
+  paired,
+}) => {
+  const { page: a } = paired
+  await a.addInitScript(() => {
+    const make = RTCPeerConnection.prototype.createDataChannel
+    RTCPeerConnection.prototype.createDataChannel = function (l, o) {
+      if (l.startsWith('req:/UserItems/Resume'))
+        throw new Error('e2e: no resume')
+      return make.call(this, l, o)
+    }
+  })
+  await a.reload() // the init script runs on a load
+  await open(a)
+  const row = a.locator('section.shelf', {
+    has: a.getByRole('heading', { name: 'Continue watching' }),
+  })
+  await expect(row).toBeVisible()
+  await expect(a.locator('.spot')).toHaveCount(0)
+  await a.setViewportSize({ width: 400, height: 800 })
+  await expect(row).toBeVisible()
+})
+
 test('seasons: tabs, Season 1 first with its episodes, D-pad hero → tabs → episodes, Season 2 on a click @library', async ({
   paired,
 }) => {

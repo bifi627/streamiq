@@ -51,6 +51,11 @@ test('homeView: first focus goes to the top row with items', () => {
   assert.equal(homeView({ ...none, views: [a], recent: [b] }).first, 'recent')
   assert.equal(homeView({ ...none, favorites: [a], next: [b] }).first, 'next')
   assert.equal(homeView({ ...none, next: [a], resume: [b] }).first, 'resume')
+  // Warm: Resume and Next up answer late, focus stays on the cached rows.
+  const late = { ...none, resume: [a], next: [b], recent: [a] }
+  assert.equal(homeView(late, true).first, 'recent')
+  assert.equal(homeView({ ...none, next: [a] }, true).first, undefined)
+  assert.equal(homeView({ ...none, next: [a] }, true).empty, false)
 })
 
 test('homeView: a failed Next up is its own error, the other rows stay', () => {

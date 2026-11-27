@@ -34,14 +34,27 @@ export function homeLists(
 
 export const ok = (r: Shelf) => (r instanceof AppError ? [] : r)
 
-const order = ['resume', 'next', 'favorites', 'recent', 'views'] as const
+/** The rows top to bottom, Resume being the spot. */
+export const order = ['resume', 'next', 'favorites', 'recent', 'views'] as const
+export const titles = {
+  resume: 'Continue watching',
+  next: 'Next up',
+  favorites: 'Favorites',
+  recent: 'Recently added',
+  views: 'Library',
+}
+// Resume and Next up answer after a warm home shows: one that joins then
+// would pull focus from where the user already moved it.
+const late = (k: string, warm: boolean) =>
+  warm && (k === 'resume' || k === 'next')
 
 /** The Resume spot, up to the rest in progress, the row whose first item takes
- * first focus (the top one with items), and whether the home has nothing at all
- * to show (no items and no error). */
-export function homeView(l: Lists) {
+ * first focus (the top one with items, not a late one on a warm home), and
+ * whether the home has nothing at all to show (no items and no error). */
+export function homeView(l: Lists, warm = false) {
   const [spot, ...more] = ok(l.resume)
-  const first = order.find((k) => ok(l[k]).length)
+  const filled = order.filter((k) => ok(l[k]).length)
+  const first = filled.find((k) => !late(k, warm))
   const failed = order.some((k) => l[k] instanceof AppError)
-  return { spot, more, first, empty: !first && !failed }
+  return { spot, more, first, empty: !filled.length && !failed }
 }

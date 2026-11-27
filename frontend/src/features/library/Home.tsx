@@ -7,7 +7,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AppError, toAppError } from '../../shared/errors'
-import { homeLists, homeView, ok, shelf, type Shelf } from './shelves'
+import {
+  homeLists,
+  homeView,
+  ok,
+  order,
+  shelf,
+  titles,
+  type Shelf,
+} from './shelves'
 import { ErrorView, State } from '../../shared/ErrorView'
 import {
   backdrop,
@@ -82,7 +90,7 @@ export function Shelves() {
     })
 
   if (!lists) return <HomePlaceholder />
-  const { spot, more, first, empty } = homeView(lists)
+  const { spot, more, first, empty } = homeView(lists, warm)
   if (empty) return <State icon="empty" title="Nothing here." />
   return (
     <div className="home">
@@ -140,15 +148,8 @@ export function Shelves() {
           )}
         </div>
       )}
-      {(
-        [
-          ['Next up', 'next'],
-          ['Favorites', 'favorites'],
-          ['Recently added', 'recent'],
-          ['Library', 'views'],
-        ] as const
-      ).map(([name, k]) => (
-        <Row key={k} title={name} error={lists[k]}>
+      {order.slice(1).map((k) => (
+        <Row key={k} title={titles[k]} error={lists[k]}>
           {ok(lists[k]).map((i, n) => (
             <Pick
               key={i.Id}

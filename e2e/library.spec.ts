@@ -178,6 +178,12 @@ test('cards: one height, a one-line title and a year line; the folder grid shows
   const line = tile('An overly long title').locator('span.card-line')
   expect(await line.evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
   await expect(line).toHaveCSS('text-overflow', 'ellipsis')
+  // A phone's two columns stay one width with that title in one of them.
+  await a.setViewportSize({ width: 390, height: 844 })
+  const widths = await a
+    .locator('.poster-tile')
+    .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().width))
+  expect(new Set(widths.map(Math.round)).size).toBe(1)
 })
 
 test('folders: a deep link that survives a reload, back from the cache (#360) @library', async ({

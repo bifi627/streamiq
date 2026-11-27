@@ -1754,7 +1754,8 @@ progress::-moz-progress-bar {
 }
 @media (max-width: 600px) {
   .poster-grid {
-    grid-template-columns: repeat(2, 1fr);
+    /* minmax(0): a long title can't widen its column */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 40rem) {

@@ -3,7 +3,7 @@
 // online one, then the last opened), the nav's Library link, the
 // shared session, search, cards (one height, title + year line, the folder grid's
 // watched bar), folder deep links (title row + Back) + cache, Recently added,
-// Continue watching's order (the spot, also on a phone) and click-through guard, season tabs
+// Continue watching's order (the spot, also on a phone) and click-through guard, Next up, season tabs
 // (with the title page's D-pad order)
 // and watched marks (the end stops inline playback), inline playback (an episode from Continue
 // watching on its series' page, Back leaves and exit stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
@@ -611,6 +611,60 @@ test('browsing sends no speed test burst @library', async ({ paired }) => {
     page.getByRole('button', { name: /^(Play|Resume)$/ }),
   ).toBeVisible()
   expect(await bursts(page)).toBe(0)
+})
+
+test('next up: the next unstarted episode, right after Continue watching; an in-progress one stays out; a tile plays it (#998) @library', async ({
+  paired,
+}) => {
+  const { page: a } = paired
+  const row = a.locator('section.shelf', {
+    has: a.getByRole('heading', { name: 'Next up' }),
+  })
+  await keepPcs(a) // viaTunnel
+  await a.reload()
+  await open(a)
+  await expect(row).toHaveCount(0) // nothing watched yet
+  const { Items } = JSON.parse(
+    (
+      await viaTunnel(
+        a,
+        '/Items?recursive=true&includeItemTypes=Episode&sortBy=ParentIndexNumber,IndexNumber',
+      )
+    ).body,
+  ) as { Items: { Id: string }[] }
+  const e2 = Items[1]
+  const save = async (id: string, data: object) =>
+    expect((await viaTunnel(a, `/UserItems/${id}/UserData`, data)).status).toBe(
+      200,
+    )
+  // E1 played to its end in the player (the end's save is what NextUp reads).
+  await recent(a).getByRole('button', { name: 'StreamIQ Test Series' }).click()
+  await a
+    .getByRole('tabpanel')
+    .getByRole('listitem')
+    .first()
+    .getByRole('button')
+    .first()
+    .click()
+  await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(0)
+  await a
+    .locator('video')
+    .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
+  await expect(a.locator('button.hero')).toBeVisible()
+  await open(a)
+  await expect(row.getByRole('button')).toHaveText([/StreamIQ Test Series/])
+  // E2 part-played: Continue watching's, not Next up's.
+  await save(e2.Id, { PlaybackPositionTicks: 20_000_000 })
+  await a.reload()
+  await expect(a.locator('.spot h2')).toHaveText('StreamIQ Test Series')
+  await expect(row).toHaveCount(0)
+  // E2 not started: Next up, the first row after Continue watching.
+  await save(e2.Id, { PlaybackPositionTicks: 0 })
+  await a.reload()
+  await expect(row.getByRole('button')).toHaveText([/StreamIQ Test Series/])
+  await expect(a.locator('section.shelf h2').first()).toHaveText('Next up')
+  await row.getByRole('button').click()
+  await expect(a).toHaveURL(new RegExp(`\\?play=${e2.Id}`))
 })
 
 test('favorites: the heart on a movie and a series page, the Favorites shelf before Recently added (#1001) @library', async ({

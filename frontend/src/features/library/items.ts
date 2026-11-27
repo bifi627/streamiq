@@ -56,8 +56,8 @@ type Stream = {
 
 /** The series page's primary button: the in-progress episode, else
  * the first unwatched one, else the first one (specials last both times).
- * Jellyfin's NextUp is not on the gateway allowlist, so this reads the
- * episodes' user data. */
+ * From the episodes' user data, not NextUp: the page loads them anyway, and
+ * NextUp is empty for a series watched to the end. */
 export function upNext(episodes: Item[]) {
   const started = episodes.find(
     (e) => !e.UserData?.Played && (e.UserData?.PlaybackPositionTicks ?? 0) > 0,

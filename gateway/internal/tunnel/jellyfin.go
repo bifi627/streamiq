@@ -78,6 +78,7 @@ var allowed = []struct {
 	{"GET", regexp.MustCompile(`^/UserItems/Resume$`)},
 	{"GET", regexp.MustCompile(`^/Items/` + JellyfinID + `$`)},
 	{"GET", regexp.MustCompile(`^/Shows/` + JellyfinID + `/(Seasons|Episodes)$`)},
+	{"GET", regexp.MustCompile(`^/Shows/NextUp$`)},
 	{"GET", regexp.MustCompile(`^/Items/` + JellyfinID + `/Images/[A-Za-z]+(/[0-9]+)?$`)},
 	{"POST", regexp.MustCompile(`^/Items/` + JellyfinID + `/PlaybackInfo$`)},
 	{"POST", regexp.MustCompile(`^/UserItems/` + JellyfinID + `/UserData$`)}, // resume position / played

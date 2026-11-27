@@ -322,7 +322,8 @@ view count (#1013) reads `GET /streamiq/views?itemId=` and counts them (`viewCou
   `onKeyDown={arrowFocus}` (`frontend/src/shared/focus.ts`) on a container.
 - Library home (`features/library/LibraryHome.tsx` + `Home.tsx`): a search field the title row's
   Search button opens (`?q=`, the current gateway's movies, series and episodes via
-  `/Items?searchTerm=`, in a section per type; its results replace the rows), then Continue watching (the Resume spot + up to 3 more; stacked on a phone), Favorites
+  `/Items?searchTerm=`, in a section per type; its results replace the rows), then Continue watching (the Resume spot + up to 3 more; stacked on a phone), Next up
+  (`/Shows/NextUp` without in-progress episodes; hidden when empty), Favorites
   (hidden when empty; the heart on a movie/series page sets `IsFavorite` via UserData), Recently
   added, Library (photo libraries left out), each a row that scrolls sideways.
   Artwork through `art.ts`: loads only on screen, cached per gateway in the Cache API,

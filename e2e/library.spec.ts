@@ -168,6 +168,7 @@ test('cards: one height, a one-line title and a year line; the folder grid shows
   await expect(a.locator('.poster-grid')).not.toContainText(
     /\b(Play|Resume|Watched)\b/,
   )
+  await expectFullPosters(a)
   // A title too long for the card is cut off, and every card is one height.
   await tile(clip)
     .locator('span.card-line')
@@ -186,7 +187,24 @@ test('cards: one height, a one-line title and a year line; the folder grid shows
     .locator('.poster-tile')
     .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().width))
   expect(new Set(widths.map(Math.round)).size).toBe(1)
+  await expectFullPosters(a)
 })
+
+/** Every grid card's poster spans its card's width at 2:3 (not a
+ * thin strip in a padded pill button). */
+async function expectFullPosters(p: Page) {
+  const boxes = await p.locator('.poster-tile').evaluateAll((es) =>
+    es.map((e) => {
+      const t = e.getBoundingClientRect()
+      const r = (e.querySelector('.poster') ?? e).getBoundingClientRect()
+      return { tile: t.width, w: r.width, h: r.height }
+    }),
+  )
+  for (const b of boxes) {
+    expect(b.w).toBeCloseTo(b.tile, 0)
+    expect(b.w / b.h).toBeCloseTo(2 / 3, 1)
+  }
+}
 
 test('folders: a deep link that survives a reload, back from the cache (#360) @library', async ({
   paired,

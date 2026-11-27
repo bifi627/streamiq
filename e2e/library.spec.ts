@@ -717,11 +717,11 @@ test('watch history: 10 s really played is one entry per playback, under 10 s no
   await expect(a.getByText('Watched once')).toBeVisible()
   // Left and played again within 3 h: the same watch.
   await play(a, 12)
-  await a.reload()
-  await expect(a.getByText('Watched once')).toBeVisible()
   expect(
     await a.evaluate(() => (window as unknown as { saves: string[] }).saves),
   ).toEqual([])
+  await a.reload()
+  await expect(a.getByText('Watched once')).toBeVisible()
   await a.goBack()
   await history()
   const entries = a.getByRole('list', { name: 'Watch history' })

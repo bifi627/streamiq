@@ -1443,6 +1443,15 @@ button.secondary:hover {
   gap: var(--sp-2);
   text-align: center;
 }
+.jumpscare-list ol {
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.jumpscare-list .passed {
+  color: var(--text-muted);
+}
 .jumpscare-hint {
   margin: 0;
   font-variant-numeric: tabular-nums;

@@ -1,6 +1,6 @@
 // Screen mode, on a paired browser with its own gateway
 // (fixtures.ts `paired`): the entry, Play on…, the phone remote's commands, two
-// phones, jump scares, closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
+// phones, jump scares (marks, hint, list), closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
 // paired browser (each its own tunnel session). Refusals, another user's screen
 // and the relay between sessions are Go tests (screen/screen_test.go,
 // sessions_test.go); the TV mode toggle is shell.spec's, the player's own
@@ -301,9 +301,21 @@ test('jump scares: a whenjumpscare .srt on the remote marks the seek bar, the TV
   await expect(
     phone.getByText('No jump scares found in this file'),
   ).toBeHidden()
+  const rows = phone.locator('.jumpscare-list li')
+  await expect(rows.first()).toBeHidden() // closed at first
+  await phone.getByText('All jump scares (2)').click()
+  await expect(rows).toHaveText(['0:20 · major', '0:25 · minor'])
+  // Past the first scare (paused at ~2 s, +10 s twice): it reads as passed.
+  for (let i = 0; i < 2; i++)
+    await phone.getByRole('button', { name: '+10 s', exact: true }).click()
+  await expect(rows).toHaveText(['0:20 · major · passed', '0:25 · minor'], {
+    timeout: 10_000,
+  })
   // Kept on this device: a reloaded remote still has them.
   await phone.reload()
-  await expect(hint).toBeVisible()
+  await expect(
+    phone.getByText(/^Next jump scare in 0:\d\d \(minor\)$/), // past the major one
+  ).toBeVisible()
   await expect(marks).toHaveCount(2)
   await expect(tv.locator('.jumpscare-marks')).toHaveCount(0)
   await expect(tv.getByText(/jump scare/i)).toHaveCount(0)

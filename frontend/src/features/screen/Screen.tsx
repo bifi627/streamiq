@@ -23,6 +23,8 @@ import {
 } from '../gateways/api'
 import { clampSeek, playOnOptions, polled } from './remote'
 import { serial } from './serial'
+import { JumpScareMarks, JumpScares } from './JumpScareControls'
+import { loadJumpScares } from './jumpscares'
 import { Player } from '../player/Player'
 import {
   audioTracks,
@@ -356,8 +358,10 @@ function Playing({
   const dragging = useRef(0)
   useEffect(() => () => clearTimeout(dragging.current), [])
   const item = useTunnelQuery<Item>(jf.item(st.itemId)).data ?? null
+  const [scares, setScares] = useState(() => loadJumpScares(st.itemId)) // keyed by item
   const pos = st.positionTicks / TICKS_PER_SECOND
   const dur = st.durationTicks / TICKS_PER_SECOND
+  const shown = drag ?? pos
   const seek = (t: number) => {
     t = clampSeek(t, dur)
     setDrag(t) // until the TV's state catches up
@@ -376,21 +380,24 @@ function Playing({
         className={`art remote-art${item && !backdrop(item) ? ' whole' : ''}`}
       />
       <h3>{item?.Name}</h3>
-      <input
-        type="range"
-        aria-label="Position"
-        min={0}
-        max={Math.max(dur, 1)}
-        step={1}
-        value={drag ?? pos}
-        onChange={(e) => seek(Number(e.target.value))}
-        className="seek"
-      />
+      <div className="seek-wrap">
+        <input
+          type="range"
+          aria-label="Position"
+          min={0}
+          max={Math.max(dur, 1)}
+          step={1}
+          value={shown}
+          onChange={(e) => seek(Number(e.target.value))}
+          className="seek"
+        />
+        <JumpScareMarks list={scares} dur={dur} />
+      </div>
       <small className="remote-time">
-        {clock(drag ?? pos)} / {clock(dur)}
+        {clock(shown)} / {clock(dur)}
       </small>
       <div className="remote-keys">
-        <button type="button" onClick={() => seek((drag ?? pos) - 10)}>
+        <button type="button" onClick={() => seek(shown - 10)}>
           −10 s
         </button>
         <button
@@ -401,7 +408,7 @@ function Playing({
         >
           <Icon d={st.paused ? ICON.play : ICON.pause} />
         </button>
-        <button type="button" onClick={() => seek((drag ?? pos) + 10)}>
+        <button type="button" onClick={() => seek(shown + 10)}>
           +10 s
         </button>
       </div>
@@ -414,6 +421,12 @@ function Playing({
         Stop
       </button>
       <Tracks streams={item?.MediaStreams} st={st} send={send} />
+      <JumpScares
+        itemId={st.itemId}
+        list={scares}
+        setList={setScares}
+        pos={shown}
+      />
     </>
   )
 }

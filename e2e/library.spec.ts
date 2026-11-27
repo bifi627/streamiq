@@ -9,7 +9,8 @@
 // watching on its series' page, Back leaves and exit stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests). Favorites: the heart (also in TV mode) and its shelf;
-// per user: multi-user.spec. Watch history: a view per playback after 10 s, its page (also TV mode).
+// per user: multi-user.spec. Watch history: a view per playback after 10 s (a replay within 3 h
+// is the same one), its page (also TV mode).
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -689,7 +690,7 @@ test('search: in TV mode Back from a result puts the D-pad on the first result @
   await expect(page.getByRole('searchbox', { name: 'Search' })).toBeFocused()
 })
 
-test('watch history: 10 s really played is one entry per playback, under 10 s none, the resume save keeps its 60 s; TV mode starts on the newest (#1012); the item page counts them (#1013) @library', async ({
+test('watch history: 10 s really played is one entry per playback, under 10 s none, a replay within 3 h none (#1023), the resume save keeps its 60 s; TV mode starts on the newest (#1012); the item page counts them (#1013) @library', async ({
   paired,
 }) => {
   const { page: a } = paired
@@ -714,15 +715,17 @@ test('watch history: 10 s really played is one entry per playback, under 10 s no
   await expect(a.getByText(/^Watched (once|\d+ times)$/)).toHaveCount(0)
   await play(a, 12)
   await expect(a.getByText('Watched once')).toBeVisible()
+  // Left and played again within 3 h: the same watch.
   await play(a, 12)
-  await expect(a.getByText('Watched 2 times')).toBeVisible()
   expect(
     await a.evaluate(() => (window as unknown as { saves: string[] }).saves),
   ).toEqual([])
+  await a.reload()
+  await expect(a.getByText('Watched once')).toBeVisible()
   await a.goBack()
   await history()
   const entries = a.getByRole('list', { name: 'Watch history' })
-  await expect(entries.getByRole('button')).toHaveCount(2)
+  await expect(entries.getByRole('button')).toHaveCount(1)
   await expect(entries.getByRole('button').first()).toContainText(
     'streamiq e2e clip',
   )
@@ -735,6 +738,4 @@ test('watch history: 10 s really played is one entry per playback, under 10 s no
   await open(a)
   await history()
   await expect(entries.getByRole('button').first()).toBeFocused()
-  await a.keyboard.press('ArrowRight')
-  await expect(entries.getByRole('button').nth(1)).toBeFocused()
 })

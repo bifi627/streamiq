@@ -39,7 +39,7 @@ that socket closes: direct, relayed, or failed (one line in the gateway's tunnel
 "session" stays only the protocol/code name of a tunnel's identity (the `session` field,
 `gateway/internal/sessions`). "Media server" means Jellyfin only; "relay" means TURN only.
 **watch history** = one user's playbacks on one gateway (a playback counts after 10 s really
-played), kept by the gateway forever (#1012, #1013); not the tunnel or health history.
+played; one within 3 h of the last recorded view of that item is the same watch), kept by the gateway forever (#1012, #1013); not the tunnel or health history.
 **household** = the tenant: users who share gateways (code/DB: `tenants`, `tenant_id`; UI/API:
 household); a user can belong to several. **admin** / **member** = a household role: an admin
 manages gateways, invites, members and the household's name, a member streams; a household always
@@ -49,6 +49,8 @@ approved on the local gateway page). **screen** = a TV in screen mode, remote-co
 phone ("Play on…") through the same gateway; **TV mode** = the web app's layout for TV browsers,
 not the same thing. **photo** = a still image in a Jellyfin photo library ("Home videos &
 photos", `homevideos`), shown on the Photos tab; "image" stays artwork/posters.
+**jump scares** = one item's scare times (major/minor), read on the phone remote from a
+whenjumpscare.com `.srt` and kept in that browser only (localStorage per item id; #1026).
 Player qualities (`profile.ts`): **Auto** = the default, capped from the measured gateway →
 client throughput (#162); **Source** = no cap, remuxes what the capability probe says this device
 decodes, transcodes the rest; **Raw** = opt-in setting, no probe: every codec copied as-is,

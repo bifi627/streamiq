@@ -18,10 +18,15 @@ const ViewLimit = 500
 // A Jellyfin item id, as the Jellyfin policy reads one.
 var itemID = regexp.MustCompile(`^` + tunnel.JellyfinID + `$`)
 
+// ViewWindow: a view of an item its user already has a view of within this time (from
+// that recorded view) is the same watch, not stored again. Under 24 h: AppendUnless.
+const ViewWindow = 3 * time.Hour
+
 // Views is the watch history: one line per playback, kept per user.
 type Views struct{ Store *Store }
 
-// ServeAdd is POST /streamiq/views: records a view of itemId by the session's user, now.
+// ServeAdd is POST /streamiq/views: records a view of itemId by the session's user, now,
+// unless that user has one of it within ViewWindow; 204 either way.
 func (v *Views) ServeAdd(w http.ResponseWriter, r *http.Request) {
 	user := tunnel.SessionOf(r).User
 	if user == "" {
@@ -34,7 +39,11 @@ func (v *Views) ServeAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC()
-	if err := v.Store.Append(now, View{ItemID: b.ItemID, At: now, UserID: user}); err != nil {
+	seen := func(l View) bool {
+		ago := now.Sub(l.At) // a view stamped ahead of a clock set back is not one
+		return l.UserID == user && l.ItemID == b.ItemID && ago >= 0 && ago < ViewWindow
+	}
+	if err := AppendUnless(v.Store, now, View{ItemID: b.ItemID, At: now, UserID: user}, seen); err != nil {
 		tunnel.Fail(w, http.StatusInternalServerError, err)
 		return
 	}

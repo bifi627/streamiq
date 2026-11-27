@@ -29,7 +29,7 @@ const day = "2006-01-02"
 type Store struct {
 	Dir  string
 	Kind string
-	Days int // day files more than Days before today's are deleted
+	Days int // day files more than Days before today's are deleted; 0 keeps them all
 	mu   sync.Mutex
 }
 
@@ -83,8 +83,11 @@ func (s *Store) days() ([]string, error) {
 	return files, err
 }
 
-// prune deletes the day files more than Days before now's day.
+// prune deletes the day files more than Days before now's day (none when Days is 0).
 func (s *Store) prune(now time.Time) error {
+	if s.Days == 0 {
+		return nil
+	}
 	files, err := s.days()
 	if err != nil {
 		return err

@@ -2,7 +2,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { httpError } from '../../shared/errors.ts'
 import type { Item } from './items.ts'
-import { entries, idChunks, viewLine, viewsMessage } from './views.ts'
+import {
+  entries,
+  idChunks,
+  itemViews,
+  viewCount,
+  viewLine,
+  viewsMessage,
+} from './views.ts'
 
 const at = '2026-11-27T13:00:00Z'
 const v = (itemId: string) => ({ itemId, at })
@@ -46,5 +53,20 @@ test('a gateway without the watch history says to update it', () => {
   assert.doesNotMatch(
     viewsMessage(httpError('tunnel', 500, '/streamiq/views')),
     /too old/,
+  )
+})
+
+test("the view count: only this item's views, nothing at none or without an answer", () => {
+  assert.equal(itemViews('a b'), '/streamiq/views?itemId=a%20b')
+  assert.equal(viewCount(undefined, 'a'), '')
+  assert.equal(viewCount([v('b')], 'a'), '')
+  assert.equal(viewCount([v('a'), v('b')], 'a'), 'Watched once')
+  assert.equal(
+    viewCount([v('a'), v('b'), v('a'), v('a')], 'a'),
+    'Watched 3 times',
+  )
+  assert.equal(
+    viewCount(Array(1200).fill(v('a')), 'a'),
+    `Watched ${(1200).toLocaleString()} times`,
   )
 })

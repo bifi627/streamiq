@@ -24,7 +24,7 @@ func add(t *testing.T, rt *tunnel.Router, who tunnel.Session, body string) int {
 }
 
 func TestEachViewIsItsOwnEntryNewestFirst(t *testing.T) {
-	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views", Days: ViewDays}})
+	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views"}})
 	u1 := tunnel.Session{User: "u1"}
 	for _, id := range []string{item1, item2, item1} {
 		if s := add(t, rt, u1, `{"itemId":"`+id+`"}`); s != http.StatusNoContent {
@@ -41,7 +41,7 @@ func TestEachViewIsItsOwnEntryNewestFirst(t *testing.T) {
 }
 
 func TestViewsAreOnlyTheSessionUsers(t *testing.T) {
-	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views", Days: ViewDays}})
+	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views"}})
 	add(t, rt, tunnel.Session{User: "u1"}, `{"itemId":"`+item1+`"}`)
 	for _, who := range []tunnel.Session{{User: "u2"}, {}} {
 		if _, got := get[[]View](t, rt, who, ViewsPath); len(got) != 0 {
@@ -51,7 +51,7 @@ func TestViewsAreOnlyTheSessionUsers(t *testing.T) {
 }
 
 func TestABadViewIsRefused(t *testing.T) {
-	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views", Days: ViewDays}})
+	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views"}})
 	for _, body := range []string{``, `{}`, `{"itemId":"../x"}`, `{"itemId":"` + item1 + `abcde"}`} {
 		if s := add(t, rt, tunnel.Session{User: "u1"}, body); s != http.StatusBadRequest {
 			t.Errorf("%q: %d", body, s)
@@ -62,17 +62,44 @@ func TestABadViewIsRefused(t *testing.T) {
 	}
 }
 
-func TestTheViewsKeepAYear(t *testing.T) {
-	s := &Store{Dir: t.TempDir(), Kind: "views", Days: ViewDays}
+func TestTheViewsAreKeptForever(t *testing.T) {
+	s := &Store{Dir: t.TempDir(), Kind: "views"}
 	now := time.Now().UTC()
-	old, kept := now.AddDate(0, 0, -ViewDays-1), now.AddDate(0, 0, -ViewDays)
-	for _, at := range []time.Time{old, kept, now} {
+	old := now.AddDate(-5, 0, 0)
+	for _, at := range []time.Time{old, now} {
 		if err := s.Append(at, View{ItemID: item1, At: at, UserID: "u1"}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	rows, _ := Read[View](s)
-	if len(rows) != 2 || !rows[0].At.Equal(kept) {
+	if len(rows) != 2 || !rows[0].At.Equal(old) {
 		t.Fatalf("rows %+v", rows)
+	}
+}
+
+func TestOneItemsViewsAreAllOfThemAndOnlyTheUsers(t *testing.T) {
+	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views"}})
+	u1 := tunnel.Session{User: "u1"}
+	for range ViewLimit + 1 {
+		add(t, rt, u1, `{"itemId":"`+item1+`"}`)
+	}
+	add(t, rt, u1, `{"itemId":"`+item2+`"}`)
+	add(t, rt, tunnel.Session{User: "u2"}, `{"itemId":"`+item1+`"}`)
+	if _, got := get[[]View](t, rt, u1, ViewsPath+"?itemId="+item1); len(got) != ViewLimit+1 || got[0].ItemID != item1 {
+		t.Fatalf("u1 item1: %d views", len(got))
+	}
+	if _, got := get[[]View](t, rt, u1, ViewsPath+"?itemId="+item2); len(got) != 1 {
+		t.Fatalf("u1 item2: %+v", got)
+	}
+	if _, got := get[[]View](t, rt, u1, ViewsPath); len(got) != ViewLimit {
+		t.Fatalf("u1 all: %d views", len(got))
+	}
+	if _, got := get[[]View](t, rt, tunnel.Session{}, ViewsPath+"?itemId="+item1); len(got) != 0 {
+		t.Fatalf("no user: %+v", got)
+	}
+	for _, q := range []string{"?itemId=../x", "?itemId=", "?itemId=" + item1 + "&itemId=" + item2} {
+		if s, _ := get[any](t, rt, u1, ViewsPath+q); s != http.StatusBadRequest {
+			t.Errorf("%s: %d", q, s)
+		}
 	}
 }

@@ -11,12 +11,9 @@ import (
 	"streamiq/gateway/internal/tunnel"
 )
 
-// ViewDays: how long the watch history is kept; ViewLimit caps GET /streamiq/views.
-// ponytail: newest ViewLimit, no paging; page with ?before= if a year outgrows it.
-const (
-	ViewDays  = 365
-	ViewLimit = 500
-)
+// ViewLimit caps GET /streamiq/views without itemId; the watch history is kept forever.
+// ponytail: newest ViewLimit, no paging; page with ?before= if the page needs more.
+const ViewLimit = 500
 
 // A Jellyfin item id, as the Jellyfin policy reads one.
 var itemID = regexp.MustCompile(`^` + tunnel.JellyfinID + `$`)
@@ -44,10 +41,17 @@ func (v *Views) ServeAdd(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ServeList is GET /streamiq/views: the session user's own views, newest first, at most
-// ViewLimit. Who asks comes from the session, never the request.
+// ServeList is GET /streamiq/views[?itemId=]: the session user's own views, newest
+// first: of that item all of them (the view count), else the newest ViewLimit. Who asks
+// comes from the session, never the request.
+// ponytail: reads every day file per call; an index if years of views make it slow.
 func (v *Views) ServeList(w http.ResponseWriter, r *http.Request) {
 	user := tunnel.SessionOf(r).User
+	item, one := r.URL.Query()["itemId"]
+	if one && (len(item) != 1 || !itemID.MatchString(item[0])) {
+		tunnel.Fail(w, http.StatusBadRequest, errors.New("views: bad itemId"))
+		return
+	}
 	rows, err := Read[View](v.Store)
 	if err != nil {
 		tunnel.Fail(w, http.StatusInternalServerError, err)
@@ -55,10 +59,10 @@ func (v *Views) ServeList(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []View{}
 	for _, l := range slices.Backward(rows) {
-		if len(out) == ViewLimit {
+		if !one && len(out) == ViewLimit {
 			break
 		}
-		if user != "" && l.UserID == user {
+		if user != "" && l.UserID == user && (!one || l.ItemID == item[0]) {
 			l.UserID = ""
 			out = append(out, l)
 		}

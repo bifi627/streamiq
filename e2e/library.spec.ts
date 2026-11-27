@@ -689,7 +689,7 @@ test('search: in TV mode Back from a result puts the D-pad on the first result @
   await expect(page.getByRole('searchbox', { name: 'Search' })).toBeFocused()
 })
 
-test('watch history: 10 s really played is one entry per playback, under 10 s none, the resume save keeps its 60 s; TV mode starts on the newest (#1012) @library', async ({
+test('watch history: 10 s really played is one entry per playback, under 10 s none, the resume save keeps its 60 s; TV mode starts on the newest (#1012); the item page counts them (#1013) @library', async ({
   paired,
 }) => {
   const { page: a } = paired
@@ -710,8 +710,12 @@ test('watch history: 10 s really played is one entry per playback, under 10 s no
   await a.goBack()
   await recent(a).getByRole('button', { name: 'streamiq e2e clip' }).click()
   await play(a, 4)
+  await expect(a.getByRole('button', { name: /^(Play|Resume)$/ })).toBeVisible()
+  await expect(a.getByText(/^Watched (once|\d+ times)$/)).toHaveCount(0)
   await play(a, 12)
+  await expect(a.getByText('Watched once')).toBeVisible()
   await play(a, 12)
+  await expect(a.getByText('Watched 2 times')).toBeVisible()
   expect(
     await a.evaluate(() => (window as unknown as { saves: string[] }).saves),
   ).toEqual([])

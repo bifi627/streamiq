@@ -1530,7 +1530,7 @@ button.secondary:hover {
   object-fit: cover;
 }
 /* No image to show: the title on a tint (.tint-N, Home.tsx tint()).
-   min-height: Chrome 87 ignores .poster's aspect-ratio. */
+   min-height: a box without a fixed height (Chrome 87 has no aspect-ratio). */
 .title-card {
   display: flex;
   align-items: center;

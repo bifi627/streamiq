@@ -142,7 +142,13 @@ test('cards: one height, a one-line title and a year line; the folder grid shows
   await expect(
     recent(a).getByRole('button', { name: clip }).locator('small.card-line'),
   ).toHaveText(year(clip))
-  // Arrange: the clip part-played, the mp2 one watched.
+  // Unstarted: no bar.
+  await movies(a).click()
+  const tile = (name: string) => a.locator('.poster-tile', { hasText: name })
+  await expect(tile(mp2)).toBeVisible()
+  await expect(a.locator('.poster-grid progress')).toHaveCount(0)
+  // Arrange: the clip part-played, the mp2 one watched; the reload skips the
+  // folder's cached listing.
   for (const [name, data] of [
     [clip, { PlaybackPositionTicks: 20_000_000 }],
     [mp2, { Played: true }],
@@ -150,16 +156,13 @@ test('cards: one height, a one-line title and a year line; the folder grid shows
     expect(
       (await viaTunnel(a, `/UserItems/${by(name).Id}/UserData`, data)).status,
     ).toBe(200)
-  await movies(a).click()
-  const tile = (name: string) => a.locator('.poster-tile', { hasText: name })
+  await a.reload()
   await expect(tile(clip).locator('small.card-line')).toHaveText(year(clip))
   await expect(tile(clip).getByRole('progressbar')).toBeVisible()
   await expect(tile(mp2).getByRole('progressbar')).toHaveJSProperty(
     'position',
     1,
   )
-  // The other, unstarted movies: no bar.
-  await expect(a.locator('.poster-grid progress')).toHaveCount(2)
   await expect(a.locator('.poster-grid')).not.toContainText(
     /\b(Play|Resume|Watched)\b/,
   )

@@ -196,14 +196,14 @@ test('TV mode: the household pages hand off, the nav keeps Library + Settings, D
 })
 
 // The focused element gone (any page, any reason): an arrow on <body>
-// focuses the page's first control (focus.ts recoverFocus, #992).
+// focuses the page's first control (focus.ts recoverFocus).
 test('TV mode: an arrow recovers focus lost to <body> @shell', async ({
   browser,
 }) => {
   const p = await signedIn(browser, '/settings')
   await p.evaluate(() => localStorage.setItem('streamiq.settings.tv', '1'))
   await p.reload()
-  await expect(p.locator('html')).toHaveClass(/tv/)
+  await expect(p.locator('html')).toHaveClass(/\btv\b/)
   const onBody = () =>
     p.evaluate(() => {
       ;(document.activeElement as HTMLElement | null)?.blur()

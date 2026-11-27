@@ -8,6 +8,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
+  appUrl,
   keepPcs,
   openGateway,
   openLibrary,
@@ -287,15 +288,26 @@ test('closing: Back on the TV ends screen mode; the phones say so, Play on… is
 })
 
 // Leave unmounts the focused button: focus falls to <body>, outside every
-// D-pad container; the next arrow recovers it (focus.ts recoverFocus, #992).
-test('Leave: the D-pad still works on the library after it (#992) @player', async ({
+// D-pad container; the next arrow recovers it (focus.ts recoverFocus). The
+// screen opens in-app from Gateways (TV mode's top bar), a page without
+// autofocus to come back to.
+test('Leave: the D-pad still works on the page it returns to @player', async ({
   paired,
 }) => {
   const { page: tv } = paired
-  await useAsScreen(tv)
+  await tv.addInitScript(() =>
+    localStorage.setItem('streamiq.settings.tv', '1'),
+  )
+  await tv.reload()
+  await openLibrary(tv) // the active gateway: the top bar's link
+  await tv.goto(appUrl('/gateways'))
+  await tv
+    .getByRole('banner')
+    .getByRole('link', { name: 'Use as screen' })
+    .click()
   await expect(tv.getByRole('button', { name: 'Leave' })).toBeFocused()
   await tv.keyboard.press('Enter')
-  await expect(tv).toHaveURL(/\/g\/[^/]+$/)
+  await expect(tv.getByRole('heading', { level: 1 })).toHaveText('Gateways')
   const onBody = () =>
     tv.evaluate(() => document.activeElement === document.body)
   expect(await onBody()).toBe(true)

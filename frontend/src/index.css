@@ -1554,25 +1554,14 @@ button.secondary:hover {
   object-fit: cover;
 }
 
-/* Photos (Photos.tsx): rows of tiles at each photo's own aspect (--ar =
-   width / height): a tile grows with its aspect from a row height; the
-   ::after soaks up the last row's slack. padding-top, not aspect-ratio
-   (Chrome 87). */
+/* Photos (Photos.tsx): square tiles, each photo centre-cropped (.art img
+   covers). padding-top, not aspect-ratio (Chrome 87). */
 .photo-grid {
-  --row: 11rem;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   gap: var(--sp-2);
   padding: 0;
   list-style: none;
-}
-.photo-grid::after {
-  content: '';
-  flex-grow: 10000;
-}
-.photo-grid > li {
-  flex: var(--ar) 1 calc(var(--ar) * var(--row));
-  min-width: 0;
 }
 .photo-tile {
   display: block;
@@ -1588,7 +1577,7 @@ button.secondary:hover {
   position: relative;
   display: block;
   overflow: hidden;
-  padding-top: calc(100% / var(--ar));
+  padding-top: 100%;
   border-radius: 8px;
   background: var(--surface-2);
 }
@@ -1624,7 +1613,7 @@ svg.photo-art {
 }
 @media (max-width: 600px) {
   .photo-grid {
-    --row: 7rem;
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
     gap: var(--sp-1);
   }
 }

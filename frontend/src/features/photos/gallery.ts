@@ -47,10 +47,6 @@ export const screenSize = (w: number, h: number, dpr: number) => ({
  * a JPEG's comment there (camera firmware, encoder tags). */
 export const caption = (i: Item) => i.Name
 
-/** A tile's width / height: the photo's own, a folder's square. */
-export const aspect = (i: Item) =>
-  isPhoto(i) && i.PrimaryImageAspectRatio ? i.PrimaryImageAspectRatio : 1
-
 /** What a key does in the viewer: step, close, or `stay` (an arrow that
  * must not move focus to the grid behind it); null = not the viewer's. */
 export function viewerKey(key: string): -1 | 1 | 'close' | 'stay' | null {

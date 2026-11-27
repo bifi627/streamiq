@@ -320,8 +320,8 @@ peaks per local day.
 - Photos (#1018, `features/photos/`): the nav's Photos tab, shown while the active gateway's
   cached `/UserViews` (`photos/tab.ts`) has a photo library (`CollectionType` `homevideos`,
   Jellyfin's "Home videos & photos"), opens `/g/<id>/photos` (its photo libraries), then
-  `/photos/<folder id>`: a paged grid of sub-folders, then `Photo` items (videos hidden), each
-  at its `PrimaryImageAspectRatio`; a folder's cover is its first photo (Jellyfin makes none).
+  `/photos/<folder id>`: a paged grid of sub-folders, then `Photo` items (videos hidden), square
+  tiles with each photo centre-cropped; a folder's cover is its first photo (Jellyfin makes none).
   `?view=<photo id>` is the full-screen viewer over the grid: the photo fitted to the screen in
   device pixels via `/Items/{id}/Images/Primary?maxWidth=&maxHeight=` (never the original),
   ←/→ / swipe step (replacing the entry), Back / Escape close onto that photo. The caption is

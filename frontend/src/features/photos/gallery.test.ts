@@ -2,7 +2,6 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { Item } from '../library/items.ts'
 import {
-  aspect,
   caption,
   photoLibraries,
   screenSize,
@@ -57,15 +56,6 @@ test('the viewer asks for the screen in device pixels', () => {
 
 test('caption is the name, never the Overview (JPEG comments)', () => {
   assert.equal(caption(it('Beach', { Overview: 'Lavc62.1.100' })), 'Beach')
-})
-
-test('a photo keeps its aspect, a folder is square', () => {
-  assert.equal(aspect(it('a', { PrimaryImageAspectRatio: 2 })), 2)
-  assert.equal(aspect(it('a')), 1)
-  assert.equal(
-    aspect(it('f', { Type: 'PhotoAlbum', PrimaryImageAspectRatio: 0.7 })),
-    1,
-  )
 })
 
 test('a folder lists sub-folders first, then photos, no videos', () => {

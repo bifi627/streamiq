@@ -1,8 +1,8 @@
 // The Photos tab on a paired browser (fixtures.ts `paired`), against
 // the fixture's Photos library (stack.ts: Album with Wide / Tall / Square, a
 // sub-folder Inner and a clip; Clips with only a clip): the nav tab, the
-// library off the Library home, folders before photos, covers, each photo's
-// aspect, the viewer (screen-sized, ←/→, swipe, Back / Escape back to the
+// library off the Library home, folders before photos, covers, square tiles,
+// the viewer (screen-sized, ←/→, swipe, Back / Escape back to the
 // photo) and TV mode's D-pad.
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
@@ -27,7 +27,7 @@ const ratio = async (p: Page, name: string) => {
   return box ? box.width / box.height : 0
 }
 
-test('photos: own tab, off the Library home; folders first with covers, photos at their aspect, no videos @library', async ({
+test('photos: own tab, off the Library home; folders first with covers, square tiles, no videos @library', async ({
   paired,
 }) => {
   const { page } = paired
@@ -64,12 +64,8 @@ test('photos: own tab, off the Library home; folders first with covers, photos a
   await tile(page, 'Album').click()
   await expect(page.locator('.photo-grid button')).toHaveCount(4) // no clip
   await expect(page.locator('.photo-grid button').first()).toHaveText('Inner')
-  for (const [name, want] of [
-    ['Square', 1],
-    ['Tall', 2 / 3],
-    ['Wide', 2],
-  ] as const)
-    await expect.poll(() => ratio(page, name)).toBeCloseTo(want, 1)
+  for (const name of ['Inner', 'Square', 'Tall', 'Wide'])
+    await expect.poll(() => ratio(page, name)).toBeCloseTo(1, 1)
 })
 
 test('photos: the viewer is screen-sized, steps with ←/→ and swipes, Back and Escape return to the photo @library', async ({

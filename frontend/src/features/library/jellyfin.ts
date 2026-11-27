@@ -54,7 +54,7 @@ export const nextEpisodes = (seriesId: string, itemId: string) =>
 // Sub-folders first (IsFolder ascending, in the pinned Jellyfin), then photos; no
 // videos. recursive=false: else a library root with includeItemTypes lists every level.
 export const photoChildren = (parentId: string, startIndex: number) =>
-  `/Items?parentId=${parentId}&recursive=false&includeItemTypes=Photo,PhotoAlbum,Folder&fields=PrimaryImageAspectRatio&sortBy=IsFolder,SortName&sortOrder=Ascending&startIndex=${startIndex}&limit=${PAGE}`
+  `/Items?parentId=${parentId}&recursive=false&includeItemTypes=Photo,PhotoAlbum,Folder&sortBy=IsFolder,SortName&sortOrder=Ascending&startIndex=${startIndex}&limit=${PAGE}`
 
 export const firstPhoto = (parentId: string) =>
   `/Items?parentId=${parentId}&recursive=true&includeItemTypes=Photo&sortBy=SortName&limit=1`

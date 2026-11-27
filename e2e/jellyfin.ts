@@ -122,13 +122,15 @@ export async function addLibraries(
     ['Movies', 'movies', '/media'],
     ['Shows', 'tvshows', '/shows'],
   ])
-  // All 4 episodes (stack.ts): a half-scanned series has no next one yet.
-  await scanned(
-    async () => (await count('Movie')) > 0 && (await count('Episode')) >= 4,
-  )
+  // All 3 movies and 4 episodes (stack.ts; the preview has more): a
+  // half-scanned series has no next one yet.
+  const media = async () =>
+    (await count('Movie')) >= 3 && (await count('Episode')) >= 4
+  await scanned(media)
   if (!extra.length) return
   // Not with the others: three libraries in one scan can hang it for minutes.
   // At least the e2e's 4 photos (stack.ts; the preview has more).
   await add(extra)
-  await scanned(async () => (await count('Photo')) >= 4)
+  // The refresh it kicks rescans the others too.
+  await scanned(async () => (await count('Photo')) >= 4 && (await media()))
 }

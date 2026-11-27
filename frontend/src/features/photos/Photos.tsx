@@ -1,8 +1,8 @@
 // The Photos tab: the gateway's photo libraries (PhotosHome), a folder's
-// grid (PhotoFolder: sub-folders, then photos at their own aspect) and the
+// grid (PhotoFolder: sub-folders, then photos, square tiles) and the
 // full-screen viewer over it (?view=<photo id>, so Back closes it).
 // Routes (App.tsx): /g/$gatewayId/photos[/$folderId], in the gateway's tunnel.
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { PageBar } from '../../shared/PageBar'
@@ -21,7 +21,6 @@ import { folderUp, type Item } from '../library/items'
 import { folderView } from '../library/paging'
 import * as jf from '../library/jellyfin'
 import {
-  aspect,
   caption,
   isPhoto,
   photoLibraries,
@@ -203,11 +202,9 @@ function Pages({
   )
 }
 
-const ar = (i: Item) => ({ '--ar': aspect(i) }) as CSSProperties
-
 function PhotoTile({ item, onOpen }: { item: Item; onOpen: () => void }) {
   return (
-    <li style={ar(item)}>
+    <li>
       <button
         type="button"
         className="photo-tile"
@@ -219,7 +216,7 @@ function PhotoTile({ item, onOpen }: { item: Item; onOpen: () => void }) {
           <Artwork
             art={primary(item)}
             width={720}
-            height={360}
+            height={720}
             className="photo-art"
           />
         </span>
@@ -243,7 +240,7 @@ function FolderTile({
     ?.Items[0]
   const cover = own ?? (first && primary(first))
   return (
-    <li style={ar(item)}>
+    <li>
       <button
         type="button"
         className="photo-tile folder"
@@ -278,7 +275,7 @@ function GridPlaceholder() {
   return (
     <ul className="photo-grid" role="status" aria-label="Loading">
       {[0, 1, 2, 3, 4, 5].map((n) => (
-        <li key={n} style={{ '--ar': 1.5 } as CSSProperties}>
+        <li key={n}>
           <span className="photo-box ph" />
         </li>
       ))}

@@ -6,7 +6,6 @@ export type Item = {
   Type: string
   IsFolder?: boolean
   CollectionType?: string // a library's kind: 'movies', 'tvshows', 'homevideos' (photos), …
-  PrimaryImageAspectRatio?: number // width / height
   SeriesId?: string
   SeriesName?: string
   SeasonId?: string

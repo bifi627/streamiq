@@ -697,7 +697,7 @@ stays a *viewer*:
   |---|---|
   | GET | `/System/Info/Public` |
   | GET | `/UserViews`, `/Items`, `/UserItems/Resume`, `/Items/{id}` |
-  | GET | `/Shows/{id}/Seasons`, `/Shows/{id}/Episodes` |
+  | GET | `/Shows/{id}/Seasons`, `/Shows/{id}/Episodes`, `/Shows/NextUp` |
   | GET | `/Items/{id}/Images/{type}[/{index}]` |
   | GET | `/Videos/{id}/…` (HLS playlists, segments, subtitles) |
   | POST | `/Items/{id}/PlaybackInfo` |

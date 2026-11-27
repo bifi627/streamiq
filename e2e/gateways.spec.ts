@@ -473,12 +473,12 @@ test('paired clients: name, list, rename own, remove other (stream stops), remov
   await expect(pairA).toHaveCount(0)
 })
 
-test('member view: the same card, no Add gateway, no menu on the page (#190) @gateways', async ({
+test('member view: the same card, no Add gateway, no menu on the page, no transcode report (#190, #809) @gateways', async ({
   browser,
   paired,
 }) => {
   const { user } = paired
-  const [g] = await user.api<{ name: string }[]>('/gateways')
+  const [g] = await user.api<{ id: string; name: string }[]>('/gateways')
   const member = await signUp(uniqueEmail('gw-member'))
   await join(user, member)
   const m = await signedInPage(browser, member, '/gateways', user.tenantId)
@@ -502,6 +502,12 @@ test('member view: the same card, no Add gateway, no menu on the page (#190) @ga
     detail(m).getByRole('button', { name: 'Pair this browser' }),
   ).toBeVisible() // the pin check is done
   await expect(menu(m)).toHaveCount(0) // neither Rename nor Remove
+  // The transcode report is the admin's: a member gets the note, and nothing
+  // is read (unpaired, a tunnel read would end in the pairing error instead).
+  await expect(m.getByRole('link', { name: 'Transcode report' })).toHaveCount(0)
+  await m.goto(appUrl(`/gateways/${g.id}/transcodes`))
+  await expect(m.getByRole('status')).toHaveText('Only admins can see this.')
+  await expect(m.getByText('Not probed yet')).toHaveCount(0)
 })
 
 test("health history: an incident, a version change and daily peaks from the gateway's own rows (#424, #781) @gateways", async ({

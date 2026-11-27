@@ -70,29 +70,38 @@ const channels = (n?: number) =>
           : `${n ?? '?'}ch`
 
 /** "audio: DTS 5.1" when p transcodes the audio the player would pick, else
- * null: the default track, or autoAudio's pick when the default doesn't decode. */
-export function audioReason(p: Profile, streams: Stream[], def?: number) {
+ * null: the default track, or autoAudio's pick when the default doesn't decode
+ * (never in compatible mode: the player plays the default there, engine.ts). */
+export function audioReason(
+  p: Profile,
+  streams: Stream[],
+  def?: number,
+  compatible = false,
+) {
   const tp = p.TranscodingProfiles[0]
   const codecs = tp.AudioCodec.split(',')
   const max = Number(tp.MaxAudioChannels)
   const audio = streams.filter((s) => s.Type === 'Audio')
+  // more channels than the client outputs: Jellyfin downmixes, a transcode
+  const fits = (s?: Stream) =>
+    !!s &&
+    codecs.includes(s.Codec?.toLowerCase() ?? '') &&
+    (s.Channels ?? 0) <= max
   const d = audio.find((s) => s.Index === def) ?? audio[0]
   if (!d) return null
-  const fits =
-    codecs.includes(d.Codec?.toLowerCase() ?? '') && (d.Channels ?? 0) <= max
-  if (fits || autoAudio(streams, def, codecs, max > 2) !== undefined)
-    return null
+  const pick = compatible ? undefined : autoAudio(streams, def, codecs, max > 2)
+  if (fits(d) || fits(audio.find((s) => s.Index === pick))) return null
   return `audio: ${(d.Codec ?? '?').toUpperCase()} ${channels(d.Channels)}`
 }
 
 /** What client c would transcode of item i: its reasons, none = plays as is. */
-export function reasons(p: Profile, i: Item) {
+export function reasons(c: Profiled, i: Item) {
   const src = i.MediaSources?.[0]
-  const streams = i.MediaStreams ?? []
+  const streams = src?.MediaStreams ?? []
   const v = streams.find((s) => s.Type === 'Video')
   return [
-    v && videoReason(p, v, src?.Bitrate),
-    audioReason(p, streams, src?.DefaultAudioStreamIndex),
+    v && videoReason(c.profile, v, src?.Bitrate),
+    audioReason(c.profile, streams, src?.DefaultAudioStreamIndex, c.compatible),
   ].filter((r): r is string => !!r)
 }
 
@@ -105,7 +114,7 @@ export type Row = {
   reasons: { text: string; clients: string[] }[]
 }
 
-type Profiled = { name: string; profile: Profile }
+type Profiled = { name: string; profile: Profile; compatible: boolean }
 
 /** The probed clients' profiles (a probe without H.264 plays nothing, so it
  * is left out) and the names of the clients never probed. */
@@ -117,6 +126,7 @@ export function profiled(clients: Client[]) {
     else if (c.profile.probe.h264)
       out.push({
         name: c.name,
+        compatible: c.profile.compatible,
         profile: deviceProfile(
           c.profile.probe,
           false,
@@ -148,7 +158,7 @@ export function report(items: Item[], clients: Profiled[]): Row[] {
     rows.set(key, row)
     let any = false
     for (const c of clients)
-      for (const r of reasons(c.profile, i)) {
+      for (const r of reasons(c, i)) {
         any = true
         row.found.set(r, (row.found.get(r) ?? new Set()).add(c.name))
       }
@@ -176,11 +186,13 @@ export function report(items: Item[], clients: Profiled[]): Row[] {
 
 /** The report's status line; null = the rows (or its empty line). */
 export function reportNote(o: {
-  admin: boolean
+  /** undefined: the role isn't loaded yet */
+  admin: boolean | undefined
   probed: number
   error: string | null
   loaded: boolean
 }) {
+  if (o.admin === undefined) return 'loading…'
   if (!o.admin) return 'Only admins can see this.'
   if (o.error) return o.error
   if (!o.loaded) return 'loading…'

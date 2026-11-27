@@ -302,7 +302,7 @@ peaks per local day.
   and change a managed Jellyfin's libraries live as its stored admin (`jellyfin/libraries.go`;
   nothing stored, a BYO Jellyfin is never touched). The local gateway page has no library part.
 - The **transcode report** (#809, `/gateways/<id>/transcodes`, admin, linked under Paired
-  clients) reads every movie and episode over the tunnel and runs each through the
+  clients) reads every movie and episode over the tunnel (in pages) and runs each through the
   `deviceProfile()` of each client's stored probe at Source quality (`transcodeReport.ts`): no
   Jellyfin call per client, so it approximates Jellyfin's StreamBuilder.
 - Per-device **TV mode** (`shared/settings.ts`, `html.tv`); the user agent sets only its

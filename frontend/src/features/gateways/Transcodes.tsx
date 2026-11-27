@@ -17,23 +17,24 @@ import {
 
 // `/gateways/$id/transcodes` (admin): the library items some paired client
 // would transcode, from the clients' stored probes. The whole library
-// is read over the shared tunnel once per open. ponytail: one Jellyfin call (allVideos),
-// paged if a library's MediaStreams outgrow one response.
+// is read over the shared tunnel once per open, in pages (the gateway caps a
+// response at 16 MiB).
 export function Transcodes({ id }: { id: string }) {
   const navigate = useNavigate()
-  const admin = useHousehold().current?.role === 'admin'
+  const role = useHousehold().current?.role
+  const admin = role === undefined ? undefined : role === 'admin'
   const q = useQuery({
     queryKey: ['transcodes', id],
-    enabled: admin,
+    enabled: !!admin,
     queryFn: async () => {
-      const [clients, lib] = await Promise.all([
-        listClients(id),
-        viaTunnel<{ Items: Item[] }>(id, jf.allVideos),
-      ])
+      const [clients, items] = await Promise.all([listClients(id), library(id)])
       const p = profiled(clients)
-      return { ...p, rows: report(lib.Items, p.clients) }
+      return { ...p, rows: report(items, p.clients) }
     },
     gcTime: 0,
+    retry: false, // each try reads the whole library
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
   const d = q.data
   const note = reportNote({
@@ -56,6 +57,20 @@ export function Transcodes({ id }: { id: string }) {
       {note ? <p role="status">{note}</p> : d && <Rows rows={d.rows} />}
     </section>
   )
+}
+
+const PAGE = 500
+
+async function library(id: string) {
+  const out: Item[] = []
+  for (;;) {
+    const p = await viaTunnel<{ Items: Item[]; TotalRecordCount: number }>(
+      id,
+      jf.allVideos(out.length, PAGE),
+    )
+    out.push(...p.Items)
+    if (p.Items.length < PAGE || out.length >= p.TotalRecordCount) return out
+  }
 }
 
 function Rows({ rows }: { rows: Row[] }) {

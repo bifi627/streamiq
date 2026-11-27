@@ -24,24 +24,27 @@ export type Item = {
     Id?: string
     Bitrate?: number
     DefaultAudioStreamIndex?: number
+    MediaStreams?: Stream[]
   }[]
-  MediaStreams?: {
-    Index: number
-    Type: string
-    Codec?: string
-    Channels?: number
-    Width?: number
-    Height?: number
-    BitRate?: number
-    // Jellyfin's names: Profile "High" / "Main 10", Level 41 (H.264) or 153 (HEVC), VideoRangeType "SDR" / "HDR10"
-    Profile?: string
-    Level?: number
-    BitDepth?: number
-    VideoRangeType?: string
-    Language?: string
-    Title?: string
-    IsTextSubtitleStream?: boolean
-  }[]
+  MediaStreams?: Stream[]
+}
+
+type Stream = {
+  Index: number
+  Type: string
+  Codec?: string
+  Channels?: number
+  Width?: number
+  Height?: number
+  BitRate?: number
+  // Jellyfin's names: Profile "High" / "Main 10", Level 41 (H.264) or 153 (HEVC), VideoRangeType "SDR" / "HDR10"
+  Profile?: string
+  Level?: number
+  BitDepth?: number
+  VideoRangeType?: string
+  Language?: string
+  Title?: string
+  IsTextSubtitleStream?: boolean
 }
 
 /** The series page's primary button: the in-progress episode, else
@@ -79,8 +82,6 @@ export function playTarget(i: Item, tv: boolean) {
 /** Opens in the player, not as a listing. */
 export const playable = (i: Item) =>
   !i.IsFolder && i.Type !== 'Series' && i.Type !== 'Season'
-
-type Stream = NonNullable<Item['MediaStreams']>[number]
 
 const lang = (code?: string) => {
   if (!code || code === 'und') return undefined

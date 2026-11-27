@@ -61,8 +61,9 @@ const movie = (Id: string, streams: Item['MediaStreams'], def = 1): Item => ({
   Id,
   Name: Id,
   Type: 'Movie',
-  MediaStreams: streams,
-  MediaSources: [{ DefaultAudioStreamIndex: def, Bitrate: 5_000_000 }],
+  MediaSources: [
+    { DefaultAudioStreamIndex: def, Bitrate: 5_000_000, MediaStreams: streams },
+  ],
 })
 const rows = (items: Item[], ...cs: Client[]) =>
   report(items, profiled(cs).clients)
@@ -175,10 +176,39 @@ test('audio: the default track, unless autoAudio finds one that decodes', () => 
   ])
 })
 
+test("autoAudio's pick must fit the client's channels too", () => {
+  // a stereo laptop: the AAC 5.1 alternative is downmixed, a transcode
+  const r = rows(
+    [movie('Dts', [video('h264'), audio(1, 'dts', 6), audio(2, 'aac', 6)])],
+    client('Laptop', chrome),
+    client('TV', tv),
+  )
+  assert.deepEqual(r[0].reasons, [
+    { text: 'audio: DTS 5.1', clients: ['Laptop'] },
+  ])
+})
+
+test('Compatible mode plays the default track: no autoAudio fallback', () => {
+  const r = rows(
+    [movie('Dts', [video('h264'), audio(1, 'dts', 6), audio(2, 'aac', 2)])],
+    client('Old TV', tv, true),
+    client('Laptop', chrome),
+  )
+  assert.deepEqual(r[0].reasons, [
+    { text: 'audio: DTS 5.1', clients: ['Old TV'] },
+  ])
+})
+
 test('Compatible mode: stereo AAC, H.264 only, at most 1080p / 8 Mbps', () => {
   const big: Item = {
     ...movie('Big', [video('h264'), audio(1, 'aac')]),
-    MediaSources: [{ DefaultAudioStreamIndex: 1, Bitrate: 20_000_000 }],
+    MediaSources: [
+      {
+        DefaultAudioStreamIndex: 1,
+        Bitrate: 20_000_000,
+        MediaStreams: [video('h264'), audio(1, 'aac')],
+      },
+    ],
   }
   const r = rows(
     [movie('Ac3', [video('h264'), audio(1, 'ac3', 2)]), big],
@@ -240,6 +270,7 @@ test('clients: never probed are named, a probe without H.264 is left out', () =>
 
 test('the note: members, errors, loading, nobody probed', () => {
   const ok = { admin: true, probed: 1, error: null, loaded: true }
+  assert.equal(reportNote({ ...ok, admin: undefined }), 'loading…') // no role yet
   assert.equal(reportNote({ ...ok, admin: false }), 'Only admins can see this.')
   assert.equal(reportNote({ ...ok, error: 'down' }), 'down')
   assert.equal(reportNote({ ...ok, loaded: false }), 'loading…')

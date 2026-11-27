@@ -194,6 +194,13 @@ opened: offline or from an unpaired browser it says why it can't show it (no API
 `health.ts` derives incidents (Jellyfin down, gaps over 10 min), version changes and daily
 peaks per local day.
 
+**Watch history** (#1012): one line per playback in `state/history/views-YYYY-MM-DD.jsonl`
+(365 days kept), never in the API or Jellyfin (its UserData keeps only the last play). The
+player posts `POST /streamiq/views` once a playback really played 10 s (`resume.ts`; the
+resume save keeps its 60 s). `/g/<id>/history` (`WatchHistory.tsx`, `views.ts`, the library
+home's History button) reads `GET /streamiq/views`, then the items' titles and art in
+`/Items?ids=` calls; views of an item gone from Jellyfin are left out.
+
 ## Gateway (native binary)
 
 - Native binaries, not a Docker sidecar: on Docker Desktop a containerized gateway gets

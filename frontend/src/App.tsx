@@ -24,6 +24,7 @@ import {
   LibraryHome,
   PlayerPage,
 } from './features/library/Library'
+import { WatchHistory } from './features/library/WatchHistory'
 import { RemotePage, ScreenPage } from './features/screen/Screen'
 import { Diagnostics } from './features/diagnostics/Diagnostics'
 import {
@@ -339,6 +340,11 @@ const routeTree = rootRoute.addChildren([
     libraryRoute,
     itemRoute,
     playRoute,
+    createRoute({
+      getParentRoute: () => gatewayRoute,
+      path: 'history',
+      component: WatchHistory,
+    }),
     createRoute({
       getParentRoute: () => gatewayRoute,
       path: 'screen',

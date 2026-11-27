@@ -38,6 +38,8 @@ WebRTC connection from one client to one gateway, from the browser opening `/api
 that socket closes: direct, relayed, or failed (one line in the gateway's tunnel history);
 "session" stays only the protocol/code name of a tunnel's identity (the `session` field,
 `gateway/internal/sessions`). "Media server" means Jellyfin only; "relay" means TURN only.
+**watch history** = one user's playbacks on one gateway (a playback counts after 10 s really
+played), kept by the gateway for 365 days (#1012); not the tunnel or health history.
 **household** = the tenant: users who share gateways (code/DB: `tenants`, `tenant_id`; UI/API:
 household); a user can belong to several. **admin** / **member** = a household role: an admin
 manages gateways, invites, members and the household's name, a member streams; a household always

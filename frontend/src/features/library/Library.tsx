@@ -3,7 +3,7 @@
 // in Home.tsx.
 // Routes (App.tsx): /g/$gatewayId owns the tunnel; its children (home, /i, /play,
 // /screen, /remote) render through <Outlet /> and share it.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PageBar } from '../../shared/PageBar'
 import { useBack } from '../../shared/slots'
 import {
@@ -50,8 +50,10 @@ import {
   primary,
   usePlay,
   useTunnel,
+  useFolderPages,
   useTunnelQuery,
 } from './art'
+import { folderView } from './paging'
 import { Artwork, Watched } from './Home'
 import { tvOn } from '../../shared/settings'
 export { Home as LibraryHome } from './Home'
@@ -446,10 +448,15 @@ function Browse({ item }: { item: Item }) {
 }
 
 function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
-  const q = useTunnelQuery<{ Items: Item[] }>(jf.children(item.Id))
-  const items = q.data?.Items
-  if (q.error && !items) return <ErrorView error={toAppError(q.error)} focus />
-  if (!items)
+  const q = useFolderPages(item.Id)
+  const view = folderView({
+    pages: q.data?.pages,
+    hasNext: q.hasNextPage,
+    nextFailed: q.isFetchNextPageError,
+    fetching: q.isFetchingNextPage,
+  })
+  if (q.error && !view) return <ErrorView error={toAppError(q.error)} focus />
+  if (!view)
     return (
       <ul className="poster-grid" role="status" aria-label="Loading">
         {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
@@ -460,30 +467,60 @@ function Listing({ item, onOpen }: { item: Item; onOpen: (i: Item) => void }) {
         ))}
       </ul>
     )
+  const { items, tail } = view
   if (!items.length) return <State icon="empty" title="Nothing here." />
+  // cancelRefetch false: a second call while a page loads is a no-op
+  const more = () => void q.fetchNextPage({ cancelRefetch: false })
   return (
-    <ul className="poster-grid">
-      {items.map((i) => (
-        <li key={i.Id}>
-          <button
-            type="button"
-            onClick={() => onOpen(i)}
-            className="poster-tile"
-          >
-            <Artwork art={primary(i)} card={i} width={280} className="poster" />
-            <div>
-              {i.IndexNumber != null &&
-                i.Type === 'Episode' &&
-                `${i.IndexNumber}. `}
-              {i.Name}
-              {i.ProductionYear && ` (${i.ProductionYear})`}
-            </div>
-            <small>{label(i)}</small>
-          </button>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="poster-grid">
+        {items.map((i) => (
+          <li key={i.Id}>
+            <button
+              type="button"
+              onClick={() => onOpen(i)}
+              className="poster-tile"
+            >
+              <Artwork
+                art={primary(i)}
+                card={i}
+                width={280}
+                className="poster"
+              />
+              <div>
+                {i.IndexNumber != null &&
+                  i.Type === 'Episode' &&
+                  `${i.IndexNumber}. `}
+                {i.Name}
+                {i.ProductionYear && ` (${i.ProductionYear})`}
+              </div>
+              <small>{label(i)}</small>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {tail === 'retry' && <ErrorView error={q.error} onRetry={more} />}
+      {tail === 'loading' && (
+        <div className="ph ph-line" role="status" aria-label="Loading" />
+      )}
+      {tail === 'more' && <OnScreen key={items.length} onShow={more} />}
+    </>
   )
+}
+
+/** Calls onShow once it is near the viewport (keyed per page: a new observer
+ * reports at once, so a short page that leaves it on screen loads on). */
+function OnScreen({ onShow }: { onShow: () => void }) {
+  const el = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const io = new IntersectionObserver(
+      (es) => es.some((e) => e.isIntersecting) && onShow(),
+      { rootMargin: '600px' },
+    )
+    if (el.current) io.observe(el.current)
+    return () => io.disconnect()
+  }, [onShow])
+  return <div ref={el} />
 }
 
 // Guest-mode banner, on the library and the player. ponytail: checked

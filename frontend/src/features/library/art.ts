@@ -3,11 +3,12 @@
 // so a revisit doesn't fetch it through the tunnel again. The placeholder box
 // keeps its size (index.css `.art`) until the image arrives.
 import { createContext, useContext } from 'react'
-import { skipToken, useQuery } from '@tanstack/react-query'
+import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { playTarget, type Item } from './items'
 import { useNavigate } from '@tanstack/react-router'
 import { tvOn } from '../../shared/settings'
-import { image } from './jellyfin'
+import { children, image } from './jellyfin'
+import { nextStart, type Page } from './paging'
 import { tunnelFetch, tunnelJson } from '../../shared/tunnel'
 import { ART_PREFIX, artCleared } from '../../shared/leave'
 import { queryClient } from '../../shared/query'
@@ -66,6 +67,23 @@ export function useTunnelQuery<T>(url: string | null) {
           },
     staleTime: 5 * 60_000,
     gcTime: Infinity, // ponytail: kept until reload; KBs per screen. A cap if a TV tab grows
+  })
+}
+
+/** A folder's children page by page, under useTunnelQuery's cache rules:
+ * pages already loaded are still there on Back. */
+export function useFolderPages(parentId: string) {
+  const { gatewayId, pc } = useTunnel()
+  return useInfiniteQuery({
+    queryKey: ['tunnel', gatewayId, 'children', parentId],
+    queryFn: async ({ pageParam }) => {
+      await playback.get(gatewayId)?.saved
+      return tunnelJson<Page>(pc, children(parentId, pageParam))
+    },
+    initialPageParam: 0,
+    getNextPageParam: (_last, pages) => nextStart(pages),
+    staleTime: 5 * 60_000,
+    gcTime: Infinity,
   })
 }
 

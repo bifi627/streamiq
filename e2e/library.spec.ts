@@ -2,7 +2,7 @@
 // `paired`): `/` → the active gateway's library (one gateway; with two, the
 // online one, then the last opened), the nav's Library link, the
 // shared session, folder deep links (title row + Back) + cache, Recently added,
-// Continue watching's order (the spot; a phone's row) and click-through guard, season tabs
+// Continue watching's order (the spot, also on a phone) and click-through guard, season tabs
 // (with the title page's D-pad order)
 // and watched marks (the end stops inline playback), inline playback (an episode from Continue
 // watching on its series' page, Back leaves and exit stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
@@ -241,16 +241,16 @@ test('continue watching: newest first; the click-through guard keeps the order (
   await a.evaluate(() => localStorage.setItem('streamiq.watchMin', '0'))
   await a.reload()
   await expect(spot).toHaveText('streamiq e2e mp2 default')
-  // A phone: a row of cards in the same order, no spot.
+  // A phone: the same spot, full width, with its meta and progress,
+  // the rest below it.
   await a.setViewportSize({ width: 400, height: 800 })
-  const row = a.locator('section.shelf', {
-    has: a.getByRole('heading', { name: 'Continue watching' }),
-  })
-  const cards = row.getByRole('button')
-  await expect(cards).toHaveCount(2)
-  await expect(cards.nth(0)).toHaveAccessibleName('streamiq e2e mp2 default')
-  await expect(cards.nth(1)).toHaveAccessibleName('streamiq e2e clip')
-  await expect(spot).toBeHidden()
+  await expect(spot).toHaveText('streamiq e2e mp2 default')
+  const box = must(await a.locator('.spot').boundingBox(), 'spot box')
+  expect(box.width).toBeGreaterThan(300)
+  await expect(a.locator('.spot-meta')).toHaveText(/left/)
+  await expect(a.locator('.spot > progress')).toBeVisible()
+  await expect(a.locator('.more b')).toHaveText(['streamiq e2e clip'])
+  await expect(a.locator('.more progress')).toBeVisible()
 })
 
 test('seasons: tabs, Season 1 first with its episodes, D-pad hero → tabs → episodes, Season 2 on a click @library', async ({
@@ -386,16 +386,12 @@ test('inline playback: in the hero box, Back leaves the page, exit stops and sta
   await a.goBack() // still one step: leaves it
   await expect(a).toHaveURL(appUrl(`/g/${id}`))
 
-  // A phone: Continue watching's card → the series page playing that
+  // A phone: Continue watching's Resume → the series page playing that
   // episode on its season's tab; a reload keeps it playing; Back → home.
   await a.setViewportSize({ width: 400, height: 800 })
   await a.reload()
-  await a
-    .locator('section.shelf', {
-      has: a.getByRole('heading', { name: 'Continue watching' }),
-    })
-    .getByRole('button', { name: /StreamIQ Test Series/ })
-    .click()
+  await expect(a.locator('.spot h2')).toHaveText('StreamIQ Test Series')
+  await a.locator('.spot').getByRole('button', { name: 'Resume' }).click()
   await expect(a).toHaveURL(/\/i\/[^/]+\?play=/)
   await expect(selected).toHaveText('Season 2')
   await expect(inline).toBeVisible()

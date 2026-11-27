@@ -1,8 +1,8 @@
 // Library home: Continue watching, Recently added and the libraries (the shell
 // nav has no tunnel, so they live here), each a row that scrolls sideways.
-// Desktop/TV: Continue watching is the Resume spot (the first in-progress item;
-// its Resume button takes first focus, so one OK press resumes) + up to 3 more;
-// a phone gets a row of cards instead (index.css shows one of the two).
+// Continue watching is the Resume spot (the first in-progress item; its Resume
+// button takes first focus, so one OK press resumes) + up to 3 more, stacked
+// on a phone.
 // Arrow keys: GatewayLibrary's D-pad container (Library.tsx).
 import { PageBar } from '../../shared/PageBar'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -85,10 +85,8 @@ function Shelves() {
   if (empty) return <State icon="empty" title="Nothing here." />
   return (
     <div className="home">
-      <Row title="Continue watching" error={lists.resume} phone>
-        {ok(lists.resume).map((i) => (
-          <Pick key={i.Id} item={i} art={primary(i)} onOpen={open} />
-        ))}
+      <Row title="Continue watching" error={lists.resume}>
+        {[]}
       </Row>
       {spot && (
         <div className="resume">
@@ -185,22 +183,20 @@ function HomePlaceholder() {
   )
 }
 
-/** `phone`: a phone's row only, unless it shows its error. */
+/** A row; with no children, only its error (Continue watching's, whose items are the spot). */
 function Row({
   title,
   error,
-  phone,
   children,
 }: {
   title: string
   error: Shelf
-  phone?: boolean
   children: ReactNode[]
 }) {
   const failed = error instanceof AppError
   if (!failed && !children.length) return null
   return (
-    <section className={phone && !failed ? 'shelf phone' : 'shelf'}>
+    <section className="shelf">
       <h2>{title}</h2>
       {failed ? <ErrorView error={error} /> : <ul>{children}</ul>}
     </section>

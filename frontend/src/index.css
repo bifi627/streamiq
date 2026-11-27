@@ -1756,17 +1756,7 @@ progress::-moz-progress-bar {
   height: 7.3125rem;
   border-radius: 10px;
 }
-/* Continue watching: the Resume spot, or on a phone a row of cards. */
-.shelf.phone {
-  display: none;
-}
 @media (max-width: 600px) {
-  .shelf.phone {
-    display: block;
-  }
-  .resume {
-    display: none;
-  }
   .poster-grid {
     grid-template-columns: repeat(2, 1fr);
   }

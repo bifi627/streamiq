@@ -82,14 +82,7 @@ export function Shelves() {
     })
 
   if (!lists) return <HomePlaceholder />
-  const {
-    spot,
-    more,
-    next: ups,
-    favorites: favs,
-    recent,
-    empty,
-  } = homeView(lists)
+  const { spot, more, first, empty } = homeView(lists)
   if (empty) return <State icon="empty" title="Nothing here." />
   return (
     <div className="home">
@@ -147,58 +140,27 @@ export function Shelves() {
           )}
         </div>
       )}
-      <Row title="Next up" error={lists.next}>
-        {ups.map((i, n) => (
-          <Pick
-            key={i.Id}
-            item={i}
-            art={primary(i)}
-            first={free && !spot && n === 0}
-            onOpen={pick}
-          />
-        ))}
-      </Row>
-      <Row title="Favorites" error={lists.favorites}>
-        {favs.map((i, n) => (
-          <Pick
-            key={i.Id}
-            item={i}
-            art={primary(i)}
-            first={free && !spot && !ups.length && n === 0}
-            onOpen={pick}
-          />
-        ))}
-      </Row>
-      <Row title="Recently added" error={lists.recent}>
-        {recent.map((i, n) => (
-          <Pick
-            key={i.Id}
-            item={i}
-            art={primary(i)}
-            first={free && !spot && !ups.length && !favs.length && n === 0}
-            onOpen={pick}
-          />
-        ))}
-      </Row>
-      <Row title="Library" error={lists.views}>
-        {ok(lists.views).map((i, n) => (
-          <Pick
-            key={i.Id}
-            item={i}
-            art={primary(i)}
-            wide
-            first={
-              free &&
-              !spot &&
-              !ups.length &&
-              !favs.length &&
-              !recent.length &&
-              n === 0
-            }
-            onOpen={pick}
-          />
-        ))}
-      </Row>
+      {(
+        [
+          ['Next up', 'next'],
+          ['Favorites', 'favorites'],
+          ['Recently added', 'recent'],
+          ['Library', 'views'],
+        ] as const
+      ).map(([name, k]) => (
+        <Row key={k} title={name} error={lists[k]}>
+          {ok(lists[k]).map((i, n) => (
+            <Pick
+              key={i.Id}
+              item={i}
+              art={primary(i)}
+              wide={k === 'views'}
+              first={free && first === k && n === 0}
+              onOpen={pick}
+            />
+          ))}
+        </Row>
+      ))}
     </div>
   )
 }

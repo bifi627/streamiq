@@ -34,18 +34,14 @@ export function homeLists(
 
 export const ok = (r: Shelf) => (r instanceof AppError ? [] : r)
 
-/** The Resume spot, up to the rest in progress, Next up, Favorites, Recently added,
- * and whether the home has nothing at all to show (no items and no error). */
+const order = ['resume', 'next', 'favorites', 'recent', 'views'] as const
+
+/** The Resume spot, up to the rest in progress, the row whose first item takes
+ * first focus (the top one with items), and whether the home has nothing at all
+ * to show (no items and no error). */
 export function homeView(l: Lists) {
   const [spot, ...more] = ok(l.resume)
-  const rows = Object.values(l)
-  const empty = rows.every((r) => !(r instanceof AppError) && !r.length)
-  return {
-    spot,
-    more,
-    next: ok(l.next),
-    favorites: ok(l.favorites),
-    recent: ok(l.recent),
-    empty,
-  }
+  const first = order.find((k) => ok(l[k]).length)
+  const failed = order.some((k) => l[k] instanceof AppError)
+  return { spot, more, first, empty: !first && !failed }
 }

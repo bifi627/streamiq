@@ -42,8 +42,15 @@ test('homeView: spot, the rest, empty only without items and errors', () => {
   assert.equal(homeView(none).empty, true)
   assert.equal(homeView({ ...none, favorites: [a] }).empty, false)
   assert.equal(homeView({ ...none, resume: err }).empty, false)
-  assert.deepEqual(homeView({ ...none, next: [a] }).next, [a])
   assert.equal(homeView({ ...none, next: [a] }).empty, false)
+})
+
+test('homeView: first focus goes to the top row with items', () => {
+  const none = { resume: [], next: [], favorites: [], recent: [], views: [] }
+  assert.equal(homeView(none).first, undefined)
+  assert.equal(homeView({ ...none, views: [a], recent: [b] }).first, 'recent')
+  assert.equal(homeView({ ...none, favorites: [a], next: [b] }).first, 'next')
+  assert.equal(homeView({ ...none, next: [a], resume: [b] }).first, 'resume')
 })
 
 test('homeView: a failed Next up is its own error, the other rows stay', () => {
@@ -54,8 +61,9 @@ test('homeView: a failed Next up is its own error, the other rows stay', () => {
     recent: [],
     views: [],
   })
-  assert.deepEqual(v.next, [])
   assert.equal(v.spot, a)
-  assert.deepEqual(v.favorites, [b])
+  assert.equal(v.first, 'resume')
   assert.equal(v.empty, false)
+  const only = { resume: [], favorites: [], recent: [], views: [] }
+  assert.equal(homeView({ ...only, next: err }).empty, false)
 })

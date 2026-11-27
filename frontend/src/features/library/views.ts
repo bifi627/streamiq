@@ -18,21 +18,24 @@ export function idChunks(views: View[], n = 100) {
   return out
 }
 
-/** One entry per view, newest first as the gateway answers; `item` is
- * missing when Jellyfin no longer has it. */
-export type Entry = { view: View; item?: Item }
+/** One entry per view, newest first as the gateway answers; a view of an
+ * item Jellyfin no longer has is left out. */
+export type Entry = { view: View; item: Item }
 export function entries(views: View[], items: Item[]): Entry[] {
   const byId = new Map(items.map((i) => [i.Id, i]))
-  return views.map((view) => ({ view, item: byId.get(view.itemId) }))
+  return views.flatMap((view) => {
+    const item = byId.get(view.itemId)
+    return item ? [{ view, item }] : []
+  })
 }
 
 /** When it was watched; an episode leads with its series and S·E. */
-export function viewLine(i: Item | undefined, at: string) {
+export function viewLine(i: Item, at: string) {
   const when = new Date(at).toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
-  if (i?.Type !== 'Episode') return when
+  if (i.Type !== 'Episode') return when
   const se = `S${i.ParentIndexNumber ?? '?'}E${i.IndexNumber ?? '?'}`
   return [i.SeriesName, se, when].filter(Boolean).join(' · ')
 }

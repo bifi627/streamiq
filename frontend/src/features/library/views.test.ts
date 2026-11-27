@@ -7,14 +7,14 @@ import { entries, idChunks, viewLine, viewsMessage } from './views.ts'
 const at = '2026-11-27T13:00:00Z'
 const v = (itemId: string) => ({ itemId, at })
 
-test('each view is an entry; a rewatch fetches its item once', () => {
+test('each view is an entry, a removed item none; a rewatch fetches its item once', () => {
   const views = [v('a'), v('b'), v('a')]
   assert.deepEqual(idChunks(views), [['a', 'b']])
   assert.deepEqual(idChunks([v('a'), v('b'), v('c')], 2), [['a', 'b'], ['c']])
   const a = { Id: 'a', Name: 'A' } as Item
   assert.deepEqual(
     entries(views, [a]).map((e) => e.item),
-    [a, undefined, a],
+    [a, a],
   )
 })
 
@@ -36,7 +36,6 @@ test('an episode leads with its series and S·E', () => {
     viewLine({ Id: 'm', Name: 'M', Type: 'Movie' } as Item, at),
     when,
   )
-  assert.equal(viewLine(undefined, at), when)
 })
 
 test('a gateway without the watch history says to update it', () => {

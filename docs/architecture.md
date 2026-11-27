@@ -199,7 +199,7 @@ peaks per local day.
 player posts `POST /streamiq/views` once a playback really played 10 s (`resume.ts`; the
 resume save keeps its 60 s). `/g/<id>/history` (`WatchHistory.tsx`, `views.ts`, the library
 home's History button) reads `GET /streamiq/views`, then the items' titles and art in
-`/Items?ids=` calls; an item gone from Jellyfin stays an entry without art.
+`/Items?ids=` calls; views of an item gone from Jellyfin are left out.
 
 ## Gateway (native binary)
 

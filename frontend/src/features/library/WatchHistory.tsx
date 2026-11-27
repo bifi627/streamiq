@@ -67,24 +67,14 @@ function Entries({ list }: { list: Entry[] | AppError | null }) {
     return <State icon="empty" title="Nothing watched here yet." />
   return (
     <ul ref={box} className="poster-grid" aria-label="Watch history">
-      {list.map(({ view, item }, n) =>
-        item ? (
-          <PosterTile
-            key={n}
-            item={item}
-            line={viewLine(item, view.at)}
-            onOpen={open}
-          />
-        ) : (
-          <li key={n}>
-            <div className="poster" />
-            <span className="card-line">Removed from the library</span>
-            <small className="card-line muted">
-              {viewLine(undefined, view.at)}
-            </small>
-          </li>
-        ),
-      )}
+      {list.map(({ view, item }, n) => (
+        <PosterTile
+          key={n}
+          item={item}
+          line={viewLine(item, view.at)}
+          onOpen={open}
+        />
+      ))}
     </ul>
   )
 }

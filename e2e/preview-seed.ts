@@ -142,7 +142,9 @@ const still = (
   title: string,
   font: number,
   out: string,
-) => `${FFMPEG} ${picture(src, hue, size, title, font)} -frames:v 1 "${out}"`
+) =>
+  // bitexact: no "Lavc…" JPEG comment, which Jellyfin shows as a photo's overview.
+  `${FFMPEG} ${picture(src, hue, size, title, font)} -frames:v 1 -flags:v +bitexact "${out}"`
 
 const poster = (src: string, hue: number, title: string, out: string) =>
   still(src, hue, '400x600', title, 30, out)

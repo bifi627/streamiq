@@ -1511,8 +1511,9 @@ button.secondary:hover {
 }
 .poster-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
+  /* fixed columns: .poster's fixed height stays 2:3 */
+  grid-template-columns: repeat(auto-fill, 9.25rem);
+  gap: var(--sp-4);
   padding: 0;
   list-style: none;
 }
@@ -1522,10 +1523,18 @@ button.secondary:hover {
   gap: var(--sp-1);
   width: 100%;
   min-width: 0;
+  padding: 0;
+  border-radius: 10px;
+  background: none;
   text-align: left;
+}
+.poster-tile:hover {
+  background: none;
 }
 .poster-box {
   position: relative;
+  overflow: hidden; /* the watched bar follows the rounded corners */
+  border-radius: 10px;
 }
 .poster-box > progress {
   position: absolute;
@@ -1535,7 +1544,8 @@ button.secondary:hover {
 }
 /* A fixed rem height, not aspect-ratio (Chrome 87): every card one height. */
 .poster {
-  height: 14rem;
+  display: block;
+  height: 13.875rem;
   background: #ddd;
 }
 .poster img {
@@ -1812,6 +1822,11 @@ progress::-moz-progress-bar {
   .poster-grid {
     /* minmax(0): a long title can't widen its column */
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* phones have aspect-ratio (Chrome 87 is a TV) */
+  .poster {
+    height: auto;
+    aspect-ratio: 2 / 3;
   }
 }
 @media (max-width: 40rem) {

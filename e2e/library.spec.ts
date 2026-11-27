@@ -176,7 +176,7 @@ test('cards: one height, a one-line title and a year line; the folder grid shows
   const heights = await a
     .locator('.poster-tile')
     .evaluateAll((es) => es.map((e) => e.getBoundingClientRect().height))
-  // Whole px: fluid columns differ by a fraction of a pixel.
+  // Whole px: a phone's fluid columns differ by a fraction of a pixel.
   expect(new Set(heights.map(Math.round)).size).toBe(1)
   const line = tile('An overly long title').locator('span.card-line')
   expect(await line.evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)

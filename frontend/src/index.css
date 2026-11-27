@@ -1527,6 +1527,8 @@ button.secondary:hover {
 }
 .poster-box {
   position: relative;
+  overflow: hidden; /* the watched bar follows the rounded corners */
+  border-radius: 10px;
 }
 .poster-box > progress {
   position: absolute;
@@ -1538,8 +1540,6 @@ button.secondary:hover {
 .poster {
   display: block;
   height: 13.875rem;
-  overflow: hidden;
-  border-radius: 10px;
   background: #ddd;
 }
 .poster img {

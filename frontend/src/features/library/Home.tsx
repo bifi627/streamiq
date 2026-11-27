@@ -13,6 +13,7 @@ import {
   backdrop,
   items,
   primary,
+  usePick,
   usePlay,
   useTunnel,
   useArt,
@@ -23,7 +24,6 @@ import {
   clock,
   inProgress,
   playable,
-  playsAtOnce,
   TICKS_PER_SECOND,
   timeLeft,
   watchedBar,
@@ -67,8 +67,7 @@ export function Shelves() {
       params: { gatewayId, itemId: i.Id },
     })
   const open = (i: Item) => (playable(i) ? play(i) : page(i))
-  // Recently added + Library: a movie opens its page.
-  const pick = (i: Item) => (playsAtOnce(i) ? play(i) : page(i))
+  const pick = usePick() // Recently added + Library: a movie opens its page
   const episodes = (i: Item) =>
     navigate({
       to: '/g/$gatewayId/i/$itemId',

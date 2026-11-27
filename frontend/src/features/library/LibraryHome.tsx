@@ -6,8 +6,8 @@ import { PageBar } from '../../shared/PageBar'
 import { ErrorView, State } from '../../shared/ErrorView'
 import { toAppError } from '../../shared/errors'
 import { PosterTile, Shelves } from './Home'
-import { usePlay, useTunnel, useTunnelQuery } from './art'
-import { playsAtOnce, type Item } from './items'
+import { usePick, useTunnelQuery } from './art'
+import type { Item } from './items'
 import * as jf from './jellyfin'
 import { resultLine, searchTerm } from './search'
 
@@ -64,18 +64,8 @@ function SearchField({ q }: { q: string }) {
 }
 
 function Results({ term }: { term: string }) {
-  const { gatewayId } = useTunnel()
-  const navigate = useNavigate()
-  const play = usePlay()
+  const open = usePick()
   const q = useTunnelQuery<{ Items: Item[] }>(jf.search(term))
-  // As on Recently added: an episode plays, the rest open their page.
-  const open = (i: Item) =>
-    playsAtOnce(i)
-      ? play(i)
-      : navigate({
-          to: '/g/$gatewayId/i/$itemId',
-          params: { gatewayId, itemId: i.Id },
-        })
   if (q.error) return <ErrorView error={toAppError(q.error)} />
   if (!q.data)
     return (

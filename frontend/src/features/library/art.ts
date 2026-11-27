@@ -4,7 +4,7 @@
 // keeps its size (index.css `.art`) until the image arrives.
 import { createContext, useContext } from 'react'
 import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { playTarget, type Item } from './items'
+import { playsAtOnce, playTarget, type Item } from './items'
 import { useNavigate } from '@tanstack/react-router'
 import { tvOn } from '../../shared/settings'
 import { children, image } from './jellyfin'
@@ -204,4 +204,19 @@ export function usePlay() {
           search: { play: t.play },
         })
   }
+}
+
+/** Opens a card (Recently added, a folder, search results): an episode
+ * plays, the rest open their page. */
+export function usePick() {
+  const { gatewayId } = useTunnel()
+  const navigate = useNavigate()
+  const play = usePlay()
+  return (i: Item) =>
+    playsAtOnce(i)
+      ? play(i)
+      : navigate({
+          to: '/g/$gatewayId/i/$itemId',
+          params: { gatewayId, itemId: i.Id },
+        })
 }

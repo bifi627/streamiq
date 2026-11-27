@@ -28,7 +28,6 @@ import {
   pageItem,
   playable,
   playLabel,
-  playsAtOnce,
   progress,
   runtime,
   titleInfo,
@@ -47,7 +46,7 @@ import {
   backdrop,
   current,
   primary,
-  usePlay,
+  usePick,
   useTunnel,
   useFolderPages,
   useTunnelQuery,
@@ -421,7 +420,7 @@ export function PlayerPage({ itemId }: { itemId: string }) {
 function Browse({ item }: { item: Item }) {
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()
-  const play = usePlay()
+  const open = usePick()
   const up = folderUp(item)
   const back = useBack(() =>
     navigate(
@@ -430,14 +429,6 @@ function Browse({ item }: { item: Item }) {
         : { to: '/g/$gatewayId', params: { gatewayId } },
     ),
   )
-  const open = (i: Item) =>
-    playsAtOnce(i)
-      ? play(i)
-      : navigate({
-          to: '/g/$gatewayId/i/$itemId',
-          params: { gatewayId, itemId: i.Id },
-        })
-
   return (
     <>
       <PageBar title={item.Name} onBack={back} />

@@ -58,7 +58,7 @@ export function Shelves() {
   const [warm] = useState(() => !!added && !!views)
   const lists = homeLists(added, views, resume, warm)
   // Rows that answer while the user types in the search field: no focus grab.
-  const free = document.activeElement === document.body
+  const free = !(document.activeElement instanceof HTMLInputElement)
 
   const play = usePlay()
   const page = (i: Item) =>

@@ -6,6 +6,8 @@ package history
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -35,12 +37,37 @@ type Store struct {
 
 // Append writes v as one line to now's day file, then deletes the day files past Days.
 func (s *Store) Append(now time.Time, v any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.append(now, v)
+}
+
+// AppendUnless is Append, unless a record of now's or the previous day's file is seen
+// (enough for a window under 24 h): the check and the append under one lock, so two
+// concurrent calls can't both append.
+func AppendUnless[T any](s *Store, now time.Time, v T, seen func(T) bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var rows []T
+	for _, d := range []time.Time{now.AddDate(0, 0, -1), now} {
+		r, err := readFile(s.file(d), rows)
+		if err == nil {
+			rows = r
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	}
+	if slices.ContainsFunc(rows, seen) {
+		return nil
+	}
+	return s.append(now, v)
+}
+
+func (s *Store) append(now time.Time, v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err = os.MkdirAll(s.Dir, 0o700); err != nil {
 		return err
 	}

@@ -17,7 +17,12 @@ export function LibraryHome({ q }: { q?: string }) {
     <>
       <PageBar title="Library" />
       <SearchField q={q ?? ''} />
-      {term ? <Results term={term} /> : <Shelves />}
+      {term && <Results term={term} />}
+      {/* Stays mounted while searching: a remount would autofocus a card,
+          taking focus from the field. */}
+      <div hidden={!!term}>
+        <Shelves />
+      </div>
     </>
   )
 }

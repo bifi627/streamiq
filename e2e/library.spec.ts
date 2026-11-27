@@ -360,6 +360,29 @@ test('continue watching: newest first; the click-through guard keeps the order (
   await expect(a.locator('.more progress')).toBeVisible()
 })
 
+test('search: a failed request shows the error, the field keeps focus when the term clears @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await page.addInitScript(() => {
+    const make = RTCPeerConnection.prototype.createDataChannel
+    RTCPeerConnection.prototype.createDataChannel = function (l, o) {
+      if (l.startsWith('req:/Items?searchTerm=nope'))
+        throw new Error('e2e: no search')
+      return make.call(this, l, o)
+    }
+  })
+  await page.reload() // the init script runs on a load
+  await open(page)
+  const field = page.getByRole('searchbox', { name: 'Search' })
+  await field.fill('nope')
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(recent(page)).toBeHidden()
+  await field.fill('')
+  await expect(recent(page)).toBeVisible()
+  await expect(field).toBeFocused()
+})
+
 test('continue watching: its error shows on a phone and a desktop @library', async ({
   paired,
 }) => {

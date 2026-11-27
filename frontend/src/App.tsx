@@ -220,8 +220,11 @@ const libraryRoute = createRoute({
   getParentRoute: () => gatewayRoute,
   path: '/',
   // ?q=<term>: the search field's text (LibraryHome.tsx).
+  // A number too: the router JSON-parses ?q=1917.
   validateSearch: (s: Record<string, unknown>): { q?: string } =>
-    typeof s.q === 'string' && s.q ? { q: s.q } : {},
+    (typeof s.q === 'string' || typeof s.q === 'number') && s.q !== ''
+      ? { q: String(s.q) }
+      : {},
   component: function Library() {
     const { q } = libraryRoute.useSearch()
     return <LibraryHome q={q} />

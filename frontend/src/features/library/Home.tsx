@@ -57,6 +57,8 @@ export function Shelves() {
   // joins when it answers.
   const [warm] = useState(() => !!added && !!views)
   const lists = homeLists(added, views, resume, warm)
+  // Rows that answer while the user types in the search field: no focus grab.
+  const free = document.activeElement === document.body
 
   const play = usePlay()
   const page = (i: Item) =>
@@ -93,7 +95,7 @@ export function Shelves() {
                 <button
                   type="button"
                   className="primary"
-                  autoFocus={!warm} // a revisit: focus stays where it landed
+                  autoFocus={!warm && free} // a revisit: focus stays where it landed
                   onClick={() => open(spot)}
                 >
                   <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -138,7 +140,7 @@ export function Shelves() {
             key={i.Id}
             item={i}
             art={primary(i)}
-            first={!spot && n === 0}
+            first={free && !spot && n === 0}
             onOpen={pick}
           />
         ))}
@@ -150,7 +152,7 @@ export function Shelves() {
             item={i}
             art={primary(i)}
             wide
-            first={!spot && !recent.length && n === 0}
+            first={free && !spot && !recent.length && n === 0}
             onOpen={pick}
           />
         ))}

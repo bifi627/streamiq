@@ -1,7 +1,8 @@
 /* Player control bar. Plain CSS that Chrome 87
    (webOS TV) understands: no nesting, :is/:where/:has, container queries,
    accent-color or inset. Sizes in rem: TV mode scales them. */
-.player {
+.player,
+html.tv .player /* above html.tv :focus-visible: ui.hide() focuses the root */ {
   position: relative;
   background: black;
   outline: none;

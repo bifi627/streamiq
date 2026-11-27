@@ -516,7 +516,7 @@ html.tv .primary:focus-visible {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.password button:focus-visible {
+html.tv .password button:focus-visible {
   outline-offset: -3px;
 }
 .signin .error {
@@ -2211,7 +2211,7 @@ html.tv .episode:focus-visible {
   white-space: nowrap;
   overflow: hidden;
 }
-.dock-bar:focus-visible {
+html.tv .dock-bar:focus-visible {
   outline-offset: -3px; /* the screen's edge would cut it */
 }
 .dock-bar > span {

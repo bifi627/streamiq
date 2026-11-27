@@ -2,6 +2,7 @@ package history
 
 import (
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,9 +25,11 @@ func add(t *testing.T, rt *tunnel.Router, who tunnel.Session, body string) int {
 }
 
 func TestEachViewIsItsOwnEntryNewestFirst(t *testing.T) {
-	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views"}})
+	s := &Store{Dir: t.TempDir(), Kind: "views"}
+	rt := viewsAPI(&Views{Store: s})
 	u1 := tunnel.Session{User: "u1"}
-	for _, id := range []string{item1, item2, item1} {
+	seedView(t, s, "u1", item1, time.Now().Add(-ViewWindow-time.Minute))
+	for _, id := range []string{item2, item1} {
 		if s := add(t, rt, u1, `{"itemId":"`+id+`"}`); s != http.StatusNoContent {
 			t.Fatalf("add: %d", s)
 		}
@@ -78,10 +81,11 @@ func TestTheViewsAreKeptForever(t *testing.T) {
 }
 
 func TestOneItemsViewsAreAllOfThemAndOnlyTheUsers(t *testing.T) {
-	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views"}})
+	s := &Store{Dir: t.TempDir(), Kind: "views"}
+	rt := viewsAPI(&Views{Store: s})
 	u1 := tunnel.Session{User: "u1"}
-	for range ViewLimit + 1 {
-		add(t, rt, u1, `{"itemId":"`+item1+`"}`)
+	for i := range ViewLimit + 1 {
+		seedView(t, s, "u1", item1, time.Now().Add(-time.Duration(ViewLimit+1-i)*ViewWindow))
 	}
 	add(t, rt, u1, `{"itemId":"`+item2+`"}`)
 	add(t, rt, tunnel.Session{User: "u2"}, `{"itemId":"`+item1+`"}`)
@@ -101,5 +105,68 @@ func TestOneItemsViewsAreAllOfThemAndOnlyTheUsers(t *testing.T) {
 		if s, _ := get[any](t, rt, u1, ViewsPath+q); s != http.StatusBadRequest {
 			t.Errorf("%s: %d", q, s)
 		}
+	}
+}
+
+func seedView(t *testing.T, s *Store, user, item string, at time.Time) {
+	t.Helper()
+	if err := s.Append(at, View{ItemID: item, At: at.UTC(), UserID: user}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func count(t *testing.T, rt *tunnel.Router, who tunnel.Session, item string) int {
+	t.Helper()
+	_, got := get[[]View](t, rt, who, ViewsPath+"?itemId="+item)
+	return len(got)
+}
+
+func TestAViewWithin3HoursOfTheUsersLastOfThatItemIsTheSameWatch(t *testing.T) {
+	s := &Store{Dir: t.TempDir(), Kind: "views"}
+	rt := viewsAPI(&Views{Store: s})
+	u1, u2 := tunnel.Session{User: "u1"}, tunnel.Session{User: "u2"}
+	seedView(t, s, "u1", item1, time.Now().Add(-ViewWindow+time.Minute))
+	seedView(t, s, "u1", item2, time.Now().Add(-ViewWindow-time.Minute))
+	for _, c := range []struct {
+		who  tunnel.Session
+		item string
+		want int
+	}{
+		{u1, item1, 1}, // within: not stored
+		{u1, item2, 2}, // outside: stored
+		{u2, item1, 1}, // another user: stored
+	} {
+		if st := add(t, rt, c.who, `{"itemId":"`+c.item+`"}`); st != http.StatusNoContent {
+			t.Fatalf("add: %d", st)
+		}
+		if n := count(t, rt, c.who, c.item); n != c.want {
+			t.Errorf("%s %s: %d views, want %d", c.who.User, c.item, n, c.want)
+		}
+	}
+}
+
+func TestConcurrentViewsOfOneItemAreOneView(t *testing.T) {
+	rt := viewsAPI(&Views{Store: &Store{Dir: t.TempDir(), Kind: "views"}})
+	u1 := tunnel.Session{User: "u1"}
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() { add(t, rt, u1, `{"itemId":"`+item1+`"}`) })
+	}
+	wg.Wait()
+	if n := count(t, rt, u1, item1); n != 1 {
+		t.Fatalf("%d views", n)
+	}
+}
+
+func TestAppendUnlessSeesYesterdaysFile(t *testing.T) {
+	s := &Store{Dir: t.TempDir(), Kind: "views"}
+	midnight := time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC)
+	seedView(t, s, "u1", item1, midnight.Add(-time.Hour))
+	mine := func(l View) bool { return l.UserID == "u1" }
+	if err := AppendUnless(s, midnight.Add(time.Hour), View{ItemID: item1, UserID: "u1"}, mine); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := Read[View](s); len(rows) != 1 {
+		t.Fatalf("rows %+v", rows)
 	}
 }

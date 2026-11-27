@@ -476,7 +476,8 @@ default), `relayedBytes` = both directions of every relayed line.
 **`POST /streamiq/views`** (#1012) `{ "itemId" }` → `204`: one view of that Jellyfin item
 by the session's user, stamped with the gateway's time, appended to `state/history/` (a file
 per UTC day, kept forever). The web app sends it once per playback, after 10 s really
-played. No user on the session → `403`; not JSON or not a Jellyfin id → `400`.
+played. Within 3 h of that user's last recorded view of the same item it stores nothing
+(the same watch, #1023) and still answers `204`. No user on the session → `403`; not JSON or not a Jellyfin id → `400`.
 **`GET /streamiq/views`** (#1012) → `200` `[{ "itemId", "at" }]`: the session's user's own
 views, newest first, at most 500 (the watch history); the user is the session's, never the
 request's. With `?itemId=<id>` (#1013): all of that user's views of that item, uncapped (the

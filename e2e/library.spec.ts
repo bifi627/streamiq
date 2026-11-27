@@ -278,6 +278,12 @@ test('search: results replace the shelves, ?q= survives Back, an episode names i
   await page.goBack()
   await expect(field).toHaveValue('Test Series')
   await expect(results).toBeVisible()
+  // A section's heading folds it.
+  const episodes = results.getByRole('list', { name: 'Episodes' })
+  await results.locator('summary', { hasText: 'Episodes' }).click()
+  await expect(episodes).toBeHidden()
+  await results.locator('summary', { hasText: 'Episodes' }).click()
+  await expect(episodes).toBeVisible()
   // An episode plays on its series' page, as from Recently added.
   await results.getByRole('button', { name: /S02E01/ }).click()
   await expect(page).toHaveURL(/\/i\/[^/?]+\?play=/)
@@ -652,6 +658,8 @@ test('search: in TV mode Back from a result puts the D-pad on the first result @
   await page.goBack()
   const first = shows.getByRole('button').first()
   await expect(first).toBeFocused()
+  await page.keyboard.press('ArrowUp') // the section's heading, then the field
+  await expect(page.locator('summary', { hasText: 'Shows' })).toBeFocused()
   await page.keyboard.press('ArrowUp')
   await expect(page.getByRole('searchbox', { name: 'Search' })).toBeFocused()
 })

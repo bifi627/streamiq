@@ -1595,6 +1595,30 @@ button.secondary:hover {
 .still-art.title-card {
   min-height: 0;
 }
+/* A search result section: its heading toggles it, the chevron beside it. */
+.result-section > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: fit-content;
+  min-height: var(--target);
+  margin-bottom: var(--sp-3);
+  cursor: pointer;
+  list-style: none;
+}
+.result-section > summary::-webkit-details-marker {
+  display: none;
+}
+.result-section > summary h2 {
+  margin: 0;
+}
+.result-section > summary .chevron {
+  margin-left: 0;
+  transform: rotate(90deg);
+}
+.result-section[open] > summary .chevron {
+  transform: rotate(-90deg);
+}
 .search {
   width: 100%;
   max-width: 32rem;

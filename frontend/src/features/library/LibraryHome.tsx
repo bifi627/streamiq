@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { PageBar } from '../../shared/PageBar'
+import { Chevron } from '../../shared/Chevron'
 import { ErrorView, State } from '../../shared/ErrorView'
 import { toAppError } from '../../shared/errors'
 import { PosterTile, Shelves } from './Home'
@@ -117,8 +118,11 @@ function Results({ term }: { term: string }) {
   return (
     <section ref={box} className="home" aria-label="Search results">
       {sections(q.data.Items).map((s) => (
-        <section key={s.title}>
-          <h2>{s.title}</h2>
+        <details key={s.title} className="result-section" open>
+          <summary>
+            <h2>{s.title}</h2>
+            <Chevron />
+          </summary>
           <ul className="poster-grid" aria-label={s.title}>
             {s.items.map((i) => (
               <PosterTile
@@ -129,7 +133,7 @@ function Results({ term }: { term: string }) {
               />
             ))}
           </ul>
-        </section>
+        </details>
       ))}
     </section>
   )

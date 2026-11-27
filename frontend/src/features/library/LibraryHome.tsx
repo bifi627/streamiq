@@ -1,6 +1,6 @@
 // Library home with its search field: a term (?q=, so Back returns to it)
 // shows the current gateway's matches in place of the shelves (Home.tsx).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { PageBar } from '../../shared/PageBar'
 import { ErrorView, State } from '../../shared/ErrorView'
@@ -61,6 +61,14 @@ function SearchField({ q }: { q: string }) {
 function Results({ term }: { term: string }) {
   const open = usePick()
   const q = useTunnelQuery<{ Items: Item[] }>(jf.search(term))
+  const box = useRef<HTMLElement>(null)
+  // Back from a result or a ?q= link: nothing has focus (after the commit,
+  // the page left has let go), so the D-pad starts on the first result.
+  // While typing, the field keeps it.
+  useEffect(() => {
+    if (document.activeElement === document.body)
+      box.current?.querySelector('button')?.focus()
+  }, [q.data])
   if (q.error) return <ErrorView error={toAppError(q.error)} />
   if (!q.data)
     return (
@@ -76,7 +84,7 @@ function Results({ term }: { term: string }) {
   if (!q.data.Items.length)
     return <State icon="empty" title={`Nothing found for “${term}”.`} />
   return (
-    <section className="home" aria-label="Search results">
+    <section ref={box} className="home" aria-label="Search results">
       {sections(q.data.Items).map((s) => (
         <section key={s.title}>
           <h2>{s.title}</h2>

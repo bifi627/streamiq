@@ -625,3 +625,22 @@ test('favorites: TV mode reaches the heart with the D-pad; first focus stays on 
   await page.keyboard.press('Enter')
   await expect(heart).toHaveAttribute('aria-pressed', 'true')
 })
+
+test('search: in TV mode Back from a result puts the D-pad on the first result @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await page.goto(appUrl('/settings'))
+  await openCategory(page, 'Display')
+  await page.getByLabel('TV mode').check()
+  await open(page)
+  await page.getByRole('searchbox', { name: 'Search' }).fill('Test Series')
+  const shows = page.getByRole('list', { name: 'Shows' })
+  await shows.getByRole('button', { name: /^StreamIQ Test Series/ }).click()
+  await expect(page.getByRole('tablist', { name: 'Seasons' })).toBeVisible()
+  await page.goBack()
+  const first = shows.getByRole('button').first()
+  await expect(first).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await expect(page.getByRole('searchbox', { name: 'Search' })).toBeFocused()
+})

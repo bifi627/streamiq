@@ -141,6 +141,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }),
 		&history.Health{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "health"}},
 		&history.Tunnels{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "tunnels"}},
+		&history.Views{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "views"}},
 		&jellyfin.Setup{StateDir: dir}, // not set up by the gateway: a user's Jellyfin
 	)
 	for _, c := range []struct {

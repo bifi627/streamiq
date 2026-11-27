@@ -9,7 +9,7 @@
 // watching on its series' page, Back leaves and exit stays, page keys stay the page's, a phone), no speed test while browsing. Folder → movie → Play and the Resume spot are
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests). Favorites: the heart (also in TV mode) and its shelf;
-// per user: multi-user.spec.
+// per user: multi-user.spec. Watch history: a view per playback after 10 s, its page (also TV mode).
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -687,4 +687,50 @@ test('search: in TV mode Back from a result puts the D-pad on the first result @
   await expect(page.locator('summary', { hasText: 'Shows' })).toBeFocused()
   await page.keyboard.press('ArrowUp')
   await expect(page.getByRole('searchbox', { name: 'Search' })).toBeFocused()
+})
+
+test('watch history: 10 s really played is one entry per playback, under 10 s none, the resume save keeps its 60 s; TV mode starts on the newest (#1012) @library', async ({
+  paired,
+}) => {
+  const { page: a } = paired
+  await a.evaluate(() => {
+    localStorage.setItem('streamiq.watchMin', '60') // the default: no resume save under 60 s
+    const w = window as unknown as { saves: string[] }
+    w.saves = []
+    const make = RTCPeerConnection.prototype.createDataChannel
+    RTCPeerConnection.prototype.createDataChannel = function (l, o) {
+      if (l.endsWith('/UserData')) w.saves.push(l)
+      return make.call(this, l, o)
+    }
+  })
+  await open(a)
+  const history = () => a.getByRole('button', { name: 'Watch history' }).click()
+  await history()
+  await expect(a.getByText('Nothing watched here yet.')).toBeVisible()
+  await a.goBack()
+  await recent(a).getByRole('button', { name: 'streamiq e2e clip' }).click()
+  await play(a, 4)
+  await play(a, 12)
+  await play(a, 12)
+  expect(
+    await a.evaluate(() => (window as unknown as { saves: string[] }).saves),
+  ).toEqual([])
+  await a.goBack()
+  await history()
+  const entries = a.getByRole('list', { name: 'Watch history' })
+  await expect(entries.getByRole('button')).toHaveCount(2)
+  await expect(entries.getByRole('button').first()).toContainText(
+    'streamiq e2e clip',
+  )
+  await entries.getByRole('button').first().click()
+  await expect(a.getByRole('button', { name: /^(Play|Resume)$/ })).toBeVisible()
+
+  await a.goto(appUrl('/settings'))
+  await openCategory(a, 'Display')
+  await a.getByLabel('TV mode').check()
+  await open(a)
+  await history()
+  await expect(entries.getByRole('button').first()).toBeFocused()
+  await a.keyboard.press('ArrowRight')
+  await expect(entries.getByRole('button').nth(1)).toBeFocused()
 })

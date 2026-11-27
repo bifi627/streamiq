@@ -3,11 +3,13 @@
 // allowlist), with LastPlayedDate (Continue watching sorts by it) and
 // Played: false (a partial rewatch is in progress again). Only once this
 // playback has really played watchMin() (60 s): clicking through saves
-// nothing. The end marks the item played.
+// nothing. The end marks the item played. After VIEW_MIN (10 s) really played,
+// the playback is one view in the gateway's watch history.
 import { event, watchMin } from '../../shared/diag'
 import { tunnelJson } from '../../shared/tunnel'
 import * as jf from './jellyfin'
 import { TICKS_PER_SECOND } from './items'
+import { VIEW_MIN, VIEWS } from './views'
 
 /** Starts reporting `v`'s position for `itemId` while `attached()` (no
  * reports while a reload detaches the media). The returned stop reports
@@ -22,11 +24,18 @@ export function watchResume(
   let lastSaved = -1
   let played = 0 // seconds really played: playhead steps, not seeks or pauses
   let lastT = -Infinity
+  let viewed = false
   let saving: Promise<unknown> = Promise.resolve()
   const onTime = () => {
     const t = v.currentTime
     if (!v.seeking && t > lastT && t - lastT < 1) played += t - lastT
     lastT = t
+    if (!viewed && played >= VIEW_MIN) {
+      viewed = true
+      tunnelJson(pc(), VIEWS, { itemId }).catch((e) =>
+        event(`watch history: save failed: ${e}`),
+      )
+    }
   }
   const save = (body: object) =>
     (saving = tunnelJson(pc(), jf.userData(itemId), body).catch((e) =>

@@ -88,8 +88,15 @@ export function useFolderPages(parentId: string) {
 }
 
 /** A page of Jellyfin items over the tunnel. */
-export const items = (pc: RTCPeerConnection, url: string) =>
-  tunnelJson<{ Items: Item[] }>(pc, url).then((p) => p.Items)
+/** An uncached read, after the gateway's exit save like useTunnelQuery's. */
+export const items = async (
+  pc: RTCPeerConnection,
+  gatewayId: string,
+  url: string,
+) => {
+  await playback.get(gatewayId)?.saved
+  return (await tunnelJson<{ Items: Item[] }>(pc, url)).Items
+}
 
 // ponytail: at most 4 image channels in flight.
 let active = 0

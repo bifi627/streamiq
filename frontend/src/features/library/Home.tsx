@@ -57,9 +57,11 @@ export function Shelves() {
   const [resume, setResume] = useState<Shelf | null>(null)
   const [next, setNext] = useState<Shelf | null>(null)
   useEffect(() => {
-    items(pc, jf.resume).then(setResume, (e) => setResume(toAppError(e)))
-    items(pc, jf.nextUp).then(setNext, (e) => setNext(toAppError(e)))
-  }, [pc])
+    const read = (url: string, set: (s: Shelf) => void) =>
+      items(pc, gatewayId, url).then(set, (e) => set(toAppError(e)))
+    void read(jf.resume, setResume)
+    void read(jf.nextUp, setNext)
+  }, [pc, gatewayId])
   const favorites = shelf(useTunnelQuery(jf.favorites))
   const added = shelf(useTunnelQuery(jf.recentlyAdded))
   const views = shelf(useTunnelQuery(jf.userViews))

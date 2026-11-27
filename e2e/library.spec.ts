@@ -632,13 +632,28 @@ test('next up: the next unstarted episode, right after Continue watching; an in-
       )
     ).body,
   ) as { Items: { Id: string }[] }
-  const [e1, e2] = Items
+  const e2 = Items[1]
   const save = async (id: string, data: object) =>
     expect((await viaTunnel(a, `/UserItems/${id}/UserData`, data)).status).toBe(
       200,
     )
-  // E1 watched, E2 part-played: E2 is Continue watching's, not Next up's.
-  await save(e1.Id, { Played: true, LastPlayedDate: '2026-01-01T00:00:00Z' })
+  // E1 played to its end in the player (the end's save is what NextUp reads).
+  await recent(a).getByRole('button', { name: 'StreamIQ Test Series' }).click()
+  await a
+    .getByRole('tabpanel')
+    .getByRole('listitem')
+    .first()
+    .getByRole('button')
+    .first()
+    .click()
+  await expect.poll(() => videoTime(a), { timeout: 30_000 }).toBeGreaterThan(0)
+  await a
+    .locator('video')
+    .evaluate((v: HTMLVideoElement) => (v.currentTime = v.duration - 0.5))
+  await expect(a.locator('button.hero')).toBeVisible()
+  await open(a)
+  await expect(row.getByRole('button')).toHaveText([/StreamIQ Test Series/])
+  // E2 part-played: Continue watching's, not Next up's.
   await save(e2.Id, { PlaybackPositionTicks: 20_000_000 })
   await a.reload()
   await expect(a.locator('.spot h2')).toHaveText('StreamIQ Test Series')

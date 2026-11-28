@@ -55,14 +55,18 @@ export function track(v: HTMLVideoElement, itemId: string) {
   let at = v.currentTime
   let prev = performance.now()
   const f = { base: { dropped: 0, total: 0 }, last: { dropped: 0, total: 0 } }
-  let hidden = document.hidden // the tick after a hidden spell is throttled too
-  const waiting = () => p.waits++
+  // The tick after a hidden spell is late too, also when timers stopped outright.
+  let hidden = document.hidden
+  const hide = () => (hidden ||= document.hidden)
+  document.addEventListener('visibilitychange', hide)
+  // From the first second played: startup's wait for data and jank aren't hitches.
+  const waiting = () => sec > 0 && p.waits++
   v.addEventListener('waiting', waiting)
   const t = setInterval(() => {
     const now = performance.now()
     p.worstStallMs = Math.max(
       p.worstStallMs,
-      lag(now - prev, hidden || document.hidden),
+      sec > 0 ? lag(now - prev, hidden || document.hidden) : 0,
     )
     hidden = document.hidden
     sec += played(v.paused ? 0 : v.currentTime - at, (now - prev) / 1000)
@@ -86,6 +90,7 @@ export function track(v: HTMLVideoElement, itemId: string) {
       over = true
       clearInterval(t)
       v.removeEventListener('waiting', waiting)
+      document.removeEventListener('visibilitychange', hide)
       return { ...p, playedSec: Math.round(sec) }
     },
   }

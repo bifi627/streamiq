@@ -3,7 +3,8 @@
 // sub-folder Inner and a clip; an Empty folder): the nav tab, the
 // library off the Library home, folders before photos, covers, square tiles,
 // the viewer (screen-sized, ←/→, swipe, Back / Escape back to the
-// photo) and TV mode's D-pad.
+// photo), TV mode's D-pad and favorites (the viewer's heart, the
+// Favorites tile and grid, not on the Library home).
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import { appUrl, openCategory, openLibrary } from './helpers.ts'
@@ -146,4 +147,78 @@ test('photos: TV mode has Library · Photos · Settings and the D-pad works in t
   await expect(viewer(page)).toHaveAccessibleName('Tall')
   await page.goBack() // the remote's Back
   await expect(tile(page, 'Tall')).toBeFocused()
+})
+
+test('photos: the heart in the viewer, the Favorites tile and grid; not on the Library home (#1025) @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  const heart = viewer(page).getByRole('button', { name: 'Favorite' })
+  const grid = page.locator('.photo-grid button')
+  const photosHome = async () => {
+    await nav(page).getByRole('link', { name: 'Photos' }).click()
+    await expect(page).toHaveURL(/\/photos$/)
+  }
+  await openAlbum(page)
+  await photosHome()
+  await expect(grid).toHaveText(['Photos']) // no favorite yet: no tile
+
+  await tile(page, 'Photos').click()
+  await tile(page, 'Album').click()
+  await tile(page, 'Wide').click()
+  await expect(heart).toHaveAttribute('aria-pressed', 'false')
+  await heart.click()
+  await expect(heart).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('ArrowLeft') // the heart follows the photo
+  await expect(viewer(page)).toHaveAccessibleName('Tall')
+  await expect(heart).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.press('ArrowRight')
+  await expect(viewer(page)).toHaveAccessibleName('Wide')
+  await expect(heart).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Escape')
+
+  // First, covered by the (only) favorite: Wide, 2:1.
+  await photosHome()
+  await expect(grid).toHaveText(['Favorites', 'Photos'])
+  const cover = tile(page, 'Favorites').locator('img')
+  await expect
+    .poll(() =>
+      cover.evaluate(
+        (i: HTMLImageElement) => i.naturalWidth / (i.naturalHeight || 1),
+      ),
+    )
+    .toBe(2)
+
+  await tile(page, 'Photos').click()
+  await tile(page, 'Album').click()
+  await tile(page, 'Square').click()
+  await heart.click()
+  await expect(heart).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Escape')
+
+  await photosHome()
+  await tile(page, 'Favorites').click()
+  await expect(page.locator('.titlerow-title')).toHaveText('Favorites')
+  await expect(grid).toHaveCount(2)
+  await grid.first().click()
+  const first = await viewer(page).getAttribute('aria-label')
+  await page.keyboard.press('ArrowRight') // swipes through the favorites only
+  const second = first === 'Wide' ? 'Square' : 'Wide'
+  await expect(viewer(page)).toHaveAccessibleName(second)
+  await heart.click() // un-hearted: still in the open grid, gone on the next load
+  await expect(heart).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.press('ArrowLeft')
+  await expect(viewer(page)).toHaveAccessibleName(first ?? '')
+  await page.keyboard.press('Escape')
+  await expect(grid).toHaveCount(2)
+  await photosHome()
+  await tile(page, 'Favorites').click()
+  await expect(grid).toHaveCount(1)
+  await expect(tile(page, first ?? '')).toBeVisible()
+
+  await openLibrary(page)
+  await expect(page.locator('section.shelf h2').first()).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Favorites', exact: true }),
+  ).toHaveCount(0)
 })

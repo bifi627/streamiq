@@ -1719,6 +1719,11 @@ svg.photo-art {
   top: var(--sp-2);
   right: var(--sp-2);
 }
+.viewer .favorite {
+  position: absolute;
+  top: var(--sp-2);
+  left: var(--sp-2);
+}
 @media (hover: none) {
   .viewer-prev,
   .viewer-next {

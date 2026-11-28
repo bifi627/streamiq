@@ -1,5 +1,6 @@
-// The Photos tab: the gateway's photo libraries (PhotosHome), a folder's
-// grid (PhotoFolder: sub-folders, then photos, square tiles) and the
+// The Photos tab: the gateway's photo libraries after a Favorites tile
+// (PhotosHome), a folder's grid (PhotoFolder: sub-folders, then photos,
+// square tiles; folder id `favorites`: the favorite photos) and the
 // full-screen viewer over it (?view=<photo id>, so Back closes it).
 // Routes (App.tsx): /g/$gatewayId/photos[/$folderId], in the gateway's tunnel.
 import { useEffect, useRef, useState } from 'react'
@@ -11,12 +12,14 @@ import { ErrorView, State } from '../../shared/ErrorView'
 import { toAppError } from '../../shared/errors'
 import {
   primary,
+  type Art,
   useArt,
   useFolderPages,
   useTunnel,
   useTunnelQuery,
 } from '../library/art'
 import { Artwork } from '../library/Home'
+import { Favorite } from '../library/Favorite'
 import { folderUp, type Item } from '../library/items'
 import { folderView } from '../library/paging'
 import * as jf from '../library/jellyfin'
@@ -32,9 +35,14 @@ import {
 
 type Views = { Items: Item[] }
 
+const FAVORITES = 'favorites' // not a Jellyfin id (32 hex)
+const favoritesTile = { Id: FAVORITES, Name: 'Favorites' } as Item
+
 export function PhotosHome() {
   const q = useTunnelQuery<Views>(jf.userViews)
   const open = useOpenFolder()
+  const newest = useFolderPages(FAVORITES, jf.favoritePhotos).data?.pages[0]
+    ?.Items[0]
   if (q.error && !q.data) return <ErrorView error={toAppError(q.error)} focus />
   const libs = q.data && photoLibraries(q.data.Items)
   return (
@@ -50,6 +58,13 @@ export function PhotosHome() {
       )}
       {libs && !!libs.length && (
         <ul className="photo-grid">
+          {newest && (
+            <FolderTile
+              item={favoritesTile}
+              cover={primary(newest)}
+              onOpen={open}
+            />
+          )}
           {libs.map((l) => (
             <FolderTile key={l.Id} item={l} onOpen={open} />
           ))}
@@ -79,9 +94,13 @@ export function PhotoFolder({
 }) {
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()
-  const it = useTunnelQuery<Item>(jf.item(folderId))
+  const favorites = folderId === FAVORITES
+  const it = useTunnelQuery<Item>(favorites ? null : jf.item(folderId))
   useTunnelQuery<Views>(jf.userViews) // a deep link here: the nav's Photos tab (tab.ts)
-  const q = useFolderPages(folderId, jf.photoChildren)
+  const q = useFolderPages(
+    folderId,
+    favorites ? jf.favoritePhotos : jf.photoChildren,
+  )
   const listed = folderView({
     pages: q.data?.pages,
     hasNext: q.hasNextPage,
@@ -103,7 +122,10 @@ export function PhotoFolder({
   )
   return (
     <>
-      <PageBar title={it.data?.Name} onBack={back} />
+      <PageBar
+        title={favorites ? favoritesTile.Name : it.data?.Name}
+        onBack={back}
+      />
       <Pages
         listed={listed}
         error={q.error ?? it.error}
@@ -225,17 +247,19 @@ function PhotoTile({ item, onOpen }: { item: Item; onOpen: () => void }) {
   )
 }
 
-/** A library or album: its own image, else its first photo (Jellyfin makes
- * none for photo folders), else a folder icon.
+/** A library or album: `cover`, else its own image, else its first photo
+ * (Jellyfin makes none for photo folders), else a folder icon.
  * ponytail: one Jellyfin request per folder tile, on render, not on screen. */
 function FolderTile({
   item,
+  cover: given,
   onOpen,
 }: {
   item: Item
+  cover?: Art | null
   onOpen: (i: Item) => void
 }) {
-  const own = primary(item)
+  const own = given ?? primary(item)
   const first = useTunnelQuery<Views>(own ? null : jf.firstPhoto(item.Id)).data
     ?.Items[0]
   const cover = own ?? (first && primary(first))
@@ -311,9 +335,10 @@ function Viewer({
   onMove: (dir: -1 | 1) => void
   onClose: () => void
 }) {
-  // A deep link to a photo not on the loaded pages: its own item.
-  const fetched = useTunnelQuery<Item>(listed ? null : jf.item(id)).data
-  const item = listed ?? fetched
+  // Its own item: the heart's saved state, which the loaded pages miss once
+  // it changes; also a deep link to a photo not on them.
+  const fetched = useTunnelQuery<Item>(jf.item(id)).data
+  const item = fetched ?? listed
   const [size] = useState(() =>
     screenSize(innerWidth, innerHeight, devicePixelRatio),
   )
@@ -364,6 +389,7 @@ function Viewer({
         </p>
       )}
       <p className="viewer-caption">{name}</p>
+      {item && <Favorite item={item} />}
       <button
         type="button"
         className="viewer-btn viewer-prev"

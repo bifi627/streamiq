@@ -61,6 +61,11 @@ export const nextEpisodes = (seriesId: string, itemId: string) =>
 export const photoChildren = (parentId: string, startIndex: number) =>
   `/Items?parentId=${parentId}&recursive=false&includeItemTypes=Photo,PhotoAlbum,Folder&sortBy=IsFolder,SortName&sortOrder=Ascending&startIndex=${startIndex}&limit=${PAGE}`
 
+/** GET /Items: one page of the viewer's favorite photos, newest first; a
+ * folder list (useFolderPages) without a folder. */
+export const favoritePhotos = (_parentId: string, startIndex: number) =>
+  `/Items?isFavorite=true&recursive=true&includeItemTypes=Photo&sortBy=DateCreated&sortOrder=Descending&startIndex=${startIndex}&limit=${PAGE}`
+
 export const firstPhoto = (parentId: string) =>
   `/Items?parentId=${parentId}&recursive=true&includeItemTypes=Photo&sortBy=SortName&limit=1`
 

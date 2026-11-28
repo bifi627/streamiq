@@ -40,7 +40,6 @@ import { connKey, type Conn } from '../gateways/connection'
 import { useQueryClient } from '@tanstack/react-query'
 import { useGuestStatus } from './queries'
 import { PlayOn } from '../screen/Screen'
-import { NowPlaying } from '../screen/NowPlaying'
 import { arrowFocus } from '../../shared/focus'
 import {
   Tunnel,
@@ -125,7 +124,6 @@ export function GatewayLibrary({ gatewayId }: { gatewayId: string }) {
         >
           <Guest />
           <Outlet />
-          <NowPlaying />
         </Tunnel.Provider>
       )}
     </section>

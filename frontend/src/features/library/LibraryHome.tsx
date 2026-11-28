@@ -10,6 +10,7 @@ import { PosterTile, Shelves } from './Home'
 import { usePick, useTunnel, useTunnelQuery } from './art'
 import type { Item } from './items'
 import * as jf from './jellyfin'
+import { RemoteButton } from '../screen/RemoteButton'
 import { fieldText, qSearch, resultLine, searchTerm, sections } from './search'
 
 export function LibraryHome({ q }: { q?: string }) {
@@ -32,6 +33,7 @@ export function LibraryHome({ q }: { q?: string }) {
         title="Library"
         actions={
           <>
+            <RemoteButton />
             <button
               type="button"
               className="icon-btn"

@@ -1,6 +1,6 @@
 // Screen mode, on a paired browser with its own gateway
 // (fixtures.ts `paired`): the entry, Play on…, the phone remote's commands, two
-// phones, jump scares (marks, hint, list), the Now playing bar, closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
+// phones, jump scares (marks, hint, list), the remote button, closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
 // paired browser (each its own tunnel session). Refusals, another user's screen
 // and the relay between sessions are Go tests (screen/screen_test.go,
 // sessions_test.go); the TV mode toggle is shell.spec's, the player's own
@@ -321,37 +321,26 @@ test('jump scares: a whenjumpscare .srt on the remote marks the seek bar, the TV
   await expect(tv.getByText(/jump scare/i)).toHaveCount(0)
 })
 
-/** A phone's Now playing bar (NowPlaying.tsx) and its entries. */
-const nowPlaying = (p: Page) =>
-  p.getByRole('navigation', { name: 'Now playing' })
-const entries = (p: Page) => nowPlaying(p).getByRole('link')
+/** Library's remote button (RemoteButton.tsx): one playing screen = a
+ * button, several = a picker. */
+const remoteBtn = (p: Page) => p.getByRole('button', { name: /^Remote: / })
+const remotePick = (p: Page) => p.getByRole('combobox', { name: 'Remote' })
 
-/** An in-app navigation (the router follows popstate): the page keeps its
- * cached screens list, so a page that wrongly showed the bar would at once. */
-const inApp = (p: Page, path: string) =>
-  p.evaluate((path) => {
-    history.pushState(history.state, '', path)
-    dispatchEvent(new PopStateEvent('popstate', { state: history.state }))
-  }, path)
-
-// Each "no bar" check runs right after the same page showed an entry: the
-// cache already lists a playing screen.
-test('Now playing (#1029): one entry per playing screen back to its remote; not on the remote, screen, player or in TV mode @player', async ({
+test("remote button (#1029): back to a playing screen's remote; a picker for several; gone in TV mode and after a stop @player", async ({
   paired,
 }) => {
   const { page: tv } = paired
   const { name, phone } = await cast(tv)
+  const first = must(phone.url().match(/\/remote\/([^/]+)$/), 'screen id')[1]
   await phone.goBack() // the clip's page
-  await expect(entries(phone)).toHaveCount(1)
-  await expect(entries(phone)).toContainText(`${CLIP}on ${name}`)
-  await entries(phone).click()
+  const itemId = must(phone.url().match(/\/i\/([^/?]+)/), 'item id')[1]
+  await openLibrary(phone)
+  await expect(remoteBtn(phone)).toHaveAccessibleName(`Remote: ${name}`)
+  await remoteBtn(phone).click()
   await expect(
     phone.getByRole('heading', { name: `Remote: ${name}` }),
   ).toBeVisible()
-  await expect(nowPlaying(phone)).toHaveCount(0)
-  await phone.goBack() // the clip's page again
-  const clip = new URL(phone.url()).pathname
-  const itemId = must(clip.match(/\/i\/([^/]+)$/), 'item id in the URL')[1]
+  await phone.goBack() // Home
   // A second screen plays too, arranged over the tunnel.
   const tv2 = await tv.context().newPage()
   await tv2.goto(tv.url()) // the screen route
@@ -365,29 +354,33 @@ test('Now playing (#1029): one entry per playing screen back to its remote; not 
       }[]
     ).find((s) => !s.state?.itemId)
   await expect.poll(idleScreen).toBeTruthy()
-  const idle = must(await idleScreen(), 'the second screen')
-  await viaTunnel(phone, `/streamiq/screens/${idle.id}`, {
+  const second = must(await idleScreen(), 'the second screen').id
+  await viaTunnel(phone, `/streamiq/screens/${second}`, {
     type: 'play',
     itemId,
   })
-  await expect(entries(phone)).toHaveCount(2, { timeout: 15_000 }) // the 10 s poll
-  await viaTunnel(phone, `/streamiq/screens/${idle.id}`, { type: 'stop' })
-  await expect(entries(phone)).toHaveCount(1, { timeout: 15_000 })
-  // The full-screen player (TV mode's route; inline play elsewhere keeps the bar).
-  await inApp(phone, clip.replace(/\/i\/.*$/, `/play/${itemId}`))
-  await expect(phone.locator('video')).toBeVisible()
-  await expect(nowPlaying(phone)).toHaveCount(0)
-  await phone.goBack()
-  await expect(entries(phone)).toHaveCount(1)
-  await inApp(phone, clip.replace(/\/i\/.*$/, '/screen'))
-  await expect(phone.getByRole('heading', { name: /^Screen: / })).toBeVisible()
-  await expect(nowPlaying(phone)).toHaveCount(0)
-  await phone.goBack()
-  await expect(entries(phone)).toHaveCount(1)
+  await expect(remotePick(phone)).toBeVisible({ timeout: 15_000 }) // the 10 s poll
+  await expect(remotePick(phone).locator('option:not([disabled])')).toHaveCount(
+    2,
+  )
+  await remotePick(phone).selectOption(second)
+  await expect(phone).toHaveURL(new RegExp(`/remote/${second}$`))
+  await phone.goBack() // Home
+  await viaTunnel(phone, `/streamiq/screens/${second}`, { type: 'stop' })
+  await expect(remoteBtn(phone)).toBeVisible({ timeout: 15_000 })
+  // TV mode, the cache still listing a playing screen: an in-app round trip
+  // renders Home again.
   await phone.evaluate(() => localStorage.setItem('streamiq.settings.tv', '1'))
-  await inApp(phone, clip.replace(/\/i\/.*$/, '')) // Home, rendered in TV mode
+  await phone.getByRole('button', { name: /Movies/ }).click()
+  await phone.goBack()
   await expect(phone.getByRole('button', { name: /Movies/ })).toBeVisible()
-  await expect(nowPlaying(phone)).toHaveCount(0)
+  await expect(remoteBtn(phone)).toHaveCount(0)
+  await phone.evaluate(() => localStorage.removeItem('streamiq.settings.tv'))
+  await phone.goForward()
+  await phone.goBack()
+  await expect(remoteBtn(phone)).toBeVisible()
+  await viaTunnel(phone, `/streamiq/screens/${first}`, { type: 'stop' })
+  await expect(remoteBtn(phone)).toHaveCount(0, { timeout: 15_000 })
 })
 
 test('closing: Back on the TV ends screen mode; the phones say so, Play on… is gone @player', async ({

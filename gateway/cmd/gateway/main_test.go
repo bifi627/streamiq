@@ -15,6 +15,7 @@ import (
 	"streamiq/gateway/internal/onboarding"
 	"streamiq/gateway/internal/pairing"
 	"streamiq/gateway/internal/screen"
+	"streamiq/gateway/internal/tags"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
 )
@@ -126,6 +127,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	store, _ := pairing.Open(dir)
+	tg, _ := tags.Load(dir)
 	started := 0
 	remote := &update.Remote{
 		Version:   "1.4.0",
@@ -143,6 +145,7 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		&history.Tunnels{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "tunnels"}},
 		&history.Views{Store: &history.Store{Dir: filepath.Join(dir, history.Dir), Kind: "views"}},
 		&jellyfin.Setup{StateDir: dir}, // not set up by the gateway: a user's Jellyfin
+		tg,
 	)
 	for _, c := range []struct {
 		role, method, path, body string
@@ -159,6 +162,8 @@ func TestGatewayAPIRoutes(t *testing.T) {
 		{tunnel.Member, "POST", tunnel.ThroughputPath, `{"throughputKbps":5}`, http.StatusNoContent},
 		{tunnel.Admin, "GET", history.SummaryPath, "", http.StatusOK},
 		{tunnel.Member, "GET", screen.ScreensPath, "", http.StatusOK},
+		{tunnel.Member, "GET", tags.TagsPath, "", http.StatusOK},
+		{tunnel.Member, "PUT", tags.TagsPath + "/0123456789abcdef0123456789abcdef", `{"tags":["a"]}`, http.StatusNoContent},
 		{tunnel.Admin, "POST", onboarding.NamePath, `{"name":"Den"}`, http.StatusOK},
 		{tunnel.Admin, "POST", onboarding.RelayPath, `{"relay":false}`, http.StatusOK},
 		{tunnel.Admin, "POST", update.Path, "", http.StatusAccepted},

@@ -95,6 +95,23 @@ test(
       await b.goBack()
     })
 
+    await test.step("A's tag is B's too: tags are the gateway's (#1038)", async () => {
+      const chips = (p: Page) =>
+        p.getByRole('list', { name: 'Tags' }).getByRole('listitem')
+      for (const p of [a, b])
+        await p
+          .locator('section.shelf', { hasText: 'Recently added' })
+          .getByRole('button', { name: 'streamiq e2e clip' })
+          .click()
+      await a.getByRole('combobox', { name: 'Add a tag' }).fill('shared')
+      await a.getByRole('button', { name: 'Add', exact: true }).click()
+      await expect(chips(a)).toHaveText(['shared×'])
+      await b.reload()
+      await expect(chips(b)).toHaveText(['shared×'])
+      await a.goBack()
+      await b.goBack()
+    })
+
     await test.step("A signs out, B signs in on A's tab: reload, B's resume", async () => {
       // The Resume spot's progress: the saved position.
       const resume = (re: RegExp) =>

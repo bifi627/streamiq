@@ -204,6 +204,14 @@ home's History button) reads `GET /streamiq/views`, then the items' titles and a
 `/Items?ids=` calls; views of an item gone from Jellyfin are left out. The item page's
 view count (#1013) reads `GET /streamiq/views?itemId=` and counts them (`viewCount`).
 
+**Tags** (#1038): the gateway's `state/tags.json` (Jellyfin item id → tags; `gateway/internal/tags`,
+one mutex, written via temp file + rename; `backup` carries it like every flat state file),
+never in Jellyfin or the media. `GET /streamiq/tags` / `PUT /streamiq/tags/{itemId}`, open to
+every member. The item page (movie, series, episode) shows them as chips beside the heart
+(`Tags.tsx`, decisions in `tags.ts`): outside TV mode an add field (native `<datalist>` of the
+gateway's other tags; a differently cased one keeps the existing spelling) and × per chip; TV
+mode only the chips; any error (an old gateway's 404) shows nothing.
+
 ## Gateway (native binary)
 
 - Native binaries, not a Docker sidecar: on Docker Desktop a containerized gateway gets

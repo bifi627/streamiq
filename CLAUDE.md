@@ -40,6 +40,9 @@ that socket closes: direct, relayed, or failed (one line in the gateway's tunnel
 `gateway/internal/sessions`). "Media server" means Jellyfin only; "relay" means TURN only.
 **watch history** = one user's playbacks on one gateway (a playback counts after 10 s really
 played; one within 3 h of the last recorded view of that item is the same watch), kept by the gateway forever (#1012, #1013); not the tunnel or health history.
+**tag** = a word on a title (movie, series, episode), shared by everyone streaming from one
+gateway and kept in its state dir (`tags.json`, #1038), never in Jellyfin; in code
+`customTags` where Jellyfin's image `tag` is near. Not Jellyfin's own item Tags.
 **household** = the tenant: users who share gateways (code/DB: `tenants`, `tenant_id`; UI/API:
 household); a user can belong to several. **admin** / **member** = a household role: an admin
 manages gateways, invites, members and the household's name, a member streams; a household always

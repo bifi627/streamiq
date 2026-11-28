@@ -39,6 +39,7 @@ import (
 	"streamiq/gateway/internal/screen"
 	"streamiq/gateway/internal/service"
 	"streamiq/gateway/internal/sessions"
+	"streamiq/gateway/internal/tags"
 	"streamiq/gateway/internal/tunnel"
 	"streamiq/gateway/internal/update"
 )
@@ -297,7 +298,7 @@ func instance(file string) error {
 // gatewayAPI is the gateway API's route table (docs/protocol.md); burst +
 // route are tunnel's own. status is GET /streamiq/status.
 func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Store, status http.Handler,
-	health http.Handler, tunnels *history.Tunnels, views *history.Views, setup *jellyfin.Setup,
+	health http.Handler, tunnels *history.Tunnels, views *history.Views, setup *jellyfin.Setup, tg *tags.Store,
 ) *tunnel.Router {
 	rt := tunnel.NewRouter()
 	screen.Register(rt)
@@ -307,6 +308,8 @@ func gatewayAPI(st *onboarding.State, remote *update.Remote, store *pairing.Stor
 	rt.Handle("GET "+history.SummaryPath, http.HandlerFunc(tunnels.ServeSummary), tunnel.AdminOnly)
 	rt.Handle("GET "+history.ViewsPath, http.HandlerFunc(views.ServeList))
 	rt.Handle("POST "+history.ViewsPath, http.HandlerFunc(views.ServeAdd))
+	rt.Handle("GET "+tags.TagsPath, http.HandlerFunc(tg.ServeList))
+	rt.Handle("PUT "+tags.TagsPath+"/{itemId}", http.HandlerFunc(tg.ServeSet))
 	rt.Handle("POST "+onboarding.NamePath, http.HandlerFunc(st.ServeName), tunnel.AdminOnly)
 	rt.Handle("POST "+onboarding.RelayPath, http.HandlerFunc(st.ServeRelay), tunnel.AdminOnly)
 	rt.Handle("POST "+update.Path, remote, tunnel.AdminOnly)
@@ -416,6 +419,10 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, key *ecd
 			setup.EnsureViewer(viewerCtx, user)
 		}}
 	health, tunnels, views := histories(stateDir, st.GatewayID)
+	tg, err := tags.Load(stateDir)
+	if err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
 	sess.Ended = tunnels.Ended
 	store.OnRemove = sess.Drop // removing a browser ends its open sessions
 	var lastBeat atomic.Int64
@@ -429,7 +436,7 @@ func enrollAndServe(ctx context.Context, stateDir, api, compose string, key *ecd
 	go load.Run(ctx)
 	b := &box{setup: setup, compose: compose, sess: sess, load: load}
 	go b.record(ctx, health)
-	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), health, tunnels, views, setup)
+	root.API = gatewayAPI(st, remote, store, b.status(started, store, remote), health, tunnels, views, setup, tg)
 	token, err := localpage.Token(stateDir, lan)
 	if err != nil {
 		log.Fatalf("gateway: page token: %v", err)

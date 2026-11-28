@@ -65,7 +65,8 @@ func (s *Store) ServeList(w http.ResponseWriter, _ *http.Request) {
 		out = append(out, Tag{Name: name, ItemIDs: ids})
 	}
 	slices.SortFunc(out, func(a, b Tag) int {
-		return cmp.Or(strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)), strings.Compare(a.Name, b.Name))
+		lower := strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+		return cmp.Or(lower, strings.Compare(a.Name, b.Name))
 	})
 	tunnel.JSON(w, http.StatusOK, out)
 }

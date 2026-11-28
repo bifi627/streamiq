@@ -97,7 +97,8 @@ func TestPlaybacksAreKeptCapped(t *testing.T) {
 		}
 	}
 	got := u.Playbacks()
-	if len(got) != PlaybackCap || got[0].ItemID != "i2" || got[PlaybackCap-1] != (Playback{ItemID: "i21", Codec: "hevc", PlayedSec: 60}) {
+	last := Playback{ItemID: "i21", Codec: "hevc", PlayedSec: 60}
+	if len(got) != PlaybackCap || got[0].ItemID != "i2" || got[PlaybackCap-1] != last {
 		t.Fatalf("kept %d from %+v to %+v, want i2 … i21", len(got), got[0], got[len(got)-1])
 	}
 	if use, ms := u.Summary(); use != "" || ms != nil {

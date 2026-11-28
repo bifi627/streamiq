@@ -326,13 +326,21 @@ const nowPlaying = (p: Page) =>
   p.getByRole('navigation', { name: 'Now playing' })
 const entries = (p: Page) => nowPlaying(p).getByRole('link')
 
+/** An in-app navigation (the router follows popstate): the page keeps its
+ * cached screens list, so a page that wrongly showed the bar would at once. */
+const inApp = (p: Page, path: string) =>
+  p.evaluate((path) => {
+    history.pushState(history.state, '', path)
+    dispatchEvent(new PopStateEvent('popstate', { state: history.state }))
+  }, path)
+
+// Each "no bar" check runs right after the same page showed an entry: the
+// cache already lists a playing screen.
 test('Now playing (#1029): one entry per playing screen back to its remote; not on the remote, screen, player or in TV mode @player', async ({
   paired,
 }) => {
   const { page: tv } = paired
   const { name, phone } = await cast(tv)
-  await expect(nowPlaying(phone)).toHaveCount(0) // the remote
-  await expect(nowPlaying(tv)).toHaveCount(0) // the screen
   await phone.goBack() // the clip's page
   await expect(entries(phone)).toHaveCount(1)
   await expect(entries(phone)).toContainText(`${CLIP}on ${name}`)
@@ -340,22 +348,24 @@ test('Now playing (#1029): one entry per playing screen back to its remote; not 
   await expect(
     phone.getByRole('heading', { name: `Remote: ${name}` }),
   ).toBeVisible()
+  await expect(nowPlaying(phone)).toHaveCount(0)
+  await phone.goBack() // the clip's page again
+  const clip = new URL(phone.url()).pathname
+  const itemId = must(clip.match(/\/i\/([^/]+)$/), 'item id in the URL')[1]
   // A second screen plays too, arranged over the tunnel.
   const tv2 = await tv.context().newPage()
   await tv2.goto(tv.url()) // the screen route
   await expect(tv2.getByRole('heading', { name: /^Screen: / })).toBeVisible()
-  await phone.goBack() // the clip's page again
-  const itemId = must(
-    phone.url().match(/\/i\/([^/?]+)/),
-    'item id in the URL',
-  )[1]
-  const screens = JSON.parse(
-    (await viaTunnel(phone, '/streamiq/screens')).body,
-  ) as { id: string; state: { itemId: string } | null }[]
-  const idle = must(
-    screens.find((s) => !s.state?.itemId),
-    'the second screen',
-  )
+  // Its heading shows before the gateway lists it.
+  const idleScreen = async () =>
+    (
+      JSON.parse((await viaTunnel(phone, '/streamiq/screens')).body) as {
+        id: string
+        state: { itemId: string } | null
+      }[]
+    ).find((s) => !s.state?.itemId)
+  await expect.poll(idleScreen).toBeTruthy()
+  const idle = must(await idleScreen(), 'the second screen')
   await viaTunnel(phone, `/streamiq/screens/${idle.id}`, {
     type: 'play',
     itemId,
@@ -364,16 +374,19 @@ test('Now playing (#1029): one entry per playing screen back to its remote; not 
   await viaTunnel(phone, `/streamiq/screens/${idle.id}`, { type: 'stop' })
   await expect(entries(phone)).toHaveCount(1, { timeout: 15_000 })
   // The full-screen player (TV mode's route; inline play elsewhere keeps the bar).
-  await phone.goto(phone.url().replace(/\/i\/.*$/, `/play/${itemId}`))
+  await inApp(phone, clip.replace(/\/i\/.*$/, `/play/${itemId}`))
   await expect(phone.locator('video')).toBeVisible()
   await expect(nowPlaying(phone)).toHaveCount(0)
   await phone.goBack()
   await expect(entries(phone)).toHaveCount(1)
+  await inApp(phone, clip.replace(/\/i\/.*$/, '/screen'))
+  await expect(phone.getByRole('heading', { name: /^Screen: / })).toBeVisible()
+  await expect(nowPlaying(phone)).toHaveCount(0)
+  await phone.goBack()
+  await expect(entries(phone)).toHaveCount(1)
   await phone.evaluate(() => localStorage.setItem('streamiq.settings.tv', '1'))
-  await phone.reload()
-  await expect(
-    phone.getByRole('button', { name: /^(Play|Resume)$/ }),
-  ).toBeVisible()
+  await inApp(phone, clip.replace(/\/i\/.*$/, '')) // Home, rendered in TV mode
+  await expect(phone.getByRole('button', { name: /Movies/ })).toBeVisible()
   await expect(nowPlaying(phone)).toHaveCount(0)
 })
 

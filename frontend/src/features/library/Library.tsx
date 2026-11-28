@@ -54,7 +54,7 @@ import {
 import { folderView } from './paging'
 import { Artwork, PosterTile, Watched } from './Home'
 import { Favorite } from './Favorite'
-import { Tags } from './Tags'
+import { Tags } from './TagChips'
 import { itemViews, viewCount, type View } from './views'
 import { tvOn } from '../../shared/settings'
 export { LibraryHome } from './LibraryHome'

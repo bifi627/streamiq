@@ -1,12 +1,7 @@
-// The item page's tag decisions (Tags.tsx): a tag is the gateway's, shared by
+// The item page's tag decisions (TagChips.tsx): a tag is the gateway's, shared by
 // everyone streaming from it (GET/PUT /streamiq/tags). In code `customTags`
 // where Jellyfin's image `tag` is near (art.ts).
-import {
-  MaxLen,
-  MaxPerItem,
-  TagsPath,
-  type Tag,
-} from '../../generated/tags.ts'
+import { MaxLen, MaxPerItem, TagsPath, type Tag } from '../../generated/tags.ts'
 
 export type { Tag }
 export const TAGS = TagsPath

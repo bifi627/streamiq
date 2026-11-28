@@ -1731,6 +1731,20 @@ svg.photo-art {
   top: var(--sp-2);
   right: var(--sp-2);
 }
+/* The Photos home's Favorites row (a .shelf): square tiles, scrolled. */
+.photo-shelf li {
+  flex: 0 0 9rem;
+}
+@media (max-width: 600px) {
+  .photo-shelf li {
+    flex-basis: 7rem;
+  }
+}
+.viewer .favorite {
+  position: absolute;
+  top: var(--sp-2);
+  left: var(--sp-2);
+}
 @media (hover: none) {
   .viewer-prev,
   .viewer-next {

@@ -1,6 +1,7 @@
-// The Photos tab: the gateway's photo libraries (PhotosHome), a folder's
-// grid (PhotoFolder: sub-folders, then photos, square tiles) and the
-// full-screen viewer over it (?view=<photo id>, so Back closes it).
+// The Photos tab: the favorite photos' row above the gateway's photo
+// libraries (PhotosHome), a folder's grid (PhotoFolder: sub-folders, then
+// photos, square tiles) and the full-screen viewer over either (?view=<photo
+// id>, so Back closes it).
 // Routes (App.tsx): /g/$gatewayId/photos[/$folderId], in the gateway's tunnel.
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -17,6 +18,7 @@ import {
   useTunnelQuery,
 } from '../library/art'
 import { Artwork } from '../library/Home'
+import { Favorite } from '../library/Favorite'
 import { folderUp, type Item } from '../library/items'
 import { folderView } from '../library/paging'
 import * as jf from '../library/jellyfin'
@@ -32,29 +34,62 @@ import {
 
 type Views = { Items: Item[] }
 
-export function PhotosHome() {
+export function PhotosHome({ view }: { view?: string }) {
   const q = useTunnelQuery<Views>(jf.userViews)
-  const open = useOpenFolder()
+  const fav = useFolderPages('favorites', jf.favoritePhotos)
+  const favorites = (fav.data?.pages ?? []).flatMap((p) => p.Items)
+  const viewer = useViewer(view, favorites, fav)
   if (q.error && !q.data) return <ErrorView error={toAppError(q.error)} focus />
-  const libs = q.data && photoLibraries(q.data.Items)
   return (
     <>
       <PageBar title="Photos" />
-      {!libs && <GridPlaceholder />}
-      {libs && !libs.length && (
-        <State
-          icon="empty"
-          title="No photo libraries on this gateway."
-          text="Add a “Home videos and photos” library in Jellyfin."
+      {!!favorites.length && (
+        <section className="shelf photo-shelf">
+          <h2>Favorites</h2>
+          <ul>
+            {favorites.map((i) => (
+              <PhotoTile key={i.Id} item={i} onOpen={() => viewer.open(i.Id)} />
+            ))}
+          </ul>
+        </section>
+      )}
+      <Libraries
+        libs={q.data && photoLibraries(q.data.Items)}
+        heading={!!favorites.length}
+      />
+      {view && (
+        <Viewer
+          key={view}
+          id={view}
+          listed={favorites.find((p) => p.Id === view)}
+          onMove={viewer.move}
+          onClose={viewer.close}
         />
       )}
-      {libs && !!libs.length && (
-        <ul className="photo-grid">
-          {libs.map((l) => (
-            <FolderTile key={l.Id} item={l} onOpen={open} />
-          ))}
-        </ul>
-      )}
+    </>
+  )
+}
+
+/** The photo libraries' grid; under their own heading below the Favorites row. */
+function Libraries({ libs, heading }: { libs?: Item[]; heading: boolean }) {
+  const open = useOpenFolder()
+  if (!libs) return <GridPlaceholder />
+  if (!libs.length)
+    return (
+      <State
+        icon="empty"
+        title="No photo libraries on this gateway."
+        text="Add a “Home videos and photos” library in Jellyfin."
+      />
+    )
+  return (
+    <>
+      {heading && <h2>Libraries</h2>}
+      <ul className="photo-grid">
+        {libs.map((l) => (
+          <FolderTile key={l.Id} item={l} onOpen={open} />
+        ))}
+      </ul>
     </>
   )
 }
@@ -311,9 +346,10 @@ function Viewer({
   onMove: (dir: -1 | 1) => void
   onClose: () => void
 }) {
-  // A deep link to a photo not on the loaded pages: its own item.
-  const fetched = useTunnelQuery<Item>(listed ? null : jf.item(id)).data
-  const item = listed ?? fetched
+  // Its own item: the heart's saved state, which the loaded pages miss once
+  // it changes; also a deep link to a photo not on them.
+  const fetched = useTunnelQuery<Item>(jf.item(id)).data
+  const item = fetched ?? listed
   const [size] = useState(() =>
     screenSize(innerWidth, innerHeight, devicePixelRatio),
   )
@@ -336,6 +372,9 @@ function Viewer({
       aria-modal="true"
       aria-label={name || 'Photo'}
       tabIndex={-1}
+      // A click (the heart's too) leaves focus here: the heart remounts once
+      // its saved value comes back (Favorite.tsx) and would drop it to <body>.
+      onClick={() => box.current?.focus()}
       onKeyDown={(e) => {
         const k = viewerKey(e.key)
         if (!k) return
@@ -364,6 +403,7 @@ function Viewer({
         </p>
       )}
       <p className="viewer-caption">{name}</p>
+      {item && <Favorite item={item} />}
       <button
         type="button"
         className="viewer-btn viewer-prev"

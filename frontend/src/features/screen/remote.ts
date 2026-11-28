@@ -29,12 +29,26 @@ export const playOnOptions = (screens: Screen[]) => [
     screenId: s.id,
     remote: false,
   })),
-  ...screens
-    .filter((s) => s.state?.itemId)
-    .map((s) => ({
-      value: `remote:${s.id}`,
-      label: `Remote: ${s.name}`,
-      screenId: s.id,
-      remote: true,
-    })),
+  ...playingScreens(screens).map((s) => ({
+    value: `remote:${s.id}`,
+    label: `Remote: ${s.name}`,
+    screenId: s.id,
+    remote: true,
+  })),
 ]
+
+/** The screens playing something. */
+export const playingScreens = (screens: Screen[]) =>
+  screens.filter((s) => s.state?.itemId)
+
+// The gateway's pages without the Now playing bar: full-screen ones and the
+// screen feature's own.
+const NO_BAR = new Set([
+  '/g/$gatewayId/play/$itemId',
+  '/g/$gatewayId/remote/$screenId',
+  '/g/$gatewayId/screen',
+])
+
+/** Whether the page with this leaf route id shows the Now playing bar. */
+export const nowPlayingOn = (routeId: string | undefined, tv: boolean) =>
+  !tv && !!routeId && !NO_BAR.has(routeId)

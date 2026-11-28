@@ -485,6 +485,15 @@ item page's view count); not a Jellyfin id, or the parameter twice → `400`. A 
 than `?itemId=` ignores it (the client counts only that item's rows); one older than these
 answers `404`.
 
+**`GET /streamiq/tags`** (#1038) → `200` `[{ "name", "itemIds" }]`: every tag on the gateway
+with the Jellyfin items that carry it, by name (case-insensitively). Tags are the gateway's,
+shared by every session, admin or member (`state/tags.json`).
+**`PUT /streamiq/tags/{itemId}`** (#1038) `{ "tags": ["funny"] }` → `204`: replaces that item's
+tags; `[]` removes the item. Each tag is trimmed and 1–32 characters, at most 20 per item,
+duplicates merged case-insensitively (the first spelling stays). Not a Jellyfin id, not JSON,
+no `tags` list or a broken rule → `400` and nothing changes. A gateway older than these
+answers `404` (the item page then shows no tags).
+
 **`POST /streamiq/tunnels/throughput`** (#782) `{ "throughputKbps": 4200 }` → `204`: the
 gateway → client throughput the browser measured (the tunnel's last burst measurement,
 below), kept for this session's own tunnel and written with its line when it ends; missing,

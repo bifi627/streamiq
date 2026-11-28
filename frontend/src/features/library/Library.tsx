@@ -54,6 +54,7 @@ import {
 import { folderView } from './paging'
 import { Artwork, PosterTile, Watched } from './Home'
 import { Favorite } from './Favorite'
+import { Tags } from './TagChips'
 import { itemViews, viewCount, type View } from './views'
 import { tvOn } from '../../shared/settings'
 export { LibraryHome } from './LibraryHome'
@@ -166,7 +167,7 @@ export function ItemPage({ itemId, play }: { itemId: string; play?: string }) {
   return <Browse item={item} />
 }
 
-// The title's info column: the heart, the facts line, the overview and
+// The title's info column: the heart, the tags, the facts line, the overview and
 // genres (phone: behind More), then `children` (Play on…).
 function TitleInfo({
   item,
@@ -189,6 +190,7 @@ function TitleInfo({
   return (
     <div className="title-info">
       <Favorite item={item} />
+      <Tags item={item} />
       {info && <p className="muted">{info}</p>}
       {count && <p className="muted">{count}</p>}
       {hasMore && (

@@ -95,6 +95,29 @@ test(
       await b.goBack()
     })
 
+    await test.step("A's tag is B's too, and B's edit from a page opened before it keeps it (#1038)", async () => {
+      const chips = (p: Page) =>
+        p.getByRole('list', { name: 'Tags' }).getByRole('listitem')
+      for (const p of [a, b])
+        await p
+          .locator('section.shelf', { hasText: 'Recently added' })
+          .getByRole('button', { name: 'streamiq e2e clip' })
+          .click()
+      const add = async (p: Page, t: string) => {
+        await p.getByRole('combobox', { name: 'Add a tag' }).fill(t)
+        await p.getByRole('button', { name: 'Add', exact: true }).click()
+      }
+      await expect(chips(b)).toHaveCount(0) // B's page is open before A's edit
+      await add(a, 'shared')
+      await expect(chips(a)).toHaveText(['shared×'])
+      await add(b, 'mine') // on B's outdated list: A's tag must survive it
+      await expect(chips(b)).toHaveText(['mine×', 'shared×'])
+      await b.reload()
+      await expect(chips(b)).toHaveText(['mine×', 'shared×'])
+      await a.goBack()
+      await b.goBack()
+    })
+
     await test.step("A signs out, B signs in on A's tab: reload, B's resume", async () => {
       // The Resume spot's progress: the saved position.
       const resume = (re: RegExp) =>

@@ -1385,6 +1385,33 @@ button.secondary:hover {
   margin: var(--sp-2) 0 0;
 }
 
+/* The title page's tags: chips (× removes), then the add field. */
+.tags ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  list-style: none;
+}
+.tags .chip button {
+  min-height: 0;
+  padding: 0 var(--sp-1);
+  border: 0;
+  background: none;
+}
+.tags form {
+  display: flex;
+  gap: var(--sp-2);
+}
+.tags input {
+  flex: 1;
+  min-width: 0;
+}
+.tags p {
+  margin: var(--sp-2) 0 0;
+}
+
 /* Play on…: a native picker, full width under the title's info; an
    episode row's sits at the row's end. */
 .play-on select {

@@ -100,16 +100,17 @@ export function tunnelFetch(
   })
 }
 
-/** JSON over the tunnel: GET, or POST when body is given. Throws on non-2xx. */
+/** JSON over the tunnel: GET, or `method` (POST) when body is given. Throws on non-2xx. */
 export async function tunnelJson<T>(
   pc: RTCPeerConnection,
   url: string,
   body?: unknown,
+  method = 'POST',
 ): Promise<T> {
   const r = await tunnelFetch(
     pc,
     url,
-    body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) },
+    body === undefined ? {} : { method, body: JSON.stringify(body) },
   )
   if (r.status < 200 || r.status > 299)
     throw httpError('tunnel', r.status, url.split('?')[0])

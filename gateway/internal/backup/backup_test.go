@@ -20,6 +20,7 @@ var state = map[string]string{
 	"gateway.json":   `{"gatewayId":"g1","credential":"c","name":"Living room"}`,
 	"allowlist.json": `[]`,
 	"jellyfin.json":  `{}`,
+	"tags.json":      `{"0123456789abcdef0123456789abcdef":["funny"]}`, // tags.File
 	"page-token":     "tok",
 	"page-link":      "http://x/?t=tok",
 }

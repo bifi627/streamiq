@@ -10,7 +10,8 @@
 // smoke.spec's; `/` with no gateway, artwork caching and the guest banner
 // are elsewhere (shell spec, FE / Go tests). Favorites: the heart (also in TV mode) and its shelf;
 // per user: multi-user.spec. Watch history: a view per playback after 10 s (a replay within 3 h
-// is the same one), its page (also TV mode).
+// is the same one), its page (also TV mode). Tags: chips, add/remove, TV mode read-only; seen by
+// another member: multi-user.spec.
 import type { Page, WebSocket } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import {
@@ -719,6 +720,56 @@ test('favorites: TV mode reaches the heart with the D-pad; first focus stays on 
   await expect(heart).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(heart).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('tags: chips on a movie, a series and an episode page; add with a suggestion, remove; TV mode shows them without controls (#1038) @library', async ({
+  paired,
+}) => {
+  const { page } = paired
+  const chips = page.getByRole('list', { name: 'Tags' }).getByRole('listitem')
+  const field = page.getByRole('combobox', { name: 'Add a tag' })
+  const add = async (t: string) => {
+    await field.fill(t)
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+  }
+  await open(page)
+  await recent(page).getByRole('button', { name: 'streamiq e2e clip' }).click()
+  await expect(field).toBeVisible()
+  await expect(chips).toHaveCount(0)
+  await add(' funny ')
+  await add('Cozy')
+  await expect(chips).toHaveText(['Cozy×', 'funny×']) // by name
+  await page.getByRole('button', { name: 'Remove tag Cozy' }).click()
+  await expect(chips).toHaveText(['funny×'])
+  await page.goBack()
+  await recent(page)
+    .getByRole('button', { name: 'StreamIQ Test Series' })
+    .click()
+  // The gateway's tags are the suggestions; a differently cased one keeps their spelling.
+  await expect(
+    page.locator('#tag-suggestions option[value="funny"]'),
+  ).toHaveCount(1)
+  await add('FUNNY')
+  await expect(chips).toHaveText(['funny×'])
+  // An episode's own page (a deep link: a click plays it on its series' page).
+  await page.locator('.episode').first().click()
+  await expect(page).toHaveURL(/\?play=/)
+  const ep = new URL(page.url()).searchParams.get('play')
+  await page.goto(page.url().replace(/\/i\/[^?]+.*$/, `/i/${ep}`))
+  await expect(field).toBeVisible()
+  await add('scary')
+  await expect(chips).toHaveText(['scary×'])
+  await page.reload()
+  await expect(chips).toHaveText(['scary×'])
+
+  await page.goto(appUrl('/settings'))
+  await openCategory(page, 'Display')
+  await page.getByLabel('TV mode').check()
+  await open(page)
+  await recent(page).getByRole('button', { name: 'streamiq e2e clip' }).click()
+  await expect(chips).toHaveText(['funny'])
+  await expect(field).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Remove tag/ })).toHaveCount(0)
 })
 
 test('search: in TV mode Back from a result puts the D-pad on the first result @library', async ({

@@ -101,6 +101,9 @@ packages:
     optional_type: "null"
     type_mappings:
       time.Time: "string"
+  - path: "streamiq/gateway/internal/tags"
+    output_path: "frontend/src/generated/tags.ts"
+    include_files: ["types.go"]
   - path: "streamiq/gateway/internal/host"
     output_path: "frontend/src/generated/host.ts"
     include_files: ["load.go"]

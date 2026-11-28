@@ -254,12 +254,21 @@ const playRoute = createRoute({
     return <PlayerPage key={itemId} itemId={itemId} />
   },
 })
+// ?view=<photo id>: the full-screen viewer over the page (Photos.tsx).
+const photoView = (s: Record<string, unknown>): { view?: string } =>
+  typeof s.view === 'string' && s.view ? { view: s.view } : {}
+const photosRoute = createRoute({
+  getParentRoute: () => gatewayRoute,
+  path: 'photos',
+  validateSearch: photoView,
+  component: function Photos() {
+    return <PhotosHome view={photosRoute.useSearch().view} />
+  },
+})
 const photoFolderRoute = createRoute({
   getParentRoute: () => gatewayRoute,
   path: 'photos/$folderId',
-  // ?view=<photo id>: the full-screen viewer over the grid (Photos.tsx).
-  validateSearch: (s: Record<string, unknown>): { view?: string } =>
-    typeof s.view === 'string' && s.view ? { view: s.view } : {},
+  validateSearch: photoView,
   component: function Folder() {
     const { folderId } = photoFolderRoute.useParams()
     const { view } = photoFolderRoute.useSearch()
@@ -355,11 +364,7 @@ const routeTree = rootRoute.addChildren([
     libraryRoute,
     itemRoute,
     playRoute,
-    createRoute({
-      getParentRoute: () => gatewayRoute,
-      path: 'photos',
-      component: PhotosHome,
-    }),
+    photosRoute,
     photoFolderRoute,
     createRoute({
       getParentRoute: () => gatewayRoute,

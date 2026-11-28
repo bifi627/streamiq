@@ -27,10 +27,11 @@ test('flipFavorite: a failed save puts the old value back with its message', asy
   assert.ok(msg.length > 0)
 })
 
-test('favorable: movies and series only', () => {
+test('favorable: movies, series and photos only', () => {
   const t = (Type: string) => favorable({ Id: 'x', Name: 'x', Type } as Item)
   assert.equal(t('Movie'), true)
   assert.equal(t('Series'), true)
+  assert.equal(t('Photo'), true)
   assert.equal(t('Episode'), false)
   assert.equal(t('Folder'), false)
 })

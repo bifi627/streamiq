@@ -336,7 +336,12 @@ view count (#1013) reads `GET /streamiq/views?itemId=` and counts them (`viewCou
   `?view=<photo id>` is the full-screen viewer over the grid: the photo fitted to the screen in
   device pixels via `/Items/{id}/Images/Primary?maxWidth=&maxHeight=` (never the original),
   ←/→ / swipe step (replacing the entry), Back / Escape close onto that photo. The caption is
-  the name, never `Overview` (JPEG comments). Decisions in `photos/gallery.ts`.
+  the name, never `Overview` (JPEG comments). Decisions in `photos/gallery.ts`. Favorites
+  (#1025): the viewer has the movie page's heart (`library/Favorite.tsx`, Jellyfin
+  `IsFavorite`); while the user has a favorite photo, the Photos home shows a Favorites row
+  (favorite `Photo` items, newest first) above its libraries, with the viewer over it; an
+  un-hearted one leaves on the next load. The Library home's Favorites row stays movies and
+  series.
 - Settings (`features/settings/`): `/settings` is a list of categories; one with more than
   2 settings is its own page (`/settings/playback`, row ends in ›), a smaller one expands in
   place (`<details>`, ⌄, closed on load).

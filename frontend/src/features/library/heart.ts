@@ -2,8 +2,9 @@
 import { toAppError } from '../../shared/errors.ts'
 import type { Item } from './items.ts'
 
-/** Movies and series get a heart; episodes and folders don't. */
-export const favorable = (i: Item) => i.Type === 'Movie' || i.Type === 'Series'
+/** Movies, series and photos get a heart; episodes and folders don't. */
+export const favorable = (i: Item) =>
+  i.Type === 'Movie' || i.Type === 'Series' || i.Type === 'Photo'
 
 /** Flips `was`: show() the new value, save() it, show() `was` again if the
  * save fails. Returns the error message, or '' once saved. */

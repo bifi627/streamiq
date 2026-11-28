@@ -29,12 +29,14 @@ export const playOnOptions = (screens: Screen[]) => [
     screenId: s.id,
     remote: false,
   })),
-  ...screens
-    .filter((s) => s.state?.itemId)
-    .map((s) => ({
-      value: `remote:${s.id}`,
-      label: `Remote: ${s.name}`,
-      screenId: s.id,
-      remote: true,
-    })),
+  ...playingScreens(screens).map((s) => ({
+    value: `remote:${s.id}`,
+    label: `Remote: ${s.name}`,
+    screenId: s.id,
+    remote: true,
+  })),
 ]
+
+/** The screens playing something. */
+export const playingScreens = (screens: Screen[]) =>
+  screens.filter((s) => s.state?.itemId)

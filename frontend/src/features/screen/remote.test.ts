@@ -1,7 +1,7 @@
 // Run: node --test src/features/screen/remote.test.ts (part of scripts/check.sh).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { clampSeek, playOnOptions, polled } from './remote.ts'
+import { clampSeek, playOnOptions, playingScreens, polled } from './remote.ts'
 import type { Screen } from '../gateways/api.ts'
 
 test('clampSeek keeps a seek in 0 … duration', () => {
@@ -55,4 +55,10 @@ test('playOnOptions: every screen plays; a playing one also offers its remote', 
   const busy = { id: 's2', name: 'Bedroom', state: { itemId: 'i1' } }
   const labels = playOnOptions([tv, busy] as Screen[]).map((o) => o.label)
   assert.deepEqual(labels, ['TV', 'Bedroom', 'Remote: Bedroom'])
+})
+
+test('playingScreens: only the screens with an item', () => {
+  const busy = { id: 's2', name: 'Bedroom', state: { itemId: 'i1' } }
+  const idle = { id: 's3', name: 'Den', state: { itemId: '' } }
+  assert.deepEqual(playingScreens([tv, busy, idle] as Screen[]), [busy])
 })

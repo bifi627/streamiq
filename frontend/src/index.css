@@ -263,6 +263,18 @@ html.tv .primary:focus-visible {
   stroke-width: 2;
   stroke-linecap: round;
 }
+/* The remote button (RemoteButton.tsx): accent while a screen plays; with
+   several, a see-through native picker over the icon takes the tap. */
+.titlerow .remote-btn {
+  position: relative;
+  color: var(--accent);
+}
+.remote-btn select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
 .titlerow .back svg,
 .titlerow .icon-btn svg {
   width: 1.25rem;

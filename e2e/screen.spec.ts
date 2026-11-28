@@ -1,6 +1,6 @@
 // Screen mode, on a paired browser with its own gateway
 // (fixtures.ts `paired`): the entry, Play on…, the phone remote's commands, two
-// phones, jump scares (marks, hint, list), closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
+// phones, jump scares (marks, hint, list), the remote button, closing, the D-pad after Leave. TV = the fixture's page; phones = more tabs of the same
 // paired browser (each its own tunnel session). Refusals, another user's screen
 // and the relay between sessions are Go tests (screen/screen_test.go,
 // sessions_test.go); the TV mode toggle is shell.spec's, the player's own
@@ -319,6 +319,68 @@ test('jump scares: a whenjumpscare .srt on the remote marks the seek bar, the TV
   await expect(marks).toHaveCount(2)
   await expect(tv.locator('.jumpscare-marks')).toHaveCount(0)
   await expect(tv.getByText(/jump scare/i)).toHaveCount(0)
+})
+
+/** Library's remote button (RemoteButton.tsx): one playing screen = a
+ * button, several = a picker. */
+const remoteBtn = (p: Page) => p.getByRole('button', { name: /^Remote: / })
+const remotePick = (p: Page) => p.getByRole('combobox', { name: 'Remote' })
+
+test("remote button (#1029): back to a playing screen's remote; a picker for several; gone in TV mode and after a stop @player", async ({
+  paired,
+}) => {
+  const { page: tv } = paired
+  const { name, phone } = await cast(tv)
+  const first = must(phone.url().match(/\/remote\/([^/]+)$/), 'screen id')[1]
+  await phone.goBack() // the clip's page
+  const itemId = must(phone.url().match(/\/i\/([^/?]+)/), 'item id')[1]
+  await openLibrary(phone)
+  await expect(remoteBtn(phone)).toHaveAccessibleName(`Remote: ${name}`)
+  await remoteBtn(phone).click()
+  await expect(
+    phone.getByRole('heading', { name: `Remote: ${name}` }),
+  ).toBeVisible()
+  await phone.goBack() // Home
+  // A second screen plays too, arranged over the tunnel.
+  const tv2 = await tv.context().newPage()
+  await tv2.goto(tv.url()) // the screen route
+  await expect(tv2.getByRole('heading', { name: /^Screen: / })).toBeVisible()
+  // Its heading shows before the gateway lists it.
+  const idleScreen = async () =>
+    (
+      JSON.parse((await viaTunnel(phone, '/streamiq/screens')).body) as {
+        id: string
+        state: { itemId: string } | null
+      }[]
+    ).find((s) => !s.state?.itemId)
+  await expect.poll(idleScreen).toBeTruthy()
+  const second = must(await idleScreen(), 'the second screen').id
+  await viaTunnel(phone, `/streamiq/screens/${second}`, {
+    type: 'play',
+    itemId,
+  })
+  await expect(remotePick(phone)).toBeVisible({ timeout: 15_000 }) // the 10 s poll
+  await expect(remotePick(phone).locator('option:not([disabled])')).toHaveCount(
+    2,
+  )
+  await remotePick(phone).selectOption(second)
+  await expect(phone).toHaveURL(new RegExp(`/remote/${second}$`))
+  await phone.goBack() // Home
+  await viaTunnel(phone, `/streamiq/screens/${second}`, { type: 'stop' })
+  await expect(remoteBtn(phone)).toBeVisible({ timeout: 15_000 })
+  // TV mode, the cache still listing a playing screen: an in-app round trip
+  // renders Home again.
+  await phone.evaluate(() => localStorage.setItem('streamiq.settings.tv', '1'))
+  await phone.getByRole('button', { name: /Movies/ }).click()
+  await phone.goBack()
+  await expect(phone.getByRole('button', { name: /Movies/ })).toBeVisible()
+  await expect(remoteBtn(phone)).toHaveCount(0)
+  await phone.evaluate(() => localStorage.removeItem('streamiq.settings.tv'))
+  await phone.goForward()
+  await phone.goBack()
+  await expect(remoteBtn(phone)).toBeVisible()
+  await viaTunnel(phone, `/streamiq/screens/${first}`, { type: 'stop' })
+  await expect(remoteBtn(phone)).toHaveCount(0, { timeout: 15_000 })
 })
 
 test('closing: Back on the TV ends screen mode; the phones say so, Play on… is gone @player', async ({

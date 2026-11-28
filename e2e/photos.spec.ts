@@ -169,6 +169,7 @@ test('photos: the heart in the viewer, the Favorites tile and grid; not on the L
   await expect(heart).toHaveAttribute('aria-pressed', 'false')
   await heart.click()
   await expect(heart).toHaveAttribute('aria-pressed', 'true')
+  await expect(viewer(page)).toBeFocused() // ←/→ still step after the save
   await page.keyboard.press('ArrowLeft') // the heart follows the photo
   await expect(viewer(page)).toHaveAccessibleName('Tall')
   await expect(heart).toHaveAttribute('aria-pressed', 'false')
@@ -216,6 +217,7 @@ test('photos: the heart in the viewer, the Favorites tile and grid; not on the L
   await expect(grid).toHaveCount(1)
   await expect(tile(page, first ?? '')).toBeVisible()
 
+  await page.reload() // a cold home: it shows once every row has answered
   await openLibrary(page)
   await expect(page.locator('section.shelf h2').first()).toBeVisible()
   await expect(

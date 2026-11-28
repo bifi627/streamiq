@@ -260,8 +260,9 @@ function FolderTile({
   onOpen: (i: Item) => void
 }) {
   const own = given ?? primary(item)
-  const first = useTunnelQuery<Views>(own ? null : jf.firstPhoto(item.Id)).data
-    ?.Items[0]
+  const first = useTunnelQuery<Views>(
+    own || given === null ? null : jf.firstPhoto(item.Id),
+  ).data?.Items[0]
   const cover = own ?? (first && primary(first))
   return (
     <li>
@@ -361,6 +362,9 @@ function Viewer({
       aria-modal="true"
       aria-label={name || 'Photo'}
       tabIndex={-1}
+      // A click (the heart's too) leaves focus here: the heart remounts once
+      // its saved value comes back (Favorite.tsx) and would drop it to <body>.
+      onClick={() => box.current?.focus()}
       onKeyDown={(e) => {
         const k = viewerKey(e.key)
         if (!k) return

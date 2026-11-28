@@ -34,10 +34,10 @@ type Sessions struct {
 	// Viewers makes sure a user has their own Jellyfin viewer, once the
 	// session's device is paired: an offer alone (the API) makes nothing. nil = none.
 	Viewers func(user string)
-	// Ended gets every tunnel's report as it ends, with its user, when its offer came
-	// and the throughput its browser measured (0 = none): the gateway's tunnel history.
-	// nil = none.
-	Ended func(r tunnel.Report, user string, start time.Time, kbps int)
+	// Ended gets every tunnel's report as it ends, with its user, when its offer came,
+	// the throughput (0 = none) and playbacks its browser measured: the gateway's
+	// tunnel history. nil = none.
+	Ended func(r tunnel.Report, user string, start time.Time, kbps int, plays []tunnel.Playback)
 	// Relay: false = direct connections only (the gateway's setting): no TURN of our
 	// own, the browser's relay candidates dropped. nil = on.
 	Relay func() bool
@@ -300,7 +300,7 @@ func (s *Sessions) ender(
 		w, _ := why.Load().(string)
 		r := report(id, pc, cands, pair.Load(), failure(iceFailed, authed.Load(), w))
 		r.Use, r.ActiveMs = use.Summary()
-		s.ended(r, user, use.Start(), use.Throughput())
+		s.ended(r, user, use.Start(), use.Throughput(), use.Playbacks())
 		pc.Close()
 	}
 }
@@ -381,9 +381,9 @@ func (s *Sessions) Drop(keyFp string) {
 	}
 }
 
-func (s *Sessions) ended(r tunnel.Report, user string, start time.Time, kbps int) {
+func (s *Sessions) ended(r tunnel.Report, user string, start time.Time, kbps int, plays []tunnel.Playback) {
 	if s.Ended != nil {
-		s.Ended(r, user, start, kbps)
+		s.Ended(r, user, start, kbps, plays)
 	}
 }
 

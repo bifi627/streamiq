@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,23 +21,28 @@ var uses = []struct {
 }
 
 // Usage is one tunnel's use and active time, recorded as its requests end, and the
-// throughput its browser measured.
+// throughput and playbacks its browser measured.
 type Usage struct {
 	start time.Time // the offer arrived
 
-	mu   sync.Mutex
-	rank int       // index into uses; len(uses) = no request yet
-	last time.Time // the end of the last request
-	kbps int       // 0 = none measured
+	mu    sync.Mutex
+	rank  int       // index into uses; len(uses) = no request yet
+	last  time.Time // the end of the last request
+	kbps  int       // 0 = none measured
+	plays []Playback
 }
+
+// PlaybackCap caps a tunnel's playbacks: the latest ones are kept.
+// ponytail: a long-lived tunnel keeps its last 20 only; a per-day file if more matter.
+const PlaybackCap = 20
 
 func NewUsage(start time.Time) *Usage { return &Usage{start: start, rank: len(uses)} }
 
 // record notes a request that ended at; nil u (a test session) records nothing.
 func (u *Usage) record(method, path string, at time.Time) {
 	// The throughput report comes as the tunnel closes, after a shared tunnel's idle
-	// wait: neither a use nor active time.
-	if u == nil || strings.EqualFold(path, ThroughputPath) {
+	// wait, a playback's as the player closes: neither is a use or active time.
+	if u == nil || strings.EqualFold(path, ThroughputPath) || strings.EqualFold(path, PlaybackPath) {
 		return
 	}
 	u.mu.Lock()
@@ -82,4 +88,24 @@ func (u *Usage) Throughput() int {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return u.kbps
+}
+
+// AddPlayback keeps one playback's summary; nil u (a test session) keeps nothing.
+func (u *Usage) AddPlayback(p Playback) {
+	if u == nil {
+		return
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.plays = append(u.plays, p)
+	if len(u.plays) > PlaybackCap {
+		u.plays = u.plays[len(u.plays)-PlaybackCap:]
+	}
+}
+
+// Playbacks is AddPlayback's summaries, oldest first; nil = none.
+func (u *Usage) Playbacks() []Playback {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return slices.Clone(u.plays)
 }

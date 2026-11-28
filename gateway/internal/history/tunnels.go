@@ -20,11 +20,11 @@ type Tunnels struct {
 }
 
 // Record appends the line of a tunnel that ended at end.
-func (t *Tunnels) Record(r tunnel.Report, user string, start, end time.Time, kbps int) error {
+func (t *Tunnels) Record(r tunnel.Report, user string, start, end time.Time, kbps int, plays []tunnel.Playback) error {
 	l := Tunnel{
 		ID: r.Session, GatewayID: t.Gateway, CreatedAt: start.UTC(), EndedAt: end.UTC(), UserID: user,
 		Relay: r.Relay, IPv6: r.Ipv6, BytesSent: r.BytesSent, BytesReceived: r.BytesReceived,
-		Failure: r.Failure, ActiveMs: r.ActiveMs,
+		Failure: r.Failure, ActiveMs: r.ActiveMs, Playbacks: plays,
 	}
 	if kbps > 0 {
 		l.ThroughputKbps = &kbps
@@ -36,8 +36,8 @@ func (t *Tunnels) Record(r tunnel.Report, user string, start, end time.Time, kbp
 }
 
 // Ended records a tunnel that ends now (sessions.Sessions.Ended); a failed write is logged.
-func (t *Tunnels) Ended(r tunnel.Report, user string, start time.Time, kbps int) {
-	if err := t.Record(r, user, start, time.Now(), kbps); err != nil {
+func (t *Tunnels) Ended(r tunnel.Report, user string, start time.Time, kbps int, plays []tunnel.Playback) {
+	if err := t.Record(r, user, start, time.Now(), kbps, plays); err != nil {
 		log.Printf("gateway: tunnel history: %v", err)
 	}
 }

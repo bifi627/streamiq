@@ -777,7 +777,7 @@ func TestTunnelReportedOnceOnEnd(t *testing.T) {
 	var ended []string // the history's lines: session/user
 	var mu sync.Mutex
 	reps := make(chan tunnel.Report, 4)
-	gateway.Ended = func(r tunnel.Report, user string, start time.Time, _ int) {
+	gateway.Ended = func(r tunnel.Report, user string, start time.Time, _ int, _ []tunnel.Playback) {
 		mu.Lock()
 		defer mu.Unlock()
 		if start.IsZero() {
@@ -898,7 +898,7 @@ func TestClassify(t *testing.T) {
 func TestBrowserCloseReportsNoFailure(t *testing.T) {
 	gateway, store := newGateway(t)
 	reps := make(chan tunnel.Report, 4)
-	gateway.Ended = func(r tunnel.Report, _ string, _ time.Time, _ int) { reps <- r }
+	gateway.Ended = func(r tunnel.Report, _ string, _ time.Time, _ int, _ []tunnel.Playback) { reps <- r }
 	b, _ := unpaired(t, gateway, "s1")
 	_, nB := b.commit()
 	b.send(map[string]any{"type": "reveal", "n": nB})

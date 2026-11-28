@@ -26,6 +26,7 @@ export function report(r: {
   cpu: string
   memory: string
   lastRun: string
+  lastPlayback: string | null
   test: Test | null
   gatewayId: string
   gw?: { name: string | null; version: string | null }
@@ -38,6 +39,7 @@ export function report(r: {
     ...(r.cpu ? [`cpu: ${r.cpu}`] : []),
     ...(r.memory ? [`memory: ${r.memory}`] : []),
     ...(r.lastRun ? [r.lastRun] : []),
+    `last playback: ${r.lastPlayback ?? 'none'}`,
     ...(r.test
       ? [
           `gateway: ${r.gw?.name ?? r.gatewayId} (${r.gw?.version ?? '?'})`,

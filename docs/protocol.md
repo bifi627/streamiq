@@ -246,7 +246,8 @@ API keeps no per-tunnel data (#783) and the browser can't create, alter or skip 
   tunnel's idle wait before it closes is not in it). Both absent when no request was served.
 - **Browser**: only its measured throughput, to the gateway over the tunnel itself
   (`POST /streamiq/tunnels/throughput`, below), before it closes the socket; a closed tab
-  skips it.
+  skips it. And each playback's quality summary as the playback ends
+  (`POST /streamiq/tunnels/playback`, below).
 
 The browser's own reading of its pair (`getStats()`; Chrome can report a relayed local
 candidate as `prflx`, only relay candidates carry `relayProtocol`, so that counts too) drives
@@ -461,7 +462,8 @@ the gateway recorded itself, one JSON line per ended tunnel in `state/history/` 
 UTC day, 30 days kept), the same fields the report has plus who and when: `[{ "id" (the
 broker session), "gatewayId" (the enrollment that wrote it: a re-enrolled gateway, maybe in
 another household, answers none of its earlier lines), "createdAt" (the offer), "endedAt", "relay", "ipv6", "bytesSent",
-"bytesReceived", "throughputKbps", "failure", "use", "activeMs" }]` (null = none). A tunnel
+"bytesReceived", "throughputKbps", "failure", "use", "activeMs", "playbacks" }]` (null = none;
+`playbacks` absent = none, else the `POST /streamiq/tunnels/playback` bodies, oldest first). A tunnel
 that failed on the gateway (ICE, auth, busy) is a line too; one that never reached it is
 nowhere. Without `scope`: the session's user's own; `scope=household` (admin only, a member
 gets `403`; another value `400`): every member's, each with `userId`. The last 30 days,
@@ -492,6 +494,16 @@ zero or negative = none, a later call replaces it. Not JSON → `400`. Served by
 itself (`tunnel.NewRouter`, like burst and route) and counted as neither use nor active time:
 it comes as the tunnel closes, after a shared tunnel's idle wait. The web app sends it only
 on a connected tunnel and closes after 2 s at most without an answer.
+
+**`POST /streamiq/tunnels/playback`** (#1033) `{ "itemId", "codec", "width", "height",
+"quality", "remux", "playedSec", "droppedFrames", "totalFrames", "worstStallMs", "waits" }` →
+`204`: one playback's quality summary as the browser measured it (one item in the player,
+until it closes or moves to another item; reloads stay the same playback; `quality` is the
+picked one: Auto, Source, Raw or a rung; `worstStallMs` the longest main-thread stall a 1 s
+timer saw), kept for this session's own tunnel and written with its line when it ends, the
+last 20 per tunnel. Not JSON → `400`. Served by the tunnel itself and counted as neither use
+nor active time. The web app sends it to the tunnel alive when the playback ends (best effort
+on `pagehide`); a gateway older than this answers `404`, which the web app only logs.
 
 **`POST /streamiq/name`** (#310, admin-only) `{ "name": "Living room NAS" }` → `200`
 `{ "name": "<stored>" }`. The name is trimmed, 1–100 characters counted in UTF-16

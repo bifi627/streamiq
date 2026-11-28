@@ -18,6 +18,7 @@ const row = (o: Partial<TunnelRow> = {}): TunnelRow => ({
   gatewayId: 'g1',
   gatewayName: 'nas',
   relay: false,
+  playbacks: null,
   ipv6: false,
   bytesSent: 0,
   bytesReceived: 0,

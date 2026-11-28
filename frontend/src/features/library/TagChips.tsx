@@ -14,6 +14,7 @@ import {
   itemTagsUrl,
   removeTag,
   suggestions,
+  type Change,
   type Tag,
 } from './tags'
 
@@ -24,29 +25,45 @@ export function Tags({ item }: { item: Item }) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
-  const have = customTags(all.data, all.error, item.Id)
+  const have = customTags(all.data, item.Id)
   if (!have) return null
   const edit = !tvOn()
   if (!edit && !have.length) return null
 
-  const save = async (tags: string[]) => {
+  const key = ['tunnel', gatewayId, TAGS]
+  // The PUT replaces the item's list: build it on the gateway's tags as they are
+  // now, not on the cache another member's edit may have outdated.
+  // ponytail: a last-write-wins window of one round trip; a per-item add/remove API if it bites.
+  const save = async (change: (have: string[], all: Tag[]) => Change) => {
     setBusy(true)
     setMsg('')
+    let saved = false
     try {
-      await tunnelJson(pc, itemTagsUrl(item.Id), { tags }, 'PUT')
-      setInput('')
-      await qc.invalidateQueries({ queryKey: ['tunnel', gatewayId, TAGS] })
+      const fresh = await qc.fetchQuery({
+        queryKey: key,
+        queryFn: () => tunnelJson<Tag[]>(pc, TAGS),
+        staleTime: 0,
+      })
+      const next = change(customTags(fresh, item.Id) ?? [], fresh)
+      if ('error' in next) setMsg(next.error)
+      else {
+        await tunnelJson(pc, itemTagsUrl(item.Id), { tags: next.tags }, 'PUT')
+        saved = true
+        await qc.invalidateQueries({ queryKey: key })
+      }
     } catch (e) {
       setMsg(toAppError(e).message)
     }
     setBusy(false)
+    return saved
   }
-  const add = (e: FormEvent) => {
+  const add = async (e: FormEvent) => {
     e.preventDefault()
-    const next = addTag(have, input, suggestions(all.data ?? [], []))
-    if ('error' in next) return setMsg(next.error)
-    if (next.tags.length === have.length) return setInput('')
-    void save(next.tags)
+    if (busy) return
+    const typed = input
+    const change = (h: string[], a: Tag[]) =>
+      addTag(h, typed, suggestions(a, []))
+    if (await save(change)) setInput('')
   }
 
   return (
@@ -61,7 +78,9 @@ export function Tags({ item }: { item: Item }) {
                   type="button"
                   aria-label={`Remove tag ${t}`}
                   aria-disabled={busy}
-                  onClick={() => !busy && save(removeTag(have, t))}
+                  onClick={() =>
+                    !busy && save((h) => ({ tags: removeTag(h, t) }))
+                  }
                 >
                   ×
                 </button>

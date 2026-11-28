@@ -46,6 +46,9 @@ func Load(dir string) (*Store, error) {
 	if err := json.Unmarshal(b, &s.m); err != nil {
 		return nil, fmt.Errorf("tags: %s: %w", s.path, err)
 	}
+	if s.m == nil { // the file says null
+		s.m = map[string][]string{}
+	}
 	return s, nil
 }
 

@@ -10,14 +10,14 @@ export const TAGS = TagsPath
 export const itemTagsUrl = (itemId: string) =>
   `${TAGS}/${encodeURIComponent(itemId)}`
 
-/** The item's tags, by name; null hides the chips: no answer yet, or any error
- * (a gateway too old to keep tags answers 404). */
+/** The item's tags, by name; null hides the chips: no answer yet, or an error
+ * before any (a gateway too old to keep tags answers 404). A failed refetch
+ * keeps the last answer. */
 export function customTags(
   all: Tag[] | undefined,
-  error: unknown,
   itemId: string,
 ): string[] | null {
-  if (error || !all) return null
+  if (!all) return null
   return all.filter((t) => t.itemIds.includes(itemId)).map((t) => t.name)
 }
 
@@ -30,11 +30,12 @@ const has = (list: string[], name: string) =>
 
 /** `have` plus `input` (trimmed; an existing tag's spelling wins over the typed
  * one); unchanged for an empty input or one it already has; else why not. */
+export type Change = { tags: string[] } | { error: string }
 export function addTag(
   have: string[],
   input: string,
   existing: string[],
-): { tags: string[] } | { error: string } {
+): Change {
   const typed = input.trim()
   if (!typed || has(have, typed)) return { tags: have }
   if ([...typed].length > MaxLen)

@@ -88,7 +88,11 @@ func TestABadPutIsRefusedAndChangesNothing(t *testing.T) {
 		{item1, `{"tags":["` + strings.Repeat("x", MaxLen+1) + `"]}`},
 		{item1, string(tooMany)},
 	} {
-		if s := put(t, rt, c.id, c.body); s != http.StatusBadRequest && s != http.StatusNotFound {
+		want := http.StatusBadRequest
+		if c.id == "../x" {
+			want = http.StatusNotFound // the router's: an unclean path is never routed
+		}
+		if s := put(t, rt, c.id, c.body); s != want {
 			t.Errorf("%s %q: %d", c.id, c.body, s)
 		}
 	}

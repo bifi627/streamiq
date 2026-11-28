@@ -1,6 +1,5 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { httpError } from '../../shared/errors.ts'
 import {
   addTag,
   customTags,
@@ -16,15 +15,14 @@ const all: Tag[] = [
 ]
 
 test('customTags: the item’s tags by name', () => {
-  assert.deepEqual(customTags(all, null, 'a'), ['funny'])
-  assert.deepEqual(customTags(all, null, 'b'), ['Cozy', 'funny'])
-  assert.deepEqual(customTags(all, null, 'c'), [])
+  assert.deepEqual(customTags(all, 'a'), ['funny'])
+  assert.deepEqual(customTags(all, 'b'), ['Cozy', 'funny'])
+  assert.deepEqual(customTags(all, 'c'), [])
 })
 
 test('customTags: a gateway too old to keep tags (404) shows no chips, not an error', () => {
-  const old = httpError('tunnel', 404, '/streamiq/tags')
-  assert.equal(customTags(undefined, old, 'a'), null)
-  assert.equal(customTags(undefined, null, 'a'), null) // still loading
+  // useTunnelQuery's 404 (an old gateway) or still loading: no data
+  assert.equal(customTags(undefined, 'a'), null)
 })
 
 test('suggestions: the gateway’s tags the item lacks, case-insensitively', () => {

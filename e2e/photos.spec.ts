@@ -4,7 +4,7 @@
 // library off the Library home, folders before photos, covers, square tiles,
 // the viewer (screen-sized, ←/→, swipe, Back / Escape back to the
 // photo), TV mode's D-pad and favorites (the viewer's heart, the
-// Favorites tile and grid, not on the Library home).
+// Favorites row on the Photos home, not on the Library home).
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures.ts'
 import { appUrl, openCategory, openLibrary } from './helpers.ts'
@@ -149,19 +149,23 @@ test('photos: TV mode has Library · Photos · Settings and the D-pad works in t
   await expect(tile(page, 'Tall')).toBeFocused()
 })
 
-test('photos: the heart in the viewer, the Favorites tile and grid; not on the Library home (#1025) @library', async ({
+test('photos: the heart in the viewer, the Favorites row above the libraries; not on the Library home (#1025) @library', async ({
   paired,
 }) => {
   const { page } = paired
   const heart = viewer(page).getByRole('button', { name: 'Favorite' })
-  const grid = page.locator('.photo-grid button')
+  const row = page.locator('section.shelf', {
+    has: page.getByRole('heading', { name: 'Favorites' }),
+  })
   const photosHome = async () => {
     await nav(page).getByRole('link', { name: 'Photos' }).click()
     await expect(page).toHaveURL(/\/photos$/)
+    await expect(tile(page, 'Photos')).toBeVisible()
   }
   await openAlbum(page)
   await photosHome()
-  await expect(grid).toHaveText(['Photos']) // no favorite yet: no tile
+  await expect(row).toHaveCount(0) // no favorite yet: no row
+  await expect(page.getByRole('heading', { name: 'Libraries' })).toHaveCount(0)
 
   await tile(page, 'Photos').click()
   await tile(page, 'Album').click()
@@ -177,45 +181,32 @@ test('photos: the heart in the viewer, the Favorites tile and grid; not on the L
   await expect(viewer(page)).toHaveAccessibleName('Wide')
   await expect(heart).toHaveAttribute('aria-pressed', 'true')
   await page.keyboard.press('Escape')
-
-  // First, covered by the (only) favorite: Wide, 2:1.
-  await photosHome()
-  await expect(grid).toHaveText(['Favorites', 'Photos'])
-  const cover = tile(page, 'Favorites').locator('img')
-  await expect
-    .poll(() =>
-      cover.evaluate(
-        (i: HTMLImageElement) => i.naturalWidth / (i.naturalHeight || 1),
-      ),
-    )
-    .toBe(2)
-
-  await tile(page, 'Photos').click()
-  await tile(page, 'Album').click()
   await tile(page, 'Square').click()
   await heart.click()
   await expect(heart).toHaveAttribute('aria-pressed', 'true')
   await page.keyboard.press('Escape')
 
+  // The row comes first, then the libraries under their own heading.
   await photosHome()
-  await tile(page, 'Favorites').click()
-  await expect(page.locator('.titlerow-title')).toHaveText('Favorites')
-  await expect(grid).toHaveCount(2)
-  await grid.first().click()
+  await expect(page.locator('main h2')).toHaveText(['Favorites', 'Libraries'])
+  const favs = row.getByRole('button')
+  await expect(favs).toHaveCount(2)
+  await favs.first().click()
   const first = await viewer(page).getAttribute('aria-label')
-  await page.keyboard.press('ArrowRight') // swipes through the favorites only
+  await page.keyboard.press('ArrowRight') // steps through the favorites only
   const second = first === 'Wide' ? 'Square' : 'Wide'
   await expect(viewer(page)).toHaveAccessibleName(second)
-  await heart.click() // un-hearted: still in the open grid, gone on the next load
+  await heart.click() // un-hearted: still in the open row, gone on the next load
   await expect(heart).toHaveAttribute('aria-pressed', 'false')
   await page.keyboard.press('ArrowLeft')
   await expect(viewer(page)).toHaveAccessibleName(first ?? '')
   await page.keyboard.press('Escape')
-  await expect(grid).toHaveCount(2)
+  await expect(viewer(page)).toBeHidden()
+  await expect(favs).toHaveCount(2)
+  await tile(page, 'Photos').click()
   await photosHome()
-  await tile(page, 'Favorites').click()
-  await expect(grid).toHaveCount(1)
-  await expect(tile(page, first ?? '')).toBeVisible()
+  await expect(favs).toHaveCount(1)
+  await expect(row.getByRole('button', { name: first ?? '' })).toBeVisible()
 
   await page.reload() // a cold home: it shows once every row has answered
   await openLibrary(page)

@@ -1,7 +1,7 @@
-// The Photos tab: the gateway's photo libraries after a Favorites tile
-// (PhotosHome), a folder's grid (PhotoFolder: sub-folders, then photos,
-// square tiles; folder id `favorites`: the favorite photos) and the
-// full-screen viewer over it (?view=<photo id>, so Back closes it).
+// The Photos tab: the favorite photos' row above the gateway's photo
+// libraries (PhotosHome), a folder's grid (PhotoFolder: sub-folders, then
+// photos, square tiles) and the full-screen viewer over either (?view=<photo
+// id>, so Back closes it).
 // Routes (App.tsx): /g/$gatewayId/photos[/$folderId], in the gateway's tunnel.
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -12,7 +12,6 @@ import { ErrorView, State } from '../../shared/ErrorView'
 import { toAppError } from '../../shared/errors'
 import {
   primary,
-  type Art,
   useArt,
   useFolderPages,
   useTunnel,
@@ -35,41 +34,62 @@ import {
 
 type Views = { Items: Item[] }
 
-const FAVORITES = 'favorites' // not a Jellyfin id (32 hex)
-const favoritesTile = { Id: FAVORITES, Name: 'Favorites' } as Item
-
-export function PhotosHome() {
+export function PhotosHome({ view }: { view?: string }) {
   const q = useTunnelQuery<Views>(jf.userViews)
-  const open = useOpenFolder()
-  const newest = useFolderPages(FAVORITES, jf.favoritePhotos).data?.pages[0]
-    ?.Items[0]
+  const fav = useFolderPages('favorites', jf.favoritePhotos)
+  const favorites = (fav.data?.pages ?? []).flatMap((p) => p.Items)
+  const viewer = useViewer(view, favorites, fav)
   if (q.error && !q.data) return <ErrorView error={toAppError(q.error)} focus />
-  const libs = q.data && photoLibraries(q.data.Items)
   return (
     <>
       <PageBar title="Photos" />
-      {!libs && <GridPlaceholder />}
-      {libs && !libs.length && (
-        <State
-          icon="empty"
-          title="No photo libraries on this gateway."
-          text="Add a “Home videos and photos” library in Jellyfin."
+      {!!favorites.length && (
+        <section className="shelf photo-shelf">
+          <h2>Favorites</h2>
+          <ul>
+            {favorites.map((i) => (
+              <PhotoTile key={i.Id} item={i} onOpen={() => viewer.open(i.Id)} />
+            ))}
+          </ul>
+        </section>
+      )}
+      <Libraries
+        libs={q.data && photoLibraries(q.data.Items)}
+        heading={!!favorites.length}
+      />
+      {view && (
+        <Viewer
+          key={view}
+          id={view}
+          listed={favorites.find((p) => p.Id === view)}
+          onMove={viewer.move}
+          onClose={viewer.close}
         />
       )}
-      {libs && !!libs.length && (
-        <ul className="photo-grid">
-          {newest && (
-            <FolderTile
-              item={favoritesTile}
-              cover={primary(newest)}
-              onOpen={open}
-            />
-          )}
-          {libs.map((l) => (
-            <FolderTile key={l.Id} item={l} onOpen={open} />
-          ))}
-        </ul>
-      )}
+    </>
+  )
+}
+
+/** The photo libraries' grid; under their own heading below the Favorites row. */
+function Libraries({ libs, heading }: { libs?: Item[]; heading: boolean }) {
+  const open = useOpenFolder()
+  if (!libs) return <GridPlaceholder />
+  if (!libs.length)
+    return (
+      <State
+        icon="empty"
+        title="No photo libraries on this gateway."
+        text="Add a “Home videos and photos” library in Jellyfin."
+      />
+    )
+  return (
+    <>
+      {heading && <h2>Libraries</h2>}
+      <ul className="photo-grid">
+        {libs.map((l) => (
+          <FolderTile key={l.Id} item={l} onOpen={open} />
+        ))}
+      </ul>
     </>
   )
 }
@@ -94,13 +114,9 @@ export function PhotoFolder({
 }) {
   const { gatewayId } = useTunnel()
   const navigate = useNavigate()
-  const favorites = folderId === FAVORITES
-  const it = useTunnelQuery<Item>(favorites ? null : jf.item(folderId))
+  const it = useTunnelQuery<Item>(jf.item(folderId))
   useTunnelQuery<Views>(jf.userViews) // a deep link here: the nav's Photos tab (tab.ts)
-  const q = useFolderPages(
-    folderId,
-    favorites ? jf.favoritePhotos : jf.photoChildren,
-  )
+  const q = useFolderPages(folderId, jf.photoChildren)
   const listed = folderView({
     pages: q.data?.pages,
     hasNext: q.hasNextPage,
@@ -122,10 +138,7 @@ export function PhotoFolder({
   )
   return (
     <>
-      <PageBar
-        title={favorites ? favoritesTile.Name : it.data?.Name}
-        onBack={back}
-      />
+      <PageBar title={it.data?.Name} onBack={back} />
       <Pages
         listed={listed}
         error={q.error ?? it.error}
@@ -247,22 +260,19 @@ function PhotoTile({ item, onOpen }: { item: Item; onOpen: () => void }) {
   )
 }
 
-/** A library or album: `cover`, else its own image, else its first photo
- * (Jellyfin makes none for photo folders), else a folder icon.
+/** A library or album: its own image, else its first photo (Jellyfin makes
+ * none for photo folders), else a folder icon.
  * ponytail: one Jellyfin request per folder tile, on render, not on screen. */
 function FolderTile({
   item,
-  cover: given,
   onOpen,
 }: {
   item: Item
-  cover?: Art | null
   onOpen: (i: Item) => void
 }) {
-  const own = given ?? primary(item)
-  const first = useTunnelQuery<Views>(
-    own || given === null ? null : jf.firstPhoto(item.Id),
-  ).data?.Items[0]
+  const own = primary(item)
+  const first = useTunnelQuery<Views>(own ? null : jf.firstPhoto(item.Id)).data
+    ?.Items[0]
   const cover = own ?? (first && primary(first))
   return (
     <li>

@@ -1,6 +1,10 @@
 package history
 
-import "time"
+import (
+	"time"
+
+	"streamiq/gateway/internal/tunnel"
+)
 
 // HealthPath is the gateway API's health history (any household member).
 const HealthPath = "/streamiq/health"
@@ -42,6 +46,8 @@ type Tunnel struct {
 	Failure        *string `json:"failure"`        // null = it came up and passed auth
 	Use            *string `json:"use"`            // null = no request served
 	ActiveMs       *int64  `json:"activeMs"`       // null = no request served
+	// Playbacks: one per playback its browser reported, oldest first; absent = none.
+	Playbacks []tunnel.Playback `json:"playbacks,omitempty"`
 }
 
 // Summary is a row of GET /streamiq/tunnels/summary: one user's last TunnelDays.

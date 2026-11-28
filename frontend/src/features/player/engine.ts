@@ -24,6 +24,7 @@ import { subtitleTrack } from './subtitles'
 import type { Link } from './quality'
 import { autoLine, qualityLine, transcodeParams, urlAudio } from './stream'
 import { closable, startAudio } from './timing'
+import { send, track } from './summary'
 import {
   audioCodecs,
   autoAudio,
@@ -115,6 +116,7 @@ export class Engine {
   private seekTo?: number // a phone's seek while nothing is attached
   private at0 = 0 // where the current load starts, seconds
   private loads = 0 // only the latest start() attaches (quick quality switches)
+  private summary?: ReturnType<typeof track> // this playback's quality summary
 
   private readonly tunnel: () => RTCPeerConnection // the current one: it can be replaced
   private readonly v: HTMLVideoElement
@@ -158,6 +160,19 @@ export class Engine {
     const unremote = remote?.(this.command)
     this.init(startTicks).catch((e) => this.set({ err: toAppError(e) }))
     const unwatch = watchVideo(v)
+    const summary = (this.summary = track(v, this.itemId))
+    // To the tunnel alive at the end; a closed page's goes best effort on pagehide.
+    const report = () => {
+      const p = summary.end()
+      if (p?.quality)
+        // a player closed before its first load played nothing
+        void send(
+          p,
+          (b) => tunnelJson(this.tunnel(), '/streamiq/tunnels/playback', b),
+          event,
+        )
+    }
+    addEventListener('pagehide', report)
     const unresume = watchResume(this.tunnel, v, this.itemId, () => !!this.h)
     const state = setInterval(() => this.onState() && this.emit(), 1000)
     const on: [string, () => void][] = [
@@ -172,6 +187,8 @@ export class Engine {
       this.close()
       unremote?.()
       unwatch()
+      removeEventListener('pagehide', report)
+      report()
       clearInterval(state)
       // The pages left behind refetch, after the exit save.
       playback.set(gatewayId, { at, saved: unresume() })
@@ -340,6 +357,13 @@ export class Engine {
       audio: params.get('AudioStreamIndex') ?? '',
     })
     this.emit()
+    this.summary?.load({
+      codec:
+        (d.videoCopy ? sv?.Codec : params.get('VideoCodec')?.split(',')[0]) ??
+        '',
+      quality: this.q,
+      remux: d.videoCopy,
+    })
     transcodeParams(params, d.videoCopy, o.limited, o.cap)
     if (!d.videoCopy)
       event(

@@ -21,6 +21,7 @@ import { connect } from '../pairing/connect'
 import { isKind } from '../../shared/errors'
 import { useGateways } from '../gateways/api'
 import { describe, probe } from '../player/profile'
+import { lastPlayback } from '../player/summary'
 import { useHousehold } from '../households/household'
 import {
   defaultGateway,
@@ -108,6 +109,7 @@ export function DiagnosticsPage() {
     cpu: diag.cpu,
     memory: diag.memory,
     lastRun: diag.lastRun,
+    lastPlayback: lastPlayback(),
     browser: navigator.userAgent,
     screen: `${screen.width}x${screen.height} @${devicePixelRatio}x, window ${innerWidth}x${innerHeight}`,
     caps,

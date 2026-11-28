@@ -18,6 +18,7 @@ const line = (id: string, createdAt: string, userId?: string): Tunnel => ({
   bytesReceived: 0,
   throughputKbps: null,
   failure: null,
+  playbacks: null,
   use: 'playback',
   activeMs: null,
 })

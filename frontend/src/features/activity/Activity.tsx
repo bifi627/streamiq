@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { toAppError } from '../../shared/errors'
 import { ErrorView, State } from '../../shared/ErrorView'
@@ -9,6 +9,7 @@ import { byMember, memberLabel } from './household'
 import { HouseholdSummary, MemberSelect } from './HouseholdSummary'
 import { RelayUsage } from './RelayUsage'
 import { useMembers } from './useMembers'
+import { line } from '../player/summary'
 import {
   byGateway,
   byUse,
@@ -131,16 +132,23 @@ function TunnelTable({
         </thead>
         <tbody>
           {rows.map((t) => (
-            <tr key={t.id}>
-              <td>{when(t)}</td>
-              {admin && <td>{memberLabel(t.userId, names)}</td>}
-              <td>{gatewayLabel(t)}</td>
-              <td>{use(t)}</td>
-              <td>{route(t)}</td>
-              <td>{duration(t)}</td>
-              <td>{data(t)}</td>
-              <td>{throughput(t)}</td>
-            </tr>
+            <Fragment key={t.id}>
+              <tr>
+                <td>{when(t)}</td>
+                {admin && <td>{memberLabel(t.userId, names)}</td>}
+                <td>{gatewayLabel(t)}</td>
+                <td>{use(t)}</td>
+                <td>{route(t)}</td>
+                <td>{duration(t)}</td>
+                <td>{data(t)}</td>
+                <td>{throughput(t)}</td>
+              </tr>
+              {t.playbacks?.map((p, i) => (
+                <tr key={i} className="playback">
+                  <td colSpan={admin ? 8 : 7}>{line(p)}</td>
+                </tr>
+              ))}
+            </Fragment>
           ))}
         </tbody>
       </table>

@@ -11,6 +11,22 @@ export interface Throughput {
   throughputKbps: number /* int */;
 }
 /**
+ * Playback is POST PlaybackPath's body: one playback's quality, as its browser measured it.
+ */
+export interface Playback {
+  itemId: string;
+  codec: string;
+  width: number /* int */;
+  height: number /* int */;
+  quality: string; // the picked one: Auto | Source | Raw | a rung (1080p …)
+  remux: boolean; // false = video transcoded
+  playedSec: number /* int */;
+  droppedFrames: number /* int */;
+  totalFrames: number /* int */;
+  worstStallMs: number /* int */; // the longest main-thread stall
+  waits: number /* int */; // <video> waiting events
+}
+/**
  * Route is GET RoutePath.
  */
 export interface Route {

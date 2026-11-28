@@ -1,7 +1,7 @@
 // The player, on a paired browser with its own gateway (fixtures.ts
 // `paired`): the privacy badge (+ inline fullscreen's title), the profile line, the deep link (inline + the old /play/) + Back key,
 // the bar's controls, volume, quality, a dropped tunnel, compatible mode (+ the transcode report), Auto on a slow link, the
-// speed test's cache and Off setting, data saver, audio, auto audio, subtitles and next episode. Per-device settings
+// speed test's cache and Off setting, data saver, audio, auto audio, subtitles, next episode and the playback summary. Per-device settings
 // are arranged in localStorage before the app loads (their toggles on /settings/playback are
 // shell.spec's). Movies → clip → Play and the Resume spot are smoke.spec's;
 // Play on TV is the screen spec's, rung choice and decisions profile.test.ts's.
@@ -15,6 +15,7 @@ import {
   keepPcs,
   openDock,
   openGateway,
+  openActivity,
   openLibrary,
   pitch,
   videoTime,
@@ -122,6 +123,34 @@ test("profile line (#115): the probe and Jellyfin's decision in the dock @player
   await expect(
     page.getByText(/jellyfin: video remux \(h264\) · audio copy/),
   ).toBeVisible()
+})
+
+test('playback summary (#1033): sent as the player closes; in the diagnostics report and under its tunnel in Activity @player', async ({
+  paired,
+}) => {
+  const { page } = paired
+  await arrange(page, DIAG)
+  await play(page, CLIP, 3)
+  await page.goBack() // closes the player: its summary goes over the tunnel
+  await openDock(page)
+  await expect(
+    page.locator('.dock-reqs tr', { hasText: '/streamiq/tunnels/playback' }),
+  ).toContainText('HTTP 204')
+  const summary =
+    /h264 \d+×\d+ · Auto · (remux|transcode) · \d+ sec · [\d,]+ of [\d,]+ frames dropped · worst stall [\d,]+ ms · \d+ waits?/
+  await page.goto(appUrl('/diagnostics')) // a new page: the old tunnel ends
+  await expect(page.locator('pre.report')).toContainText(
+    new RegExp(`last playback: ${summary.source}`),
+  )
+  // The gateway writes the line once the tunnel's end reaches it.
+  await expect(async () => {
+    await openActivity(page)
+    await expect(
+      page
+        .getByRole('table', { name: 'Tunnels' })
+        .getByRole('row', { name: summary }),
+    ).toBeVisible({ timeout: 2000 })
+  }).toPass({ timeout: 20_000 })
 })
 
 test('deep link: ?play=<id> reloads at the saved position; the old /play/<id> and its Back key in a new tab @player', async ({

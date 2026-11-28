@@ -153,12 +153,17 @@ may not hear the `bye`: its socket closes too, and the tunnel ends when the brow
 connection drops). The web app shows
 a privacy indicator: on your network (the gateway sees the browser on one of its own subnets, `GET /streamiq/route`, #428), direct, relayed, or relayed · forced (the tunnel was opened with this browser's Force relay on, #945).
 **The tunnel history stays on the gateway** (#782, part of #768): `sessions` hands every
-ended tunnel (`Sessions.Ended`: the report, its user, the offer's time, the throughput) to
+ended tunnel (`Sessions.Ended`: the report, its user, the offer's time, the throughput, the playbacks) to
 `gateway/internal/history` (`Tunnels.Record`), one line in
 `state/history/tunnels-YYYY-MM-DD.jsonl` (30 days kept), stamped with the gateway id: a
 re-enrolled gateway (maybe in another household) answers none of its earlier lines. The browser posts its measured
 throughput to its own tunnel (`POST /streamiq/tunnels/throughput`, `pairing/session.ts`,
-kept on `tunnel.Usage`). A member's own tunnels to the household's gateways (30 days, ≤ 200
+kept on `tunnel.Usage`), and each playback's quality summary as it ends (#1033;
+`player/summary.ts`, measured by the Engine on every playback, diagnostics on or off:
+codec, size, quality, remux, seconds played, dropped frames, the worst main-thread stall
+from a 1 s lag timer, `waiting` events; `POST /streamiq/tunnels/playback` to the tunnel
+alive at its end, best effort on `pagehide`; the last 20 per tunnel). Activity shows each under its
+tunnel's row, the `/diagnostics` report this browser's last (`last playback:`). A member's own tunnels to the household's gateways (30 days, ≤ 200
 per gateway) are in the household details' Activity tile (`/settings/household`; `/activity`
 redirects there with it open), read only once it is opened: `activity/api.ts` asks every gateway that
 is online and paired with this browser (`GET /streamiq/tunnels` over the tunnel; those are

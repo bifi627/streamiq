@@ -40,24 +40,27 @@ test('report: optional lines only when set, test block or "not run"', () => {
     cpu: '',
     memory: '',
     lastRun: '',
+    lastPlayback: null,
     test: null,
     gatewayId: 'g1',
   }
   assert.equal(
     report(base),
-    'StreamIQ diagnostics\nbrowser: UA\nscreen: 1x1\ncodecs: h264\nconnection test: not run',
+    'StreamIQ diagnostics\nbrowser: UA\nscreen: 1x1\ncodecs: h264\nlast playback: none\nconnection test: not run',
   )
   const r = report({
     ...base,
     cpu: 'c',
     memory: 'm',
     lastRun: 'last run …',
+    lastPlayback: 'hevc 1920×1080 · Source',
     test: { lines: ['paired: no'], failed: 'failed at connect' },
   }).split('\n')
   assert.deepEqual(r.slice(4), [
     'cpu: c',
     'memory: m',
     'last run …',
+    'last playback: hevc 1920×1080 · Source',
     'gateway: g1 (?)',
     'paired: no',
     'failed at connect',

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,10 +40,10 @@ func TestATunnelLineHasEveryField(t *testing.T) {
 	end := time.Now().UTC()
 	r := tunnel.Report{Session: "s1", Relay: true, Ipv6: true, BytesSent: 10, BytesReceived: 20,
 		Use: "playback", ActiveMs: ref(int64(900))}
-	if err := h.Record(r, "u1", end.Add(-time.Minute), end, 4200); err != nil {
+	if err := h.Record(r, "u1", end.Add(-time.Minute), end, 4200, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.Record(tunnel.Report{Session: "s2", Failure: ref("ice failed")}, "u1", end, end, 0); err != nil {
+	if err := h.Record(tunnel.Report{Session: "s2", Failure: ref("ice failed")}, "u1", end, end, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(filepath.Join(s.Dir, "tunnels-"+end.Format(day)+".jsonl"))
@@ -54,6 +55,29 @@ func TestATunnelLineHasEveryField(t *testing.T) {
 		end.Add(-time.Minute).Format(time.RFC3339Nano), end.Format(time.RFC3339Nano))
 	if string(b) != want {
 		t.Fatalf("lines\n%s\nwant\n%s", b, want)
+	}
+}
+
+// A line keeps its playbacks and GET answers them; a line without any answers none.
+func TestTheLinesPlaybacks(t *testing.T) {
+	h := &Tunnels{Store: &Store{Dir: t.TempDir(), Kind: "tunnels", Days: TunnelDays}, Gateway: "g1"}
+	now := time.Now()
+	p := tunnel.Playback{ItemID: "it", Codec: "hevc", Width: 1920, Height: 1080, Quality: "Source", Remux: true,
+		PlayedSec: 720, DroppedFrames: 312, TotalFrames: 43210, WorstStallMs: 840, Waits: 3}
+	if err := h.Record(tunnel.Report{Session: "old"}, "u1", now.Add(-time.Minute), now, 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Record(tunnel.Report{Session: "new"}, "u1", now, now, 0, []tunnel.Playback{p, p}); err != nil {
+		t.Fatal(err)
+	}
+	status, _, body, _ := tunnel.Do(api(h), tunnel.Session{User: "u1"}, "GET", TunnelsPath, "")
+	var rows []Tunnel
+	if err := json.Unmarshal([]byte(body), &rows); err != nil || status != 200 || len(rows) != 2 {
+		t.Fatalf("%d %s", status, body)
+	}
+	if len(rows[0].Playbacks) != 2 || rows[0].Playbacks[1] != p || rows[1].Playbacks != nil ||
+		!strings.Contains(body, `"playbacks":[{"itemId":"it"`) || strings.Count(body, "playbacks") != 1 {
+		t.Fatalf("got %s", body)
 	}
 }
 
@@ -75,14 +99,14 @@ func seed(t *testing.T, n int) *Tunnels {
 	h := &Tunnels{Store: &Store{Dir: t.TempDir(), Kind: "tunnels", Days: 40}, Gateway: "g2"}
 	now := time.Now()
 	add := func(at time.Time, user string, r tunnel.Report) {
-		if err := h.Record(r, user, at, at, 0); err != nil {
+		if err := h.Record(r, user, at, at, 0, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
 	add(now.AddDate(0, 0, -31), "u2", tunnel.Report{Session: "old"})
 	before := *h
 	before.Gateway = "g1" // the same box, enrolled earlier (maybe in another household)
-	if err := before.Record(tunnel.Report{Session: "earlier"}, "u0", now, now, 0); err != nil {
+	if err := before.Record(tunnel.Report{Session: "earlier"}, "u0", now, now, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	for i := range n {

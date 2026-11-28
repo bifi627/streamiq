@@ -1,7 +1,9 @@
 package tunnel
 
 import (
+	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -82,5 +84,35 @@ func TestServeRecordsUsage(t *testing.T) {
 	serve(httptest.NewRecorder(), &Root{}, raw, &reqState{who: Session{Use: u}})
 	if use, ms := u.Summary(); use != "management" || ms == nil {
 		t.Fatalf("got %q %v, want management", use, ms)
+	}
+}
+
+// A playback summary is kept on the tunnel, the latest PlaybackCap only, and counts
+// as neither use nor active time.
+func TestPlaybacksAreKeptCapped(t *testing.T) {
+	u := NewUsage(time.Now())
+	for i := range PlaybackCap + 2 {
+		body := fmt.Sprintf(`{"itemId":"%032d","codec":"hevc","playedSec":60}`, i)
+		if s, _, _, _ := Do(NewRouter(), Session{Use: u}, "POST", PlaybackPath, body); s != 204 {
+			t.Fatalf("status %d, want 204", s)
+		}
+	}
+	got := u.Playbacks()
+	last := Playback{ItemID: fmt.Sprintf("%032d", 21), Codec: "hevc", PlayedSec: 60}
+	if len(got) != PlaybackCap || got[0].ItemID != fmt.Sprintf("%032d", 2) || got[PlaybackCap-1] != last {
+		t.Fatalf("kept %d from %+v to %+v, want items 2 … 21", len(got), got[0], got[len(got)-1])
+	}
+	if use, ms := u.Summary(); use != "" || ms != nil {
+		t.Fatalf("use %q %v, want none", use, ms)
+	}
+	id := `"itemId":"` + strings.Repeat("a", 32) + `"`
+	long := strings.Repeat("x", 33)
+	for _, bad := range []string{"nope", "null", "{}", `{"itemId":"<<"}`, `{` + id + `,"codec":"` + long + `"}`, `{` + id + `,"quality":"` + long + `"}`} {
+		if s, _, _, _ := Do(NewRouter(), Session{Use: u}, "POST", PlaybackPath, bad); s != 400 {
+			t.Errorf("%s: %d, want 400", bad, s)
+		}
+	}
+	if s, _, _, _ := Do(NewRouter(), Session{Use: u}, "POST", PlaybackPath, `{`+id+`}`); s != 204 {
+		t.Fatalf("an id alone: %d", s)
 	}
 }

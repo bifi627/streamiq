@@ -45,7 +45,7 @@ func TestOfferOverMaxUnauthedRefused(t *testing.T) {
 	}
 	var report []tunnel.Report
 	var line string
-	s.Ended = func(r tunnel.Report, user string, _ time.Time, _ int) {
+	s.Ended = func(r tunnel.Report, user string, _ time.Time, _ int, _ []tunnel.Playback) {
 		report = append(report, r)
 		line = r.Session + "/" + user
 	}

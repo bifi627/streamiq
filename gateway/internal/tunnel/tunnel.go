@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -248,6 +249,23 @@ func serveThroughput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	SessionOf(r).Use.SetThroughput(b.ThroughputKbps)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// PlaybackPath adds one playback's summary to the calling tunnel's history line.
+const PlaybackPath = "/streamiq/tunnels/playback"
+
+var playbackItem = regexp.MustCompile(`^` + JellyfinID + `$`)
+
+func servePlayback(w http.ResponseWriter, r *http.Request) {
+	var b Playback
+	// The line is read back with a 64 KiB-per-line scanner: every entry stays small.
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&b) != nil ||
+		!playbackItem.MatchString(b.ItemID) || len(b.Codec) > 32 || len(b.Quality) > 32 {
+		Fail(w, http.StatusBadRequest, errors.New("playback: bad body"))
+		return
+	}
+	SessionOf(r).Use.AddPlayback(b)
 	w.WriteHeader(http.StatusNoContent)
 }
 

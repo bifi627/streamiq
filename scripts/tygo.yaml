@@ -101,6 +101,10 @@ packages:
     optional_type: "null"
     type_mappings:
       time.Time: "string"
+      tunnel.Playback: "tunnel.Playback"
+    frontmatter: |
+      import type * as tunnel from './tunnel'
+
   - path: "streamiq/gateway/internal/host"
     output_path: "frontend/src/generated/host.ts"
     include_files: ["load.go"]

@@ -230,7 +230,7 @@ Railway dev instance); unset → compose Postgres. Copy `.env.example` only to o
 - **Tunnel history is a deliverable**: every tunnel that reaches a gateway is recorded in the
   gateway's own history (direct or relayed, IPv4/v6, bytes, duration, use, throughput;
   `state/history/`, 30 days): the gateway writes the line, the browser adds only its measured
-  throughput over the tunnel. Activity reads it from the gateways. Postgres keeps only relayed
+  throughput and per-playback quality summaries over the tunnel (each checked and capped by the gateway). Activity reads it from the gateways. Postgres keeps only relayed
   bytes per gateway and month, from Cloudflare (`relay_usage`).
 - Data-channel payloads are **chunked (~16–64KB) with backpressure** (`bufferedAmount` both
   ends): never whole segments as one message.

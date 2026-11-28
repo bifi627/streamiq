@@ -2551,3 +2551,10 @@ html.tv .episode:focus-visible {
 .activity tbody tr + tr td {
   border-top: 1px solid var(--surface-2);
 }
+/* A playback's summary under its tunnel's row: part of that row, no rule above it. */
+.activity tbody tr.playback td {
+  border-top: none;
+  padding-top: 0;
+  padding-left: var(--sp-3);
+  color: var(--text-muted);
+}

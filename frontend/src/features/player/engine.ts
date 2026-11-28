@@ -164,7 +164,8 @@ export class Engine {
     // To the tunnel alive at the end; a closed page's goes best effort on pagehide.
     const report = () => {
       const p = summary.end()
-      if (p)
+      if (p?.quality)
+        // a player closed before its first load played nothing
         void send(
           p,
           (b) => tunnelJson(this.tunnel(), '/streamiq/tunnels/playback', b),

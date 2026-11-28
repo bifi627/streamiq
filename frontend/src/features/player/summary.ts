@@ -6,7 +6,7 @@ import type { Playback } from '../../generated/tunnel'
 const TICK = 1000
 
 /** Seconds really played between two samples: media time that moved forward, at
- * most the wall time that passed, so a seek or a reload adds nothing. */
+ * most the wall time that passed, so a seek or a reload adds a second at most. */
 export const played = (media: number, wall: number) =>
   media > 0 ? Math.min(media, wall) : 0
 
@@ -55,11 +55,16 @@ export function track(v: HTMLVideoElement, itemId: string) {
   let at = v.currentTime
   let prev = performance.now()
   const f = { base: { dropped: 0, total: 0 }, last: { dropped: 0, total: 0 } }
+  let hidden = document.hidden // the tick after a hidden spell is throttled too
   const waiting = () => p.waits++
   v.addEventListener('waiting', waiting)
   const t = setInterval(() => {
     const now = performance.now()
-    p.worstStallMs = Math.max(p.worstStallMs, lag(now - prev, document.hidden))
+    p.worstStallMs = Math.max(
+      p.worstStallMs,
+      lag(now - prev, hidden || document.hidden),
+    )
+    hidden = document.hidden
     sec += played(v.paused ? 0 : v.currentTime - at, (now - prev) / 1000)
     at = v.currentTime
     prev = now
@@ -126,12 +131,13 @@ const unit = (u: string, x: number) =>
 /** "hevc 1920×1080 · Source · remux · 12 min · 312 of 43,210 frames dropped ·
  * worst stall 840 ms · 3 waits" */
 export function line(p: Playback) {
-  const min = Math.round(p.playedSec / 60)
   return [
     `${p.codec || '?'} ${p.width}×${p.height}`,
     p.quality || '?',
     p.remux ? 'remux' : 'transcode',
-    min ? unit('minute', min) : unit('second', p.playedSec),
+    p.playedSec < 60
+      ? unit('second', p.playedSec)
+      : unit('minute', Math.round(p.playedSec / 60)),
     `${n(p.droppedFrames)} of ${n(p.totalFrames)} frames dropped`,
     `worst stall ${unit('millisecond', p.worstStallMs)}`,
     `${n(p.waits)} ${p.waits === 1 ? 'wait' : 'waits'}`,

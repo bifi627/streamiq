@@ -244,7 +244,7 @@ API keeps no per-tunnel data (#783) and the browser can't create, alter or skip 
   `/streamiq/*`). A new use is a gateway table row + this list + a web label. `activeMs` =
   from the gateway receiving the offer to the end of the tunnel's last request (the shared
   tunnel's idle wait before it closes is not in it). Both absent when no request was served.
-- **Browser**: only its measured throughput, to the gateway over the tunnel itself
+- **Browser**: its measured throughput, to the gateway over the tunnel itself
   (`POST /streamiq/tunnels/throughput`, below), before it closes the socket; a closed tab
   skips it. And each playback's quality summary as the playback ends
   (`POST /streamiq/tunnels/playback`, below).
@@ -500,7 +500,7 @@ on a connected tunnel and closes after 2 s at most without an answer.
 `204`: one playback's quality summary as the browser measured it (one item in the player,
 until it closes or moves to another item; reloads stay the same playback; `quality` is the
 picked one: Auto, Source, Raw or a rung; `worstStallMs` the longest main-thread stall a 1 s
-timer saw), kept for this session's own tunnel and written with its line when it ends, the
+timer saw; `itemId` a Jellyfin id, `codec` and `quality` at most 32 bytes, else `400`), kept for this session's own tunnel and written with its line when it ends, the
 last 20 per tunnel. Not JSON → `400`. Served by the tunnel itself and counted as neither use
 nor active time. The web app sends it to the tunnel alive when the playback ends (best effort
 on `pagehide`); a gateway older than this answers `404`, which the web app only logs.
